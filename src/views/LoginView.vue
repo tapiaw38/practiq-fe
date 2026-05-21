@@ -516,6 +516,7 @@ async function completePendingProfile() {
   width: 180px;
   display: block;
   filter: brightness(0) invert(1);
+  padding: 30px 0;
 }
 .brand-logo--mobile {
   width: 130px;

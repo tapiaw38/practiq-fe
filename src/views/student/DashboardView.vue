@@ -163,6 +163,7 @@ import { practiceSheetService } from '@/services/practiceSheets/practiceSheetSer
 import { notebookService } from '@/services/notebooks/notebookService'
 import { progressService } from '@/services/progress/progressService'
 import { profileService } from '@/services/profile/profileService'
+import { levelService } from '@/services/levels/levelService'
 import type { Course, PracticeSheet, TopicProgress, Notebook } from '@/types'
 
 const router = useRouter()
@@ -171,6 +172,7 @@ const courses = ref<Course[]>([])
 const progress = ref<TopicProgress[]>([])
 const courseSheets = ref<Record<string, PracticeSheet[]>>({})
 const courseNotebooks = ref<Record<string, Notebook[]>>({})
+const courseCurrentLevel = ref<Record<string, number>>({})
 const loading = ref(true)
 
 const firstName = computed(() => {
@@ -178,15 +180,20 @@ const firstName = computed(() => {
   return name.split(' ')[0] || 'Estudiante'
 })
 
-const currentTopic = computed(() => progress.value[0]?.topic_title || 'Fracciones')
-const currentLevel = computed(() => progress.value[0]?.current_level || 3)
-const streakDays = computed(() => Math.max(...progress.value.map((p) => p.streak_days), 0) || 12)
+const currentTopic = computed(() => progress.value[0]?.topic_title || '—')
+const currentLevel = computed(() => {
+  const levels = Object.values(courseCurrentLevel.value)
+  return levels.length ? levels[0] : 1
+})
+const streakDays = computed(() => Math.max(...progress.value.map((p) => p.streak_days), 0) || 0)
 const averageMastery = computed(() => {
-  if (!progress.value.length) return 68
+  if (!progress.value.length) return 0
   return progress.value.reduce((acc, item) => acc + item.mastery_score, 0) / progress.value.length
 })
 const totalSheets = computed(() =>
-  Object.values(courseSheets.value).reduce((acc, items) => acc + items.length, 0)
+  Object.values(courseSheets.value).reduce(
+    (acc, items) => acc + items.filter(s => s.sheet_type !== 'level_test').length, 0
+  )
 )
 const completedGoals = computed(() =>
   progress.value.reduce((acc, item) => acc + item.correct_attempts, 0)
@@ -196,7 +203,7 @@ const goalProgress = computed(() =>
   Math.min(100, Math.round((completedGoals.value / todayGoalTarget.value) * 100))
 )
 const earnedPoints = computed(() =>
-  progress.value.reduce((acc, item) => acc + item.correct_attempts * 12, 0) || 120
+  progress.value.reduce((acc, item) => acc + item.correct_attempts * 12, 0)
 )
 const featuredSheetId = computed(() => {
   for (const course of courses.value) {
@@ -233,6 +240,12 @@ onMounted(async () => {
           courseNotebooks.value[c.id] = await notebookService.list(c.id)
         } catch {
           courseNotebooks.value[c.id] = []
+        }
+        try {
+          const lvRes = await levelService.getCourseLevels(c.id)
+          courseCurrentLevel.value[c.id] = lvRes.current_level
+        } catch {
+          courseCurrentLevel.value[c.id] = 1
         }
       }))
     }
