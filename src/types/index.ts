@@ -163,6 +163,36 @@ export interface RegisterResponse {
   data: AuthUser
 }
 
+export interface LevelSheetSummary {
+  id: string
+  title: string
+  level: number
+  sheet_type: 'practice' | 'level_test'
+  test_style: 'keyboard' | 'canvas'
+  exercises: number
+}
+
+export interface LevelNotebookSummary {
+  id: string
+  title: string
+  description: string
+  level: number
+  pages: number
+}
+
+export interface LevelData {
+  level: number
+  unlocked: boolean
+  practices: LevelSheetSummary[]
+  level_test: LevelSheetSummary | null
+  notebooks: LevelNotebookSummary[]
+}
+
+export interface CourseLevelsResponse {
+  current_level: number
+  levels: LevelData[]
+}
+
 export interface NotebookSubmission {
   id: string
   canvas_data: string

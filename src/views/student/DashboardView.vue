@@ -9,39 +9,40 @@
         <!-- Welcome banner -->
         <section class="welcome-banner">
           <div class="welcome-copy">
-            <div class="welcome-kicker">Tu práctica de hoy</div>
-            <h1 class="welcome-title">Hola, {{ firstName }}.</h1>
-            <p class="welcome-subtitle">
-              Sigamos avanzando con ejercicios cortos, retroalimentación inmediata y ayuda paso a paso.
-            </p>
-          </div>
+              <div class="welcome-kicker">Tu práctica de hoy</div>
+              <h1 class="welcome-title">Hola, {{ firstName }}.</h1>
+              <p class="welcome-subtitle">
+                Sigamos avanzando con ejercicios cortos, retroalimentación inmediata y ayuda paso a paso.
+              </p>
+            </div>
 
-          <div class="welcome-topic-card">
-            <div class="topic-card__top">
-              <div>
-                <div class="topic-card__label">Tema actual</div>
-                <div class="topic-card__name">{{ currentTopic }}</div>
+            <div class="welcome-topic-card">
+              <div class="topic-card__top">
+                <div>
+                  <div class="topic-card__label">Tema actual</div>
+                  <div class="topic-card__name">{{ currentTopic }}</div>
+                </div>
+                <div class="topic-card__level">Nivel {{ currentLevel }}</div>
               </div>
-              <div class="topic-card__level">Nivel {{ currentLevel }}</div>
+              <div class="progress-bar topic-progress">
+                <div class="progress-fill" :style="{ width: averageMastery + '%' }"></div>
+              </div>
+              <div class="topic-progress-meta">
+                <span>{{ Math.round(averageMastery) }}% de dominio</span>
+                <span>{{ totalSheets }} prácticas disponibles</span>
+              </div>
             </div>
-            <div class="progress-bar topic-progress">
-              <div class="progress-fill" :style="{ width: averageMastery + '%' }"></div>
-            </div>
-            <div class="topic-progress-meta">
-              <span>{{ Math.round(averageMastery) }}% de dominio</span>
-              <span>{{ totalSheets }} prácticas disponibles</span>
-            </div>
-          </div>
 
-          <div class="welcome-actions">
-            <button class="btn btn-primary welcome-btn" @click="startFeaturedPractice" :disabled="!featuredSheetId">
-              <i class="pi pi-play-circle"></i>
-              Continuar práctica
-            </button>
-            <button class="btn btn-secondary welcome-btn" @click="scrollToCourses">
-              Ver mis cursos
-            </button>
-          </div>
+            <div class="welcome-actions">
+              <button class="btn btn-primary welcome-btn" @click="startFeaturedPractice" :disabled="!featuredSheetId">
+                <i class="pi pi-play-circle"></i>
+                Continuar práctica
+              </button>
+              <button class="btn btn-secondary welcome-btn" @click="scrollToCourses">
+                <i class="pi pi-bolt"></i>
+                Practicar con mi copiloto
+              </button>
+            </div>
         </section>
 
         <!-- Metrics row -->
@@ -121,87 +122,33 @@
             <article v-for="course in courses" :key="course.id" class="course-card">
               <div class="course-card__eyebrow">
                 <span class="course-subject">{{ course.subject || 'General' }}</span>
-                <span class="course-count">{{ practiceSheets(course.id).length }} prácticas · {{ levelTests(course.id).length }} pruebas</span>
               </div>
-              <button class="course-toggle" @click="toggleCourse(course.id)">
-                <h3 class="course-title">{{ course.title }}</h3>
-                <i class="pi" :class="openCards.has(course.id) ? 'pi-chevron-up' : 'pi-chevron-down'"></i>
+              <h3 class="course-title">{{ course.title }}</h3>
+              <div class="course-stats">
+                <div class="course-stat">
+                  <span class="course-stat__value">{{ practiceSheets(course.id).length }}</span>
+                  <span class="course-stat__label">Prácticas</span>
+                </div>
+                <div class="course-stat-divider"></div>
+                <div class="course-stat">
+                  <span class="course-stat__value">{{ levelTests(course.id).length }}</span>
+                  <span class="course-stat__label">Pruebas</span>
+                </div>
+                <div class="course-stat-divider"></div>
+                <div class="course-stat">
+                  <span class="course-stat__value">{{ courseNotebooks[course.id]?.length || 0 }}</span>
+                  <span class="course-stat__label">Cuadernos</span>
+                </div>
+              </div>
+              <button class="btn-levels" @click="router.push(`/student/courses/${course.id}/levels`)">
+                <i class="pi pi-list"></i> Ver niveles
               </button>
-              <p v-if="openCards.has(course.id)" class="course-desc">{{ course.description || 'Sin descripción' }}</p>
-
-              <template v-if="openCards.has(course.id)">
-              <!-- Prácticas -->
-              <div v-if="practiceSheets(course.id).length" class="sheets-section">
-                <div class="sheets-header">
-                  <span class="sheets-label sheets-label--practice">📝 Prácticas</span>
-                </div>
-                <div class="sheets-list">
-                  <button
-                    v-for="sheet in practiceSheets(course.id)"
-                    :key="sheet.id"
-                    class="sheet-btn sheet-btn--practice"
-                    @click="startPractice(sheet.id)"
-                  >
-                    <div class="sheet-info">
-                      <span class="sheet-title">{{ sheet.title }}</span>
-                      <span class="sheet-meta">Nivel {{ sheet.level }} · {{ sheet.exercises?.length || '?' }} ejercicios</span>
-                    </div>
-                    <i class="pi pi-arrow-right"></i>
-                  </button>
-                </div>
-              </div>
-
-              <!-- Pruebas de nivel -->
-              <div v-if="levelTests(course.id).length" class="sheets-section">
-                <div class="sheets-header">
-                  <span class="sheets-label sheets-label--test">🏆 Pruebas de Nivel</span>
-                </div>
-                <div class="sheets-list">
-                  <button
-                    v-for="sheet in levelTests(course.id)"
-                    :key="sheet.id"
-                    class="sheet-btn sheet-btn--test"
-                    @click="openLevelTest(sheet.id)"
-                  >
-                    <div class="sheet-info">
-                      <span class="sheet-title">{{ sheet.title }}</span>
-                      <span class="sheet-meta">Nivel {{ sheet.level }} · {{ sheet.test_style === 'canvas' ? 'Hoja' : 'Teclado' }}</span>
-                    </div>
-                    <i class="pi pi-arrow-right"></i>
-                  </button>
-                </div>
-              </div>
-
-              <!-- Sin hojas -->
-              <div v-if="!practiceSheets(course.id).length && !levelTests(course.id).length" class="sheets-section">
-                <div class="sheets-empty">No hay hojas disponibles aún</div>
-              </div>
-
-              <!-- Cuadernos -->
-              <div v-if="courseNotebooks[course.id]?.length" class="sheets-section">
-                <div class="sheets-header">
-                  <span class="sheets-label sheets-label--notebook">📓 Cuadernos</span>
-                </div>
-                <div class="sheets-list">
-                  <button
-                    v-for="nb in courseNotebooks[course.id]"
-                    :key="nb.id"
-                    class="sheet-btn sheet-btn--notebook"
-                    @click="openNotebook(nb.id)"
-                  >
-                    <div class="sheet-info">
-                      <span class="sheet-title">{{ nb.title }}</span>
-                      <span class="sheet-meta">{{ nb.pages?.length || 0 }} páginas</span>
-                    </div>
-                    <i class="pi pi-arrow-right"></i>
-                  </button>
-                </div>
-              </div>
-              </template>
             </article>
           </div>
         </section>
       </template>
+
+      <img src="@/assets/backpack.png" class="dashboard-mascot" alt="" aria-hidden="true" />
     </div>
   </StudentLayout>
 </template>
@@ -225,13 +172,6 @@ const progress = ref<TopicProgress[]>([])
 const courseSheets = ref<Record<string, PracticeSheet[]>>({})
 const courseNotebooks = ref<Record<string, Notebook[]>>({})
 const loading = ref(true)
-const openCards = ref(new Set<string>())
-
-function toggleCourse(id: string) {
-  const s = new Set(openCards.value)
-  s.has(id) ? s.delete(id) : s.add(id)
-  openCards.value = s
-}
 
 const firstName = computed(() => {
   const name = authStore.profile?.name || ''
@@ -317,13 +257,6 @@ function startPractice(sheetId: string) {
   router.push(`/student/practice/${sheetId}`)
 }
 
-function openLevelTest(sheetId: string) {
-  router.push(`/student/level-test/${sheetId}`)
-}
-
-function openNotebook(notebookId: string) {
-  router.push(`/student/notebook/${notebookId}`)
-}
 
 function startFeaturedPractice() {
   if (featuredSheetId.value) startPractice(featuredSheetId.value)
@@ -336,6 +269,7 @@ function scrollToCourses() {
 
 <style scoped>
 .student-home {
+  position: relative;
   padding: 24px 28px 40px;
 }
 
@@ -347,6 +281,8 @@ function scrollToCourses() {
 
 /* ── Welcome banner ── */
 .welcome-banner {
+  position: relative;
+  z-index: 2;
   padding: 28px 32px;
   border-radius: 28px;
   background:
@@ -356,6 +292,25 @@ function scrollToCourses() {
   border: 1px solid rgba(255, 255, 255, 0.92);
   box-shadow: 0 20px 48px rgba(98, 112, 149, 0.1);
   margin-bottom: 20px;
+}
+
+/* ── Dashboard mascot ── */
+.dashboard-mascot {
+  position: absolute;
+  bottom: 0;
+  right: 0;
+  width: 580px;
+  pointer-events: none;
+  user-select: none;
+  z-index: 0;
+}
+
+@media (max-width: 1100px) {
+  .dashboard-mascot { width: 440px; }
+}
+
+@media (max-width: 640px) {
+  .dashboard-mascot { display: none; }
 }
 
 .welcome-kicker,
@@ -465,6 +420,8 @@ function scrollToCourses() {
   background: rgba(255, 255, 255, 0.85);
   border: 1px solid rgba(255, 255, 255, 0.92);
   box-shadow: 0 8px 24px rgba(93, 108, 146, 0.08);
+  position: relative;
+  z-index: 2;
 }
 
 .metric-card--goal {
@@ -549,6 +506,8 @@ function scrollToCourses() {
   background: rgba(255, 255, 255, 0.85);
   border: 1px solid rgba(255, 255, 255, 0.92);
   box-shadow: 0 6px 20px rgba(93, 108, 146, 0.08);
+  position: relative;
+  z-index: 2;
 }
 
 .mastery-card__top {
@@ -609,14 +568,16 @@ function scrollToCourses() {
   background: rgba(255, 255, 255, 0.85);
   border: 1px solid rgba(255, 255, 255, 0.92);
   box-shadow: 0 8px 28px rgba(93, 108, 146, 0.08);
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  position: relative;
+  z-index: 2;
 }
 
 .course-card__eyebrow {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-  margin-bottom: 12px;
 }
 
 .course-subject {
@@ -630,33 +591,6 @@ function scrollToCourses() {
   text-transform: capitalize;
 }
 
-.course-count {
-  font-size: 12px;
-  color: var(--text-muted);
-  font-weight: 600;
-}
-
-.course-toggle {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  width: 100%;
-  background: none;
-  border: none;
-  cursor: pointer;
-  padding: 0;
-  text-align: left;
-  margin-bottom: 6px;
-}
-.course-toggle .pi {
-  font-size: 13px;
-  color: var(--text-secondary);
-  flex-shrink: 0;
-  transition: var(--transition);
-}
-.course-toggle:hover .pi { color: var(--practiq-violet); }
-
 .course-title {
   font-size: 18px;
   font-weight: 700;
@@ -665,105 +599,63 @@ function scrollToCourses() {
   line-height: 1.3;
 }
 
-.course-desc {
-  font-size: 13px;
-  color: var(--text-secondary);
-  line-height: 1.6;
-  margin-bottom: 16px;
-}
-
-.sheets-section {
-  border-top: 1px solid rgba(148, 163, 184, 0.12);
-  padding-top: 14px;
-}
-
-.sheets-header { margin-bottom: 10px; }
-
-.sheets-label {
-  font-size: 11px;
-  font-weight: 700;
-  color: var(--text-muted);
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
-}
-
-.sheets-empty {
-  font-size: 13px;
-  color: var(--text-muted);
-  padding: 8px 0;
-}
-
-.sheets-list {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
-.sheet-btn {
+.course-stats {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  padding: 12px 16px;
+  gap: 0;
+  background: rgba(248, 250, 252, 0.8);
   border-radius: 14px;
-  border: 1px solid rgba(124, 58, 237, 0.1);
-  background: linear-gradient(180deg, rgba(255,255,255,0.96), rgba(245,243,255,0.9));
-  cursor: pointer;
-  transition: var(--transition);
-  text-align: left;
+  padding: 14px 0;
 }
 
-.sheet-btn:hover {
-  transform: translateY(-1px);
-  border-color: rgba(124, 58, 237, 0.24);
-  box-shadow: 0 8px 20px rgba(124, 58, 237, 0.08);
-}
-
-.sheets-label--practice { color: #059669; }
-.sheets-label--test     { color: #d97706; }
-.sheets-label--notebook { color: #7c3aed; }
-
-.sheet-btn--practice {
-  border-color: rgba(16, 185, 129, 0.15);
-  background: linear-gradient(180deg, rgba(255,255,255,0.96), rgba(236,253,245,0.9));
-}
-.sheet-btn--practice:hover {
-  border-color: rgba(16, 185, 129, 0.3);
-  box-shadow: 0 8px 20px rgba(16, 185, 129, 0.08);
-}
-
-.sheet-btn--test {
-  border-color: rgba(245, 158, 11, 0.2);
-  background: linear-gradient(180deg, rgba(255,255,255,0.96), rgba(255,251,235,0.9));
-}
-.sheet-btn--test:hover {
-  border-color: rgba(245, 158, 11, 0.35);
-  box-shadow: 0 8px 20px rgba(245, 158, 11, 0.1);
-}
-
-.sheet-btn--notebook {
-  border-color: rgba(124, 58, 237, 0.15);
-  background: linear-gradient(180deg, rgba(255,255,255,0.96), rgba(245,243,255,0.9));
-}
-.sheet-btn--notebook:hover {
-  border-color: rgba(124, 58, 237, 0.3);
-  box-shadow: 0 8px 20px rgba(124, 58, 237, 0.08);
-}
-
-.sheet-info {
+.course-stat {
+  flex: 1;
   display: flex;
   flex-direction: column;
+  align-items: center;
   gap: 2px;
 }
 
-.sheet-title {
-  font-size: 14px;
-  font-weight: 700;
+.course-stat__value {
+  font-size: 22px;
+  font-weight: 800;
   color: var(--text-primary);
+  line-height: 1;
 }
 
-.sheet-meta {
-  font-size: 12px;
-  color: var(--text-secondary);
+.course-stat__label {
+  font-size: 11px;
+  color: var(--text-muted);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.course-stat-divider {
+  width: 1px;
+  height: 32px;
+  background: rgba(148, 163, 184, 0.2);
+}
+
+.btn-levels {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  padding: 11px 16px;
+  border-radius: 12px;
+  border: 1.5px solid rgba(124, 58, 237, 0.2);
+  background: rgba(245, 243, 255, 0.8);
+  color: var(--practiq-violet);
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: var(--transition);
+  width: 100%;
+}
+.btn-levels:hover {
+  background: rgba(124, 58, 237, 0.1);
+  border-color: rgba(124, 58, 237, 0.35);
 }
 
 /* ── Responsive ── */

@@ -50,55 +50,94 @@
             <div v-if="loadingCourses" class="nav-sub-loading">
               <i class="pi pi-spin pi-spinner"></i>
             </div>
-            <template v-else-if="coursesWithBooks.length">
-              <div v-for="c in coursesWithBooks" :key="c.id" class="nav-course-group">
+            <template v-else-if="coursesData.length">
+              <div v-for="c in coursesData" :key="c.id" class="nav-course-group">
+                <!-- Course header -->
                 <button class="nav-course-toggle" @click="toggleCourse(c.id)">
                   <i class="pi pi-graduation-cap"></i>
                   <span class="nav-course-toggle-title">{{ c.title }}</span>
                   <i class="pi nav-chevron" :class="openCourses.has(c.id) ? 'pi-chevron-down' : 'pi-chevron-right'"></i>
                 </button>
 
+                <!-- Levels list -->
                 <template v-if="openCourses.has(c.id)">
-                  <template v-if="c.sheets.filter(s => s.sheet_type !== 'level_test').length">
-                    <div class="nav-section-tag">Prácticas</div>
-                    <button
-                      v-for="sheet in c.sheets.filter(s => s.sheet_type !== 'level_test')"
-                      :key="sheet.id"
-                      class="nav-book-item nav-book-item--practice"
-                      @click="goPractice(sheet.id)"
+                  <div v-if="c.loading" class="nav-sub-loading">
+                    <i class="pi pi-spin pi-spinner"></i>
+                  </div>
+                  <template v-else>
+                    <div
+                      v-for="lv in c.levels"
+                      :key="lv.level"
+                      class="nav-level-group"
                     >
-                      <i class="pi pi-pencil"></i>
-                      <span>{{ sheet.title }}</span>
-                    </button>
-                  </template>
+                      <!-- Level row -->
+                      <button
+                        class="nav-level-row"
+                        :class="{
+                          'nav-level-row--current': lv.level === c.currentLevel,
+                          'nav-level-row--locked': !lv.unlocked
+                        }"
+                        @click="lv.unlocked && toggleLevel(c.id, lv.level)"
+                        :disabled="!lv.unlocked"
+                      >
+                        <span class="nav-level-badge" :class="{ 'nav-level-badge--locked': !lv.unlocked }">
+                          <i v-if="!lv.unlocked" class="pi pi-lock"></i>
+                          <span v-else>{{ lv.level }}</span>
+                        </span>
+                        <span class="nav-level-label">Nivel {{ lv.level }}</span>
+                        <span v-if="lv.level === c.currentLevel" class="nav-level-tag">En curso</span>
+                        <i v-if="lv.unlocked" class="pi nav-chevron"
+                          :class="openLevels[c.id]?.has(lv.level) ? 'pi-chevron-down' : 'pi-chevron-right'"></i>
+                      </button>
 
-                  <template v-if="c.sheets.filter(s => s.sheet_type === 'level_test').length">
-                    <div class="nav-section-tag">Pruebas de Nivel</div>
-                    <button
-                      v-for="sheet in c.sheets.filter(s => s.sheet_type === 'level_test')"
-                      :key="sheet.id"
-                      class="nav-book-item nav-book-item--test"
-                      @click="goLevelTest(sheet.id)"
-                    >
-                      <i class="pi pi-star"></i>
-                      <span>{{ sheet.title }}</span>
-                    </button>
-                  </template>
+                      <!-- Level content -->
+                      <template v-if="lv.unlocked && openLevels[c.id]?.has(lv.level)">
+                        <!-- Prácticas -->
+                        <template v-if="lv.practices?.length">
+                          <div class="nav-section-tag">Prácticas</div>
+                          <button
+                            v-for="sheet in lv.practices"
+                            :key="sheet.id"
+                            class="nav-book-item nav-book-item--practice"
+                            @click="goPractice(sheet.id)"
+                          >
+                            <i class="pi pi-pencil"></i>
+                            <span>{{ sheet.title }}</span>
+                          </button>
+                        </template>
 
-                  <template v-if="c.notebooks.length">
-                    <div class="nav-section-tag">Cuadernos</div>
-                    <button
-                      v-for="nb in c.notebooks"
-                      :key="nb.id"
-                      class="nav-book-item nav-book-item--notebook"
-                      @click="goNotebook(nb.id)"
-                    >
-                      <i class="pi pi-book"></i>
-                      <span>{{ nb.title }}</span>
-                    </button>
-                  </template>
+                        <!-- Cuadernos -->
+                        <template v-if="lv.notebooks?.length">
+                          <div class="nav-section-tag">Cuadernos</div>
+                          <button
+                            v-for="nb in lv.notebooks"
+                            :key="nb.id"
+                            class="nav-book-item nav-book-item--notebook"
+                            @click="goNotebook(nb.id)"
+                          >
+                            <i class="pi pi-book"></i>
+                            <span>{{ nb.title }}</span>
+                          </button>
+                        </template>
 
-                  <div v-if="!c.sheets.length && !c.notebooks.length" class="nav-sub-empty">Sin contenido</div>
+                        <!-- Prueba de nivel -->
+                        <template v-if="lv.level_test">
+                          <div class="nav-section-tag">Prueba de Nivel</div>
+                          <button
+                            class="nav-book-item nav-book-item--test"
+                            @click="goLevelTest(lv.level_test!.id)"
+                          >
+                            <i class="pi pi-star"></i>
+                            <span>{{ lv.level_test.title }}</span>
+                          </button>
+                        </template>
+
+                        <div v-if="!lv.practices?.length && !lv.notebooks?.length && !lv.level_test" class="nav-sub-empty">
+                          Sin contenido aún
+                        </div>
+                      </template>
+                    </div>
+                  </template>
                 </template>
               </div>
             </template>
@@ -128,13 +167,20 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
+import { computed, onMounted, onUnmounted, ref, reactive, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/authStore'
 import { courseService } from '@/services/courses/courseService'
-import { notebookService } from '@/services/notebooks/notebookService'
-import { practiceSheetService } from '@/services/practiceSheets/practiceSheetService'
-import type { Notebook, PracticeSheet } from '@/types'
+import { levelService } from '@/services/levels/levelService'
+import type { LevelData } from '@/types'
+
+interface CourseNavItem {
+  id: string
+  title: string
+  currentLevel: number
+  levels: LevelData[]
+  loading: boolean
+}
 
 const route = useRoute()
 const router = useRouter()
@@ -144,35 +190,57 @@ const userInitial = computed(() => profile.value?.name?.[0]?.toUpperCase() || 'A
 const navOpen = ref(false)
 const coursesOpen = ref(false)
 const loadingCourses = ref(false)
-const coursesWithBooks = ref<{ id: string; title: string; sheets: PracticeSheet[]; notebooks: Notebook[] }[]>([])
+const coursesData = ref<CourseNavItem[]>([])
 const openCourses = ref(new Set<string>())
+// openLevels[courseId] = Set of open level numbers
+const openLevels = reactive<Record<string, Set<number>>>({})
 
 function toggleCourse(id: string) {
   const s = new Set(openCourses.value)
-  s.has(id) ? s.delete(id) : s.add(id)
+  if (s.has(id)) {
+    s.delete(id)
+  } else {
+    s.add(id)
+    loadCourseLevels(id)
+  }
   openCourses.value = s
 }
 
+function toggleLevel(courseId: string, level: number) {
+  if (!openLevels[courseId]) openLevels[courseId] = new Set()
+  const s = new Set(openLevels[courseId])
+  s.has(level) ? s.delete(level) : s.add(level)
+  openLevels[courseId] = s
+}
+
+async function loadCourseLevels(courseId: string) {
+  const course = coursesData.value.find(c => c.id === courseId)
+  if (!course || course.levels.length) return
+  course.loading = true
+  try {
+    const res = await levelService.getCourseLevels(courseId)
+    course.currentLevel = res.current_level
+    course.levels = res.levels
+    // Auto-open current level
+    if (!openLevels[courseId]) openLevels[courseId] = new Set()
+    openLevels[courseId] = new Set([res.current_level])
+  } finally {
+    course.loading = false
+  }
+}
+
 watch(coursesOpen, async (open) => {
-  if (!open || coursesWithBooks.value.length) return
+  if (!open || coursesData.value.length) return
   loadingCourses.value = true
   try {
     const res = await courseService.list('student')
-    const list = res.data || []
-    coursesWithBooks.value = await Promise.all(
-      list.map(async (c) => {
-        const [sheets, notebooks] = await Promise.allSettled([
-          practiceSheetService.list(c.id),
-          notebookService.list(c.id)
-        ])
-        return {
-          id: c.id,
-          title: c.title,
-          sheets: sheets.status === 'fulfilled' ? (sheets.value.data || []) : [],
-          notebooks: notebooks.status === 'fulfilled' ? notebooks.value : []
-        }
-      })
-    )
+    coursesData.value = (res.data || []).map(c => ({
+      id: c.id,
+      title: c.title,
+      currentLevel: 1,
+      levels: [],
+      loading: false
+    }))
   } finally {
     loadingCourses.value = false
   }
@@ -245,7 +313,6 @@ function logout() {
 .sidebar-brand-main,
 .user-info,
 .topbar-brand,
-.mode-card,
 .nav-item,
 .sidebar-footer {
   display: flex;
@@ -260,7 +327,6 @@ function logout() {
 .sidebar-brand-main,
 .topbar-brand,
 .user-info,
-.mode-card,
 .nav-item {
   gap: 12px;
 }
@@ -321,46 +387,14 @@ function logout() {
   color: var(--text-primary);
 }
 
-.mode-card {
-  margin-top: 20px;
-  padding: 16px;
-  border-radius: 24px;
-  background:
-    radial-gradient(circle at top left, rgba(124, 58, 237, 0.12), transparent 55%),
-    linear-gradient(180deg, rgba(255, 255, 255, 0.96), rgba(245, 243, 255, 0.88));
-  border: 1px solid rgba(124, 58, 237, 0.12);
-}
-
-.mode-card__icon {
-  width: 44px;
-  height: 44px;
-  border-radius: 16px;
-  display: grid;
-  place-items: center;
-  font-size: 20px;
-  background: rgba(124, 58, 237, 0.12);
-  color: var(--practiq-violet-dark);
-}
-
-.mode-card__title {
-  font-size: 14px;
-  font-weight: 700;
-  color: #17203a;
-}
-
-.mode-card__copy {
-  margin-top: 4px;
-  font-size: 12px;
-  line-height: 1.55;
-  color: var(--text-secondary);
-}
-
 .sidebar-nav {
   flex: 1;
   display: flex;
   flex-direction: column;
   gap: 8px;
   margin-top: 20px;
+  overflow-y: auto;
+  overflow-x: hidden;
 }
 
 .nav-item {
@@ -405,10 +439,10 @@ function logout() {
 
 .nav-sub {
   margin-top: 4px;
-  padding-left: 12px;
+  padding-left: 8px;
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 2px;
   overflow: hidden;
 }
 
@@ -428,21 +462,21 @@ function logout() {
   display: flex;
   flex-direction: column;
   gap: 2px;
-  margin-bottom: 6px;
+  margin-bottom: 4px;
 }
 
 .nav-course-toggle {
   display: flex;
   align-items: center;
   gap: 8px;
-  width: 100%;
-  padding: 8px 12px;
+  padding: 8px 10px;
   border-radius: 12px;
   border: none;
   background: none;
   cursor: pointer;
   text-align: left;
   transition: var(--transition);
+  width: 100%;
 }
 .nav-course-toggle:hover {
   background: rgba(124, 58, 237, 0.06);
@@ -454,7 +488,7 @@ function logout() {
 }
 .nav-course-toggle-title {
   flex: 1;
-  font-size: 12px;
+  font-size: 14px;
   font-weight: 700;
   color: var(--text-primary);
   white-space: nowrap;
@@ -462,13 +496,81 @@ function logout() {
   text-overflow: ellipsis;
 }
 
+/* ── Level rows ── */
+.nav-level-group {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  padding-left: 8px;
+}
+
+.nav-level-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  border-radius: 10px;
+  border: none;
+  background: none;
+  cursor: pointer;
+  width: 100%;
+  text-align: left;
+  transition: var(--transition);
+}
+.nav-level-row:hover:not(:disabled) {
+  background: rgba(124, 58, 237, 0.06);
+}
+.nav-level-row--current {
+  background: rgba(124, 58, 237, 0.07);
+}
+.nav-level-row--locked {
+  cursor: default;
+  opacity: 0.5;
+}
+
+.nav-level-badge {
+  width: 22px;
+  height: 22px;
+  border-radius: 7px;
+  background: linear-gradient(135deg, #8b5cf6, #6366f1);
+  color: #fff;
+  font-size: 11px;
+  font-weight: 800;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+.nav-level-badge--locked {
+  background: rgba(148, 163, 184, 0.2);
+  color: #94a3b8;
+}
+
+.nav-level-label {
+  flex: 1;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.nav-level-tag {
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--practiq-violet);
+  background: rgba(124, 58, 237, 0.1);
+  padding: 2px 7px;
+  border-radius: 99px;
+  flex-shrink: 0;
+}
+
+/* ── Level content items ── */
 .nav-section-tag {
   font-size: 10px;
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.06em;
   color: var(--text-secondary);
-  padding: 6px 12px 2px;
+  padding: 5px 12px 1px;
   opacity: 0.5;
 }
 
@@ -476,12 +578,12 @@ function logout() {
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 9px 12px;
-  border-radius: 12px;
+  padding: 8px 12px;
+  border-radius: 10px;
   border: none;
   background: none;
   cursor: pointer;
-  font-size: 13px;
+  font-size: 12px;
   font-weight: 500;
   color: var(--text-secondary);
   text-align: left;
@@ -510,11 +612,13 @@ function logout() {
 }
 
 .nav-book-item .pi {
-  font-size: 13px;
+  font-size: 12px;
   flex-shrink: 0;
 }
 
 .sidebar-footer {
+  display: flex;
+  align-items: center;
   justify-content: space-between;
   gap: 12px;
   padding-top: 18px;
@@ -522,6 +626,9 @@ function logout() {
 }
 
 .user-info {
+  display: flex;
+  align-items: center;
+  gap: 12px;
   min-width: 0;
   flex: 1;
 }
