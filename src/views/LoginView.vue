@@ -362,6 +362,7 @@ function routeAfterProfile(profile: UserProfile) {
 async function finalizeSession(response: LoginResponse, fallbackProfileType?: ProfileType) {
   authService.setToken(response.token)
   authStore.storeToken(response.token)
+  if (response.data) authStore.setAuthUser(response.data)
 
   try {
     const profileRes = await profileService.get()

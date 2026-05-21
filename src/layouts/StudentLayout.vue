@@ -144,16 +144,32 @@
             <div class="user-role">Estudiante</div>
           </div>
         </div>
-        <button class="logout-btn" type="button" @click="logout">
-          <i class="pi pi-sign-out"></i>
-        </button>
+        <div class="footer-actions">
+          <button
+            class="icon-btn"
+            type="button"
+            :title="isGoogleUser ? 'Establecer contraseña' : 'Cambiar contraseña'"
+            @click="isGoogleUser ? (showSetPassword = true) : (showChangePassword = true)"
+          >
+            <i class="pi pi-lock"></i>
+          </button>
+          <button class="icon-btn icon-btn--logout" type="button" title="Cerrar sesión" @click="logout">
+            <i class="pi pi-sign-out"></i>
+          </button>
+        </div>
       </div>
+
     </aside>
 
     <main class="main-content">
       <slot />
     </main>
   </div>
+
+  <Teleport to="body">
+    <ChangePasswordModal v-model:visible="showChangePassword" />
+    <SetPasswordModal v-model:visible="showSetPassword" />
+  </Teleport>
 </template>
 
 <script setup lang="ts">
@@ -162,6 +178,8 @@ import { useRoute, useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/authStore'
 import { courseService } from '@/services/courses/courseService'
 import { levelService } from '@/services/levels/levelService'
+import ChangePasswordModal from '@/components/ChangePasswordModal.vue'
+import SetPasswordModal from '@/components/SetPasswordModal.vue'
 import type { LevelData } from '@/types'
 
 interface CourseNavItem {
@@ -182,6 +200,9 @@ const coursesOpen = ref(false)
 const loadingCourses = ref(false)
 const coursesData = ref<CourseNavItem[]>([])
 const openCourses = ref(new Set<string>())
+const showChangePassword = ref(false)
+const showSetPassword = ref(false)
+const isGoogleUser = computed(() => authStore.authMethod === 'google')
 // openLevels[courseId] = Set of open level numbers
 const openLevels = reactive<Record<string, Set<number>>>({})
 
@@ -626,6 +647,35 @@ function logout() {
   border-top: 1px solid rgba(148, 163, 184, 0.14);
 }
 
+.footer-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.icon-btn {
+  width: 36px;
+  height: 36px;
+  border: none;
+  border-radius: 12px;
+  background: rgba(248, 250, 252, 0.92);
+  color: var(--text-secondary);
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+  transition: var(--transition);
+  font-size: 14px;
+}
+.icon-btn:hover {
+  background: white;
+  color: var(--text-primary);
+}
+.icon-btn--logout:hover {
+  color: var(--color-error);
+  background: var(--color-error-bg);
+}
+
 .user-info {
   display: flex;
   align-items: center;
@@ -666,10 +716,6 @@ function logout() {
   color: var(--text-secondary);
 }
 
-.logout-btn:hover {
-  color: var(--color-error);
-  background: var(--color-error-bg);
-}
 
 .main-content {
   flex: 1;

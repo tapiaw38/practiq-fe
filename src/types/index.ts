@@ -4,6 +4,7 @@ export interface AuthUser {
   last_name: string
   username: string
   email: string
+  auth_method: 'password' | 'google' | 'hybrid'
   roles: { id: string; name: string }[]
 }
 

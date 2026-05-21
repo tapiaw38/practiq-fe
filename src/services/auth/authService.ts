@@ -6,6 +6,7 @@ export interface IAuthService {
   register(params: RegisterParams): Promise<RegisterResponse>
   meUser(): Promise<{ data: AuthUser }>
   requestResetPassword(email: string): Promise<{ data: { message: string } }>
+  changePassword(oldPassword: string, newPassword: string): Promise<void>
   getToken(): string | null
   setToken(token: string): void
   removeToken(): void
@@ -47,6 +48,13 @@ export class AuthService implements IAuthService {
   async requestResetPassword(email: string): Promise<{ data: { message: string } }> {
     const { data } = await authApi.post('/auth/request-reset-password', { email })
     return data
+  }
+
+  async changePassword(oldPassword: string, newPassword: string): Promise<void> {
+    await authApi.put('/user/me/password', {
+      old_password: oldPassword,
+      new_password: newPassword
+    })
   }
 
   getToken(): string | null {
