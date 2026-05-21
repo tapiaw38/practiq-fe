@@ -6,11 +6,7 @@
       </button>
 
       <div class="topbar-brand">
-        <div class="brand-icon">P</div>
-        <div>
-          <div class="brand-name">Practiq</div>
-          <div class="brand-tag">Modo práctica</div>
-        </div>
+        <img src="@/assets/logo.png" class="topbar-logo" alt="Practiq" />
       </div>
 
       <div class="topbar-avatar">{{ userInitial }}</div>
@@ -20,13 +16,7 @@
 
     <aside class="sidebar" :class="{ 'sidebar--open': navOpen }">
       <div class="sidebar-brand">
-        <div class="sidebar-brand-main">
-          <div class="brand-icon brand-icon--large">P</div>
-          <div>
-            <div class="brand-name brand-name--large">Practiq</div>
-            <div class="brand-tag">Espacio del estudiante</div>
-          </div>
-        </div>
+        <img src="@/assets/logo.png" class="sidebar-logo" alt="Practiq" />
         <button class="close-btn" type="button" @click="navOpen = false">
           <i class="pi pi-times"></i>
         </button>
@@ -302,7 +292,7 @@ function logout() {
   backdrop-filter: blur(18px);
   display: flex;
   flex-direction: column;
-  padding: 22px 18px;
+  padding: 12px 18px;
   position: sticky;
   top: 18px;
   height: calc(100vh - 36px);
@@ -319,8 +309,19 @@ function logout() {
   align-items: center;
 }
 
+.sidebar-logo {
+  width: 120px;
+  display: block;
+}
+
+.topbar-logo {
+  width: 100px;
+  display: block;
+}
+
 .sidebar-brand {
   justify-content: space-between;
+  align-items: center;
   gap: 12px;
 }
 

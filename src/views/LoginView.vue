@@ -6,11 +6,7 @@
       <div class="glow glow--bottom"></div>
 
       <div class="left-brand">
-        <div class="brand-mark">P</div>
-        <div>
-          <div class="brand-name">Practiq</div>
-          <div class="brand-tag">Aprender con práctica guiada</div>
-        </div>
+        <img src="@/assets/logo.png" class="brand-logo" alt="Practiq" />
       </div>
 
       <div class="left-copy">
@@ -40,25 +36,14 @@
       </div>
 
       <div class="left-preview">
-        <div class="preview-card">
-          <div class="preview-chip">Fracciones · Nivel 3</div>
-          <div class="preview-equation">3/4 + 1/8 = ?</div>
-          <div class="preview-progress">
-            <div class="preview-progress__fill"></div>
-          </div>
-        </div>
-        <div class="preview-bot">🤖</div>
+        <img src="@/assets/robot.png" class="preview-robot" alt="Copiloto Practiq" />
       </div>
     </section>
 
     <!-- ─── RIGHT PANEL ─── -->
     <section class="auth-right">
       <div class="auth-mobile-brand">
-        <div class="brand-mark brand-mark--mobile">P</div>
-        <div>
-          <div class="brand-name">Practiq</div>
-          <div class="brand-tag" style="color: var(--text-secondary)">Aprender con práctica guiada</div>
-        </div>
+        <img src="@/assets/logo.png" class="brand-logo brand-logo--mobile" alt="Practiq" />
       </div>
 
       <div class="auth-card">
@@ -510,7 +495,7 @@ async function completePendingProfile() {
   position: relative;
   overflow: hidden;
   color: white;
-  padding: 40px 48px;
+  padding: 0px 48px 40px;
   display: flex;
   flex-direction: column;
   background: linear-gradient(155deg, #312e81 0%, #4338ca 40%, #6366f1 100%);
@@ -525,8 +510,17 @@ async function completePendingProfile() {
 .glow--top   { top: -120px; right: -60px; width: 320px; height: 320px; background: rgba(167, 139, 250, 0.35); }
 .glow--bottom { bottom: -100px; left: -80px; width: 280px; height: 280px; background: rgba(96, 165, 250, 0.25); }
 
-.left-brand { display: flex; align-items: center; gap: 14px; position: relative; z-index: 1; }
+.left-brand { display: flex; align-items: center; gap: 14px; position: relative; z-index: 1; margin-top: -16px; margin-bottom: 32px; }
 
+.brand-logo {
+  width: 180px;
+  display: block;
+  filter: brightness(0) invert(1);
+}
+.brand-logo--mobile {
+  width: 130px;
+  filter: none;
+}
 .brand-mark {
   width: 44px; height: 44px; border-radius: 14px;
   display: grid; place-items: center;
@@ -545,7 +539,7 @@ async function completePendingProfile() {
 
 .left-copy {
   position: relative; z-index: 1;
-  margin-top: auto; padding-top: 60px;
+  margin-top: 0; padding-top: 20px;
   max-width: 520px;
 }
 .eyebrow {
@@ -573,36 +567,16 @@ async function completePendingProfile() {
 .feature-pill .pi { color: #a5b4fc; font-size: 15px; }
 
 .left-preview {
-  position: absolute; right: 36px; bottom: 36px;
-  width: min(340px, 38vw); z-index: 1;
+  position: absolute; right: 0; bottom: 0;
+  width: min(380px, 42vw); z-index: 0;
+  display: flex; align-items: flex-end; justify-content: flex-end;
 }
-.preview-card {
-  padding: 22px; border-radius: 22px;
-  background: rgba(255,255,255,0.12);
-  border: 1px solid rgba(255,255,255,0.15);
-  backdrop-filter: blur(12px);
-}
-.preview-chip {
-  display: inline-flex; padding: 5px 12px;
-  border-radius: 999px; background: rgba(255,255,255,0.15);
-  font-size: 11px; font-weight: 700;
-}
-.preview-equation { margin-top: 18px; font-size: 2rem; font-weight: 800; }
-.preview-progress {
-  margin-top: 20px; height: 10px; border-radius: 999px;
-  background: rgba(255,255,255,0.15); overflow: hidden;
-}
-.preview-progress__fill {
-  width: 62%; height: 100%;
-  background: linear-gradient(90deg, #c4b5fd, #fff);
-  border-radius: inherit;
-}
-.preview-bot {
-  position: absolute; right: -10px; bottom: -14px;
-  width: 88px; height: 88px; border-radius: 24px;
-  display: grid; place-items: center; font-size: 44px;
-  background: rgba(255,255,255,0.95);
-  box-shadow: 0 16px 40px rgba(0,0,0,0.18);
+.preview-robot {
+  width: 100%;
+  display: block;
+  pointer-events: none;
+  user-select: none;
+  filter: drop-shadow(0 20px 40px rgba(0,0,0,0.18));
 }
 
 /* ───────── RIGHT PANEL ───────── */
