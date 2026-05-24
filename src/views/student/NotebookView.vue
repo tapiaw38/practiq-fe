@@ -160,7 +160,7 @@ const textAnswers = ref<Record<string, string>>({})
 
 const pages = computed(() => notebook.value?.pages || [])
 const currentPage = computed<NotebookPage | null>(() => pages.value[currentPageIndex.value] ?? null)
-const studentId = computed(() => authStore.user?.id || '')
+const studentId = computed(() => authStore.profile?.id || authStore.authUser?.id || '')
 
 const penCursor = `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24'%3E%3Cpath fill='%231e1e2e' d='M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04a1 1 0 0 0 0-1.41l-2.34-2.34a1 1 0 0 0-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z'/%3E%3C/svg%3E") 0 24, crosshair`
 const eraserCursor = `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='20' height='20' viewBox='0 0 20 20'%3E%3Ccircle cx='10' cy='10' r='8' fill='none' stroke='%23666' stroke-width='1.5'/%3E%3C/svg%3E") 10 10, cell`

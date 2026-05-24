@@ -7,11 +7,91 @@
           <div class="welcome-kicker">Panel del docente</div>
           <h1 class="welcome-title">Hola, {{ teacherName }}.</h1>
           <p class="welcome-subtitle">Gestiona tus cursos, agrega ejercicios y acompaña el progreso de tus estudiantes.</p>
+          <div class="role-row">
+            <span class="role-chip" :class="isAdmin ? 'role-chip--admin' : 'role-chip--teacher'">
+              {{ isAdmin ? 'Acceso admin habilitado' : 'Acceso docente estándar' }}
+            </span>
+          </div>
         </div>
-        <button class="btn btn-primary create-btn" @click="showCreateModal = true">
-          <i class="pi pi-plus"></i>
-          Crear Curso
-        </button>
+        <div class="hero-actions">
+          <button class="btn btn-secondary create-btn" @click="goToAcademicAdmin">
+            <i class="pi pi-sitemap"></i>
+            Académico
+          </button>
+          <button class="btn btn-secondary create-btn" @click="goToAdminUsers">
+            <i class="pi pi-users"></i>
+            Usuarios
+          </button>
+          <button class="btn btn-primary create-btn" @click="goToAcademicAdmin">
+            <i class="pi pi-plus"></i>
+            Crear curso
+          </button>
+        </div>
+      </div>
+
+      <div class="admin-shortcut-card" :class="{ 'admin-shortcut-card--locked': !isAdmin }" @click="goToAdminUsers">
+        <div class="admin-shortcut-copy">
+          <div class="admin-shortcut-kicker">Acceso rápido</div>
+          <h2 class="admin-shortcut-title">Administrar alumnos y perfiles</h2>
+          <p class="admin-shortcut-text">
+            Revisa usuarios de `auth-api`, perfiles de Practiq y la configuración del asistente por alumno.
+            <span v-if="!isAdmin"> Requiere rol `admin` o `superadmin`.</span>
+          </p>
+        </div>
+        <div class="admin-shortcut-action">
+          <span>{{ isAdmin ? 'Ir a usuarios' : 'Sin acceso' }}</span>
+          <i class="pi pi-arrow-right"></i>
+        </div>
+      </div>
+
+      <div class="admin-shortcut-card" @click="goToAcademicAdmin">
+        <div class="admin-shortcut-copy">
+          <div class="admin-shortcut-kicker">Estructura</div>
+          <h2 class="admin-shortcut-title">Grados, materias y cursos</h2>
+          <p class="admin-shortcut-text">
+            Define grados, materias y luego crea cursos alineados a esa estructura.
+          </p>
+        </div>
+        <div class="admin-shortcut-action">
+          <span>Ir a académico</span>
+          <i class="pi pi-arrow-right"></i>
+        </div>
+      </div>
+
+      <div v-if="assignedStudents.length" class="student-panel">
+        <div class="student-panel__head">
+          <div>
+            <div class="student-panel__kicker">Tus alumnos</div>
+            <h2 class="student-panel__title">Estudiantes asignados</h2>
+            <p class="student-panel__copy">Consulta rápidamente qué alumnos acompañas y en qué grados están organizados.</p>
+          </div>
+          <div class="student-panel__stats">
+            <span class="student-stat">{{ assignedStudents.length }} alumnos</span>
+            <span class="student-stat">{{ assignedGradeCount }} grados</span>
+          </div>
+        </div>
+
+        <div class="grade-summary-row">
+          <div v-for="group in assignedStudentsByGrade" :key="group.gradeKey" class="grade-summary-card">
+            <div class="grade-summary-name">{{ group.gradeName }}</div>
+            <div class="grade-summary-count">{{ group.students.length }} alumnos</div>
+          </div>
+        </div>
+
+        <div class="student-chip-grid">
+          <article v-for="student in assignedStudents" :key="student.id" class="student-chip-card">
+            <div class="student-chip-name">{{ student.name }}</div>
+            <div class="student-chip-email">{{ student.email }}</div>
+            <div class="student-chip-grades">
+              <span v-for="grade in studentGrades[student.id] || []" :key="grade.id" class="student-grade-pill">
+                {{ grade.name }}
+              </span>
+              <span v-if="!(studentGrades[student.id] || []).length" class="student-grade-pill student-grade-pill--empty">
+                Sin grado
+              </span>
+            </div>
+          </article>
+        </div>
       </div>
 
       <!-- Stats row -->
@@ -43,8 +123,8 @@
         <div class="empty-icon">📚</div>
         <h3>No tienes cursos aún</h3>
         <p>Crea tu primer curso para comenzar a agregar temas y ejercicios.</p>
-        <button class="btn btn-primary" @click="showCreateModal = true">
-          <i class="pi pi-plus"></i> Crear Curso
+        <button class="btn btn-primary" @click="goToAcademicAdmin">
+          <i class="pi pi-plus"></i> Crear curso desde académico
         </button>
       </div>
 
@@ -85,6 +165,21 @@
         <div v-if="showCreateModal" class="modal-overlay" @click.self="showCreateModal = false">
           <div class="modal-box">
             <h3 class="modal-title">Crear nuevo curso</h3>
+
+            <div v-if="grades.length === 0 || subjects.length === 0" class="setup-notice">
+              <i class="pi pi-info-circle"></i>
+              <span>
+                Antes de crear un curso necesitás tener
+                <template v-if="grades.length === 0 && subjects.length === 0">grados y materias</template>
+                <template v-else-if="grades.length === 0">grados</template>
+                <template v-else>materias</template>
+                configurados.
+                <router-link to="/teacher/admin/academic" @click="showCreateModal = false" class="setup-link">
+                  Ir a académico →
+                </router-link>
+              </span>
+            </div>
+
             <form @submit.prevent="createCourse">
               <div class="form-group">
                 <label class="form-label">Título *</label>
@@ -99,23 +194,20 @@
                   <label class="form-label">Materia</label>
                   <select v-model="newCourse.subject" class="form-select">
                     <option value="">Seleccionar</option>
-                    <option value="matematica">Matemáticas</option>
-                    <option value="lectura">Lectura</option>
-                    <option value="ingles">Inglés</option>
-                    <option value="ciencias">Ciencias</option>
-                    <option value="historia">Historia</option>
-                    <option value="otros">Otros</option>
+                    <option v-for="subject in subjects" :key="subject.id" :value="subject.id">{{ subject.name }}</option>
                   </select>
                 </div>
                 <div class="form-group">
-                  <label class="form-label">Nivel</label>
-                  <select v-model="newCourse.level" class="form-select">
+                  <label class="form-label">Grado</label>
+                  <select v-model="newCourse.grade_id" class="form-select">
                     <option value="">Seleccionar</option>
-                    <option value="primaria">Primaria</option>
-                    <option value="secundaria">Secundaria</option>
-                    <option value="preparatoria">Preparatoria</option>
+                    <option v-for="grade in grades" :key="grade.id" :value="grade.id">{{ grade.name }}</option>
                   </select>
                 </div>
+              </div>
+              <div class="form-group">
+                <label class="form-label">Nivel académico</label>
+                <input v-model="newCourse.level" class="form-input" placeholder="Primaria, Secundaria..." />
               </div>
               <div class="modal-actions">
                 <button type="button" class="btn btn-secondary" @click="showCreateModal = false">Cancelar</button>
@@ -137,13 +229,20 @@ import { ref, reactive, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/authStore'
 import TeacherLayout from '@/layouts/TeacherLayout.vue'
+import { assignmentService } from '@/services/assignments/assignmentService'
 import { courseService } from '@/services/courses/courseService'
+import { gradeService } from '@/services/grades/gradeService'
 import { profileService } from '@/services/profile/profileService'
-import type { Course } from '@/types'
+import { subjectService } from '@/services/subjects/subjectService'
+import type { AssignedUser, Course, Grade, Subject } from '@/types'
 
 const router = useRouter()
 const authStore = useAuthStore()
 const courses = ref<Course[]>([])
+const grades = ref<Grade[]>([])
+const subjects = ref<Subject[]>([])
+const assignedStudents = ref<AssignedUser[]>([])
+const studentGrades = ref<Record<string, Grade[]>>({})
 const loading = ref(true)
 const showCreateModal = ref(false)
 const creating = ref(false)
@@ -152,12 +251,18 @@ const newCourse = reactive({
   title: '',
   description: '',
   subject: '',
+  grade_id: '',
   level: ''
 })
 
 const teacherName = computed(() => {
   const name = authStore.profile?.name || ''
   return name.split(' ')[0] || 'Docente'
+})
+
+const isAdmin = computed(() => {
+  const roles = authStore.authUser?.roles || []
+  return roles.some((role) => role.name === 'admin' || role.name === 'superadmin')
 })
 
 const subjectCount = computed(() => {
@@ -173,6 +278,30 @@ const latestCourseDate = computed(() => {
   return new Date(sorted[0].created_at).toLocaleDateString('es', { month: 'short', day: 'numeric' })
 })
 
+const assignedStudentsByGrade = computed(() => {
+  const buckets = new Map<string, { gradeKey: string; gradeName: string; students: AssignedUser[] }>()
+  for (const student of assignedStudents.value) {
+    const gradesForStudent = studentGrades.value[student.id] || []
+    if (!gradesForStudent.length) {
+      if (!buckets.has('no-grade')) {
+        buckets.set('no-grade', { gradeKey: 'no-grade', gradeName: 'Sin grado', students: [] })
+      }
+      buckets.get('no-grade')!.students.push(student)
+      continue
+    }
+
+    for (const grade of gradesForStudent) {
+      if (!buckets.has(grade.id)) {
+        buckets.set(grade.id, { gradeKey: grade.id, gradeName: grade.name, students: [] })
+      }
+      buckets.get(grade.id)!.students.push(student)
+    }
+  }
+  return Array.from(buckets.values())
+})
+
+const assignedGradeCount = computed(() => assignedStudentsByGrade.value.length)
+
 onMounted(async () => {
   if (!authStore.profile) {
     try {
@@ -181,6 +310,8 @@ onMounted(async () => {
     } catch {}
   }
   await loadCourses()
+  await loadCatalogs()
+  await loadAssignedStudents()
 })
 
 async function loadCourses() {
@@ -198,16 +329,20 @@ async function loadCourses() {
 async function createCourse() {
   creating.value = true
   try {
+    const selectedSubject = subjects.value.find((item) => item.id === newCourse.subject)
     await courseService.create({
       title: newCourse.title,
       description: newCourse.description,
-      subject: newCourse.subject,
+      subject_id: newCourse.subject,
+      subject: selectedSubject?.name || '',
+      grade_id: newCourse.grade_id,
       level: newCourse.level
     })
     showCreateModal.value = false
     newCourse.title = ''
     newCourse.description = ''
     newCourse.subject = ''
+    newCourse.grade_id = ''
     newCourse.level = ''
     await loadCourses()
   } catch (err) {
@@ -219,6 +354,51 @@ async function createCourse() {
 
 function goToCourse(id: string) {
   router.push(`/teacher/courses/${id}`)
+}
+
+function goToAdminUsers() {
+  router.push('/teacher/admin/users')
+}
+
+function goToAcademicAdmin() {
+  router.push('/teacher/admin/academic')
+}
+
+async function loadCatalogs() {
+  try {
+    const [gradesRes, subjectsRes] = await Promise.all([
+      gradeService.list(),
+      subjectService.list()
+    ])
+    grades.value = gradesRes.data || []
+    subjects.value = subjectsRes.data || []
+  } catch (err) {
+    console.error(err)
+  }
+}
+
+async function loadAssignedStudents() {
+  try {
+    const res = await assignmentService.listMyStudents()
+    assignedStudents.value = res.data || []
+
+    const gradeEntries = await Promise.all(
+      assignedStudents.value.map(async (student) => {
+        try {
+          const gradesRes = await gradeService.listUserGrades(student.id)
+          return [student.id, gradesRes.data || []] as const
+        } catch {
+          return [student.id, []] as const
+        }
+      })
+    )
+
+    studentGrades.value = Object.fromEntries(gradeEntries)
+  } catch (err) {
+    console.error(err)
+    assignedStudents.value = []
+    studentGrades.value = {}
+  }
 }
 
 function formatDate(dateStr: string) {
@@ -272,12 +452,231 @@ function formatDate(dateStr: string) {
   max-width: 500px;
 }
 
+.role-row {
+  margin-top: 12px;
+}
+
+.role-chip {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 6px 12px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.role-chip--admin {
+  background: rgba(16, 185, 129, 0.12);
+  color: #047857;
+}
+
+.role-chip--teacher {
+  background: rgba(245, 158, 11, 0.12);
+  color: #b45309;
+}
+
 .create-btn {
   flex-shrink: 0;
   padding: 12px 24px;
   border-radius: 14px;
   font-size: 14px;
   font-weight: 600;
+}
+
+.hero-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-shrink: 0;
+}
+
+.admin-shortcut-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+  padding: 22px 24px;
+  margin-bottom: 24px;
+  border-radius: 22px;
+  background:
+    linear-gradient(135deg, rgba(124, 58, 237, 0.08), rgba(96, 165, 250, 0.08)),
+    rgba(255, 255, 255, 0.82);
+  border: 1px solid rgba(124, 58, 237, 0.12);
+  box-shadow: 0 12px 32px rgba(93, 108, 146, 0.08);
+  cursor: pointer;
+  transition: transform 0.18s ease, box-shadow 0.18s ease;
+}
+
+.admin-shortcut-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 18px 38px rgba(93, 108, 146, 0.12);
+}
+
+.admin-shortcut-card--locked {
+  opacity: 0.82;
+}
+
+.admin-shortcut-kicker {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+  font-weight: 700;
+  color: var(--practiq-violet);
+  margin-bottom: 6px;
+}
+
+.admin-shortcut-title {
+  margin: 0 0 6px;
+  font-size: 1.1rem;
+  font-weight: 800;
+  color: var(--text-primary);
+}
+
+.admin-shortcut-text {
+  margin: 0;
+  font-size: 13px;
+  color: var(--text-secondary);
+  line-height: 1.5;
+}
+
+.admin-shortcut-action {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--practiq-violet);
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.student-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  padding: 24px;
+  margin-bottom: 24px;
+  border-radius: 24px;
+  background: rgba(255, 255, 255, 0.86);
+  border: 1px solid rgba(255, 255, 255, 0.92);
+  box-shadow: 0 12px 32px rgba(93, 108, 146, 0.08);
+}
+
+.student-panel__head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 18px;
+}
+
+.student-panel__kicker {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.16em;
+  font-weight: 700;
+  color: #2563eb;
+  margin-bottom: 6px;
+}
+
+.student-panel__title {
+  margin: 0 0 6px;
+  font-size: 1.1rem;
+  font-weight: 800;
+  color: var(--text-primary);
+}
+
+.student-panel__copy {
+  margin: 0;
+  font-size: 13px;
+  color: var(--text-secondary);
+}
+
+.student-panel__stats {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.student-stat {
+  display: inline-flex;
+  align-items: center;
+  padding: 7px 12px;
+  border-radius: 999px;
+  background: rgba(37, 99, 235, 0.08);
+  color: #1d4ed8;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.grade-summary-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 12px;
+}
+
+.grade-summary-card {
+  padding: 16px 18px;
+  border-radius: 18px;
+  background: linear-gradient(135deg, rgba(37, 99, 235, 0.06), rgba(124, 58, 237, 0.06));
+  border: 1px solid rgba(148, 163, 184, 0.16);
+}
+
+.grade-summary-name {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.grade-summary-count {
+  margin-top: 6px;
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+
+.student-chip-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 12px;
+}
+
+.student-chip-card {
+  padding: 16px 18px;
+  border-radius: 18px;
+  background: rgba(248, 250, 252, 0.86);
+  border: 1px solid rgba(148, 163, 184, 0.16);
+}
+
+.student-chip-name {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.student-chip-email {
+  margin-top: 4px;
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+
+.student-chip-grades {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.student-grade-pill {
+  display: inline-flex;
+  padding: 5px 10px;
+  border-radius: 999px;
+  background: rgba(16, 185, 129, 0.12);
+  color: #047857;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.student-grade-pill--empty {
+  background: rgba(148, 163, 184, 0.14);
+  color: #64748b;
 }
 
 /* ── Stats row ── */
@@ -472,6 +871,22 @@ function formatDate(dateStr: string) {
   gap: 14px;
 }
 
+.setup-notice {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 12px 14px;
+  background: rgba(245, 158, 11, 0.08);
+  border: 1px solid rgba(245, 158, 11, 0.2);
+  border-radius: 12px;
+  font-size: 13px;
+  color: #92400e;
+  margin-bottom: 16px;
+}
+.setup-notice .pi { color: #f59e0b; flex-shrink: 0; margin-top: 1px; }
+.setup-link { color: var(--practiq-violet); font-weight: 600; text-decoration: none; }
+.setup-link:hover { text-decoration: underline; }
+
 .modal-actions {
   display: flex;
   gap: 12px;
@@ -487,7 +902,18 @@ function formatDate(dateStr: string) {
     align-items: flex-start;
     padding: 22px 20px;
   }
+  .hero-actions {
+    width: 100%;
+    flex-direction: column;
+  }
+  .student-panel__head {
+    flex-direction: column;
+  }
   .create-btn { width: 100%; justify-content: center; }
+  .admin-shortcut-card {
+    flex-direction: column;
+    align-items: flex-start;
+  }
   .stats-row { grid-template-columns: 1fr; }
   .courses-grid { grid-template-columns: 1fr; }
   .form-row { grid-template-columns: 1fr; }

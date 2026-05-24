@@ -146,18 +146,27 @@
       </div>
     </div>
   </StudentLayout>
+
+  <ConfirmModal
+    v-bind="confirmState"
+    @confirm="onConfirm"
+    @cancel="onCancel"
+  />
 </template>
 
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted, nextTick } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import StudentLayout from '@/layouts/StudentLayout.vue'
+import ConfirmModal from '@/components/ConfirmModal.vue'
+import { useConfirm } from '@/composables/useConfirm'
 import { practiceSheetService } from '@/services/practiceSheets/practiceSheetService'
 import { useAuthStore } from '@/stores/authStore'
 import type { PracticeSheet, PracticeSheetExercise, SubmitResult } from '@/types'
 
 const route = useRoute()
 const router = useRouter()
+const { confirmState, showConfirm, onConfirm, onCancel } = useConfirm()
 const authStore = useAuthStore()
 
 const sheet = ref<PracticeSheet | null>(null)
@@ -366,10 +375,13 @@ function focusNext(idx: number) {
   inputs[idx + 1]?.focus()
 }
 
-function confirmExit() {
-  if (confirm('¿Salir de la prueba? Tu progreso no se guardará.')) {
-    router.back()
-  }
+async function confirmExit() {
+  const ok = await showConfirm('¿Salir de la prueba?', {
+    description: 'Tu progreso no se guardará.',
+    confirmLabel: 'Salir',
+    danger: false,
+  })
+  if (ok) router.back()
 }
 
 async function submit() {

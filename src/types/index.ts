@@ -8,22 +8,69 @@ export interface AuthUser {
   roles: { id: string; name: string }[]
 }
 
+export interface AuthApiUser {
+  id: string
+  username: string
+  first_name: string
+  last_name: string
+  email: string
+  phone_number?: string | null
+  picture?: string | null
+  address?: string | null
+  is_active: boolean
+  verified_email: boolean
+  token_version: number
+  auth_method: 'password' | 'google' | 'hybrid' | string
+  roles: { id: string; name: string }[]
+}
+
 export interface UserProfile {
   id: string
   name: string
   email: string
   profile_type: 'teacher' | 'student'
+  academic_status: 'active' | 'blocked'
+  assistant_base_url: string
+  assistant_api_key: string
   created_at: string
 }
 
 export interface Course {
   id: string
   teacher_id: string
+  grade_id: string
+  grade_name: string
+  subject_id: string
+  subject_name: string
   title: string
   description: string
   level: string
   subject: string
   created_at: string
+}
+
+export interface Grade {
+  id: string
+  name: string
+  description: string
+  created_by: string
+  created_at: string
+}
+
+export interface Subject {
+  id: string
+  name: string
+  description: string
+  created_by: string
+  created_at: string
+}
+
+export interface AssignedUser {
+  id: string
+  name: string
+  email: string
+  profile_type: string
+  academic_status: 'active' | 'blocked'
 }
 
 export interface Topic {
@@ -217,6 +264,7 @@ export interface Notebook {
   teacher_id: string
   title: string
   description: string
+  level: number
   pages: NotebookPage[]
   created_at: string
 }

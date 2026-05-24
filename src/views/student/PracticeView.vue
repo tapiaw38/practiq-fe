@@ -1,238 +1,121 @@
 <template>
-  <div class="practice-root">
-    <div v-if="loading" class="practice-loading">
-      <div class="spinner spinner-violet"></div>
-      <p>Cargando hoja de práctica...</p>
-    </div>
-
-    <template v-else-if="sheet">
+  <StudentLayout>
+    <div class="practice-shell">
+      <!-- Header -->
       <header class="practice-header">
-        <div class="practice-header__left">
-          <button class="practice-icon-btn" @click="router.back()">
-            <i class="pi pi-arrow-left"></i>
-          </button>
-          <div class="header-info">
-            <div class="practice-topic">{{ sheet.title }}</div>
-            <div class="practice-level">Ejercicio {{ currentIdx + 1 }} de {{ totalCount }}</div>
-          </div>
+        <button class="btn-back" @click="router.back()">
+          <i class="pi pi-arrow-left"></i>
+        </button>
+        <div class="practice-header-info">
+          <div class="level-badge">Nivel {{ sheet?.level }}</div>
+          <h1 class="practice-title">{{ sheet?.title }}</h1>
+          <span class="practice-subtitle">Resuelve los siguientes ejercicios a tu propio ritmo</span>
         </div>
-
-        <div class="header-center">
-          <div class="practice-stage">Nivel {{ sheet.level }}</div>
-          <div class="header-progress">
-            <div class="progress-bar">
-              <div class="progress-fill" :style="{ width: progressPct + '%' }"></div>
-            </div>
-          </div>
-        </div>
-
-        <div class="header-metrics">
-          <div class="header-chip">
-            <span class="header-chip__icon">🔥</span>
+        <div class="header-right">
+          <div class="streak-chip">
+            <span>🔥</span>
             <div>
-              <div class="header-chip__value">{{ streakCount }}</div>
-              <div class="header-chip__label">racha</div>
+              <div class="streak-val">{{ streakCount }}</div>
+              <div class="streak-lbl">racha</div>
             </div>
           </div>
-          <div class="header-avatar">{{ studentInitial }}</div>
+          <div class="student-avatar">{{ studentInitial }}</div>
         </div>
       </header>
 
-      <div class="practice-body">
-        <main class="practice-area">
-          <div class="worksheet-shell">
-            <section class="worksheet-card">
-              <div class="worksheet-header">
-                <div class="worksheet-badge">
-                  <span class="worksheet-badge__icon">✏️</span>
-                  <div>
-                    <div class="worksheet-badge__title">Ejercicio de práctica</div>
-                    <div class="worksheet-badge__subtitle">Resuelve las siguientes operaciones.</div>
-                  </div>
-                </div>
-                <div class="worksheet-actions">
-                  <button class="sheet-action-btn" @click="requestHint">
-                    <i class="pi pi-lightbulb"></i>
-                    Pista
-                  </button>
-                </div>
-              </div>
-
-              <div class="exercise-stack">
-                <article
-                  v-for="(pse, idx) in sheet.exercises"
-                  :key="pse.id"
-                  class="exercise-row"
-                  :class="{ 'exercise-row--active': currentIdx === idx }"
-                  @click="currentIdx = idx"
-                >
-                  <div class="exercise-index" :class="{ 'exercise-index--done': isAnswered(pse.exercise.id) }">
-                    {{ idx + 1 }}
-                  </div>
-                  <div class="exercise-content">
-                    <div class="exercise-mainline">
-                      <span class="exercise-equation">{{ pse.exercise.question }}</span>
-                      <span
-                        v-if="results[pse.exercise.id] === true"
-                        class="exercise-status exercise-status--ok"
-                      >✓</span>
-                    </div>
-
-                    <template v-if="currentIdx !== idx">
-                      <div class="answer-preview" :class="{ 'answer-preview--filled': isAnswered(pse.exercise.id) }">
-                        {{
-                          isAnswered(pse.exercise.id)
-                            ? (pse.exercise.type === 'canvas' || pse.exercise.type === 'handwritten'
-                              ? '✓'
-                              : answers[pse.exercise.id].answer)
-                            : '?'
-                        }}
-                      </div>
-                    </template>
-
-                    <template v-if="currentIdx === idx">
-                      <div class="active-answer-shell">
-                        <template v-if="pse.exercise.type !== 'canvas' && pse.exercise.type !== 'handwritten'">
-                          <input
-                            v-model="currentAnswer"
-                            class="equation-input"
-                            placeholder="?"
-                            @input="saveAnswer"
-                          />
-                        </template>
-
-                        <template v-else>
-                          <div class="canvas-container">
-                            <canvas
-                              ref="canvasRef"
-                              class="practice-canvas"
-                              @mousedown="startDrawing"
-                              @mousemove="draw"
-                              @mouseup="stopDrawing"
-                              @mouseleave="stopDrawing"
-                              @touchstart.prevent="startDrawingTouch"
-                              @touchmove.prevent="drawTouch"
-                              @touchend="stopDrawing"
-                            ></canvas>
-                            <div class="canvas-tools">
-                              <button class="tool-btn" :class="{ 'tool-active': tool === 'pen' }" @click="tool = 'pen'" title="Lápiz">✏️</button>
-                              <button class="tool-btn" :class="{ 'tool-active': tool === 'eraser' }" @click="tool = 'eraser'" title="Borrador">⌫</button>
-                              <button class="tool-btn" @click="undoStroke" title="Deshacer">↩</button>
-                              <button class="tool-btn" @click="clearCanvas" title="Limpiar">🗑️</button>
-                              <input type="color" v-model="penColor" class="color-picker" title="Color" />
-                              <input type="range" v-model.number="penSize" min="1" max="20" class="size-slider" title="Tamaño" />
-                            </div>
-                          </div>
-                        </template>
-
-                        <div class="answer-meta">
-                          <span class="time-display">⏱ {{ formatTime(timers[pse.exercise.id] || 0) }}</span>
-                          <span v-if="hints[pse.exercise.id]" class="hint-count">
-                            💡 {{ hints[pse.exercise.id] }} pista{{ hints[pse.exercise.id] > 1 ? 's' : '' }}
-                          </span>
-                          <span class="difficulty-pill" :style="{ '--difficulty-color': diffColor(pse.exercise.difficulty) }">
-                            Dificultad {{ pse.exercise.difficulty }}
-                          </span>
-                        </div>
-                      </div>
-                    </template>
-                  </div>
-                </article>
-              </div>
-
-              <div class="worksheet-footer">
-                <div class="tool-dock">
-                  <button class="dock-btn" :class="{ 'dock-btn--active': tool === 'pen' }" @click="tool = 'pen'">
-                    <i class="pi pi-pencil"></i>
-                    <span>Lápiz</span>
-                  </button>
-                  <button class="dock-btn" :class="{ 'dock-btn--active': tool === 'eraser' }" @click="tool = 'eraser'">
-                    <i class="pi pi-eraser"></i>
-                    <span>Borrador</span>
-                  </button>
-                  <button class="dock-btn" @click="undoStroke">
-                    <i class="pi pi-undo"></i>
-                    <span>Deshacer</span>
-                  </button>
-                  <button class="dock-btn" @click="clearCanvas">
-                    <i class="pi pi-trash"></i>
-                    <span>Limpiar</span>
-                  </button>
-                </div>
-
-                <button class="btn btn-primary submit-sheet-btn" @click="showSubmitConfirm = true">
-                  Revisar respuestas
-                </button>
-              </div>
-            </section>
-          </div>
-        </main>
-
-        <aside class="ai-panel" :class="{ 'ai-panel--collapsed': !showAI }">
-          <div class="ai-panel-header">
-            <div class="ai-header-info">
-              <span class="ai-avatar">🤖</span>
-              <div v-if="showAI">
-                <div class="ai-name">Asistente Practiq</div>
-                <div class="ai-status">● En línea</div>
-              </div>
-            </div>
-            <button class="practice-icon-btn practice-icon-btn--small" @click="toggleAI">
-              <i :class="showAI ? 'pi pi-angle-right' : 'pi pi-angle-left'"></i>
-            </button>
-          </div>
-
-          <template v-if="showAI">
-            <div class="ai-mascot">🤖</div>
-
-            <div class="ai-messages" ref="messagesContainer">
-              <div class="ai-bubble ai-msg">
-                <p>¡Hola! Estoy aquí para ayudarte con pasos, pistas y ejemplos parecidos.</p>
-              </div>
-
-              <div v-for="msg in aiMessages" :key="msg.id" class="ai-bubble-wrapper" :class="msg.sender === 'student' ? 'user-side' : 'ai-side'">
-                <div class="ai-bubble" :class="msg.sender === 'student' ? 'user-msg' : 'ai-msg'">
-                  <p>{{ msg.content }}</p>
-                  <span class="msg-time">{{ formatMsgTime(msg.created_at) }}</span>
-                </div>
-              </div>
-
-              <div v-if="aiLoading" class="ai-bubble ai-msg ai-typing">
-                <span></span><span></span><span></span>
-              </div>
-            </div>
-
-            <div class="ai-input-area">
-              <div class="ai-quick-actions">
-                <button class="quick-btn" @click="sendQuick('hint')">💡 Pista</button>
-                <button class="quick-btn" @click="sendQuick('explanation')">📖 Explicar</button>
-                <button class="quick-btn" @click="sendQuick('similar_example')">🔍 Ejemplo</button>
-              </div>
-              <div class="ai-input-row">
-                <input
-                  v-model="aiInput"
-                  class="form-input ai-input"
-                  placeholder="Escribe tu consulta..."
-                  @keydown.enter.prevent="sendAIMessage"
-                />
-                <button class="send-btn" @click="sendAIMessage" :disabled="!aiInput.trim() || aiLoading">
-                  <i class="pi pi-send"></i>
-                </button>
-              </div>
-            </div>
-          </template>
-        </aside>
+      <div v-if="loading" class="practice-loading">
+        <i class="pi pi-spin pi-spinner"></i> Cargando práctica...
       </div>
 
-      <button
-        class="ai-fab"
-        :class="{ 'ai-fab--notify': aiHasMessage }"
-        type="button"
-        @click="toggleAI"
-      >
-        <span>🤖</span>
-      </button>
+      <template v-else-if="sheet">
+        <!-- Progress bar -->
+        <div class="practice-progress-bar">
+          <div class="practice-progress-fill" :style="{ width: progressPct + '%' }"></div>
+        </div>
+        <div class="practice-progress-label">{{ answeredCount }} / {{ totalCount }} respondidas</div>
 
+        <div class="practice-body">
+          <!-- Exercises + footer -->
+          <main class="practice-area">
+            <!-- Canvas toolbar -->
+            <div v-if="hasCanvasExercises" class="draw-tools-bar">
+              <button class="tool-btn" :class="{ 'tool-btn--active': tool === 'pen' }" @click="tool = 'pen'" title="Lápiz">
+                <i class="pi pi-pencil"></i>
+              </button>
+              <button class="tool-btn" :class="{ 'tool-btn--active': tool === 'eraser' }" @click="tool = 'eraser'" title="Borrador">
+                <i class="pi pi-times-circle"></i>
+              </button>
+              <button class="tool-btn" @click="undoActive" title="Deshacer">
+                <i class="pi pi-undo"></i>
+              </button>
+              <div class="tool-sep"></div>
+              <input type="color" v-model="penColor" class="color-picker" title="Color" />
+              <input type="range" v-model.number="penSize" min="1" max="20" class="size-slider" title="Grosor" />
+              <span class="size-val">{{ penSize }}px</span>
+            </div>
+
+            <!-- Exercise cards -->
+            <div class="exercises-list">
+              <div
+                v-for="(pse, idx) in sheet.exercises"
+                :key="pse.id"
+                class="ex-card"
+                :class="{ 'ex-card--answered': isAnswered(pse.exercise.id) }"
+              >
+                <div class="ex-num" :class="{ 'ex-num--done': isAnswered(pse.exercise.id) }">
+                  {{ idx + 1 }}
+                </div>
+                <div class="ex-body">
+                  <div class="ex-meta">
+                    <span class="difficulty-pill" :style="{ '--difficulty-color': diffColor(pse.exercise.difficulty) }">
+                      Dificultad {{ pse.exercise.difficulty }}
+                    </span>
+                    <span class="time-display">⏱ {{ formatTime(timers[pse.exercise.id] || 0) }}</span>
+                    <span v-if="hints[pse.exercise.id]" class="hint-count">
+                      💡 {{ hints[pse.exercise.id] }} pista{{ hints[pse.exercise.id] > 1 ? 's' : '' }}
+                    </span>
+                  </div>
+
+                  <div class="ex-question">{{ pse.exercise.question }}</div>
+
+                  <div class="canvas-wrap">
+                    <div class="canvas-header">
+                      <span class="canvas-label">Tu respuesta</span>
+                      <button class="btn-clear-canvas" @click="clearCanvas(pse.exercise.id)" title="Borrar todo">
+                        <i class="pi pi-trash"></i> Limpiar
+                      </button>
+                    </div>
+                    <canvas
+                      :ref="el => setCanvasRef(pse.exercise.id, el as HTMLCanvasElement | null)"
+                      class="ex-canvas"
+                      @mousedown="startDrawing($event, pse.exercise.id, idx)"
+                      @mousemove="draw($event, pse.exercise.id)"
+                      @mouseup="stopDrawing(pse.exercise.id)"
+                      @mouseleave="stopDrawing(pse.exercise.id)"
+                      @touchstart.prevent="startDrawingTouch($event, pse.exercise.id, idx)"
+                      @touchmove.prevent="drawTouch($event, pse.exercise.id)"
+                      @touchend="stopDrawing(pse.exercise.id)"
+                    ></canvas>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Sticky footer -->
+            <div class="practice-footer">
+              <div class="footer-left">
+                <span class="footer-hint">{{ totalCount - answeredCount }} sin responder</span>
+              </div>
+              <button class="btn-submit" @click="showSubmitConfirm = true">
+                <i class="pi pi-send"></i>
+                Revisar respuestas
+              </button>
+            </div>
+          </main>
+        </div>
+      </template>
+
+      <!-- Submit confirm modal -->
       <Teleport to="body">
         <Transition name="fade">
           <div v-if="showSubmitConfirm" class="modal-overlay" @click.self="showSubmitConfirm = false">
@@ -254,6 +137,7 @@
         </Transition>
       </Teleport>
 
+      <!-- Results modal -->
       <Teleport to="body">
         <Transition name="fade">
           <div v-if="showResults && result" class="modal-overlay">
@@ -262,7 +146,6 @@
                 <div class="results-emoji">{{ result.score >= 90 ? '🏆' : result.score >= 70 ? '🌟' : '💪' }}</div>
                 <h3 class="results-title">{{ result.score >= 90 ? '¡Excelente!' : result.score >= 70 ? '¡Buen trabajo!' : '¡Sigue practicando!' }}</h3>
               </div>
-
               <div class="results-stats">
                 <div class="stat-card">
                   <div class="stat-value" :style="{ color: scoreColor(result.score) }">{{ Math.round(result.score) }}%</div>
@@ -277,16 +160,13 @@
                   <div class="stat-label">Dominio</div>
                 </div>
               </div>
-
               <div class="results-recommendation">
                 <div class="rec-icon">{{ result.should_level_up ? '⬆️' : result.should_repeat ? '🔄' : '▶️' }}</div>
                 <p>{{ result.recommendation }}</p>
               </div>
-
               <div v-if="result.should_level_up" class="level-up-badge">
                 🎉 ¡Subiste al Nivel {{ result.next_level }}!
               </div>
-
               <div class="modal-actions">
                 <button class="btn btn-secondary" @click="router.back()">Volver al inicio</button>
                 <button class="btn btn-primary" @click="showResults = false">Ver mis respuestas</button>
@@ -295,17 +175,17 @@
           </div>
         </Transition>
       </Teleport>
-    </template>
-  </div>
+    </div>
+  </StudentLayout>
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted, nextTick, watch } from 'vue'
+import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/authStore'
+import StudentLayout from '@/layouts/StudentLayout.vue'
 import { practiceSheetService } from '@/services/practiceSheets/practiceSheetService'
-import { aiService } from '@/services/ai/aiService'
-import type { PracticeSheet, AIMessage, SubmitResult } from '@/types'
+import type { PracticeSheet, SubmitResult } from '@/types'
 
 const route = useRoute()
 const router = useRouter()
@@ -317,26 +197,19 @@ const loading = ref(true)
 const currentIdx = ref(0)
 
 const answers = ref<Record<string, { answer: string; timeStart: number; hints: number }>>({})
-const results = ref<Record<string, boolean>>({})
 const timers = ref<Record<string, number>>({})
 const hints = ref<Record<string, number>>({})
 
-const canvasRef = ref<HTMLCanvasElement | null>(null)
+// Canvas — multiple refs, one per exercise
+const canvasRefs: Record<string, HTMLCanvasElement | null> = {}
+const initializedIds = new Set<string>()
+const undoStacks: Record<string, ImageData[]> = {}
+const isDrawingMap: Record<string, boolean> = {}
+const lastPos: Record<string, { x: number; y: number }> = {}
 const tool = ref<'pen' | 'eraser'>('pen')
 const penColor = ref('#1e293b')
 const penSize = ref(3)
-const isDrawing = ref(false)
-const strokes = ref<ImageData[]>([])
-let lastX = 0
-let lastY = 0
-
-const showAI = ref(false)
-const aiMessages = ref<AIMessage[]>([])
-const aiInput = ref('')
-const aiLoading = ref(false)
-const aiHasMessage = ref(false)
-const messagesContainer = ref<HTMLElement | null>(null)
-let conversationId = ''
+const activeCanvasId = ref('')
 
 const showSubmitConfirm = ref(false)
 const showResults = ref(false)
@@ -345,24 +218,11 @@ const result = ref<SubmitResult | null>(null)
 
 let timerInterval: ReturnType<typeof setInterval>
 
-function syncAIVisibility() {
-  showAI.value = window.innerWidth > 1180
-}
+const hasCanvasExercises = computed(() => totalCount.value > 0)
 
 const currentExercise = computed(() =>
   sheet.value?.exercises?.[currentIdx.value]?.exercise ?? null
 )
-
-const currentAnswer = computed({
-  get: () => answers.value[currentExercise.value?.id || '']?.answer ?? '',
-  set: (val) => {
-    if (currentExercise.value) {
-      const id = currentExercise.value.id
-      if (!answers.value[id]) answers.value[id] = { answer: '', timeStart: Date.now(), hints: 0 }
-      answers.value[id].answer = val
-    }
-  }
-})
 
 const answeredCount = computed(() =>
   Object.values(answers.value).filter((a) => a.answer).length
@@ -391,31 +251,13 @@ onMounted(async () => {
     }
 
     startTimer()
-    syncAIVisibility()
-    window.addEventListener('resize', syncAIVisibility)
-
-    try {
-      const convRes = await aiService.createConversation({ practice_sheet_id: sheetId })
-      conversationId = convRes.data.id
-    } catch {}
   } finally {
     loading.value = false
   }
-
-  await nextTick()
-  initCanvas()
 })
 
 onUnmounted(() => {
   clearInterval(timerInterval)
-  window.removeEventListener('resize', syncAIVisibility)
-})
-
-watch(currentIdx, async () => {
-  await nextTick()
-  if (currentExercise.value?.type === 'canvas' || currentExercise.value?.type === 'handwritten') {
-    initCanvas()
-  }
 })
 
 function startTimer() {
@@ -426,237 +268,135 @@ function startTimer() {
   }, 1000)
 }
 
-function saveAnswer() {}
-
 function isAnswered(exerciseId: string) {
   return !!answers.value[exerciseId]?.answer
 }
 
-function initCanvas() {
-  const canvas = canvasRef.value
-  if (!canvas) return
-  canvas.width = canvas.offsetWidth || 600
-  canvas.height = canvas.offsetHeight || 300
-  const ctx = canvas.getContext('2d')
-  if (ctx) {
-    ctx.fillStyle = 'white'
-    ctx.fillRect(0, 0, canvas.width, canvas.height)
+// ── Canvas ────────────────────────────────────────────────────────────────────
+
+function setCanvasRef(id: string, el: HTMLCanvasElement | null) {
+  if (!el) {
+    canvasRefs[id] = null
+    initializedIds.delete(id)
+    return
   }
-  strokes.value = []
+  canvasRefs[id] = el
+  if (!initializedIds.has(id)) {
+    initializedIds.add(id)
+    initCanvas(id, el)
+  }
 }
 
-function getPos(e: MouseEvent | Touch, canvas: HTMLCanvasElement) {
+function drawBackground(ctx: CanvasRenderingContext2D, w: number, h: number) {
+  ctx.fillStyle = '#fafaf7'
+  ctx.fillRect(0, 0, w, h)
+  // Red margin line
+  ctx.strokeStyle = 'rgba(239,68,68,0.25)'
+  ctx.lineWidth = 1.5
+  ctx.beginPath()
+  ctx.moveTo(56, 0)
+  ctx.lineTo(56, h)
+  ctx.stroke()
+  // Horizontal ruled lines
+  ctx.strokeStyle = 'rgba(124,58,237,0.1)'
+  ctx.lineWidth = 1
+  for (let y = 32; y < h; y += 32) {
+    ctx.beginPath()
+    ctx.moveTo(0, y)
+    ctx.lineTo(w, y)
+    ctx.stroke()
+  }
+}
+
+function initCanvas(id: string, canvas: HTMLCanvasElement) {
+  requestAnimationFrame(() => {
+    const w = canvas.offsetWidth || 600
+    const h = canvas.offsetHeight || 280
+    canvas.width = w
+    canvas.height = h
+    const ctx = canvas.getContext('2d')!
+    drawBackground(ctx, w, h)
+    undoStacks[id] = []
+  })
+}
+
+function getPos(e: MouseEvent, canvas: HTMLCanvasElement) {
   const rect = canvas.getBoundingClientRect()
   return {
-    x: e.clientX - rect.left,
-    y: e.clientY - rect.top
+    x: (e.clientX - rect.left) * (canvas.width / rect.width),
+    y: (e.clientY - rect.top) * (canvas.height / rect.height)
   }
 }
 
-function startDrawing(e: MouseEvent) {
-  const canvas = canvasRef.value
+function startDrawing(e: MouseEvent, id: string, idx: number) {
+  const canvas = canvasRefs[id]
   if (!canvas) return
-  isDrawing.value = true
+  const ctx = canvas.getContext('2d')!
+  if (!undoStacks[id]) undoStacks[id] = []
+  undoStacks[id].push(ctx.getImageData(0, 0, canvas.width, canvas.height))
+  isDrawingMap[id] = true
+  activeCanvasId.value = id
+  currentIdx.value = idx
   const pos = getPos(e, canvas)
-  lastX = pos.x
-  lastY = pos.y
-  saveStroke()
+  lastPos[id] = pos
+  ctx.beginPath()
+  ctx.moveTo(pos.x, pos.y)
 }
 
-function draw(e: MouseEvent) {
-  if (!isDrawing.value) return
-  const canvas = canvasRef.value
+function draw(e: MouseEvent, id: string) {
+  if (!isDrawingMap[id]) return
+  const canvas = canvasRefs[id]
   if (!canvas) return
-  const ctx = canvas.getContext('2d')
-  if (!ctx) return
+  const ctx = canvas.getContext('2d')!
   const pos = getPos(e, canvas)
-
-  ctx.beginPath()
-  ctx.moveTo(lastX, lastY)
-  ctx.lineTo(pos.x, pos.y)
-  ctx.strokeStyle = tool.value === 'eraser' ? 'white' : penColor.value
-  ctx.lineWidth = tool.value === 'eraser' ? 20 : penSize.value
+  ctx.globalCompositeOperation = tool.value === 'eraser' ? 'destination-out' : 'source-over'
+  ctx.strokeStyle = penColor.value
+  ctx.lineWidth = tool.value === 'eraser' ? penSize.value * 4 : penSize.value
   ctx.lineCap = 'round'
   ctx.lineJoin = 'round'
+  ctx.lineTo(pos.x, pos.y)
   ctx.stroke()
-
-  lastX = pos.x
-  lastY = pos.y
+  lastPos[id] = pos
 }
 
-function startDrawingTouch(e: TouchEvent) {
-  const canvas = canvasRef.value
+function stopDrawing(id: string) {
+  if (!isDrawingMap[id]) return
+  isDrawingMap[id] = false
+  const canvas = canvasRefs[id]
   if (!canvas) return
-  isDrawing.value = true
-  const pos = getPos(e.touches[0], canvas)
-  lastX = pos.x
-  lastY = pos.y
-  saveStroke()
+  canvas.getContext('2d')!.beginPath()
+  answers.value[id].answer = canvas.toDataURL('image/png')
 }
 
-function drawTouch(e: TouchEvent) {
-  if (!isDrawing.value) return
-  const fakeEvent = { clientX: e.touches[0].clientX, clientY: e.touches[0].clientY } as MouseEvent
-  draw(fakeEvent)
+function startDrawingTouch(e: TouchEvent, id: string, idx: number) {
+  const t = e.touches[0]
+  startDrawing({ clientX: t.clientX, clientY: t.clientY } as MouseEvent, id, idx)
 }
 
-function stopDrawing() {
-  isDrawing.value = false
-  if (currentExercise.value) {
-    const canvas = canvasRef.value
-    if (canvas) {
-      const id = currentExercise.value.id
-      if (!answers.value[id]) answers.value[id] = { answer: '', timeStart: Date.now(), hints: 0 }
-      answers.value[id].answer = canvas.toDataURL()
-    }
-  }
+function drawTouch(e: TouchEvent, id: string) {
+  const t = e.touches[0]
+  draw({ clientX: t.clientX, clientY: t.clientY } as MouseEvent, id)
 }
 
-function saveStroke() {
-  const canvas = canvasRef.value
+function undoActive() {
+  const id = activeCanvasId.value
+  if (!id) return
+  const canvas = canvasRefs[id]
+  const stack = undoStacks[id]
+  if (!canvas || !stack || stack.length === 0) return
+  canvas.getContext('2d')!.putImageData(stack.pop()!, 0, 0)
+}
+
+function clearCanvas(id: string) {
+  const canvas = canvasRefs[id]
   if (!canvas) return
-  const ctx = canvas.getContext('2d')
-  if (!ctx) return
-  strokes.value.push(ctx.getImageData(0, 0, canvas.width, canvas.height))
+  const ctx = canvas.getContext('2d')!
+  undoStacks[id] = []
+  drawBackground(ctx, canvas.width, canvas.height)
+  answers.value[id].answer = ''
 }
 
-function undoStroke() {
-  const canvas = canvasRef.value
-  if (!canvas || strokes.value.length === 0) return
-  const ctx = canvas.getContext('2d')
-  if (!ctx) return
-  strokes.value.pop()
-  if (strokes.value.length > 0) {
-    ctx.putImageData(strokes.value[strokes.value.length - 1], 0, 0)
-  } else {
-    ctx.fillStyle = 'white'
-    ctx.fillRect(0, 0, canvas.width, canvas.height)
-  }
-}
-
-function clearCanvas() {
-  const canvas = canvasRef.value
-  if (!canvas) return
-  const ctx = canvas.getContext('2d')
-  if (!ctx) return
-  ctx.fillStyle = 'white'
-  ctx.fillRect(0, 0, canvas.width, canvas.height)
-  strokes.value = []
-  if (currentExercise.value) {
-    answers.value[currentExercise.value.id].answer = ''
-  }
-}
-
-function toggleAI() {
-  showAI.value = !showAI.value
-  aiHasMessage.value = false
-  if (showAI.value) nextTick(() => scrollMessages())
-}
-
-async function requestHint() {
-  if (!currentExercise.value) return
-  const id = currentExercise.value.id
-  if (!hints.value[id]) hints.value[id] = 0
-  hints.value[id]++
-  if (answers.value[id]) answers.value[id].hints = hints.value[id]
-
-  showAI.value = true
-  aiLoading.value = true
-
-  const question = `Necesito una pista para: ${currentExercise.value.question}`
-  addUserMessage(question)
-
-  try {
-    const res = await aiService.getHelp({
-      exercise_id: id,
-      question,
-      help_type: 'hint'
-    })
-    addAIMessage(res.data.response)
-  } catch {
-    addAIMessage('Lo siento, no pude obtener una pista en este momento. ¡Inténtalo de nuevo!')
-  } finally {
-    aiLoading.value = false
-  }
-}
-
-async function sendAIMessage() {
-  if (!aiInput.value.trim() || aiLoading.value) return
-  const question = aiInput.value.trim()
-  aiInput.value = ''
-  aiLoading.value = true
-  addUserMessage(question)
-
-  try {
-    const res = await aiService.getHelp({
-      exercise_id: currentExercise.value?.id,
-      question,
-      help_type: 'explanation'
-    })
-    addAIMessage(res.data.response)
-  } catch {
-    addAIMessage('Hubo un error. Por favor inténtalo nuevamente.')
-  } finally {
-    aiLoading.value = false
-  }
-}
-
-async function sendQuick(type: 'hint' | 'explanation' | 'similar_example') {
-  aiLoading.value = true
-  const questions: Record<string, string> = {
-    hint: '¿Puedes darme una pista?',
-    explanation: '¿Puedes explicarme este concepto?',
-    similar_example: '¿Puedes mostrarme un ejemplo similar?'
-  }
-  const question = questions[type]
-  addUserMessage(question)
-
-  try {
-    const res = await aiService.getHelp({
-      exercise_id: currentExercise.value?.id,
-      question,
-      help_type: type
-    })
-    addAIMessage(res.data.response)
-  } catch {
-    addAIMessage('No pude responder en este momento.')
-  } finally {
-    aiLoading.value = false
-  }
-}
-
-function addUserMessage(content: string) {
-  const msg: AIMessage = {
-    id: Date.now().toString(),
-    conversation_id: conversationId,
-    sender: 'student',
-    message_type: 'text',
-    content,
-    created_at: new Date().toISOString()
-  }
-  aiMessages.value.push(msg)
-  nextTick(scrollMessages)
-}
-
-function addAIMessage(content: string) {
-  const msg: AIMessage = {
-    id: (Date.now() + 1).toString(),
-    conversation_id: conversationId,
-    sender: 'ai',
-    message_type: 'text',
-    content,
-    created_at: new Date().toISOString()
-  }
-  aiMessages.value.push(msg)
-  if (!showAI.value) aiHasMessage.value = true
-  nextTick(scrollMessages)
-}
-
-function scrollMessages() {
-  if (messagesContainer.value) {
-    messagesContainer.value.scrollTop = messagesContainer.value.scrollHeight
-  }
-}
+// ── Submit ────────────────────────────────────────────────────────────────────
 
 async function submitAnswers() {
   submitting.value = true
@@ -664,21 +404,14 @@ async function submitAnswers() {
     const attempts = Object.entries(answers.value).map(([exerciseId, data]) => ({
       exercise_id: exerciseId,
       answer_text: data.answer,
+      canvas_data: data.answer.startsWith('data:image/') ? data.answer : '',
       time_spent_seconds: timers.value[exerciseId] || 0,
       hints_used: data.hints || 0
     }))
-
     const res = await practiceSheetService.submit(sheetId, { attempts })
     result.value = res.data
     showSubmitConfirm.value = false
     showResults.value = true
-
-    for (const pse of sheet.value?.exercises ?? []) {
-      const ans = answers.value[pse.exercise.id]
-      if (ans && pse.exercise.correct_answer) {
-        results.value[pse.exercise.id] = ans.answer.trim().toLowerCase() === pse.exercise.correct_answer.trim().toLowerCase()
-      }
-    }
   } catch (err) {
     console.error(err)
   } finally {
@@ -686,14 +419,12 @@ async function submitAnswers() {
   }
 }
 
+// ── Helpers ───────────────────────────────────────────────────────────────────
+
 function formatTime(secs: number) {
   const m = Math.floor(secs / 60).toString().padStart(2, '0')
   const s = (secs % 60).toString().padStart(2, '0')
   return `${m}:${s}`
-}
-
-function formatMsgTime(dateStr: string) {
-  return new Date(dateStr).toLocaleTimeString('es', { hour: '2-digit', minute: '2-digit' })
 }
 
 function diffColor(d: number) {
@@ -710,885 +441,458 @@ function scoreColor(score: number) {
 </script>
 
 <style scoped>
-.practice-root {
-  min-height: 100vh;
-  background:
-    radial-gradient(circle at top left, rgba(124, 58, 237, 0.12), transparent 18%),
-    radial-gradient(circle at bottom right, rgba(96, 165, 250, 0.12), transparent 22%),
-    linear-gradient(180deg, #f8fbff 0%, #f7f8ff 45%, #f6f8fc 100%);
+.practice-shell {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 24px 20px 80px;
   display: flex;
   flex-direction: column;
+  gap: 16px;
 }
 
-.practice-loading {
-  flex: 1;
+/* Header */
+.practice-header {
   display: flex;
-  flex-direction: column;
+  align-items: flex-start;
+  gap: 16px;
+  padding: 20px 24px;
+  background: rgba(255, 255, 255, 0.92);
+  border-radius: 20px;
+  border: 1.5px solid rgba(124, 58, 237, 0.12);
+  box-shadow: 0 4px 20px rgba(124, 58, 237, 0.06);
+}
+
+.btn-back {
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  border: 1.5px solid rgba(124, 58, 237, 0.2);
+  background: rgba(255, 255, 255, 0.8);
+  cursor: pointer;
+  display: flex;
   align-items: center;
   justify-content: center;
-  gap: 16px;
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+.btn-back:hover { background: rgba(124, 58, 237, 0.06); }
+
+.practice-header-info { flex: 1; }
+
+.level-badge {
+  display: inline-block;
+  padding: 3px 12px;
+  border-radius: 20px;
+  background: linear-gradient(135deg, #8b5cf6, #6366f1);
+  color: #fff;
+  font-size: 0.75rem;
+  font-weight: 700;
+  margin-bottom: 6px;
+}
+
+.practice-title {
+  font-size: 1.3rem;
+  font-weight: 800;
+  color: var(--text-primary);
+  margin: 0 0 4px;
+}
+
+.practice-subtitle {
+  font-size: 0.82rem;
   color: var(--text-secondary);
 }
 
-.practice-header {
-  padding: 18px 26px;
+.header-right {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 20px;
+  gap: 12px;
 }
 
-.practice-header__left,
-.header-center,
-.header-metrics {
+.streak-chip {
   display: flex;
   align-items: center;
-  gap: 16px;
+  gap: 8px;
+  padding: 10px 16px;
+  border-radius: 14px;
+  background: rgba(245, 243, 255, 0.9);
+  border: 1.5px solid rgba(124, 58, 237, 0.1);
 }
 
-.practice-icon-btn {
-  width: 58px;
-  height: 58px;
-  border: 1px solid rgba(255, 255, 255, 0.9);
-  background: rgba(255, 255, 255, 0.8);
-  border-radius: 22px;
-  box-shadow: 0 12px 28px rgba(93, 108, 146, 0.12);
-  display: grid;
-  place-items: center;
-  color: #111827;
-  cursor: pointer;
+.streak-val {
+  font-size: 1.1rem;
+  font-weight: 800;
+  color: var(--text-primary);
+  line-height: 1;
 }
 
-.practice-icon-btn--small {
+.streak-lbl {
+  font-size: 0.72rem;
+  color: var(--text-secondary);
+}
+
+.student-avatar {
   width: 42px;
   height: 42px;
-  border-radius: 16px;
-}
-
-.practice-topic {
-  font-size: 28px;
-  font-weight: 700;
-  color: #19233a;
-}
-
-.practice-level {
-  font-size: 15px;
-  color: var(--text-secondary);
-}
-
-.practice-stage {
-  font-size: 16px;
-  font-weight: 700;
-  color: #223055;
-}
-
-.header-progress {
-  min-width: 340px;
-}
-
-.header-chip {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 12px 18px;
-  border-radius: 24px;
-  background: rgba(255, 255, 255, 0.86);
-  box-shadow: 0 12px 28px rgba(93, 108, 146, 0.12);
-}
-
-.header-chip__icon {
-  font-size: 26px;
-}
-
-.header-chip__value {
-  font-size: 22px;
-  line-height: 1;
-  font-weight: 800;
-  color: #101828;
-}
-
-.header-chip__label {
-  font-size: 13px;
-  color: var(--text-secondary);
-}
-
-.header-avatar {
-  width: 62px;
-  height: 62px;
   border-radius: 50%;
   background: linear-gradient(135deg, #8b5cf6, #6366f1);
-  display: grid;
-  place-items: center;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   color: white;
   font-weight: 800;
-  font-size: 22px;
-  box-shadow: 0 14px 28px rgba(99, 102, 241, 0.2);
+  font-size: 1.1rem;
 }
 
+/* Progress */
+.practice-progress-bar {
+  height: 6px;
+  background: rgba(124, 58, 237, 0.1);
+  border-radius: 99px;
+  overflow: hidden;
+}
+.practice-progress-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #8b5cf6, #6366f1);
+  border-radius: 99px;
+  transition: width 0.3s ease;
+}
+.practice-progress-label {
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+  text-align: right;
+}
+
+/* Loading */
+.practice-loading {
+  text-align: center;
+  padding: 80px;
+  color: var(--text-secondary);
+}
+
+/* Body layout */
 .practice-body {
-  flex: 1;
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) 360px;
-  gap: 24px;
-  padding: 0 26px 26px;
+  display: block;
 }
 
 .practice-area {
-  min-width: 0;
-}
-
-.worksheet-shell {
-  background: rgba(255, 255, 255, 0.7);
-  border-radius: 38px;
-  border: 1px solid rgba(255, 255, 255, 0.9);
-  box-shadow: 0 24px 52px rgba(93, 108, 146, 0.14);
-  padding: 14px;
-}
-
-.worksheet-card {
-  background: rgba(255, 255, 255, 0.84);
-  border-radius: 30px;
-  padding: 22px 22px 18px;
-  min-height: calc(100vh - 180px);
   display: flex;
   flex-direction: column;
+  gap: 12px;
 }
 
-.worksheet-header,
-.worksheet-actions,
-.exercise-mainline,
-.worksheet-footer,
-.tool-dock {
+/* Canvas toolbar */
+.draw-tools-bar {
   display: flex;
   align-items: center;
-}
-
-.worksheet-header,
-.worksheet-footer {
-  justify-content: space-between;
-  gap: 16px;
-}
-
-.worksheet-badge {
-  display: flex;
-  align-items: center;
-  gap: 14px;
-}
-
-.worksheet-badge__icon {
-  width: 54px;
-  height: 54px;
-  border-radius: 18px;
-  background: linear-gradient(135deg, #8b5cf6, #6366f1);
-  color: white;
-  display: grid;
-  place-items: center;
-  font-size: 24px;
-}
-
-.worksheet-badge__title {
-  font-size: 15px;
-  font-weight: 700;
-}
-
-.worksheet-badge__subtitle {
-  font-size: 14px;
-  color: var(--text-secondary);
-  margin-top: 2px;
-}
-
-.worksheet-actions {
-  gap: 10px;
-}
-
-.sheet-action-btn {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  padding: 10px 14px;
-  border: 1px solid rgba(124, 58, 237, 0.18);
-  background: white;
-  color: var(--practiq-violet-dark);
-  border-radius: 16px;
-  cursor: pointer;
-  font-weight: 600;
-}
-
-.exercise-stack {
-  display: flex;
-  flex-direction: column;
-  gap: 24px;
-  padding: 28px 0;
-  flex: 1;
-}
-
-.exercise-row {
-  display: grid;
-  grid-template-columns: 54px minmax(0, 1fr);
-  gap: 18px;
-  align-items: start;
-  padding: 10px 6px;
-  border-radius: 20px;
-  transition: var(--transition);
-}
-
-.exercise-row--active {
-  background: linear-gradient(180deg, rgba(245, 243, 255, 0.7), rgba(255,255,255,0.85));
-}
-
-.exercise-index {
-  width: 42px;
-  height: 42px;
-  border-radius: 50%;
-  background: rgba(124, 58, 237, 0.1);
-  color: var(--practiq-violet-dark);
-  display: grid;
-  place-items: center;
-  font-weight: 800;
-  font-size: 18px;
-  margin-top: 8px;
-}
-
-.exercise-index--done {
-  background: linear-gradient(135deg, rgba(124, 58, 237, 0.18), rgba(16, 185, 129, 0.18));
-}
-
-.exercise-content {
-  min-width: 0;
-}
-
-.exercise-mainline {
-  gap: 16px;
+  gap: 6px;
+  padding: 10px 16px;
+  background: rgba(255, 255, 255, 0.92);
+  border-radius: 14px;
+  border: 1.5px solid rgba(124, 58, 237, 0.1);
   flex-wrap: wrap;
 }
 
-.exercise-equation {
-  font-size: clamp(1.6rem, 2.4vw, 2.9rem);
-  font-weight: 600;
-  color: #1b2140;
-  line-height: 1.35;
-}
-
-.exercise-status {
-  font-size: 36px;
-  font-weight: 800;
-}
-
-.exercise-status--ok {
-  color: #22c55e;
-}
-
-.answer-preview {
-  margin-top: 16px;
-  width: 118px;
-  min-height: 92px;
-  border: 2px dashed rgba(139, 92, 246, 0.22);
-  border-radius: 22px;
-  display: grid;
-  place-items: center;
-  font-size: 42px;
-  color: rgba(99, 102, 241, 0.45);
-  background: rgba(255, 255, 255, 0.72);
-}
-
-.answer-preview--filled {
-  color: var(--practiq-violet-dark);
-  border-style: solid;
-  border-color: rgba(124, 58, 237, 0.18);
-  background: rgba(255, 255, 255, 0.9);
-  box-shadow: 0 8px 18px rgba(124, 58, 237, 0.08);
-}
-
-.active-answer-shell {
-  margin-top: 16px;
-}
-
-.equation-input {
-  width: 118px;
-  height: 92px;
-  border: 2px dashed rgba(139, 92, 246, 0.32);
-  border-radius: 22px;
-  background: rgba(255, 255, 255, 0.88);
-  font-size: 44px;
-  text-align: center;
-  color: var(--practiq-violet-dark);
-  outline: none;
-  transition: var(--transition);
-}
-
-.equation-input:focus {
-  border-color: rgba(124, 58, 237, 0.6);
-  box-shadow: 0 0 0 4px rgba(124, 58, 237, 0.08);
-}
-
-.canvas-container {
-  border: 2px solid var(--surface-border);
-  border-radius: var(--radius-md);
-  overflow: hidden;
-  background: white;
-}
-
-.practice-canvas {
-  width: 100%;
-  height: 280px;
-  display: block;
-  cursor: crosshair;
-  touch-action: none;
-}
-
-.canvas-tools {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 10px 14px;
-  background: var(--surface-bg);
-  border-top: 1px solid var(--surface-border);
-}
-
 .tool-btn {
-  width: 36px;
-  height: 36px;
-  border: 1.5px solid var(--surface-border);
-  border-radius: var(--radius-sm);
-  background: white;
+  width: 34px;
+  height: 34px;
+  border-radius: 8px;
+  border: 1.5px solid rgba(124, 58, 237, 0.15);
+  background: rgba(255, 255, 255, 0.8);
   cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 16px;
+  font-size: 0.9rem;
+  color: var(--text-secondary);
+  transition: all 0.15s;
 }
+.tool-btn:hover { border-color: var(--practiq-violet); color: var(--practiq-violet); }
+.tool-btn--active { background: var(--practiq-violet); color: #fff; border-color: var(--practiq-violet); }
 
-.tool-active {
-  border-color: var(--practiq-violet);
-  background: var(--practiq-violet-pale);
+.tool-sep {
+  width: 1px;
+  height: 28px;
+  background: rgba(124, 58, 237, 0.15);
+  margin: 0 4px;
 }
 
 .color-picker {
-  width: 36px;
-  height: 36px;
-  border: none;
+  width: 34px;
+  height: 34px;
+  border-radius: 8px;
+  border: 1.5px solid rgba(124, 58, 237, 0.15);
   padding: 2px;
   cursor: pointer;
-  border-radius: var(--radius-sm);
+  background: none;
 }
 
 .size-slider {
-  flex: 1;
-  max-width: 100px;
+  width: 80px;
+  accent-color: var(--practiq-violet);
 }
 
-.answer-meta {
+.size-val {
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+  min-width: 28px;
+}
+
+/* Exercise cards */
+.exercises-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.ex-card {
+  display: flex;
+  gap: 16px;
+  align-items: flex-start;
+  padding: 18px 20px;
+  background: rgba(255, 255, 255, 0.9);
+  border-radius: 16px;
+  border: 1.5px solid rgba(124, 58, 237, 0.08);
+  transition: border-color 0.15s;
+}
+
+.ex-card--answered {
+  border-color: rgba(16, 185, 129, 0.3);
+  background: rgba(236, 253, 245, 0.6);
+}
+
+.ex-num {
+  width: 32px;
+  height: 32px;
+  border-radius: 10px;
+  background: rgba(124, 58, 237, 0.1);
+  color: var(--practiq-violet);
+  font-weight: 800;
+  font-size: 0.9rem;
   display: flex;
   align-items: center;
-  gap: 14px;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.ex-num--done {
+  background: rgba(16, 185, 129, 0.15);
+  color: #059669;
+}
+
+.ex-body {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.ex-meta {
+  display: flex;
+  align-items: center;
+  gap: 12px;
   flex-wrap: wrap;
-  font-size: 12px;
-  color: var(--text-muted);
-  margin-top: 14px;
+}
+
+.difficulty-pill {
+  padding: 3px 8px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--difficulty-color) 12%, white);
+  color: var(--difficulty-color);
+  font-size: 0.75rem;
+  font-weight: 700;
 }
 
 .time-display {
+  font-size: 0.78rem;
+  color: var(--text-muted);
   font-variant-numeric: tabular-nums;
 }
 
 .hint-count {
-  color: var(--color-warning);
+  font-size: 0.78rem;
+  color: var(--color-warning, #f59e0b);
 }
 
-.difficulty-pill {
-  padding: 6px 10px;
-  border-radius: 999px;
-  background: color-mix(in srgb, var(--difficulty-color) 12%, white);
-  color: var(--difficulty-color);
-  font-weight: 700;
-}
-
-.worksheet-footer {
-  padding-top: 18px;
-  border-top: 1px solid rgba(148, 163, 184, 0.14);
-  flex-wrap: wrap;
-}
-
-.tool-dock {
-  gap: 10px;
-  padding: 10px 14px;
-  border-radius: 22px;
-  background: rgba(255, 255, 255, 0.86);
-  box-shadow: 0 12px 28px rgba(93, 108, 146, 0.08);
-  flex-wrap: wrap;
-}
-
-.dock-btn {
-  display: inline-flex;
-  align-items: center;
-  gap: 7px;
-  padding: 8px 12px;
-  border: none;
-  background: transparent;
-  color: var(--text-secondary);
-  border-radius: 14px;
-  cursor: pointer;
+.ex-question {
+  font-size: 1.05rem;
   font-weight: 600;
-}
-
-.dock-btn--active {
-  background: rgba(124, 58, 237, 0.1);
-  color: var(--practiq-violet-dark);
-}
-
-.submit-sheet-btn {
-  min-width: 240px;
-  min-height: 52px;
-  border-radius: 18px;
-}
-
-.ai-panel {
-  min-width: 0;
-  background: rgba(255, 255, 255, 0.82);
-  border-radius: 34px;
-  border: 1px solid rgba(255, 255, 255, 0.9);
-  box-shadow: 0 22px 46px rgba(93, 108, 146, 0.14);
-  padding: 18px;
-  display: flex;
-  flex-direction: column;
-  min-height: calc(100vh - 140px);
-}
-
-.ai-panel-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-}
-
-.ai-header-info {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-}
-
-.ai-avatar {
-  width: 42px;
-  height: 42px;
-  display: grid;
-  place-items: center;
-  border-radius: 14px;
-  background: linear-gradient(135deg, rgba(124, 58, 237, 0.1), rgba(96, 165, 250, 0.12));
-  font-size: 22px;
-}
-
-.ai-name {
-  font-size: 14px;
-  font-weight: 700;
-}
-
-.ai-status {
-  font-size: 11px;
-  color: var(--color-success);
-}
-
-.ai-mascot {
-  width: 140px;
-  height: 140px;
-  margin: 8px auto 14px;
-  border-radius: 36px;
-  background: radial-gradient(circle at top, rgba(255,255,255,0.9), rgba(237,233,254,0.8) 45%, rgba(196,181,253,0.56) 100%);
-  display: grid;
-  place-items: center;
-  font-size: 72px;
-  box-shadow: 0 18px 30px rgba(124, 58, 237, 0.12);
-}
-
-.ai-messages {
-  flex: 1;
-  overflow-y: auto;
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-  padding-right: 4px;
-}
-
-.ai-bubble-wrapper {
-  display: flex;
-}
-
-.user-side {
-  justify-content: flex-end;
-}
-
-.ai-side {
-  justify-content: flex-start;
-}
-
-.ai-bubble {
-  max-width: 90%;
-  padding: 14px 16px;
-  border-radius: 18px;
-  font-size: 14px;
+  color: var(--text-primary);
   line-height: 1.5;
 }
 
-.user-msg {
-  background: linear-gradient(135deg, var(--practiq-violet), var(--practiq-violet-light));
-  color: white;
-  border-bottom-right-radius: 8px;
-  box-shadow: var(--shadow-violet);
-}
-
-.ai-msg {
-  background: white;
+.ex-input {
+  padding: 10px 14px 10px 62px;
+  border-radius: 12px;
+  border: 1.5px solid rgba(124, 58, 237, 0.15);
+  font-size: 1rem;
   color: var(--text-primary);
-  border: 1px solid rgba(148, 163, 184, 0.16);
-  border-bottom-left-radius: 8px;
+  outline: none;
+  transition: border-color 0.15s;
+  min-height: 96px;
+  background-color: #fafaf7;
+  background-image:
+    linear-gradient(to right, rgba(239,68,68,0.25) 1.5px, transparent 1.5px),
+    repeating-linear-gradient(
+      to bottom,
+      transparent,
+      transparent 31px,
+      rgba(124,58,237,0.1) 31px,
+      rgba(124,58,237,0.1) 32px
+    );
+  background-size: 56px 32px;
+  background-position: 0 0;
+  line-height: 32px;
+  box-shadow: 0 2px 12px rgba(124, 58, 237, 0.06);
 }
+.ex-input:focus { border-color: var(--practiq-violet); }
 
-.msg-time {
-  display: block;
-  margin-top: 6px;
-  font-size: 11px;
-  opacity: 0.75;
-  text-align: right;
-}
-
-.ai-typing span {
-  display: inline-block;
-  width: 8px;
-  height: 8px;
-  margin-right: 4px;
-  border-radius: 50%;
-  background: var(--text-muted);
-  animation: blink 1.2s infinite;
-}
-
-.ai-typing span:nth-child(2) {
-  animation-delay: 0.2s;
-}
-
-.ai-typing span:nth-child(3) {
-  animation-delay: 0.4s;
-}
-
-@keyframes blink {
-  0%, 80%, 100% { opacity: 0.2; }
-  40% { opacity: 1; }
-}
-
-.ai-input-area {
-  margin-top: 14px;
-}
-
-.ai-quick-actions {
+/* Canvas */
+.canvas-wrap {
   display: flex;
+  flex-direction: column;
   gap: 8px;
-  flex-wrap: wrap;
-  margin-bottom: 12px;
 }
 
-.quick-btn {
-  padding: 8px 12px;
-  border-radius: 100px;
-  border: 1px solid rgba(124, 58, 237, 0.12);
-  background: white;
-  cursor: pointer;
-  font-size: 12px;
+.canvas-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.canvas-label {
+  font-size: 0.82rem;
   font-weight: 600;
   color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
 }
 
-.ai-input-row {
+.btn-clear-canvas {
   display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 10px;
+  border-radius: 8px;
+  border: 1px solid rgba(239, 68, 68, 0.2);
+  background: rgba(255, 255, 255, 0.9);
+  color: #ef4444;
+  cursor: pointer;
+  font-size: 0.78rem;
+  transition: all 0.15s;
+}
+.btn-clear-canvas:hover { background: rgba(239, 68, 68, 0.08); }
+
+.ex-canvas {
+  width: 100%;
+  height: 240px;
+  border-radius: 12px;
+  border: 1.5px solid rgba(124, 58, 237, 0.15);
+  display: block;
+  touch-action: none;
+  cursor: crosshair;
+  box-shadow: 0 2px 12px rgba(124, 58, 237, 0.06);
+}
+
+/* Sticky footer */
+.practice-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 20px;
+  background: rgba(255, 255, 255, 0.92);
+  border-radius: 16px;
+  border: 1.5px solid rgba(124, 58, 237, 0.1);
+  position: sticky;
+  bottom: 16px;
+  box-shadow: 0 4px 24px rgba(124, 58, 237, 0.1);
+}
+
+.footer-left {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.footer-hint {
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+}
+
+.btn-submit {
+  display: flex;
+  align-items: center;
   gap: 8px;
-}
-
-.ai-input {
-  flex: 1;
-  border-radius: 18px;
-  min-height: 48px;
-}
-
-.send-btn {
-  width: 48px;
-  height: 48px;
+  padding: 12px 28px;
+  border-radius: 12px;
   border: none;
-  border-radius: 50%;
-  background: linear-gradient(135deg, var(--practiq-violet), var(--practiq-violet-light));
-  color: white;
-  display: grid;
-  place-items: center;
+  background: linear-gradient(135deg, #8b5cf6, #6366f1);
+  color: #fff;
+  font-weight: 700;
+  font-size: 0.95rem;
   cursor: pointer;
-  box-shadow: var(--shadow-violet);
+  box-shadow: 0 4px 16px rgba(99, 102, 241, 0.3);
+  transition: opacity 0.15s;
 }
+.btn-submit:hover { opacity: 0.9; }
 
-.send-btn:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
-
-.ai-panel--collapsed {
-  width: 92px;
-  padding: 16px 12px;
-}
-
-.ai-panel--collapsed .ai-panel-header {
-  justify-content: center;
-}
-
-.ai-panel--collapsed .ai-avatar,
-.ai-panel--collapsed .ai-name,
-.ai-panel--collapsed .ai-status {
-  display: none;
-}
-
-.ai-fab {
-  position: fixed;
-  right: 18px;
-  bottom: 18px;
-  width: 62px;
-  height: 62px;
-  border: none;
-  border-radius: 22px;
-  background: linear-gradient(135deg, var(--practiq-violet), var(--practiq-violet-light));
-  color: white;
-  box-shadow: 0 18px 32px rgba(99, 102, 241, 0.24);
-  display: none;
-  place-items: center;
-  font-size: 26px;
-  cursor: pointer;
-  z-index: 15;
-}
-
-.ai-fab--notify::after {
-  content: '';
-  position: absolute;
-  top: 10px;
-  right: 10px;
-  width: 10px;
-  height: 10px;
-  border-radius: 50%;
-  background: #22c55e;
-  box-shadow: 0 0 0 6px rgba(34, 197, 94, 0.18);
-}
-
+/* Modals */
 .submit-copy {
   color: var(--text-secondary);
-  font-size: 14px;
+  font-size: 0.88rem;
   margin-bottom: 20px;
 }
 
-.results-box {
-  max-width: 620px;
-}
+.results-box { max-width: 520px; }
 
-.results-header {
-  text-align: center;
-  margin-bottom: 18px;
-}
-
-.results-emoji {
-  font-size: 42px;
-  margin-bottom: 8px;
-}
-
-.results-title {
-  font-size: 24px;
-}
+.results-header { text-align: center; margin-bottom: 16px; }
+.results-emoji { font-size: 40px; margin-bottom: 8px; }
+.results-title { font-size: 1.4rem; }
 
 .results-stats {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
-  gap: 14px;
-  margin-bottom: 18px;
+  gap: 12px;
+  margin-bottom: 16px;
 }
 
 .stat-card {
   background: rgba(245, 243, 255, 0.72);
-  border-radius: 20px;
-  padding: 18px 14px;
+  border-radius: 16px;
+  padding: 16px 12px;
   text-align: center;
 }
-
-.stat-value {
-  font-size: 30px;
-  font-weight: 800;
-}
-
-.stat-label {
-  font-size: 12px;
-  color: var(--text-secondary);
-}
+.stat-value { font-size: 1.7rem; font-weight: 800; }
+.stat-label { font-size: 0.75rem; color: var(--text-secondary); }
 
 .results-recommendation {
   display: flex;
-  gap: 14px;
+  gap: 12px;
   align-items: center;
-  padding: 16px;
-  border-radius: 20px;
+  padding: 14px;
+  border-radius: 16px;
   background: rgba(248, 250, 252, 0.9);
 }
-
-.rec-icon {
-  font-size: 28px;
-}
+.rec-icon { font-size: 24px; }
 
 .level-up-badge {
-  margin-top: 16px;
-  padding: 14px 18px;
-  border-radius: 18px;
+  margin-top: 12px;
+  padding: 12px 16px;
+  border-radius: 14px;
   background: rgba(16, 185, 129, 0.1);
   color: #047857;
   font-weight: 700;
   text-align: center;
 }
 
+/* Responsive */
 @media (max-width: 1180px) {
-  .practice-body {
-    grid-template-columns: 1fr;
-  }
-
-  .ai-panel {
-    min-height: auto;
-  }
-
-  .ai-fab {
-    display: grid;
-  }
+  .practice-shell { padding: 18px 14px 90px; }
 }
 
-@media (max-width: 860px) {
-  .practice-header {
-    padding: 16px;
-    align-items: flex-start;
-    flex-wrap: wrap;
-  }
-
-  .header-center {
-    order: 3;
-    width: 100%;
-  }
-
-  .header-progress {
-    min-width: 0;
-    width: 100%;
-  }
-
-  .practice-body {
-    padding: 0 16px 18px;
-  }
-
-  .worksheet-card {
-    padding: 18px 16px;
-    min-height: auto;
-  }
-
-  .worksheet-header {
-    flex-direction: column;
-    align-items: flex-start;
-  }
-
-  .sheet-action-btn {
-    width: 100%;
-    justify-content: center;
-  }
-
-  .exercise-equation {
-    font-size: 2rem;
-  }
-
-  .equation-input {
-    width: 100px;
-    height: 82px;
-    font-size: 38px;
-  }
-
-  .worksheet-footer {
-    flex-direction: column;
-    align-items: stretch;
-  }
-
-  .submit-sheet-btn {
-    width: 100%;
-    min-width: 0;
-  }
-
-  .results-stats {
-    grid-template-columns: 1fr;
-  }
-
-  .ai-panel {
-    border-radius: 26px;
-  }
-}
-
-@media (max-width: 640px) {
-  .practice-header__left,
-  .header-metrics {
-    width: 100%;
-    justify-content: space-between;
-  }
-
-  .practice-topic {
-    font-size: 22px;
-  }
-
-  .practice-stage,
-  .practice-level {
-    font-size: 14px;
-  }
-
-  .worksheet-shell {
-    padding: 10px;
-    border-radius: 28px;
-  }
-
-  .worksheet-card {
-    border-radius: 24px;
-    padding: 16px 14px;
-  }
-
-  .exercise-row {
-    grid-template-columns: 1fr;
-    gap: 12px;
-    padding: 12px 0;
-  }
-
-  .exercise-index {
-    margin-top: 0;
-  }
-
-  .exercise-mainline {
-    justify-content: space-between;
-  }
-
-  .exercise-equation {
-    font-size: 1.6rem;
-  }
-
-  .answer-preview,
-  .equation-input {
-    width: 92px;
-    min-height: 76px;
-    height: 76px;
-    font-size: 34px;
-  }
-
-  .tool-dock {
-    width: 100%;
-    justify-content: center;
-  }
-
-  .dock-btn {
-    flex: 1 1 42%;
-    justify-content: center;
-  }
-
-  .ai-panel {
-    padding: 14px;
-  }
-
-  .ai-mascot {
-    width: 108px;
-    height: 108px;
-    font-size: 54px;
-  }
+@media (max-width: 680px) {
+  .practice-shell { padding: 16px 14px 80px; }
+  .practice-header { padding: 16px; flex-wrap: wrap; }
+  .header-right { width: 100%; justify-content: flex-end; }
+  .results-stats { grid-template-columns: 1fr; }
 }
 </style>

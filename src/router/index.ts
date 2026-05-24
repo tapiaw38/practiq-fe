@@ -39,6 +39,24 @@ const router = createRouter({
       meta: { requiresAuth: true, profileType: 'teacher' }
     },
     {
+      path: '/teacher/admin/users',
+      name: 'teacher-admin-users',
+      component: () => import('@/views/teacher/AdminUsersView.vue'),
+      meta: { requiresAuth: true, profileType: 'teacher' }
+    },
+    {
+      path: '/teacher/admin/academic',
+      name: 'teacher-admin-academic',
+      component: () => import('@/views/teacher/AcademicAdminView.vue'),
+      meta: { requiresAuth: true, profileType: 'teacher' }
+    },
+    {
+      path: '/teacher/admin/academic/subjects/:subjectId/courses',
+      name: 'teacher-subject-courses',
+      component: () => import('@/views/teacher/SubjectCoursesView.vue'),
+      meta: { requiresAuth: true, profileType: 'teacher' }
+    },
+    {
       path: '/teacher/courses/:id',
       name: 'teacher-course',
       component: () => import('@/views/teacher/CourseDetailView.vue'),
@@ -53,7 +71,7 @@ const router = createRouter({
     {
       path: '/student/practice/:id',
       name: 'student-practice',
-      component: () => import('@/views/student/BookView.vue'),
+      component: () => import('@/views/student/PracticeView.vue'),
       meta: { requiresAuth: true, profileType: 'student' }
     },
     {

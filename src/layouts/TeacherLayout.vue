@@ -6,11 +6,7 @@
       </button>
 
       <div class="topbar-brand">
-        <div class="brand-icon">P</div>
-        <div>
-          <div class="brand-name">Practiq</div>
-          <div class="brand-tag">Modo Docente</div>
-        </div>
+        <img src="@/assets/logo.png" class="topbar-logo" alt="Practiq" />
       </div>
 
       <div class="topbar-avatar">{{ userInitial }}</div>
@@ -20,34 +16,24 @@
 
     <aside class="sidebar" :class="{ 'sidebar--open': navOpen }">
       <div class="sidebar-brand">
-        <div class="sidebar-brand-main">
-          <div class="brand-icon brand-icon--large">P</div>
-          <div>
-            <div class="brand-name brand-name--large">Practiq</div>
-            <div class="brand-tag">Panel del docente</div>
-          </div>
-        </div>
+        <img src="@/assets/logo.png" class="sidebar-logo" alt="Practiq" />
         <button class="close-btn" type="button" @click="navOpen = false">
           <i class="pi pi-times"></i>
         </button>
       </div>
 
-      <div class="mode-card">
-        <div class="mode-card__icon">🧑‍🏫</div>
-        <div>
-          <div class="mode-card__title">Modo Docente</div>
-          <p class="mode-card__copy">Crea cursos, gestiona contenido y acompana a tus estudiantes.</p>
-        </div>
-      </div>
-
       <nav class="sidebar-nav">
         <RouterLink to="/teacher/dashboard" class="nav-item" active-class="nav-item-active" @click="navOpen = false">
           <i class="pi pi-home"></i>
-          <span>Dashboard</span>
+          <span>Inicio</span>
         </RouterLink>
-        <RouterLink to="/teacher/dashboard" class="nav-item" @click="navOpen = false">
-          <i class="pi pi-book"></i>
-          <span>Mis Cursos</span>
+        <RouterLink to="/teacher/admin/users" class="nav-item" active-class="nav-item-active" @click="navOpen = false">
+          <i class="pi pi-users"></i>
+          <span>Usuarios</span>
+        </RouterLink>
+        <RouterLink to="/teacher/admin/academic" class="nav-item" active-class="nav-item-active" @click="navOpen = false">
+          <i class="pi pi-sitemap"></i>
+          <span>Académico</span>
         </RouterLink>
       </nav>
 
@@ -56,7 +42,7 @@
           <div class="user-avatar">{{ userInitial }}</div>
           <div class="user-details">
             <div class="user-name">{{ profile?.name || 'Docente' }}</div>
-            <div class="user-role">Profesor</div>
+            <div class="user-role">{{ roleLabel }}</div>
           </div>
         </div>
         <button class="logout-btn" type="button" @click="logout">
@@ -80,8 +66,13 @@ const route = useRoute()
 const router = useRouter()
 const authStore = useAuthStore()
 const profile = computed(() => authStore.profile)
-const userInitial = computed(() => profile.value?.name?.[0]?.toUpperCase() || 'P')
+const userInitial = computed(() => profile.value?.name?.[0]?.toUpperCase() || 'D')
 const navOpen = ref(false)
+const isAdmin = computed(() => {
+  const roles = authStore.authUser?.roles || []
+  return roles.some((role) => role.name === 'admin' || role.name === 'superadmin')
+})
+const roleLabel = computed(() => isAdmin.value ? 'Profesor Admin' : 'Profesor')
 
 watch(() => route.fullPath, () => {
   navOpen.value = false
@@ -127,11 +118,8 @@ function logout() {
 }
 
 .sidebar-brand,
-.sidebar-brand-main,
 .user-info,
-.mobile-topbar,
 .topbar-brand,
-.mode-card,
 .nav-item,
 .sidebar-footer {
   display: flex;
@@ -140,49 +128,24 @@ function logout() {
 
 .sidebar-brand {
   justify-content: space-between;
+  align-items: center;
   gap: 12px;
 }
 
-.sidebar-brand-main,
 .topbar-brand,
 .user-info,
-.mode-card,
 .nav-item {
   gap: 12px;
 }
 
-.brand-icon {
-  width: 40px;
-  height: 40px;
-  border-radius: 14px;
-  background: linear-gradient(135deg, #8b5cf6, #6366f1);
-  color: white;
-  display: grid;
-  place-items: center;
-  font-weight: 800;
-  box-shadow: 0 12px 22px rgba(99, 102, 241, 0.2);
+.sidebar-logo {
+  width: 120px;
+  display: block;
 }
 
-.brand-icon--large {
-  width: 48px;
-  height: 48px;
-  border-radius: 16px;
-  font-size: 20px;
-}
-
-.brand-name {
-  font-size: 17px;
-  font-weight: 800;
-  color: #182136;
-}
-
-.brand-name--large {
-  font-size: 20px;
-}
-
-.brand-tag {
-  font-size: 12px;
-  color: var(--text-secondary);
+.topbar-logo {
+  width: 100px;
+  display: block;
 }
 
 .close-btn,
@@ -207,47 +170,12 @@ function logout() {
   color: var(--text-primary);
 }
 
-.mode-card {
-  margin-top: 20px;
-  padding: 16px;
-  border-radius: 24px;
-  background:
-    radial-gradient(circle at top left, rgba(124, 58, 237, 0.12), transparent 55%),
-    linear-gradient(180deg, rgba(255, 255, 255, 0.96), rgba(245, 243, 255, 0.88));
-  border: 1px solid rgba(124, 58, 237, 0.12);
-}
-
-.mode-card__icon {
-  width: 44px;
-  height: 44px;
-  border-radius: 16px;
-  display: grid;
-  place-items: center;
-  font-size: 20px;
-  background: rgba(124, 58, 237, 0.12);
-  color: var(--practiq-violet-dark);
-  flex-shrink: 0;
-}
-
-.mode-card__title {
-  font-size: 14px;
-  font-weight: 700;
-  color: #17203a;
-}
-
-.mode-card__copy {
-  margin-top: 4px;
-  font-size: 12px;
-  line-height: 1.55;
-  color: var(--text-secondary);
-}
-
 .sidebar-nav {
   flex: 1;
   display: flex;
   flex-direction: column;
   gap: 8px;
-  margin-top: 20px;
+  margin-top: 24px;
 }
 
 .nav-item {
@@ -280,19 +208,19 @@ function logout() {
 .user-info {
   min-width: 0;
   flex: 1;
+  gap: 12px;
 }
 
-.user-avatar,
-.topbar-avatar {
-  width: 46px;
-  height: 46px;
-  border-radius: 18px;
-  background: linear-gradient(135deg, #8b5cf6, #6366f1);
-  color: white;
+.user-avatar {
+  width: 44px;
+  height: 44px;
+  border-radius: 16px;
+  background: linear-gradient(135deg, rgba(124, 58, 237, 0.18), rgba(96, 165, 250, 0.2));
+  color: var(--practiq-violet-dark);
   display: grid;
   place-items: center;
+  font-size: 15px;
   font-weight: 800;
-  box-shadow: 0 12px 22px rgba(99, 102, 241, 0.2);
   flex-shrink: 0;
 }
 
@@ -324,6 +252,18 @@ function logout() {
   min-width: 0;
 }
 
+.topbar-avatar {
+  width: 42px;
+  height: 42px;
+  border-radius: 14px;
+  background: rgba(124, 58, 237, 0.12);
+  color: var(--practiq-violet-dark);
+  display: grid;
+  place-items: center;
+  font-size: 15px;
+  font-weight: 800;
+}
+
 .drawer-backdrop {
   display: none;
 }
@@ -344,18 +284,13 @@ function logout() {
   .mobile-topbar {
     display: flex;
     justify-content: space-between;
+    align-items: center;
     padding: 14px 16px 0;
     position: sticky;
     top: 0;
     z-index: 30;
     background: linear-gradient(180deg, rgba(247, 248, 255, 0.96), rgba(247, 248, 255, 0.76) 75%, transparent);
     backdrop-filter: blur(16px);
-  }
-
-  .topbar-avatar {
-    width: 42px;
-    height: 42px;
-    border-radius: 16px;
   }
 
   .drawer-backdrop {

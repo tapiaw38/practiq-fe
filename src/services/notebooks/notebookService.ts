@@ -2,7 +2,7 @@ import { practiqApi } from '@/api/request/server'
 import type { Notebook, NotebookPage } from '@/types'
 
 export class NotebookService {
-  async create(courseId: string, params: { title: string; description?: string }): Promise<{ data: Notebook }> {
+  async create(courseId: string, params: { title: string; description?: string; level?: number }): Promise<{ data: Notebook }> {
     const { data } = await practiqApi.post(`/courses/${courseId}/notebooks`, params)
     return data
   }

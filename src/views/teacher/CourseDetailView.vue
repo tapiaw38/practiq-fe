@@ -21,6 +21,86 @@
         </button>
       </div>
 
+      <!-- TAB: Niveles -->
+      <div v-if="activeTab === 'levels'" class="tab-content">
+        <div class="section-header">
+          <div>
+            <h2>Niveles del curso</h2>
+            <p class="section-copy">Define aquí el contenido de cada nivel. El alumno verá actividad cuando existan prácticas, pruebas o cuadernos asignados a un nivel.</p>
+          </div>
+          <button class="btn btn-primary btn-sm" @click="createNextLevel">
+            <i class="pi pi-plus"></i> Agregar nivel
+          </button>
+        </div>
+
+        <div class="levels-grid">
+          <article v-for="lv in teacherLevels" :key="lv.level" class="teacher-level-card">
+            <div class="teacher-level-card__top">
+              <div>
+                <div class="teacher-level-label">Nivel {{ lv.level }}</div>
+                <div class="teacher-level-meta">
+                  {{ lv.practices.length }} prácticas ·
+                  {{ lv.levelTest ? '1 prueba' : '0 pruebas' }} ·
+                  {{ lv.notebooks.length }} cuadernos
+                </div>
+              </div>
+              <div class="teacher-level-actions">
+                <button class="btn btn-secondary btn-sm" @click="openPracticeForLevel(lv.level)">
+                  <i class="pi pi-pencil"></i> Práctica
+                </button>
+                <button class="btn btn-secondary btn-sm" @click="openLevelTestForLevel(lv.level)">
+                  <i class="pi pi-star"></i> Prueba
+                </button>
+                <button class="btn btn-secondary btn-sm" @click="openNotebookForLevel(lv.level)">
+                  <i class="pi pi-book"></i> Cuaderno
+                </button>
+              </div>
+            </div>
+
+            <div class="teacher-level-sections">
+              <div class="teacher-level-block">
+                <div class="teacher-level-block__title">Prácticas</div>
+                <div v-if="lv.practices.length" class="mini-list">
+                  <div v-for="sheet in lv.practices" :key="sheet.id" class="mini-item">
+                    <span>{{ sheet.title }}</span>
+                    <small>{{ sheet.exercises?.length || 0 }} ejercicios</small>
+                  </div>
+                </div>
+                <div v-else class="mini-empty">Sin prácticas</div>
+              </div>
+
+              <div class="teacher-level-block">
+                <div class="teacher-level-block__title">Prueba de nivel</div>
+                <div v-if="lv.levelTest" class="mini-list">
+                  <div class="mini-item">
+                    <span>{{ lv.levelTest.title }}</span>
+                    <small>{{ lv.levelTest.exercises?.length || 0 }} ejercicios · {{ lv.levelTest.test_style }}</small>
+                  </div>
+                </div>
+                <div v-else class="mini-empty">Sin prueba asignada</div>
+              </div>
+
+              <div class="teacher-level-block">
+                <div class="teacher-level-block__title">Cuadernos</div>
+                <div v-if="lv.notebooks.length" class="mini-list">
+                  <button
+                    v-for="nb in lv.notebooks"
+                    :key="nb.id"
+                    type="button"
+                    class="mini-item mini-item--link"
+                    @click="router.push(`/teacher/courses/${courseId}/notebooks/${nb.id}`)"
+                  >
+                    <span>{{ nb.title }}</span>
+                    <small>{{ nb.pages?.length || 0 }} páginas</small>
+                  </button>
+                </div>
+                <div v-else class="mini-empty">Sin cuadernos</div>
+              </div>
+            </div>
+          </article>
+        </div>
+      </div>
+
       <!-- TAB: Temas -->
       <div v-if="activeTab === 'topics'" class="tab-content">
         <div class="section-header">
@@ -100,9 +180,12 @@
       <!-- TAB: Alumnos -->
       <div v-if="activeTab === 'students'" class="tab-content">
         <div class="section-header">
-          <h2>Alumnos inscritos</h2>
+          <div>
+            <h2>Alumnos del curso</h2>
+            <p class="section-copy">Se listan los alumnos del grado asociado al curso y también cualquier inscripción manual adicional.</p>
+          </div>
         </div>
-        <div v-if="students.length === 0" class="empty-inline">No hay alumnos inscritos.</div>
+        <div v-if="students.length === 0" class="empty-inline">No hay alumnos asociados a este curso.</div>
         <div class="items-list">
           <div v-for="s in students" :key="s.id" class="list-item">
             <div class="item-info">
@@ -290,6 +373,10 @@
                 <label class="form-label">Descripción</label>
                 <textarea v-model="newNotebook.description" class="form-textarea" rows="2" placeholder="Descripción opcional"></textarea>
               </div>
+              <div class="form-group">
+                <label class="form-label">Nivel</label>
+                <input v-model.number="newNotebook.level" type="number" min="1" class="form-input" />
+              </div>
               <div class="modal-actions">
                 <button type="button" class="btn btn-secondary" @click="showNotebookModal = false">Cancelar</button>
                 <button type="submit" class="btn btn-primary">Crear Cuaderno</button>
@@ -352,13 +439,21 @@
         </div>
       </Transition>
     </Teleport>
+
+    <ConfirmModal
+      v-bind="confirmState"
+      @confirm="onConfirm"
+      @cancel="onCancel"
+    />
   </TeacherLayout>
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, onMounted, watch } from 'vue'
+import { computed, ref, reactive, onMounted, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import TeacherLayout from '@/layouts/TeacherLayout.vue'
+import ConfirmModal from '@/components/ConfirmModal.vue'
+import { useConfirm } from '@/composables/useConfirm'
 import { courseService } from '@/services/courses/courseService'
 import { topicService } from '@/services/topics/topicService'
 import { exerciseService } from '@/services/exercises/exerciseService'
@@ -370,6 +465,7 @@ import type { Course, Topic, Exercise, Material, PracticeSheet, Student, Noteboo
 const route = useRoute()
 const router = useRouter()
 const courseId = route.params.id as string
+const { confirmState, showConfirm, onConfirm, onCancel } = useConfirm()
 
 const course = ref<Course | null>(null)
 const topics = ref<Topic[]>([])
@@ -381,8 +477,9 @@ const notebooks = ref<Notebook[]>([])
 const selectedTopicId = ref('')
 const sheetExercises = ref<Exercise[]>([])
 
-const activeTab = ref('topics')
+const activeTab = ref('levels')
 const tabs = [
+  { id: 'levels', label: 'Niveles', icon: 'pi pi-sitemap' },
   { id: 'topics', label: 'Temas', icon: 'pi pi-list' },
   { id: 'exercises', label: 'Ejercicios', icon: 'pi pi-pencil' },
   { id: 'materials', label: 'Materiales', icon: 'pi pi-file' },
@@ -401,7 +498,23 @@ const newTopic = reactive({ title: '', description: '', order_index: 0 })
 const newExercise = reactive({ question: '', type: 'open_text' as Exercise['type'], correct_answer: '', explanation: '', difficulty: 1 })
 const newMaterial = reactive({ title: '', type: 'text' as Material['type'], extracted_text: '' })
 const newSheet = reactive({ title: '', topic_id: '', level: 1, sheet_type: 'practice', test_style: 'keyboard', exercise_ids: [] as string[] })
-const newNotebook = reactive({ title: '', description: '' })
+const newNotebook = reactive({ title: '', description: '', level: 1 })
+
+const teacherLevels = computed(() => {
+  const maxFromSheets = sheets.value.reduce((max, sheet) => Math.max(max, sheet.level || 1), 1)
+  const maxFromNotebooks = notebooks.value.reduce((max, notebook) => Math.max(max, notebook.level || 1), 1)
+  const maxLevel = Math.max(maxFromSheets, maxFromNotebooks, 1)
+
+  return Array.from({ length: maxLevel + 1 }, (_, index) => {
+    const level = index + 1
+    return {
+      level,
+      practices: sheets.value.filter((sheet) => sheet.level === level && sheet.sheet_type !== 'level_test'),
+      levelTest: sheets.value.find((sheet) => sheet.level === level && sheet.sheet_type === 'level_test') || null,
+      notebooks: notebooks.value.filter((notebook) => (notebook.level || 1) === level)
+    }
+  })
+})
 
 onMounted(async () => {
   const [courseRes, topicsRes, materialsRes, studentsRes, sheetsRes, notebooksRes] = await Promise.allSettled([
@@ -469,12 +582,13 @@ async function createSheet() {
 async function createNotebook() {
   const res = await notebookService.create(courseId, { ...newNotebook })
   showNotebookModal.value = false
-  newNotebook.title = ''; newNotebook.description = ''
+  newNotebook.title = ''; newNotebook.description = ''; newNotebook.level = 1
   router.push(`/teacher/courses/${courseId}/notebooks/${res.data.id}`)
 }
 
 async function deleteExercise(id: string) {
-  if (!confirm('¿Eliminar este ejercicio?')) return
+  const ok = await showConfirm('¿Eliminar este ejercicio?')
+  if (!ok) return
   await exerciseService.delete(id)
   exercises.value = exercises.value.filter(e => e.id !== id)
 }
@@ -494,6 +608,29 @@ function matIcon(type: string) {
     worksheet: 'pi pi-copy'
   }
   return icons[type] || 'pi pi-file'
+}
+
+function openPracticeForLevel(level: number) {
+  newSheet.level = level
+  newSheet.sheet_type = 'practice'
+  newSheet.test_style = 'keyboard'
+  showSheetModal.value = true
+}
+
+function openLevelTestForLevel(level: number) {
+  newSheet.level = level
+  newSheet.sheet_type = 'level_test'
+  showSheetModal.value = true
+}
+
+function openNotebookForLevel(level: number) {
+  newNotebook.level = level
+  showNotebookModal.value = true
+}
+
+function createNextLevel() {
+  const nextLevel = teacherLevels.value.length
+  openPracticeForLevel(nextLevel)
 }
 </script>
 
@@ -522,8 +659,50 @@ function matIcon(type: string) {
 .tab-active { color: var(--practiq-violet); border-bottom-color: var(--practiq-violet); }
 .tab-content { animation: fade-in 0.2s ease; }
 @keyframes fade-in { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; } }
-.section-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; }
+.section-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; gap: 16px; }
 .section-header h2 { font-size: 17px; font-weight: 600; }
+.section-copy { margin: 6px 0 0; font-size: 13px; color: var(--text-secondary); line-height: 1.5; }
+.levels-grid { display: grid; gap: 16px; }
+.teacher-level-card {
+  background: linear-gradient(180deg, rgba(255,255,255,0.98), rgba(248,250,252,0.94));
+  border: 1px solid rgba(148,163,184,0.16);
+  border-radius: 20px;
+  padding: 20px;
+  display: grid;
+  gap: 16px;
+}
+.teacher-level-card__top,
+.teacher-level-actions,
+.teacher-level-sections { display: flex; }
+.teacher-level-card__top { justify-content: space-between; align-items: flex-start; gap: 16px; }
+.teacher-level-actions { gap: 10px; flex-wrap: wrap; }
+.teacher-level-label { font-size: 18px; font-weight: 800; color: var(--text-primary); }
+.teacher-level-meta { margin-top: 6px; color: var(--text-secondary); font-size: 13px; }
+.teacher-level-sections { gap: 14px; flex-wrap: wrap; }
+.teacher-level-block {
+  flex: 1 1 220px;
+  min-width: 0;
+  padding: 14px 16px;
+  background: rgba(248,250,252,0.9);
+  border: 1px solid rgba(148,163,184,0.14);
+  border-radius: 16px;
+}
+.teacher-level-block__title { font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; color: #64748b; margin-bottom: 10px; }
+.mini-list { display: grid; gap: 8px; }
+.mini-item {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  border: 1px solid rgba(148,163,184,0.12);
+  background: white;
+  text-align: left;
+}
+.mini-item span { font-size: 14px; font-weight: 700; color: var(--text-primary); }
+.mini-item small { font-size: 12px; color: var(--text-secondary); }
+.mini-item--link { cursor: pointer; }
+.mini-empty { font-size: 13px; color: var(--text-muted); }
 .empty-inline { color: var(--text-muted); font-size: 14px; padding: 20px 0; }
 .items-list { display: flex; flex-direction: column; gap: 8px; }
 .list-item {
