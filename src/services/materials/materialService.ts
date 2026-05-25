@@ -11,6 +11,10 @@ export class MaterialService {
     const { data } = await practiqApi.get(`/courses/${courseId}/materials`)
     return data
   }
+
+  async delete(id: string): Promise<void> {
+    await practiqApi.delete(`/materials/${id}`)
+  }
 }
 
 export const materialService = new MaterialService()

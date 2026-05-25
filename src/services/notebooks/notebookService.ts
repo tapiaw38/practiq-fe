@@ -39,6 +39,15 @@ export class NotebookService {
     await practiqApi.put(`/notebook-pages/${pageId}`, params)
   }
 
+  async update(id: string, params: { title: string; description?: string }): Promise<{ data: Notebook }> {
+    const { data } = await practiqApi.put(`/notebooks/${id}`, params)
+    return data
+  }
+
+  async delete(id: string): Promise<void> {
+    await practiqApi.delete(`/notebooks/${id}`)
+  }
+
   async saveSubmission(pageId: string, params: { canvas_data?: string; answer_text?: string }): Promise<void> {
     await practiqApi.post(`/notebook-pages/${pageId}/submit`, params)
   }

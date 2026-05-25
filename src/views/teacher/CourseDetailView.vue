@@ -114,10 +114,23 @@
           <div v-for="topic in topics" :key="topic.id" class="list-item">
             <div class="item-info">
               <span class="item-order">{{ topic.order_index + 1 }}</span>
-              <div>
+              <div v-if="editingTopicId !== topic.id">
                 <div class="item-title">{{ topic.title }}</div>
                 <div class="item-subtitle">{{ topic.description }}</div>
               </div>
+              <div v-else class="inline-edit-row">
+                <input v-model="editTopicTitle" class="form-input inline-edit-input" @keyup.enter="saveTopicEdit(topic)" @keyup.esc="editingTopicId = null" />
+                <button class="btn btn-primary btn-sm" @click="saveTopicEdit(topic)">Guardar</button>
+                <button class="btn btn-ghost btn-sm" @click="editingTopicId = null">Cancelar</button>
+              </div>
+            </div>
+            <div class="item-actions">
+              <button class="btn btn-ghost btn-sm" @click="startTopicEdit(topic)">
+                <i class="pi pi-pencil"></i>
+              </button>
+              <button class="btn btn-ghost btn-sm" @click="deleteTopic(topic.id)">
+                <i class="pi pi-trash"></i>
+              </button>
             </div>
           </div>
         </div>
@@ -173,6 +186,9 @@
                 <div class="item-subtitle">{{ mat.type }} · {{ mat.status }}</div>
               </div>
             </div>
+            <button class="btn btn-ghost btn-sm" @click="deleteMaterial(mat.id)">
+              <i class="pi pi-trash"></i>
+            </button>
           </div>
         </div>
       </div>
@@ -217,6 +233,14 @@
                 <div class="item-subtitle">{{ sheet.exercises?.length || 0 }} ejercicios · {{ sheet.created_by }}</div>
               </div>
             </div>
+            <div class="item-actions">
+              <button class="btn btn-ghost btn-sm" @click="openEditSheet(sheet)">
+                <i class="pi pi-pencil"></i>
+              </button>
+              <button class="btn btn-ghost btn-sm" @click="deleteSheet(sheet.id)">
+                <i class="pi pi-trash"></i>
+              </button>
+            </div>
           </div>
         </div>
       </div>
@@ -244,7 +268,14 @@
                 <div class="item-subtitle">{{ nb.description || 'Sin descripción' }} · {{ nb.pages?.length || 0 }} páginas</div>
               </div>
             </div>
-            <i class="pi pi-chevron-right" style="color: var(--text-secondary)"></i>
+            <div class="item-actions" @click.stop>
+              <button class="btn btn-ghost btn-sm" @click="openEditNotebook(nb)">
+                <i class="pi pi-pencil"></i>
+              </button>
+              <button class="btn btn-ghost btn-sm" @click="deleteNotebook(nb.id)">
+                <i class="pi pi-trash"></i>
+              </button>
+            </div>
           </div>
         </div>
       </div>
@@ -440,6 +471,59 @@
       </Transition>
     </Teleport>
 
+    <!-- Edit Sheet Modal -->
+    <Teleport to="body">
+      <Transition name="fade">
+        <div v-if="showEditSheetModal" class="modal-overlay" @click.self="showEditSheetModal = false">
+          <div class="modal-box">
+            <h3 class="modal-title">Editar Hoja de Práctica</h3>
+            <form @submit.prevent="saveSheetEdit">
+              <div class="form-group">
+                <label class="form-label">Título *</label>
+                <input v-model="editSheet.title" class="form-input" required />
+              </div>
+              <div class="form-group">
+                <label class="form-label">Tema</label>
+                <select v-model="editSheet.topic_id" class="form-select">
+                  <option value="">Sin tema específico</option>
+                  <option v-for="t in topics" :key="t.id" :value="t.id">{{ t.title }}</option>
+                </select>
+              </div>
+              <div class="modal-actions">
+                <button type="button" class="btn btn-secondary" @click="showEditSheetModal = false">Cancelar</button>
+                <button type="submit" class="btn btn-primary">Guardar</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      </Transition>
+    </Teleport>
+
+    <!-- Edit Notebook Modal -->
+    <Teleport to="body">
+      <Transition name="fade">
+        <div v-if="showEditNotebookModal" class="modal-overlay" @click.self="showEditNotebookModal = false">
+          <div class="modal-box">
+            <h3 class="modal-title">Editar Cuaderno</h3>
+            <form @submit.prevent="saveNotebookEdit">
+              <div class="form-group">
+                <label class="form-label">Título *</label>
+                <input v-model="editNotebook.title" class="form-input" required />
+              </div>
+              <div class="form-group">
+                <label class="form-label">Descripción</label>
+                <textarea v-model="editNotebook.description" class="form-textarea" rows="2"></textarea>
+              </div>
+              <div class="modal-actions">
+                <button type="button" class="btn btn-secondary" @click="showEditNotebookModal = false">Cancelar</button>
+                <button type="submit" class="btn btn-primary">Guardar</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      </Transition>
+    </Teleport>
+
     <ConfirmModal
       v-bind="confirmState"
       @confirm="onConfirm"
@@ -493,6 +577,20 @@ const showExerciseModal = ref(false)
 const showMaterialModal = ref(false)
 const showSheetModal = ref(false)
 const showNotebookModal = ref(false)
+const showEditSheetModal = ref(false)
+const showEditNotebookModal = ref(false)
+
+// Inline topic edit state
+const editingTopicId = ref<string | null>(null)
+const editTopicTitle = ref('')
+
+// Edit sheet state
+const editingSheetId = ref<string | null>(null)
+const editSheet = reactive({ title: '', topic_id: '' })
+
+// Edit notebook state
+const editingNotebookId = ref<string | null>(null)
+const editNotebook = reactive({ title: '', description: '' })
 
 const newTopic = reactive({ title: '', description: '', order_index: 0 })
 const newExercise = reactive({ question: '', type: 'open_text' as Exercise['type'], correct_answer: '', explanation: '', difficulty: 1 })
@@ -631,6 +729,76 @@ function openNotebookForLevel(level: number) {
 function createNextLevel() {
   const nextLevel = teacherLevels.value.length
   openPracticeForLevel(nextLevel)
+}
+
+function startTopicEdit(topic: Topic) {
+  editingTopicId.value = topic.id
+  editTopicTitle.value = topic.title
+}
+
+async function saveTopicEdit(topic: Topic) {
+  if (!editTopicTitle.value.trim()) return
+  await topicService.update(topic.id, { title: editTopicTitle.value, description: topic.description, order_index: topic.order_index })
+  editingTopicId.value = null
+  const res = await topicService.list(courseId)
+  topics.value = res.data || []
+}
+
+async function deleteTopic(id: string) {
+  const ok = await showConfirm('¿Eliminar este tema?')
+  if (!ok) return
+  await topicService.delete(id)
+  topics.value = topics.value.filter(t => t.id !== id)
+}
+
+async function deleteMaterial(id: string) {
+  const ok = await showConfirm('¿Eliminar este material?')
+  if (!ok) return
+  await materialService.delete(id)
+  materials.value = materials.value.filter(m => m.id !== id)
+}
+
+function openEditSheet(sheet: PracticeSheet) {
+  editingSheetId.value = sheet.id
+  editSheet.title = sheet.title
+  editSheet.topic_id = sheet.topic_id || ''
+  showEditSheetModal.value = true
+}
+
+async function saveSheetEdit() {
+  if (!editingSheetId.value) return
+  await practiceSheetService.update(editingSheetId.value, { title: editSheet.title, topic_id: editSheet.topic_id })
+  showEditSheetModal.value = false
+  const res = await practiceSheetService.list(courseId)
+  sheets.value = res.data || []
+}
+
+async function deleteSheet(id: string) {
+  const ok = await showConfirm('¿Eliminar esta hoja de práctica?')
+  if (!ok) return
+  await practiceSheetService.delete(id)
+  sheets.value = sheets.value.filter(s => s.id !== id)
+}
+
+function openEditNotebook(nb: Notebook) {
+  editingNotebookId.value = nb.id
+  editNotebook.title = nb.title
+  editNotebook.description = nb.description || ''
+  showEditNotebookModal.value = true
+}
+
+async function saveNotebookEdit() {
+  if (!editingNotebookId.value) return
+  await notebookService.update(editingNotebookId.value, { title: editNotebook.title, description: editNotebook.description })
+  showEditNotebookModal.value = false
+  notebooks.value = await notebookService.list(courseId)
+}
+
+async function deleteNotebook(id: string) {
+  const ok = await showConfirm('¿Eliminar este cuaderno?')
+  if (!ok) return
+  await notebookService.delete(id)
+  notebooks.value = notebooks.value.filter(n => n.id !== id)
 }
 </script>
 
@@ -782,4 +950,7 @@ function createNextLevel() {
   color: var(--text-primary);
 }
 .modal-actions { display: flex; gap: 12px; justify-content: flex-end; margin-top: 24px; }
+.item-actions { display: flex; gap: 4px; align-items: center; flex-shrink: 0; }
+.inline-edit-row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.inline-edit-input { min-width: 200px; }
 </style>

@@ -23,6 +23,15 @@ export class PracticeSheetService {
     return data
   }
 
+  async update(id: string, params: { title: string; topic_id?: string }): Promise<{ data: PracticeSheet }> {
+    const { data } = await practiqApi.put(`/practice-sheets/${id}`, params)
+    return data
+  }
+
+  async delete(id: string): Promise<void> {
+    await practiqApi.delete(`/practice-sheets/${id}`)
+  }
+
   async submit(id: string, input: SubmitInput): Promise<{ data: SubmitResult }> {
     const { data } = await practiqApi.post(`/practice-sheets/${id}/submit`, input)
     return data
