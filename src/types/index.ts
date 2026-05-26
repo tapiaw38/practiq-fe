@@ -247,6 +247,19 @@ export interface NotebookSubmission {
   answer_text: string
 }
 
+export interface StudentAttempt {
+  id: string
+  student_id: string
+  exercise_id: string
+  practice_sheet_id: string
+  answer_text: string
+  is_correct: boolean
+  score: number
+  time_spent_seconds: number
+  hints_used: number
+  created_at: string
+}
+
 export interface NotebookPage {
   id: string
   notebook_id: string

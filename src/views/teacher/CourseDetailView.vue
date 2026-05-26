@@ -61,10 +61,16 @@
               <div class="teacher-level-block">
                 <div class="teacher-level-block__title">Prácticas</div>
                 <div v-if="lv.practices.length" class="mini-list">
-                  <div v-for="sheet in lv.practices" :key="sheet.id" class="mini-item">
+                  <button
+                    v-for="sheet in lv.practices"
+                    :key="sheet.id"
+                    type="button"
+                    class="mini-item mini-item--link"
+                    @click="goToSheet(sheet.id)"
+                  >
                     <span>{{ sheet.title }}</span>
                     <small>{{ sheet.exercises?.length || 0 }} ejercicios</small>
-                  </div>
+                  </button>
                 </div>
                 <div v-else class="mini-empty">Sin prácticas</div>
               </div>
@@ -72,10 +78,14 @@
               <div class="teacher-level-block">
                 <div class="teacher-level-block__title">Prueba de nivel</div>
                 <div v-if="lv.levelTest" class="mini-list">
-                  <div class="mini-item">
+                  <button
+                    type="button"
+                    class="mini-item mini-item--link"
+                    @click="goToSheet(lv.levelTest.id)"
+                  >
                     <span>{{ lv.levelTest.title }}</span>
                     <small>{{ lv.levelTest.exercises?.length || 0 }} ejercicios · {{ lv.levelTest.test_style }}</small>
-                  </div>
+                  </button>
                 </div>
                 <div v-else class="mini-empty">Sin prueba asignada</div>
               </div>
@@ -152,7 +162,7 @@
         </div>
         <div v-if="!selectedTopicId" class="empty-inline">Selecciona un tema para ver sus ejercicios.</div>
         <div v-else-if="exercises.length === 0" class="empty-inline">No hay ejercicios en este tema.</div>
-        <div class="items-list">
+        <div v-else class="items-list">
           <div v-for="ex in exercises" :key="ex.id" class="list-item">
             <div class="item-info">
               <div class="difficulty-badge" :style="{ background: diffColor(ex.difficulty) }">{{ ex.difficulty }}</div>
@@ -161,9 +171,14 @@
                 <div class="item-subtitle">{{ ex.type }} · Respuesta: {{ ex.correct_answer || 'N/A' }}</div>
               </div>
             </div>
-            <button class="btn btn-ghost btn-sm" @click="deleteExercise(ex.id)">
-              <i class="pi pi-trash"></i>
-            </button>
+            <div class="item-actions">
+              <button class="btn btn-ghost btn-sm" @click="openEditExercise(ex)">
+                <i class="pi pi-pencil"></i>
+              </button>
+              <button class="btn btn-ghost btn-sm" @click="deleteExercise(ex.id)">
+                <i class="pi pi-trash"></i>
+              </button>
+            </div>
           </div>
         </div>
       </div>
@@ -219,7 +234,7 @@
       <div v-if="activeTab === 'sheets'" class="tab-content">
         <div class="section-header">
           <h2>Hojas de Práctica</h2>
-          <button class="btn btn-primary btn-sm" @click="showSheetModal = true">
+          <button class="btn btn-primary btn-sm" @click="openNewSheet()">
             <i class="pi pi-plus"></i> Nueva Hoja
           </button>
         </div>
@@ -229,7 +244,12 @@
             <div class="item-info">
               <div class="level-badge">Nivel {{ sheet.level }}</div>
               <div>
-                <div class="item-title">{{ sheet.title }}</div>
+                <div class="item-title item-title--with-badge">
+                  <span>{{ sheet.title }}</span>
+                  <span class="sheet-type-pill" :class="sheet.sheet_type === 'level_test' ? 'sheet-type-pill--test' : 'sheet-type-pill--practice'">
+                    {{ sheet.sheet_type === 'level_test' ? 'Prueba de nivel' : 'Práctica' }}
+                  </span>
+                </div>
                 <div class="item-subtitle">{{ sheet.exercises?.length || 0 }} ejercicios · {{ sheet.created_by }}</div>
               </div>
             </div>
@@ -258,8 +278,7 @@
           <div
             v-for="nb in notebooks"
             :key="nb.id"
-            class="list-item list-item--link"
-            @click="router.push(`/teacher/courses/${courseId}/notebooks/${nb.id}`)"
+            class="list-item"
           >
             <div class="item-info">
               <i class="pi pi-book" style="font-size: 20px; color: var(--practiq-violet)"></i>
@@ -269,8 +288,11 @@
               </div>
             </div>
             <div class="item-actions" @click.stop>
-              <button class="btn btn-ghost btn-sm" @click="openEditNotebook(nb)">
+              <button class="btn btn-ghost btn-sm" @click="router.push(`/teacher/courses/${courseId}/notebooks/${nb.id}`)">
                 <i class="pi pi-pencil"></i>
+              </button>
+              <button class="btn btn-ghost btn-sm" @click="openEditNotebook(nb)">
+                <i class="pi pi-cog"></i>
               </button>
               <button class="btn btn-ghost btn-sm" @click="deleteNotebook(nb.id)">
                 <i class="pi pi-trash"></i>
@@ -428,7 +450,7 @@
               </div>
               <div class="form-group">
                 <label class="form-label">Tema</label>
-                <select v-model="newSheet.topic_id" class="form-select" @change="loadTopicExercises">
+                <select v-model="newSheet.topic_id" class="form-select">
                   <option value="">Sin tema específico</option>
                   <option v-for="t in topics" :key="t.id" :value="t.id">{{ t.title }}</option>
                 </select>
@@ -454,7 +476,9 @@
               <div class="form-group">
                 <label class="form-label">Ejercicios (seleccionar)</label>
                 <div class="exercise-selector">
-                  <div v-if="sheetExercises.length === 0" class="empty-inline" style="padding: 12px 0">Selecciona un tema para ver los ejercicios</div>
+                  <div v-if="sheetExercises.length === 0" class="empty-inline" style="padding: 12px 0">
+                    {{ newSheet.topic_id ? 'Este tema no tiene ejercicios aún.' : 'Selecciona un tema para ver los ejercicios.' }}
+                  </div>
                   <label v-for="ex in sheetExercises" :key="ex.id" class="exercise-checkbox">
                     <input type="checkbox" :value="ex.id" v-model="newSheet.exercise_ids" />
                     <span>{{ ex.question.slice(0, 60) }}...</span>
@@ -489,8 +513,81 @@
                   <option v-for="t in topics" :key="t.id" :value="t.id">{{ t.title }}</option>
                 </select>
               </div>
+              <div class="form-group">
+                <label class="form-label">Tipo</label>
+                <select v-model="editSheet.sheet_type" class="form-select">
+                  <option value="practice">📝 Hoja de Práctica</option>
+                  <option value="level_test">🏆 Prueba de Nivel</option>
+                </select>
+              </div>
+              <div v-if="editSheet.sheet_type === 'level_test'" class="form-group">
+                <label class="form-label">Estilo de respuesta</label>
+                <select v-model="editSheet.test_style" class="form-select">
+                  <option value="keyboard">⌨️ Teclado (texto)</option>
+                  <option value="canvas">✏️ Hoja (dibujar)</option>
+                </select>
+              </div>
+              <div class="form-group">
+                <label class="form-label">Nivel</label>
+                <input v-model.number="editSheet.level" type="number" class="form-input" min="1" />
+              </div>
+              <div class="form-group">
+                <label class="form-label">Ejercicios</label>
+                <div class="exercise-selector">
+                  <div v-if="editSheetExercises.length === 0" class="empty-inline" style="padding: 12px 0">
+                    {{ editSheet.topic_id ? 'Este tema no tiene ejercicios aún.' : 'Selecciona un tema para ver los ejercicios.' }}
+                  </div>
+                  <label v-for="ex in editSheetExercises" :key="ex.id" class="exercise-checkbox">
+                    <input type="checkbox" :value="ex.id" v-model="editSheet.exercise_ids" />
+                    <span>{{ ex.question.slice(0, 60) }}...</span>
+                  </label>
+                </div>
+              </div>
               <div class="modal-actions">
                 <button type="button" class="btn btn-secondary" @click="showEditSheetModal = false">Cancelar</button>
+                <button type="submit" class="btn btn-primary">Guardar</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      </Transition>
+    </Teleport>
+
+    <!-- Edit Exercise Modal -->
+    <Teleport to="body">
+      <Transition name="fade">
+        <div v-if="showEditExerciseModal" class="modal-overlay" @click.self="showEditExerciseModal = false">
+          <div class="modal-box">
+            <h3 class="modal-title">Editar Ejercicio</h3>
+            <form @submit.prevent="saveExerciseEdit">
+              <div class="form-group">
+                <label class="form-label">Pregunta *</label>
+                <textarea v-model="editExercise.question" class="form-textarea" rows="2" required></textarea>
+              </div>
+              <div class="form-group">
+                <label class="form-label">Tipo *</label>
+                <select v-model="editExercise.type" class="form-select" required>
+                  <option value="open_text">Texto abierto</option>
+                  <option value="equation">Ecuación</option>
+                  <option value="multiple_choice">Opción múltiple</option>
+                  <option value="canvas">Canvas/Dibujo</option>
+                  <option value="handwritten">Escrito a mano</option>
+                </select>
+              </div>
+              <div class="form-group">
+                <label class="form-label">Respuesta correcta</label>
+                <input v-model="editExercise.correct_answer" class="form-input" />
+              </div>
+              <div class="form-group">
+                <label class="form-label">Explicación</label>
+                <textarea v-model="editExercise.explanation" class="form-textarea" rows="2"></textarea>
+              </div>
+              <div class="form-group">
+                <label class="form-label">Dificultad (1-10)</label>
+                <input v-model.number="editExercise.difficulty" type="number" class="form-input" min="1" max="10" />
+              </div>
+              <div class="modal-actions">
+                <button type="button" class="btn btn-secondary" @click="showEditExerciseModal = false">Cancelar</button>
                 <button type="submit" class="btn btn-primary">Guardar</button>
               </div>
             </form>
@@ -579,6 +676,7 @@ const showSheetModal = ref(false)
 const showNotebookModal = ref(false)
 const showEditSheetModal = ref(false)
 const showEditNotebookModal = ref(false)
+const showEditExerciseModal = ref(false)
 
 // Inline topic edit state
 const editingTopicId = ref<string | null>(null)
@@ -586,11 +684,16 @@ const editTopicTitle = ref('')
 
 // Edit sheet state
 const editingSheetId = ref<string | null>(null)
-const editSheet = reactive({ title: '', topic_id: '' })
+const editSheet = reactive({ title: '', topic_id: '', level: 1, sheet_type: 'practice', test_style: 'keyboard', exercise_ids: [] as string[] })
+const editSheetExercises = ref<Exercise[]>([])
 
 // Edit notebook state
 const editingNotebookId = ref<string | null>(null)
 const editNotebook = reactive({ title: '', description: '' })
+
+// Edit exercise state
+const editingExerciseId = ref<string | null>(null)
+const editExercise = reactive({ question: '', type: 'open_text' as Exercise['type'], correct_answer: '', explanation: '', difficulty: 1 })
 
 const newTopic = reactive({ title: '', description: '', order_index: 0 })
 const newExercise = reactive({ question: '', type: 'open_text' as Exercise['type'], correct_answer: '', explanation: '', difficulty: 1 })
@@ -603,7 +706,7 @@ const teacherLevels = computed(() => {
   const maxFromNotebooks = notebooks.value.reduce((max, notebook) => Math.max(max, notebook.level || 1), 1)
   const maxLevel = Math.max(maxFromSheets, maxFromNotebooks, 1)
 
-  return Array.from({ length: maxLevel + 1 }, (_, index) => {
+  return Array.from({ length: maxLevel }, (_, index) => {
     const level = index + 1
     return {
       level,
@@ -640,10 +743,18 @@ watch(selectedTopicId, async (id) => {
   } catch { exercises.value = [] }
 })
 
-async function loadTopicExercises() {
-  if (!newSheet.topic_id) { sheetExercises.value = []; return }
+watch(() => newSheet.topic_id, (id) => loadSheetExercises(id))
+
+watch(() => editSheet.topic_id, async (id) => {
+  editSheet.exercise_ids = []
+  await loadEditSheetExercises(id)
+})
+
+async function loadSheetExercises(topicId: string) {
+  newSheet.exercise_ids = []
+  if (!topicId) { sheetExercises.value = []; return }
   try {
-    const res = await exerciseService.list(newSheet.topic_id)
+    const res = await exerciseService.list(topicId)
     sheetExercises.value = res.data || []
   } catch { sheetExercises.value = [] }
 }
@@ -673,6 +784,13 @@ async function createMaterial() {
 async function createSheet() {
   await practiceSheetService.create(courseId, { ...newSheet })
   showSheetModal.value = false
+  newSheet.title = ''
+  newSheet.topic_id = ''
+  newSheet.level = 1
+  newSheet.sheet_type = 'practice'
+  newSheet.test_style = 'keyboard'
+  newSheet.exercise_ids = []
+  sheetExercises.value = []
   const res = await practiceSheetService.list(courseId)
   sheets.value = res.data || []
 }
@@ -708,16 +826,33 @@ function matIcon(type: string) {
   return icons[type] || 'pi pi-file'
 }
 
+function openNewSheet() {
+  newSheet.topic_id = selectedTopicId.value
+  loadSheetExercises(newSheet.topic_id)
+  showSheetModal.value = true
+}
+
+function goToSheet(sheetId: string) {
+  const sheet = sheets.value.find(s => s.id === sheetId)
+  if (!sheet) return
+  activeTab.value = 'sheets'
+  openEditSheet(sheet)
+}
+
 function openPracticeForLevel(level: number) {
   newSheet.level = level
   newSheet.sheet_type = 'practice'
   newSheet.test_style = 'keyboard'
+  newSheet.topic_id = selectedTopicId.value
+  loadSheetExercises(newSheet.topic_id)
   showSheetModal.value = true
 }
 
 function openLevelTestForLevel(level: number) {
   newSheet.level = level
   newSheet.sheet_type = 'level_test'
+  newSheet.topic_id = selectedTopicId.value
+  loadSheetExercises(newSheet.topic_id)
   showSheetModal.value = true
 }
 
@@ -758,16 +893,36 @@ async function deleteMaterial(id: string) {
   materials.value = materials.value.filter(m => m.id !== id)
 }
 
-function openEditSheet(sheet: PracticeSheet) {
+async function openEditSheet(sheet: PracticeSheet) {
   editingSheetId.value = sheet.id
   editSheet.title = sheet.title
   editSheet.topic_id = sheet.topic_id || ''
+  editSheet.level = sheet.level ?? 1
+  editSheet.sheet_type = sheet.sheet_type || 'practice'
+  editSheet.test_style = sheet.test_style || 'keyboard'
+  editSheet.exercise_ids = (sheet.exercises || []).map(e => e.exercise.id)
+  await loadEditSheetExercises(editSheet.topic_id)
   showEditSheetModal.value = true
+}
+
+async function loadEditSheetExercises(topicId: string) {
+  if (!topicId) { editSheetExercises.value = []; return }
+  try {
+    const res = await exerciseService.list(topicId)
+    editSheetExercises.value = res.data || []
+  } catch { editSheetExercises.value = [] }
 }
 
 async function saveSheetEdit() {
   if (!editingSheetId.value) return
-  await practiceSheetService.update(editingSheetId.value, { title: editSheet.title, topic_id: editSheet.topic_id })
+  await practiceSheetService.update(editingSheetId.value, {
+    title: editSheet.title,
+    topic_id: editSheet.topic_id,
+    level: editSheet.level,
+    sheet_type: editSheet.sheet_type,
+    test_style: editSheet.test_style,
+    exercise_ids: editSheet.exercise_ids,
+  })
   showEditSheetModal.value = false
   const res = await practiceSheetService.list(courseId)
   sheets.value = res.data || []
@@ -778,6 +933,26 @@ async function deleteSheet(id: string) {
   if (!ok) return
   await practiceSheetService.delete(id)
   sheets.value = sheets.value.filter(s => s.id !== id)
+}
+
+function openEditExercise(ex: Exercise) {
+  editingExerciseId.value = ex.id
+  editExercise.question = ex.question
+  editExercise.type = ex.type
+  editExercise.correct_answer = ex.correct_answer || ''
+  editExercise.explanation = ex.explanation || ''
+  editExercise.difficulty = ex.difficulty ?? 1
+  showEditExerciseModal.value = true
+}
+
+async function saveExerciseEdit() {
+  if (!editingExerciseId.value) return
+  await exerciseService.update(editingExerciseId.value, { ...editExercise })
+  showEditExerciseModal.value = false
+  if (selectedTopicId.value) {
+    const res = await exerciseService.list(selectedTopicId.value)
+    exercises.value = res.data || []
+  }
 }
 
 function openEditNotebook(nb: Notebook) {
@@ -901,7 +1076,19 @@ async function deleteNotebook(id: string) {
   flex-shrink: 0;
 }
 .item-title { font-size: 14px; font-weight: 600; color: var(--text-primary); }
+.item-title--with-badge { display: inline-flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 .item-subtitle { font-size: 12px; color: var(--text-secondary); margin-top: 2px; }
+.sheet-type-pill {
+  display: inline-flex;
+  align-items: center;
+  padding: 3px 9px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1;
+}
+.sheet-type-pill--practice { background: rgba(37, 99, 235, 0.12); color: #1d4ed8; }
+.sheet-type-pill--test { background: rgba(124, 58, 237, 0.12); color: #6d28d9; }
 .difficulty-badge {
   width: 28px;
   height: 28px;

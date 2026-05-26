@@ -79,7 +79,12 @@
         </div>
 
         <div class="student-chip-grid">
-          <article v-for="student in assignedStudents" :key="student.id" class="student-chip-card">
+          <article
+            v-for="student in assignedStudents"
+            :key="student.id"
+            class="student-chip-card student-chip-card--clickable"
+            @click="goToStudentProgress(student)"
+          >
             <div class="student-chip-name">{{ student.name }}</div>
             <div class="student-chip-email">{{ student.email }}</div>
             <div class="student-chip-grades">
@@ -89,6 +94,10 @@
               <span v-if="!(studentGrades[student.id] || []).length" class="student-grade-pill student-grade-pill--empty">
                 Sin grado
               </span>
+            </div>
+            <div class="student-chip-action">
+              <span>Ver progreso</span>
+              <i class="pi pi-arrow-right"></i>
             </div>
           </article>
         </div>
@@ -362,6 +371,16 @@ function goToAdminUsers() {
 
 function goToAcademicAdmin() {
   router.push('/teacher/admin/academic')
+}
+
+function goToStudentProgress(student: AssignedUser) {
+  router.push({
+    path: `/teacher/students/${student.id}/progress`,
+    query: {
+      name: encodeURIComponent(student.name),
+      email: encodeURIComponent(student.email)
+    }
+  })
 }
 
 async function loadCatalogs() {
@@ -643,6 +662,27 @@ function formatDate(dateStr: string) {
   border-radius: 18px;
   background: rgba(248, 250, 252, 0.86);
   border: 1px solid rgba(148, 163, 184, 0.16);
+}
+
+.student-chip-card--clickable {
+  cursor: pointer;
+  transition: all 0.18s ease;
+}
+.student-chip-card--clickable:hover {
+  background: rgba(255, 255, 255, 0.96);
+  border-color: rgba(124, 58, 237, 0.25);
+  box-shadow: 0 6px 20px rgba(93, 108, 146, 0.12);
+  transform: translateY(-2px);
+}
+
+.student-chip-action {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 12px;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--practiq-violet);
 }
 
 .student-chip-name {

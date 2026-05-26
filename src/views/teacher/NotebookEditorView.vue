@@ -74,8 +74,8 @@
                 <button class="tool-btn" @click="clearCanvas"><i class="pi pi-trash"></i> Limpiar</button>
                 <input type="color" v-model="penColor" class="color-picker" title="Color" />
                 <input type="range" v-model.number="penSize" min="1" max="20" class="size-slider" />
-                <button class="btn btn-primary btn-sm" @click="saveCanvasContent">
-                  <i class="pi pi-save"></i> Guardar imagen
+                <button class="btn btn-primary btn-sm" @click="saveCanvasContent" :disabled="saving">
+                  <i class="pi pi-save"></i> {{ saving ? 'Guardando...' : 'Guardar imagen' }}
                 </button>
               </div>
 
@@ -177,6 +177,7 @@ const router = useRouter()
 const notebookId = route.params.id as string
 const notebook = ref<Notebook | null>(null)
 const loading = ref(true)
+const saving = ref(false)
 const selectedIdx = ref(0)
 const showAddPage = ref(false)
 const saveMsg = ref('')
@@ -200,6 +201,10 @@ const newPage = reactive({
 })
 
 const pages = computed(() => notebook.value?.pages || [])
+
+// FIX: currentPage devuelve el objeto mutable del array directamente.
+// Se expone como ref writeable para que v-model en el template pueda mutar
+// las propiedades y savePage() lea los valores actualizados.
 const currentPage = computed<NotebookPage | null>(() => pages.value[selectedIdx.value] ?? null)
 
 onMounted(async () => {
@@ -209,19 +214,20 @@ onMounted(async () => {
   } finally {
     loading.value = false
     await nextTick()
-    if (currentPage.value?.content_type === 'canvas') initCanvas()
+    if (currentPage.value?.content_type === 'canvas') initCanvas(true)
   }
 })
 
 watch(selectedIdx, async () => {
+  undoStack.value = []
   await nextTick()
-  if (currentPage.value?.content_type === 'canvas') initCanvas()
+  if (currentPage.value?.content_type === 'canvas') initCanvas(true)
 })
 
 watch(() => currentPage.value?.content_type, async (type) => {
   if (type === 'canvas') {
     await nextTick()
-    initCanvas()
+    initCanvas(true)
   }
 })
 
@@ -231,7 +237,7 @@ function selectPage(idx: number) {
 
 async function addPage() {
   const pageCount = pages.value.length
-  const out = await notebookService.addPage(notebookId, {
+  await notebookService.addPage(notebookId, {
     page_number: pageCount + 1,
     title: newPage.title || `Página ${pageCount + 1}`,
     content_type: newPage.content_type,
@@ -239,25 +245,33 @@ async function addPage() {
     instructions: newPage.instructions
   })
   showAddPage.value = false
-  newPage.title = ''; newPage.instructions = ''; newPage.content_type = 'canvas'
-  // Reload notebook
+  newPage.title = ''
+  newPage.instructions = ''
+  newPage.content_type = 'canvas'
+
   const res = await notebookService.get(notebookId)
   notebook.value = res.data
+  await nextTick()
   selectedIdx.value = pages.value.length - 1
   await nextTick()
-  if (currentPage.value?.content_type === 'canvas') initCanvas()
+  if (currentPage.value?.content_type === 'canvas') initCanvas(true)
 }
 
 async function savePage() {
-  if (!currentPage.value) return
-  await notebookService.updatePage(currentPage.value.id, {
-    title: currentPage.value.title,
-    content_type: currentPage.value.content_type,
-    content_data: currentPage.value.content_data,
-    instructions: currentPage.value.instructions
-  })
-  saveMsg.value = 'Guardado'
-  setTimeout(() => { saveMsg.value = '' }, 2000)
+  if (!currentPage.value || saving.value) return
+  saving.value = true
+  try {
+    await notebookService.updatePage(currentPage.value.id, {
+      title: currentPage.value.title || '',
+      content_type: currentPage.value.content_type,
+      content_data: currentPage.value.content_data || '',
+      instructions: currentPage.value.instructions || ''
+    })
+    saveMsg.value = 'Guardado'
+    setTimeout(() => { saveMsg.value = '' }, 2000)
+  } finally {
+    saving.value = false
+  }
 }
 
 async function saveCanvasContent() {
@@ -267,18 +281,23 @@ async function saveCanvasContent() {
   await savePage()
 }
 
-// ── Canvas drawing ────────────────────────────────────────────
-
-function initCanvas() {
+function initCanvas(loadExisting = false) {
   const canvas = editorCanvas.value
   if (!canvas) return
   const rect = canvas.getBoundingClientRect()
   canvas.width = rect.width || 700
   canvas.height = rect.height || 400
   const ctx = canvas.getContext('2d')!
+
   ctx.fillStyle = '#fff'
   ctx.fillRect(0, 0, canvas.width, canvas.height)
   undoStack.value = []
+
+  if (loadExisting && currentPage.value?.content_data) {
+    const img = new Image()
+    img.onload = () => ctx.drawImage(img, 0, 0, canvas.width, canvas.height)
+    img.src = currentPage.value.content_data
+  }
 }
 
 function getCtx() {
@@ -344,6 +363,7 @@ function clearCanvas() {
   undoStack.value = []
   ctx.fillStyle = '#fff'
   ctx.fillRect(0, 0, canvas.width, canvas.height)
+  if (currentPage.value) currentPage.value.content_data = ''
 }
 </script>
 

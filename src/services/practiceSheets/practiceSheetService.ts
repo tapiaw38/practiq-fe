@@ -7,6 +7,8 @@ export class PracticeSheetService {
     strategy_id?: string
     title: string
     level?: number
+    sheet_type?: string
+    test_style?: string
     exercise_ids: string[]
   }): Promise<{ data: PracticeSheet }> {
     const { data } = await practiqApi.post(`/courses/${courseId}/practice-sheets`, params)
@@ -23,7 +25,14 @@ export class PracticeSheetService {
     return data
   }
 
-  async update(id: string, params: { title: string; topic_id?: string }): Promise<{ data: PracticeSheet }> {
+  async update(id: string, params: {
+    title: string
+    topic_id?: string
+    level?: number
+    sheet_type?: string
+    test_style?: string
+    exercise_ids?: string[]
+  }): Promise<{ data: PracticeSheet }> {
     const { data } = await practiqApi.put(`/practice-sheets/${id}`, params)
     return data
   }

@@ -103,6 +103,12 @@ const router = createRouter({
       meta: { requiresAuth: true, profileType: 'teacher' }
     },
     {
+      path: '/teacher/students/:studentId/progress',
+      name: 'teacher-student-progress',
+      component: () => import('@/views/teacher/StudentProgressView.vue'),
+      meta: { requiresAuth: true, profileType: 'teacher' }
+    },
+    {
       path: '/:pathMatch(.*)*',
       redirect: '/'
     }
