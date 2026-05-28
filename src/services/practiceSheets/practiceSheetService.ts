@@ -1,5 +1,5 @@
 import { practiqApi } from '@/api/request/server'
-import type { PracticeSheet, SubmitInput, SubmitResult } from '@/types'
+import type { PracticeSheet, SubmitInput, SubmitJobStart, SubmitJobStatus, SubmitResult } from '@/types'
 
 export class PracticeSheetService {
   async create(courseId: string, params: {
@@ -43,6 +43,16 @@ export class PracticeSheetService {
 
   async submit(id: string, input: SubmitInput): Promise<{ data: SubmitResult }> {
     const { data } = await practiqApi.post(`/practice-sheets/${id}/submit`, input)
+    return data
+  }
+
+  async submitAsync(id: string, input: SubmitInput): Promise<{ data: SubmitJobStart }> {
+    const { data } = await practiqApi.post(`/practice-sheets/${id}/submit-async`, input)
+    return data
+  }
+
+  async getSubmitJob(jobId: string): Promise<{ data: SubmitJobStatus }> {
+    const { data } = await practiqApi.get(`/practice-sheets/submit-jobs/${jobId}`)
     return data
   }
 }

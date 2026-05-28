@@ -133,9 +133,37 @@ export interface SubmitResult {
   total: number
   mastery_score: number
   recommendation: string
+  ai_feedback?: string
   should_level_up: boolean
   should_repeat: boolean
   next_level: number
+}
+
+export interface SubmitJobStart {
+  job_id: string
+  status: 'processing'
+}
+
+export interface SubmitJobStatus {
+  status: 'processing' | 'done' | 'failed'
+  result?: { data: SubmitResult }
+  error_code?: string
+  message?: string
+  created_at: string
+  updated_at: string
+}
+
+export interface NotebookSubmitJobStart {
+  job_id: string
+  status: 'processing'
+}
+
+export interface NotebookSubmitJobStatus {
+  status: 'processing' | 'done' | 'failed'
+  error_code?: string
+  message?: string
+  created_at: string
+  updated_at: string
 }
 
 export interface TopicProgress {
@@ -245,6 +273,10 @@ export interface NotebookSubmission {
   id: string
   canvas_data: string
   answer_text: string
+  ai_recognized_text?: string
+  ai_is_correct?: boolean
+  ai_feedback?: string
+  ai_reviewed_at?: string
 }
 
 export interface StudentAttempt {
@@ -253,6 +285,7 @@ export interface StudentAttempt {
   exercise_id: string
   practice_sheet_id: string
   answer_text: string
+  ai_feedback?: string
   is_correct: boolean
   score: number
   time_spent_seconds: number

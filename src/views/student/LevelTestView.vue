@@ -96,7 +96,7 @@
           <span class="footer-hint">{{ unansweredCount }} sin responder</span>
           <button class="btn-submit" :disabled="submitting" @click="submit">
             <i class="pi pi-send"></i>
-            {{ submitting ? 'Enviando...' : 'Entregar prueba' }}
+            {{ submitting ? 'Evaluando con IA...' : 'Entregar prueba' }}
           </button>
         </div>
       </template>

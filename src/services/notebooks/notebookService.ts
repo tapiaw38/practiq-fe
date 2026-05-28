@@ -1,5 +1,5 @@
 import { practiqApi } from '@/api/request/server'
-import type { Notebook, NotebookPage } from '@/types'
+import type { Notebook, NotebookPage, NotebookSubmitJobStart, NotebookSubmitJobStatus } from '@/types'
 
 export class NotebookService {
   async create(courseId: string, params: { title: string; description?: string; level?: number }): Promise<{ data: Notebook }> {
@@ -50,6 +50,16 @@ export class NotebookService {
 
   async saveSubmission(pageId: string, params: { canvas_data?: string; answer_text?: string }): Promise<void> {
     await practiqApi.post(`/notebook-pages/${pageId}/submit`, params)
+  }
+
+  async saveSubmissionAsync(pageId: string, params: { canvas_data?: string; answer_text?: string }): Promise<{ data: NotebookSubmitJobStart }> {
+    const { data } = await practiqApi.post(`/notebook-pages/${pageId}/submit-async`, params)
+    return data
+  }
+
+  async getSubmissionJob(jobId: string): Promise<{ data: NotebookSubmitJobStatus }> {
+    const { data } = await practiqApi.get(`/notebook-pages/submit-jobs/${jobId}`)
+    return data
   }
 }
 

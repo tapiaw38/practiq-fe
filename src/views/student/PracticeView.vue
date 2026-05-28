@@ -118,7 +118,7 @@
       <!-- Submit confirm modal -->
       <Teleport to="body">
         <Transition name="fade">
-          <div v-if="showSubmitConfirm" class="modal-overlay" @click.self="showSubmitConfirm = false">
+          <div v-if="showSubmitConfirm" class="modal-overlay" @click.self="closeSubmitConfirm()">
             <div class="modal-box">
               <h3 class="modal-title">Revisar y enviar</h3>
               <p class="submit-copy">
@@ -126,10 +126,10 @@
                 ¿Deseas enviar tus respuestas?
               </p>
               <div class="modal-actions">
-                <button class="btn btn-secondary" @click="showSubmitConfirm = false">Cancelar</button>
+                <button class="btn btn-secondary" :disabled="submitting" @click="closeSubmitConfirm()">Cancelar</button>
                 <button class="btn btn-primary" :disabled="submitting" @click="submitAnswers">
                   <span v-if="submitting" class="spinner"></span>
-                  Enviar respuestas
+                  {{ submitting ? 'Evaluando con IA...' : 'Enviar respuestas' }}
                 </button>
               </div>
             </div>
@@ -163,6 +163,9 @@
               <div class="results-recommendation">
                 <div class="rec-icon">{{ result.should_level_up ? '⬆️' : result.should_repeat ? '🔄' : '▶️' }}</div>
                 <p>{{ result.recommendation }}</p>
+              </div>
+              <div v-if="result.ai_feedback" class="results-ai-feedback">
+                <strong>Comentario IA:</strong> {{ result.ai_feedback }}
               </div>
               <div v-if="result.should_level_up" class="level-up-badge">
                 🎉 ¡Subiste al Nivel {{ result.next_level }}!
@@ -404,12 +407,30 @@ async function submitAnswers() {
     const attempts = Object.entries(answers.value).map(([exerciseId, data]) => ({
       exercise_id: exerciseId,
       answer_text: data.answer,
-      canvas_data: data.answer.startsWith('data:image/') ? data.answer : '',
+      canvas_data: data.answer.startsWith('data:image/') ? buildCanvasDataForOCR(exerciseId) : '',
       time_spent_seconds: timers.value[exerciseId] || 0,
       hints_used: data.hints || 0
     }))
-    const res = await practiceSheetService.submit(sheetId, { attempts })
-    result.value = res.data
+    const start = await practiceSheetService.submitAsync(sheetId, { attempts })
+    const jobId = start.data.job_id
+    let jobDone = false
+
+    while (!jobDone) {
+      await new Promise((resolve) => setTimeout(resolve, 1200))
+      const job = await practiceSheetService.getSubmitJob(jobId)
+      if (job.data.status === 'processing') {
+        continue
+      }
+      if (job.data.status === 'failed') {
+        throw new Error(job.data.message || 'No se pudo evaluar la práctica')
+      }
+      result.value = job.data.result?.data || null
+      jobDone = true
+    }
+
+    if (!result.value) {
+      throw new Error('No se recibió resultado de evaluación')
+    }
     showSubmitConfirm.value = false
     showResults.value = true
   } catch (err) {
@@ -417,6 +438,59 @@ async function submitAnswers() {
   } finally {
     submitting.value = false
   }
+}
+
+function buildCanvasDataForOCR(exerciseId: string) {
+  const source = canvasRefs[exerciseId]
+  if (!source) {
+    return answers.value[exerciseId]?.answer || ''
+  }
+
+  const scale = 2
+  const out = document.createElement('canvas')
+  out.width = Math.max(1, Math.floor(source.width * scale))
+  out.height = Math.max(1, Math.floor(source.height * scale))
+  const ctx = out.getContext('2d')
+  if (!ctx) {
+    return answers.value[exerciseId]?.answer || ''
+  }
+
+  ctx.fillStyle = '#ffffff'
+  ctx.fillRect(0, 0, out.width, out.height)
+  ctx.imageSmoothingEnabled = false
+  ctx.drawImage(source, 0, 0, out.width, out.height)
+
+  const image = ctx.getImageData(0, 0, out.width, out.height)
+  const pixels = image.data
+  for (let i = 0; i < pixels.length; i += 4) {
+    const r = pixels[i]
+    const g = pixels[i + 1]
+    const b = pixels[i + 2]
+    const alpha = pixels[i + 3]
+
+    if (alpha < 8) {
+      pixels[i] = 255
+      pixels[i + 1] = 255
+      pixels[i + 2] = 255
+      pixels[i + 3] = 255
+      continue
+    }
+
+    const gray = 0.299 * r + 0.587 * g + 0.114 * b
+    const value = gray > 205 ? 255 : 0
+    pixels[i] = value
+    pixels[i + 1] = value
+    pixels[i + 2] = value
+    pixels[i + 3] = 255
+  }
+  ctx.putImageData(image, 0, 0)
+
+  return out.toDataURL('image/jpeg', 0.92)
+}
+
+function closeSubmitConfirm() {
+  if (submitting.value) return
+  showSubmitConfirm.value = false
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -873,6 +947,15 @@ function scoreColor(score: number) {
   background: rgba(248, 250, 252, 0.9);
 }
 .rec-icon { font-size: 24px; }
+
+.results-ai-feedback {
+  margin-top: 10px;
+  padding: 12px 14px;
+  border-radius: 14px;
+  background: rgba(250, 245, 255, 0.92);
+  color: #5b21b6;
+  font-size: 0.9rem;
+}
 
 .level-up-badge {
   margin-top: 12px;

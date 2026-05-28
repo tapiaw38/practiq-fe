@@ -104,7 +104,20 @@
           <div class="save-bar">
             <div class="save-status" v-if="saveStatus">
               <i class="pi" :class="saveStatus === 'saved' ? 'pi-check-circle' : 'pi-spin pi-spinner'"></i>
-              {{ saveStatus === 'saved' ? 'Guardado' : 'Guardando...' }}
+              {{ saveStatus === 'saved' ? 'Guardado' : 'Evaluando con IA...' }}
+            </div>
+            <div v-if="currentPage?.submission" class="ai-review-box">
+              <div class="ai-review-head">
+                <span
+                  v-if="currentPage.submission.ai_is_correct !== undefined"
+                  class="ai-review-badge"
+                  :class="currentPage.submission.ai_is_correct ? 'ai-review-badge--ok' : 'ai-review-badge--fail'"
+                >
+                  {{ currentPage.submission.ai_is_correct ? 'Asistente: Correcto' : 'Asistente: Incorrecto' }}
+                </span>
+                <span v-else class="ai-review-badge ai-review-badge--warn">Asistente: Sin calificación</span>
+              </div>
+              <p class="ai-review-text">{{ formatAIFeedback(currentPage.submission.ai_feedback) }}</p>
             </div>
             <div class="page-nav">
               <button class="btn-nav" :disabled="currentPageIndex === 0" @click="goToPage(currentPageIndex - 1)">
@@ -308,25 +321,154 @@ function clearCanvas() {
   drawNotebookBackground(ctx, canvas.width, canvas.height)
 }
 
+function formatAIFeedback(value?: string) {
+  const feedback = (value || '').trim()
+  if (!feedback) return 'Sin observaciones de IA'
+  if (feedback.includes('UNREADABLE')) return 'Sin observaciones de IA'
+  if (feedback === 'Gillie: respuesta no legible (UNREADABLE)') return 'Sin observaciones de IA'
+  if (feedback === 'Asistente: respuesta no legible (UNREADABLE)') return 'Sin observaciones de IA'
+  return feedback
+}
+
 function captureCanvas(): string {
-  return answerCanvas.value?.toDataURL('image/png') ?? ''
+  const source = answerCanvas.value
+  if (!source) return ''
+
+  const scale = 2
+  const temp = document.createElement('canvas')
+  temp.width = Math.max(1, Math.floor(source.width * scale))
+  temp.height = Math.max(1, Math.floor(source.height * scale))
+  const tempCtx = temp.getContext('2d')
+  if (!tempCtx) {
+    return source.toDataURL('image/jpeg', 0.92)
+  }
+
+  tempCtx.fillStyle = '#ffffff'
+  tempCtx.fillRect(0, 0, temp.width, temp.height)
+  tempCtx.imageSmoothingEnabled = false
+  tempCtx.drawImage(source, 0, 0, temp.width, temp.height)
+
+  const baseImage = tempCtx.getImageData(0, 0, temp.width, temp.height)
+  const basePixels = baseImage.data
+  const threshold = 188
+
+  let minX = temp.width
+  let minY = temp.height
+  let maxX = -1
+  let maxY = -1
+
+  for (let y = 0; y < temp.height; y++) {
+    for (let x = 0; x < temp.width; x++) {
+      const idx = (y * temp.width + x) * 4
+      const r = basePixels[idx]
+      const g = basePixels[idx + 1]
+      const b = basePixels[idx + 2]
+      const alpha = basePixels[idx + 3]
+      const gray = 0.299 * r + 0.587 * g + 0.114 * b
+      const isInk = alpha >= 8 && gray <= threshold
+      if (!isInk) continue
+
+      if (x < minX) minX = x
+      if (y < minY) minY = y
+      if (x > maxX) maxX = x
+      if (y > maxY) maxY = y
+    }
+  }
+
+  const pad = Math.floor(28 * scale)
+  if (maxX < minX || maxY < minY) {
+    minX = 0
+    minY = 0
+    maxX = temp.width - 1
+    maxY = temp.height - 1
+  } else {
+    minX = Math.max(0, minX - pad)
+    minY = Math.max(0, minY - pad)
+    maxX = Math.min(temp.width - 1, maxX + pad)
+    maxY = Math.min(temp.height - 1, maxY + pad)
+  }
+
+  const cropW = Math.max(1, maxX - minX + 1)
+  const cropH = Math.max(1, maxY - minY + 1)
+
+  const out = document.createElement('canvas')
+  out.width = cropW
+  out.height = cropH
+  const ctx = out.getContext('2d')
+  if (!ctx) {
+    return source.toDataURL('image/jpeg', 0.92)
+  }
+
+  ctx.fillStyle = '#ffffff'
+  ctx.fillRect(0, 0, out.width, out.height)
+  ctx.imageSmoothingEnabled = false
+  ctx.drawImage(temp, minX, minY, cropW, cropH, 0, 0, cropW, cropH)
+
+  const image = ctx.getImageData(0, 0, out.width, out.height)
+  const pixels = image.data
+  for (let i = 0; i < pixels.length; i += 4) {
+    const r = pixels[i]
+    const g = pixels[i + 1]
+    const b = pixels[i + 2]
+    const alpha = pixels[i + 3]
+
+    if (alpha < 8) {
+      pixels[i] = 255
+      pixels[i + 1] = 255
+      pixels[i + 2] = 255
+      pixels[i + 3] = 255
+      continue
+    }
+
+    const gray = 0.299 * r + 0.587 * g + 0.114 * b
+    const value = gray > threshold ? 255 : 0
+    pixels[i] = value
+    pixels[i + 1] = value
+    pixels[i + 2] = value
+    pixels[i + 3] = 255
+  }
+  ctx.putImageData(image, 0, 0)
+
+  return out.toDataURL('image/jpeg', 0.92)
 }
 
 async function saveAndNext() {
   if (!currentPage.value) return
   saveStatus.value = 'saving'
+	try {
+		const pageId = currentPage.value.id
+		const data = captureCanvas()
+		canvasSnapshots.value[pageId] = data
 
-  const pageId = currentPage.value.id
-  const data = captureCanvas()
-  canvasSnapshots.value[pageId] = data
-  await notebookService.saveSubmission(pageId, { canvas_data: data })
+		const start = await notebookService.saveSubmissionAsync(pageId, { canvas_data: data })
+		const jobId = start.data.job_id
+		let jobDone = false
 
-  saveStatus.value = 'saved'
-  setTimeout(() => { saveStatus.value = '' }, 2000)
+		while (!jobDone) {
+			await new Promise((resolve) => setTimeout(resolve, 1200))
+			const job = await notebookService.getSubmissionJob(jobId)
+			if (job.data.status === 'processing') {
+				continue
+			}
+			if (job.data.status === 'failed') {
+				throw new Error(job.data.message || 'No se pudo evaluar el cuaderno')
+			}
+			jobDone = true
+		}
 
-  if (currentPageIndex.value < pages.value.length - 1) {
-    goToPage(currentPageIndex.value + 1)
-  }
+			saveStatus.value = 'saved'
+			const notebookId = route.params.id as string
+			const refreshed = await notebookService.get(notebookId, studentId.value)
+			notebook.value = refreshed.data
+			setTimeout(() => { saveStatus.value = '' }, 2000)
+
+		if (currentPageIndex.value < pages.value.length - 1) {
+			goToPage(currentPageIndex.value + 1)
+		}
+	} catch (err) {
+		console.error(err)
+		saveStatus.value = ''
+	}
 }
 
 function goToPage(idx: number) {
@@ -613,6 +755,51 @@ function goToPage(idx: number) {
   display: flex;
   align-items: center;
   gap: 6px;
+}
+
+.ai-review-box {
+  width: 100%;
+  margin-top: 8px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: #faf7ff;
+  border: 1px solid #e9ddff;
+}
+
+.ai-review-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.ai-review-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.ai-review-badge--ok {
+  background: #dcfce7;
+  color: #166534;
+}
+
+.ai-review-badge--fail {
+  background: #fee2e2;
+  color: #991b1b;
+}
+
+.ai-review-badge--warn {
+  background: #fef3c7;
+  color: #92400e;
+}
+
+.ai-review-text {
+  margin: 8px 0 0;
+  font-size: 13px;
+  color: #4b5563;
 }
 
 .page-nav {

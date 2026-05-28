@@ -183,6 +183,7 @@
                       <th>#</th>
                       <th>Respuesta</th>
                       <th>Correcto</th>
+                      <th>Comentario IA</th>
                       <th>Puntaje</th>
                       <th>Tiempo (s)</th>
                       <th>Pistas</th>
@@ -192,12 +193,22 @@
                   <tbody>
                     <tr v-for="(a, i) in attempts" :key="a.id" :class="a.is_correct ? 'row--correct' : 'row--incorrect'">
                       <td>{{ i + 1 }}</td>
-                      <td class="answer-cell">{{ a.answer_text || '—' }}</td>
+                      <td class="answer-cell">
+                        <template v-if="getAttemptImageSrc(a)">
+                          <button class="btn btn-secondary btn-sm" @click="openAttemptImage(getAttemptImageSrc(a)!)">
+                            <i class="pi pi-image"></i> Ver imagen
+                          </button>
+                        </template>
+                        <template v-else>
+                          {{ a.answer_text || '—' }}
+                        </template>
+                      </td>
                       <td>
                         <span class="result-chip" :class="a.is_correct ? 'result-chip--ok' : 'result-chip--fail'">
                           {{ a.is_correct ? 'Sí' : 'No' }}
                         </span>
                       </td>
+                      <td>{{ formatAIFeedback(a.ai_feedback) }}</td>
                       <td>{{ (a.score * 100).toFixed(0) }}%</td>
                       <td>{{ a.time_spent_seconds }}</td>
                       <td>{{ a.hints_used }}</td>
@@ -316,6 +327,12 @@
                       <!-- Student submission -->
                       <div class="nb-content-block" v-if="page.submission">
                         <div class="nb-content-label nb-content-label--student">Respuesta del alumno</div>
+                        <div v-if="page.submission.ai_is_correct !== undefined" class="nb-ai-row">
+                          <span class="nb-ai-badge" :class="page.submission.ai_is_correct ? 'nb-ai-badge--ok' : 'nb-ai-badge--fail'">
+                            {{ page.submission.ai_is_correct ? 'Asistente: Correcto' : 'Asistente: Incorrecto' }}
+                          </span>
+                          <span v-if="page.submission.ai_reviewed_at" class="nb-ai-date">{{ formatDate(page.submission.ai_reviewed_at) }}</span>
+                        </div>
                         <template v-if="page.submission.canvas_data">
                           <img :src="page.submission.canvas_data" class="nb-canvas-img" alt="Respuesta del alumno" />
                         </template>
@@ -323,6 +340,7 @@
                           <p class="nb-text-content">{{ page.submission.answer_text }}</p>
                         </template>
                         <p v-else class="nb-text-content nb-text-content--empty">Sin respuesta guardada</p>
+                        <p v-if="formatAIFeedback(page.submission.ai_feedback)" class="nb-ai-feedback">{{ formatAIFeedback(page.submission.ai_feedback) }}</p>
                       </div>
                       <div class="nb-content-block nb-content-block--empty" v-else>
                         <div class="nb-content-label">Respuesta del alumno</div>
@@ -336,6 +354,41 @@
           </Transition>
         </div>
       </template>
+      <div v-if="attemptImageModalSrc" class="image-modal-overlay" @click.self="closeAttemptImage">
+        <div class="image-modal-card">
+          <div class="image-modal-head">
+            <h3>Imagen del intento</h3>
+            <button class="icon-btn" @click="closeAttemptImage">
+              <i class="pi pi-times"></i>
+            </button>
+          </div>
+          <div class="image-modal-controls">
+            <button class="btn btn-secondary btn-sm" @click="zoomOutAttemptImage" :disabled="attemptImageZoom <= 0.5">
+              <i class="pi pi-search-minus"></i>
+            </button>
+            <span>{{ Math.round(attemptImageZoom * 100) }}%</span>
+            <button class="btn btn-secondary btn-sm" @click="zoomInAttemptImage" :disabled="attemptImageZoom >= 3">
+              <i class="pi pi-search-plus"></i>
+            </button>
+            <button class="btn btn-secondary btn-sm" @click="resetAttemptImageZoom" :disabled="attemptImageZoom === 1">
+              Reset
+            </button>
+          </div>
+          <div class="image-modal-viewport" @wheel.prevent="onAttemptImageWheel">
+            <img
+              :src="attemptImageModalSrc"
+              class="image-modal-img image-modal-img--zoomable"
+              :style="{ transform: `translate(${attemptImageOffsetX}px, ${attemptImageOffsetY}px) scale(${attemptImageZoom})` }"
+              @pointerdown="onAttemptImagePointerDown"
+              @pointermove="onAttemptImagePointerMove"
+              @pointerup="onAttemptImagePointerUp"
+              @pointercancel="onAttemptImagePointerUp"
+              @pointerleave="onAttemptImagePointerUp"
+              alt="Respuesta del intento"
+            />
+          </div>
+        </div>
+      </div>
     </div>
   </TeacherLayout>
 </template>
@@ -376,6 +429,13 @@ const allSheets = ref<PracticeSheet[]>([])
 const selectedSheet = ref<PracticeSheet | null>(null)
 const loadingAttempts = ref(false)
 const attempts = ref<StudentAttempt[]>([])
+const attemptImageModalSrc = ref<string | null>(null)
+const attemptImageZoom = ref(1)
+const attemptImageOffsetX = ref(0)
+const attemptImageOffsetY = ref(0)
+const attemptImageDragging = ref(false)
+const attemptImageDragStartX = ref(0)
+const attemptImageDragStartY = ref(0)
 
 // Notebooks tab
 const selectedCourseIdNB = ref('')
@@ -494,6 +554,79 @@ async function viewNotebook(notebookId: string) {
   }
 }
 
+function getAttemptImageSrc(attempt: StudentAttempt): string | null {
+  const answer = (attempt.answer_text || '').trim()
+  if (!answer) return null
+  if (/^data:image\/[a-zA-Z0-9.+-]+;base64,/.test(answer)) return answer
+  if (!/^[A-Za-z0-9+/=\s]+$/.test(answer) || answer.length < 120) return null
+  const compact = answer.replace(/\s+/g, '')
+  if (compact.startsWith('iVBORw0KGgo')) return `data:image/png;base64,${compact}`
+  if (compact.startsWith('/9j/')) return `data:image/jpeg;base64,${compact}`
+  if (compact.startsWith('R0lGOD')) return `data:image/gif;base64,${compact}`
+  return null
+}
+
+function openAttemptImage(src: string) {
+  attemptImageModalSrc.value = src
+  attemptImageZoom.value = 1
+  attemptImageOffsetX.value = 0
+  attemptImageOffsetY.value = 0
+  attemptImageDragging.value = false
+}
+
+function closeAttemptImage() {
+  attemptImageModalSrc.value = null
+  attemptImageZoom.value = 1
+  attemptImageOffsetX.value = 0
+  attemptImageOffsetY.value = 0
+  attemptImageDragging.value = false
+}
+
+function zoomInAttemptImage() {
+  attemptImageZoom.value = Math.min(3, Number((attemptImageZoom.value + 0.25).toFixed(2)))
+}
+
+function zoomOutAttemptImage() {
+  attemptImageZoom.value = Math.max(0.5, Number((attemptImageZoom.value - 0.25).toFixed(2)))
+}
+
+function resetAttemptImageZoom() {
+  attemptImageZoom.value = 1
+  attemptImageOffsetX.value = 0
+  attemptImageOffsetY.value = 0
+}
+
+function onAttemptImageWheel(event: WheelEvent) {
+  if (event.deltaY < 0) {
+    zoomInAttemptImage()
+    return
+  }
+  zoomOutAttemptImage()
+}
+
+function onAttemptImagePointerDown(event: PointerEvent) {
+  if (attemptImageZoom.value <= 1) return
+  const target = event.currentTarget as HTMLElement | null
+  target?.setPointerCapture(event.pointerId)
+  attemptImageDragging.value = true
+  attemptImageDragStartX.value = event.clientX - attemptImageOffsetX.value
+  attemptImageDragStartY.value = event.clientY - attemptImageOffsetY.value
+}
+
+function onAttemptImagePointerMove(event: PointerEvent) {
+  if (!attemptImageDragging.value || attemptImageZoom.value <= 1) return
+  attemptImageOffsetX.value = event.clientX - attemptImageDragStartX.value
+  attemptImageOffsetY.value = event.clientY - attemptImageDragStartY.value
+}
+
+function onAttemptImagePointerUp(event: PointerEvent) {
+  const target = event.currentTarget as HTMLElement | null
+  if (target?.hasPointerCapture(event.pointerId)) {
+    target.releasePointerCapture(event.pointerId)
+  }
+  attemptImageDragging.value = false
+}
+
 // --- helpers ---
 function masteryClass(score: number) {
   if (score >= 80) return 'mastery--high'
@@ -504,6 +637,15 @@ function masteryClass(score: number) {
 function formatDate(dateStr: string) {
   if (!dateStr) return '—'
   return new Date(dateStr).toLocaleDateString('es', { year: 'numeric', month: 'short', day: 'numeric' })
+}
+
+function formatAIFeedback(value?: string) {
+  const feedback = (value || '').trim()
+  if (!feedback) return 'Sin observaciones de IA'
+  if (feedback.includes('UNREADABLE')) return 'Sin observaciones de IA'
+  if (feedback === 'Gillie: respuesta no legible (UNREADABLE)') return 'Sin observaciones de IA'
+  if (feedback === 'Asistente: respuesta no legible (UNREADABLE)') return 'Sin observaciones de IA'
+  return feedback
 }
 </script>
 
@@ -832,6 +974,92 @@ function formatDate(dateStr: string) {
   text-overflow: ellipsis;
 }
 
+.image-modal-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1200;
+  background: rgba(15, 23, 42, 0.65);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+}
+
+.image-modal-card {
+  width: min(920px, 100%);
+  max-height: calc(100vh - 40px);
+  background: #fff;
+  border-radius: 14px;
+  border: 1px solid rgba(148, 163, 184, 0.3);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.image-modal-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 14px;
+  border-bottom: 1px solid rgba(148, 163, 184, 0.2);
+}
+
+.image-modal-head h3 {
+  margin: 0;
+  font-size: 14px;
+  color: var(--text-primary);
+}
+
+.image-modal-img {
+  width: 100%;
+  height: auto;
+  object-fit: contain;
+  max-height: calc(100vh - 120px);
+  background: #f8fafc;
+}
+
+.image-modal-controls {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 10px 12px;
+  border-bottom: 1px solid rgba(148, 163, 184, 0.2);
+}
+
+.image-modal-controls span {
+  min-width: 52px;
+  text-align: center;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--text-secondary);
+}
+
+.image-modal-viewport {
+  flex: 1;
+  overflow: auto;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  background: #f8fafc;
+  padding: 12px;
+}
+
+.image-modal-img--zoomable {
+  width: auto;
+  max-width: 100%;
+  transform-origin: top center;
+  transition: transform 0.12s ease;
+  max-height: none;
+  cursor: grab;
+  touch-action: none;
+  user-select: none;
+}
+
+.image-modal-img--zoomable:active {
+  cursor: grabbing;
+}
+
 .result-chip {
   display: inline-flex;
   padding: 3px 10px;
@@ -968,6 +1196,35 @@ function formatDate(dateStr: string) {
   display: flex;
   align-items: flex-start;
   gap: 5px;
+}
+
+.nb-ai-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.nb-ai-badge {
+  display: inline-flex;
+  padding: 3px 10px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.nb-ai-badge--ok { background: rgba(16,185,129,0.12); color: #047857; }
+.nb-ai-badge--fail { background: rgba(239,68,68,0.1); color: #dc2626; }
+
+.nb-ai-date {
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+.nb-ai-feedback {
+  margin: 8px 0 0;
+  font-size: 12px;
+  color: var(--text-secondary);
 }
 
 /* Shared */
