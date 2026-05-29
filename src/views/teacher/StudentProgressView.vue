@@ -101,6 +101,48 @@
           </div>
         </div>
 
+        <!-- TAB: Por curso -->
+        <div v-if="activeTab === 'courses'" class="tab-content">
+          <div v-if="loadingCourseProgress" class="loading-center">
+            <div class="spinner spinner-violet"></div>
+          </div>
+          <div v-else-if="!courses.length" class="empty-block">
+            <i class="pi pi-sitemap empty-icon"></i>
+            <p>Sin cursos asignados.</p>
+          </div>
+          <div v-else class="course-progress-list">
+            <div v-for="c in courses" :key="c.id" class="course-progress-item">
+              <div class="course-progress-header">
+                <span class="course-title">{{ c.title }}</span>
+                <span class="course-topic-count">
+                  {{ (courseProgressMap[c.id] || []).length }} temas practicados
+                </span>
+              </div>
+              <div v-if="(courseProgressMap[c.id] || []).length" class="course-topic-list">
+                <div
+                  v-for="p in courseProgressMap[c.id]"
+                  :key="p.topic_id"
+                  class="course-topic-row"
+                >
+                  <span class="course-topic-name">{{ p.topic_title || 'Tema sin nombre' }}</span>
+                  <div class="course-topic-bar-wrap">
+                    <div
+                      class="course-topic-bar-fill"
+                      :class="masteryClass(p.mastery_score)"
+                      :style="{ width: Math.min(p.mastery_score, 100) + '%' }"
+                    ></div>
+                  </div>
+                  <span class="course-topic-score" :class="masteryClass(p.mastery_score)">
+                    {{ p.mastery_score.toFixed(0) }}%
+                  </span>
+                  <span class="course-topic-level">Nivel {{ p.current_level }}</span>
+                </div>
+              </div>
+              <div v-else class="course-topic-empty">Sin actividad en este curso.</div>
+            </div>
+          </div>
+        </div>
+
         <!-- TAB: Hojas de práctica (por curso) -->
         <div v-if="activeTab === 'sheets'" class="tab-content">
           <!-- Course selector -->
@@ -394,7 +436,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import TeacherLayout from '@/layouts/TeacherLayout.vue'
 import { progressService } from '@/services/progress/progressService'
@@ -415,12 +457,17 @@ const loadingAll = ref(true)
 const allProgress = ref<TopicProgress[]>([])
 const courses = ref<Course[]>([])
 
-const activeTab = ref<'progress' | 'sheets' | 'notebooks'>('progress')
+const activeTab = ref<'progress' | 'courses' | 'sheets' | 'notebooks'>('progress')
 const tabs = [
-  { key: 'progress', label: 'Progreso por tema', icon: 'pi pi-chart-bar' },
-  { key: 'sheets',   label: 'Hojas de práctica', icon: 'pi pi-file'      },
-  { key: 'notebooks', label: 'Cuadernos',         icon: 'pi pi-book'      },
+  { key: 'progress',  label: 'Progreso por tema', icon: 'pi pi-chart-bar' },
+  { key: 'courses',   label: 'Por curso',          icon: 'pi pi-sitemap'   },
+  { key: 'sheets',    label: 'Hojas de práctica',  icon: 'pi pi-file'      },
+  { key: 'notebooks', label: 'Cuadernos',          icon: 'pi pi-book'      },
 ] as const
+
+// Courses tab
+const loadingCourseProgress = ref(false)
+const courseProgressMap = ref<Record<string, import('@/types').TopicProgress[]>>({})
 
 // Sheets tab
 const selectedCourseId = ref('')
@@ -454,9 +501,14 @@ const avgMastery   = computed(() => {
 const totalCorrect  = computed(() => allProgress.value.reduce((a, p) => a + p.correct_attempts, 0))
 const totalAttempts = computed(() => allProgress.value.reduce((a, p) => a + p.total_attempts, 0))
 
+const studentTopicIds = computed(() => new Set(allProgress.value.map(p => p.topic_id)))
+
 const filteredSheets = computed(() => {
-  if (!selectedCourseId.value) return allSheets.value
-  return allSheets.value.filter(s => s.course_id === selectedCourseId.value)
+  const base = allSheets.value.filter(s =>
+    !s.topic_id || studentTopicIds.value.has(s.topic_id)
+  )
+  if (!selectedCourseId.value) return base
+  return base.filter(s => s.course_id === selectedCourseId.value)
 })
 
 const filteredNotebooks = computed(() => {
@@ -494,6 +546,12 @@ onMounted(async () => {
   }
 })
 
+watch(activeTab, (tab) => {
+  if (tab === 'courses' && !Object.keys(courseProgressMap.value).length) {
+    loadCourseProgress()
+  }
+})
+
 async function loadAllSheets() {
   loadingSheets.value = true
   try {
@@ -515,6 +573,28 @@ async function loadAllNotebooks() {
     allNotebooks.value = results.flat()
   } finally {
     loadingNB.value = false
+  }
+}
+
+async function loadCourseProgress() {
+  if (loadingCourseProgress.value) return
+  loadingCourseProgress.value = true
+  try {
+    const entries = await Promise.all(
+      courses.value.map(async c => {
+        try {
+          const res = await progressService.getStudentCourseProgress(studentId, c.id)
+          return [c.id, res.data || []] as const
+        } catch {
+          return [c.id, []] as const
+        }
+      })
+    )
+    const map: Record<string, import('@/types').TopicProgress[]> = {}
+    for (const [id, data] of entries) map[id] = data
+    courseProgressMap.value = map
+  } finally {
+    loadingCourseProgress.value = false
   }
 }
 
@@ -776,6 +856,48 @@ function formatAIFeedback(value?: string) {
 /* Tab content */
 .tab-content { animation: fadeIn 0.2s ease; }
 @keyframes fadeIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+
+/* Course progress tab */
+.course-progress-list { display: flex; flex-direction: column; gap: 16px; }
+.course-progress-item {
+  background: rgba(255,255,255,0.88);
+  border-radius: 16px;
+  border: 1px solid rgba(255,255,255,0.9);
+  box-shadow: 0 4px 16px rgba(93,108,146,0.07);
+  padding: 16px 20px;
+}
+.course-progress-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+.course-title { font-size: 15px; font-weight: 700; color: var(--text-primary); }
+.course-topic-count { font-size: 12px; color: var(--text-muted); }
+.course-topic-list { display: flex; flex-direction: column; gap: 8px; }
+.course-topic-row {
+  display: grid;
+  grid-template-columns: 180px 1fr 52px 70px;
+  align-items: center;
+  gap: 10px;
+}
+.course-topic-name { font-size: 13px; font-weight: 500; color: var(--text-primary); }
+.course-topic-bar-wrap {
+  height: 6px; border-radius: 999px;
+  background: rgba(148,163,184,0.18); overflow: hidden;
+}
+.course-topic-bar-fill {
+  height: 100%; border-radius: 999px; transition: width 0.4s ease;
+}
+.mastery--high .course-topic-bar-fill { background: #10b981; }
+.mastery--mid  .course-topic-bar-fill { background: #f59e0b; }
+.mastery--low  .course-topic-bar-fill { background: #ef4444; }
+.course-topic-score { font-size: 12px; font-weight: 700; text-align: right; }
+.mastery--high .course-topic-score { color: #047857; }
+.mastery--mid  .course-topic-score { color: #b45309; }
+.mastery--low  .course-topic-score { color: #dc2626; }
+.course-topic-level { font-size: 12px; color: var(--text-muted); text-align: right; }
+.course-topic-empty { font-size: 13px; color: var(--text-muted); padding: 4px 0; }
 
 /* Progress grid */
 .progress-grid {

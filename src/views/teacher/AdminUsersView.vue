@@ -360,7 +360,7 @@ async function loadData() {
   errorMessage.value = ''
   try {
     const [usersRes, gradesRes] = await Promise.all([
-      authAdminService.listUsers({ limit: 300, offset: 0 }),
+      authAdminService.listUsers({ limit: 1000, offset: 0 }),
       gradeService.list()
     ])
 
