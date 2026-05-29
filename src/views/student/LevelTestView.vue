@@ -134,6 +134,10 @@
 
           <p class="result-rec">{{ result.recommendation }}</p>
 
+          <div v-if="result.ai_feedback" class="result-ai-feedback">
+            <strong>Comentario del Asistente:</strong> {{ result.ai_feedback }}
+          </div>
+
           <div class="result-actions">
             <button class="btn-secondary" @click="router.push('/student/dashboard')">
               Ir al inicio
@@ -392,18 +396,86 @@ async function submit() {
   const attempts = exercises.value.map(ex => ({
     exercise_id: ex.exercise.id,
     answer_text: isCanvas.value ? '' : (answers.value[ex.exercise.id] || ''),
-    canvas_data: isCanvas.value ? (canvasData.value[ex.exercise.id] || '') : '',
+    canvas_data: isCanvas.value ? buildCanvasDataForOCR(ex.exercise.id) : '',
     time_spent_seconds: 0,
     hints_used: 0
   }))
 
   try {
-    const res = await practiceSheetService.submit(sheet.value!.id, { attempts })
-    result.value = res.data
+    const start = await practiceSheetService.submitAsync(sheet.value!.id, { attempts })
+    const jobId = start.data.job_id
+    let jobDone = false
+
+    while (!jobDone) {
+      await new Promise((resolve) => setTimeout(resolve, 1200))
+      const job = await practiceSheetService.getSubmitJob(jobId)
+      if (job.data.status === 'processing') {
+        continue
+      }
+      if (job.data.status === 'failed') {
+        throw new Error(job.data.message || 'No se pudo evaluar la prueba')
+      }
+      result.value = job.data.result?.data || null
+      jobDone = true
+    }
+
+    if (!result.value) {
+      throw new Error('No se recibió resultado de evaluación')
+    }
     submitted.value = true
+  } catch (err) {
+    console.error(err)
   } finally {
     submitting.value = false
   }
+}
+
+function buildCanvasDataForOCR(exerciseId: string) {
+  const source = canvasRefs[exerciseId]
+  if (!source) {
+    return canvasData.value[exerciseId] || ''
+  }
+
+  const scale = 2
+  const out = document.createElement('canvas')
+  out.width = Math.max(1, Math.floor(source.width * scale))
+  out.height = Math.max(1, Math.floor(source.height * scale))
+  const ctx = out.getContext('2d')
+  if (!ctx) {
+    return canvasData.value[exerciseId] || ''
+  }
+
+  ctx.fillStyle = '#ffffff'
+  ctx.fillRect(0, 0, out.width, out.height)
+  ctx.imageSmoothingEnabled = false
+  ctx.drawImage(source, 0, 0, out.width, out.height)
+
+  const image = ctx.getImageData(0, 0, out.width, out.height)
+  const pixels = image.data
+  for (let i = 0; i < pixels.length; i += 4) {
+    const r = pixels[i]
+    const g = pixels[i + 1]
+    const b = pixels[i + 2]
+    const alpha = pixels[i + 3]
+
+    if (alpha < 8) {
+      pixels[i] = 255
+      pixels[i + 1] = 255
+      pixels[i + 2] = 255
+      pixels[i + 3] = 255
+      continue
+    }
+
+    const gray = 0.299 * r + 0.587 * g + 0.114 * b
+    const value = gray > 205 ? 255 : 0
+    pixels[i] = value
+    pixels[i + 1] = value
+    pixels[i + 2] = value
+    pixels[i + 3] = 255
+  }
+  ctx.putImageData(image, 0, 0)
+
+  return out.toDataURL('image/jpeg', 0.92)
 }
 
 function retry() {
@@ -810,6 +882,18 @@ function retry() {
   color: var(--text-secondary);
   line-height: 1.6;
   margin: 0;
+}
+
+.result-ai-feedback {
+  background: rgba(124, 58, 237, 0.06);
+  border: 1px solid rgba(124, 58, 237, 0.15);
+  border-radius: 10px;
+  padding: 10px 14px;
+  font-size: 0.88rem;
+  color: var(--text-secondary);
+  line-height: 1.5;
+  width: 100%;
+  text-align: left;
 }
 
 .result-actions {
