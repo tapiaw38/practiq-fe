@@ -69,7 +69,7 @@
                     @click="goToSheet(sheet.id)"
                   >
                     <span>{{ sheet.title }}</span>
-                    <small>{{ sheet.exercises?.length || 0 }} ejercicios</small>
+                    <small>{{ Array.isArray(sheet.exercises) ? sheet.exercises.length : (sheet.exercises || 0) }} ejercicios</small>
                   </button>
                 </div>
                 <div v-else class="mini-empty">Sin prácticas</div>
@@ -84,7 +84,7 @@
                     @click="goToSheet(lv.levelTest.id)"
                   >
                     <span>{{ lv.levelTest.title }}</span>
-                    <small>{{ lv.levelTest.exercises?.length || 0 }} ejercicios · {{ lv.levelTest.test_style }}</small>
+                    <small>{{ Array.isArray(lv.levelTest.exercises) ? lv.levelTest.exercises.length : (lv.levelTest.exercises || 0) }} ejercicios · {{ lv.levelTest.test_style }}</small>
                   </button>
                 </div>
                 <div v-else class="mini-empty">Sin prueba asignada</div>
@@ -101,7 +101,7 @@
                     @click="router.push(`/teacher/courses/${courseId}/notebooks/${nb.id}`)"
                   >
                     <span>{{ nb.title }}</span>
-                    <small>{{ nb.pages?.length || 0 }} páginas</small>
+                    <small>{{ Array.isArray(nb.pages) ? nb.pages.length : (nb.pages || 0) }} páginas</small>
                   </button>
                 </div>
                 <div v-else class="mini-empty">Sin cuadernos</div>
@@ -641,7 +641,8 @@ import { exerciseService } from '@/services/exercises/exerciseService'
 import { materialService } from '@/services/materials/materialService'
 import { practiceSheetService } from '@/services/practiceSheets/practiceSheetService'
 import { notebookService } from '@/services/notebooks/notebookService'
-import type { Course, Topic, Exercise, Material, PracticeSheet, Student, Notebook } from '@/types'
+import { levelService } from '@/services/levels/levelService'
+import type { Course, Topic, Exercise, Material, PracticeSheet, Student, Notebook, CourseLevelsResponse } from '@/types'
 
 const route = useRoute()
 const router = useRouter()
@@ -655,6 +656,7 @@ const materials = ref<Material[]>([])
 const students = ref<Student[]>([])
 const sheets = ref<PracticeSheet[]>([])
 const notebooks = ref<Notebook[]>([])
+const courseLevels = ref<CourseLevelsResponse | null>(null)
 const selectedTopicId = ref('')
 const sheetExercises = ref<Exercise[]>([])
 
@@ -702,6 +704,14 @@ const newSheet = reactive({ title: '', topic_id: '', level: 1, sheet_type: 'prac
 const newNotebook = reactive({ title: '', description: '', level: 1 })
 
 const teacherLevels = computed(() => {
+  if (courseLevels.value?.levels?.length) {
+    return courseLevels.value.levels.map((ld) => ({
+      level: ld.level,
+      practices: ld.practices,
+      levelTest: ld.level_test,
+      notebooks: ld.notebooks
+    }))
+  }
   const maxFromSheets = sheets.value.reduce((max, sheet) => Math.max(max, sheet.level || 1), 1)
   const maxFromNotebooks = notebooks.value.reduce((max, notebook) => Math.max(max, notebook.level || 1), 1)
   const maxLevel = Math.max(maxFromSheets, maxFromNotebooks, 1)
@@ -718,13 +728,14 @@ const teacherLevels = computed(() => {
 })
 
 onMounted(async () => {
-  const [courseRes, topicsRes, materialsRes, studentsRes, sheetsRes, notebooksRes] = await Promise.allSettled([
+  const [courseRes, topicsRes, materialsRes, studentsRes, sheetsRes, notebooksRes, levelsRes] = await Promise.allSettled([
     courseService.get(courseId),
     topicService.list(courseId),
     materialService.list(courseId),
     courseService.getStudents(courseId),
     practiceSheetService.list(courseId),
-    notebookService.list(courseId)
+    notebookService.list(courseId),
+    levelService.getCourseLevels(courseId)
   ])
 
   if (courseRes.status === 'fulfilled') course.value = courseRes.value.data
@@ -733,6 +744,7 @@ onMounted(async () => {
   if (studentsRes.status === 'fulfilled') students.value = studentsRes.value.data || []
   if (sheetsRes.status === 'fulfilled') sheets.value = sheetsRes.value.data || []
   if (notebooksRes.status === 'fulfilled') notebooks.value = notebooksRes.value || []
+  if (levelsRes.status === 'fulfilled') courseLevels.value = levelsRes.value
 })
 
 watch(selectedTopicId, async (id) => {

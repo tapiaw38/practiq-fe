@@ -58,8 +58,8 @@
           <div class="metric-card">
             <div class="metric-card__icon metric-card__icon--star">⭐</div>
             <div>
-              <div class="metric-card__value">{{ earnedPoints }}</div>
-              <div class="metric-card__label">Puntos</div>
+              <div class="metric-card__value">{{ totalCorrect }}</div>
+              <div class="metric-card__label">Aciertos</div>
             </div>
           </div>
 
@@ -67,8 +67,8 @@
             <div class="metric-card__icon metric-card__icon--goal">🎯</div>
             <div class="metric-goal-body">
               <div class="metric-goal-top">
-                <span class="metric-card__label">Meta de hoy</span>
-                <span class="metric-goal-count">{{ completedGoals }}/{{ todayGoalTarget }}</span>
+                <span class="metric-card__label">Precisión global</span>
+                <span class="metric-goal-count">{{ totalCorrect }}/{{ totalAttempts }}</span>
               </div>
               <div class="progress-bar">
                 <div class="progress-fill" :style="{ width: goalProgress + '%' }"></div>
@@ -78,7 +78,7 @@
         </section>
 
         <!-- Progress section -->
-        <section v-if="progress.length > 0" class="mastery-section">
+        <section v-if="groupedProgress.length > 0" class="mastery-section">
           <div class="section-head">
             <div>
               <div class="section-kicker">Resumen rápido</div>
@@ -87,7 +87,7 @@
           </div>
 
           <div class="mastery-grid">
-            <article v-for="p in progress" :key="p.topic_id" class="mastery-card">
+            <article v-for="p in groupedProgress" :key="p.topic_id" class="mastery-card">
               <div class="mastery-card__top">
                 <div class="mastery-topic">{{ p.topic_title }}</div>
                 <div class="mastery-level">Nivel {{ p.current_level }}</div>
@@ -180,30 +180,48 @@ const firstName = computed(() => {
   return name.split(' ')[0] || 'Estudiante'
 })
 
-const currentTopic = computed(() => progress.value[0]?.topic_title || '—')
+const groupedProgress = computed(() => {
+  const map = new Map<string, typeof progress.value[0]>()
+  for (const p of progress.value) {
+    const existing = map.get(p.topic_id)
+    if (!existing) {
+      map.set(p.topic_id, { ...p })
+    } else {
+      existing.mastery_score = Math.max(existing.mastery_score, p.mastery_score)
+      existing.current_level = Math.max(existing.current_level, p.current_level)
+      existing.total_attempts += p.total_attempts
+      existing.correct_attempts += p.correct_attempts
+      existing.streak_days = Math.max(existing.streak_days, p.streak_days)
+    }
+  }
+  return Array.from(map.values())
+})
+
+const currentTopic = computed(() => groupedProgress.value[0]?.topic_title || '—')
 const currentLevel = computed(() => {
   const levels = Object.values(courseCurrentLevel.value)
   return levels.length ? levels[0] : 1
 })
-const streakDays = computed(() => Math.max(...progress.value.map((p) => p.streak_days), 0) || 0)
+const streakDays = computed(() => Math.max(...groupedProgress.value.map((p) => p.streak_days), 0) || 0)
 const averageMastery = computed(() => {
-  if (!progress.value.length) return 0
-  return progress.value.reduce((acc, item) => acc + item.mastery_score, 0) / progress.value.length
+  if (!groupedProgress.value.length) return 0
+  return groupedProgress.value.reduce((acc, item) => acc + item.mastery_score, 0) / groupedProgress.value.length
 })
 const totalSheets = computed(() =>
   Object.values(courseSheets.value).reduce(
     (acc, items) => acc + items.filter(s => s.sheet_type !== 'level_test').length, 0
   )
 )
-const completedGoals = computed(() =>
-  progress.value.reduce((acc, item) => acc + item.correct_attempts, 0)
+const totalCorrect = computed(() =>
+  groupedProgress.value.reduce((acc, item) => acc + item.correct_attempts, 0)
 )
-const todayGoalTarget = computed(() => Math.max(10, progress.value.length * 3 || 10))
+const totalAttempts = computed(() =>
+  groupedProgress.value.reduce((acc, item) => acc + item.total_attempts, 0)
+)
 const goalProgress = computed(() =>
-  Math.min(100, Math.round((completedGoals.value / todayGoalTarget.value) * 100))
-)
-const earnedPoints = computed(() =>
-  progress.value.reduce((acc, item) => acc + item.correct_attempts * 12, 0)
+  totalAttempts.value > 0
+    ? Math.min(100, Math.round((totalCorrect.value / totalAttempts.value) * 100))
+    : 0
 )
 const featuredSheetId = computed(() => {
   for (const course of courses.value) {
