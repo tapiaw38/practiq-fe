@@ -53,7 +53,7 @@ defineEmits<{
 
 .confirm-card {
   background: #fff;
-  border-radius: 20px;
+  border-radius: var(--radius-2xl);
   width: min(400px, 100%);
   padding: 28px 28px 24px;
   box-shadow: 0 20px 60px rgba(0, 0, 0, 0.15);
@@ -76,7 +76,7 @@ defineEmits<{
 
 .confirm-icon--danger {
   background: #fef2f2;
-  color: #ef4444;
+  color: var(--color-error);
 }
 
 .confirm-icon--info {
@@ -99,8 +99,8 @@ defineEmits<{
 }
 
 .confirm-description {
-  font-size: 13px;
-  color: #64748b;
+  font-size: var(--text-base);
+  color: var(--text-secondary);
   margin: 0;
   line-height: 1.5;
 }
@@ -115,8 +115,8 @@ defineEmits<{
 .confirm-btn {
   flex: 1;
   padding: 10px 16px;
-  border-radius: 11px;
-  font-size: 14px;
+  border-radius: var(--radius-sm);
+  font-size: var(--text-md);
   font-weight: 700;
   cursor: pointer;
   border: none;
@@ -133,7 +133,7 @@ defineEmits<{
 }
 
 .confirm-btn--danger {
-  background: #ef4444;
+  background: var(--color-error);
   color: #fff;
 }
 .confirm-btn--danger:hover {

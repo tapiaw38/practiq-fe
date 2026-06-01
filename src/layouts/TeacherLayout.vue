@@ -154,7 +154,7 @@ function logout() {
   width: 42px;
   height: 42px;
   border: none;
-  border-radius: 14px;
+  border-radius: var(--radius-lg);
   background: rgba(248, 250, 252, 0.92);
   color: var(--text-secondary);
   display: grid;
@@ -180,9 +180,9 @@ function logout() {
 
 .nav-item {
   padding: 14px 16px;
-  border-radius: 18px;
+  border-radius: var(--radius-xl);
   color: var(--text-secondary);
-  font-size: 14px;
+  font-size: var(--text-md);
   font-weight: 600;
   text-decoration: none;
   transition: var(--transition);
@@ -190,7 +190,7 @@ function logout() {
 
 .nav-item:hover {
   background: rgba(255, 255, 255, 0.9);
-  color: #182136;
+  color: var(--text-heading);
 }
 
 .nav-item-active {
@@ -214,12 +214,12 @@ function logout() {
 .user-avatar {
   width: 44px;
   height: 44px;
-  border-radius: 16px;
+  border-radius: var(--radius-xl);
   background: linear-gradient(135deg, rgba(124, 58, 237, 0.18), rgba(96, 165, 250, 0.2));
   color: var(--practiq-violet-dark);
   display: grid;
   place-items: center;
-  font-size: 15px;
+  font-size: var(--text-lg);
   font-weight: 800;
   flex-shrink: 0;
 }
@@ -229,16 +229,16 @@ function logout() {
 }
 
 .user-name {
-  font-size: 14px;
+  font-size: var(--text-md);
   font-weight: 700;
-  color: #182136;
+  color: var(--text-heading);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 
 .user-role {
-  font-size: 12px;
+  font-size: var(--text-sm);
   color: var(--text-secondary);
 }
 
@@ -255,12 +255,12 @@ function logout() {
 .topbar-avatar {
   width: 42px;
   height: 42px;
-  border-radius: 14px;
+  border-radius: var(--radius-lg);
   background: rgba(124, 58, 237, 0.12);
   color: var(--practiq-violet-dark);
   display: grid;
   place-items: center;
-  font-size: 15px;
+  font-size: var(--text-lg);
   font-weight: 800;
 }
 

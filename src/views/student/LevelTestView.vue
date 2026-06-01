@@ -514,7 +514,7 @@ function retry() {
   gap: 16px;
   padding: 20px 24px;
   background: rgba(255,255,255,0.92);
-  border-radius: 20px;
+  border-radius: var(--radius-2xl);
   border: 1.5px solid rgba(124, 58, 237, 0.12);
   box-shadow: 0 4px 20px rgba(124, 58, 237, 0.06);
 }
@@ -539,7 +539,7 @@ function retry() {
 .level-badge {
   display: inline-block;
   padding: 3px 12px;
-  border-radius: 20px;
+  border-radius: var(--radius-2xl);
   background: linear-gradient(135deg, #8b5cf6, #6366f1);
   color: #fff;
   font-size: 0.75rem;
@@ -568,22 +568,22 @@ function retry() {
   color: var(--text-secondary);
   background: rgba(245, 243, 255, 0.9);
   padding: 8px 16px;
-  border-radius: 12px;
+  border-radius: var(--radius-md);
   flex-shrink: 0;
 }
-.timer--warning { color: #dc2626; background: rgba(254, 226, 226, 0.9); }
+.timer--warning { color: var(--color-error-dark); background: rgba(254, 226, 226, 0.9); }
 
 /* Progress */
 .test-progress-bar {
   height: 6px;
   background: rgba(124, 58, 237, 0.1);
-  border-radius: 99px;
+  border-radius: var(--radius-pill);
   overflow: hidden;
 }
 .test-progress-fill {
   height: 100%;
   background: linear-gradient(90deg, #8b5cf6, #6366f1);
-  border-radius: 99px;
+  border-radius: var(--radius-pill);
   transition: width 0.3s ease;
 }
 .test-progress-label {
@@ -599,7 +599,7 @@ function retry() {
   gap: 6px;
   padding: 10px 16px;
   background: rgba(255,255,255,0.92);
-  border-radius: 14px;
+  border-radius: var(--radius-lg);
   border: 1.5px solid rgba(124, 58, 237, 0.1);
   flex-wrap: wrap;
 }
@@ -607,7 +607,7 @@ function retry() {
 .tool-btn {
   width: 34px;
   height: 34px;
-  border-radius: 8px;
+  border-radius: var(--radius-sm);
   border: 1.5px solid rgba(124, 58, 237, 0.15);
   background: rgba(255,255,255,0.8);
   cursor: pointer;
@@ -631,7 +631,7 @@ function retry() {
 .color-picker {
   width: 34px;
   height: 34px;
-  border-radius: 8px;
+  border-radius: var(--radius-sm);
   border: 1.5px solid rgba(124, 58, 237, 0.15);
   padding: 2px;
   cursor: pointer;
@@ -662,7 +662,7 @@ function retry() {
   align-items: flex-start;
   padding: 18px 20px;
   background: rgba(255,255,255,0.9);
-  border-radius: 16px;
+  border-radius: var(--radius-xl);
   border: 1.5px solid rgba(124, 58, 237, 0.08);
   transition: border-color 0.15s;
 }
@@ -675,7 +675,7 @@ function retry() {
 .ex-num {
   width: 32px;
   height: 32px;
-  border-radius: 10px;
+  border-radius: var(--radius-sm);
   background: rgba(124, 58, 237, 0.1);
   color: var(--practiq-violet);
   font-weight: 800;
@@ -688,7 +688,7 @@ function retry() {
 
 .ex-card--answered .ex-num {
   background: rgba(16, 185, 129, 0.15);
-  color: #059669;
+  color: var(--color-success-dark);
 }
 
 .ex-body { flex: 1; display: flex; flex-direction: column; gap: 10px; }
@@ -702,7 +702,7 @@ function retry() {
 
 .ex-input {
   padding: 10px 14px;
-  border-radius: 10px;
+  border-radius: var(--radius-sm);
   border: 1.5px solid rgba(124, 58, 237, 0.15);
   font-size: 1rem;
   color: var(--text-primary);
@@ -738,10 +738,10 @@ function retry() {
   align-items: center;
   gap: 4px;
   padding: 4px 10px;
-  border-radius: 8px;
+  border-radius: var(--radius-sm);
   border: 1px solid rgba(239, 68, 68, 0.2);
   background: rgba(255, 255, 255, 0.9);
-  color: #ef4444;
+  color: var(--color-error);
   cursor: pointer;
   font-size: 0.78rem;
   transition: all 0.15s;
@@ -751,7 +751,7 @@ function retry() {
 .ex-canvas {
   width: 100%;
   height: 220px;
-  border-radius: 12px;
+  border-radius: var(--radius-md);
   border: 1.5px solid rgba(124, 58, 237, 0.15);
   display: block;
   touch-action: none;
@@ -765,7 +765,7 @@ function retry() {
   justify-content: space-between;
   padding: 16px 20px;
   background: rgba(255,255,255,0.92);
-  border-radius: 16px;
+  border-radius: var(--radius-xl);
   border: 1.5px solid rgba(124, 58, 237, 0.1);
   position: sticky;
   bottom: 16px;
@@ -781,7 +781,7 @@ function retry() {
   align-items: center;
   gap: 8px;
   padding: 12px 28px;
-  border-radius: 12px;
+  border-radius: var(--radius-md);
   border: none;
   background: linear-gradient(135deg, #8b5cf6, #6366f1);
   color: #fff;
@@ -870,8 +870,8 @@ function retry() {
 
 .level-up-badge {
   padding: 8px 20px;
-  border-radius: 99px;
-  background: linear-gradient(135deg, #10b981, #059669);
+  border-radius: var(--radius-pill);
+  background: linear-gradient(135deg, var(--color-success), var(--color-success-dark));
   color: #fff;
   font-weight: 700;
   font-size: 0.95rem;
@@ -887,7 +887,7 @@ function retry() {
 .result-ai-feedback {
   background: rgba(124, 58, 237, 0.06);
   border: 1px solid rgba(124, 58, 237, 0.15);
-  border-radius: 10px;
+  border-radius: var(--radius-sm);
   padding: 10px 14px;
   font-size: 0.88rem;
   color: var(--text-secondary);
@@ -905,7 +905,7 @@ function retry() {
 
 .btn-secondary {
   padding: 10px 22px;
-  border-radius: 12px;
+  border-radius: var(--radius-md);
   border: 1.5px solid rgba(124, 58, 237, 0.2);
   background: rgba(255,255,255,0.9);
   color: var(--text-primary);
@@ -918,9 +918,9 @@ function retry() {
 
 .btn-retry {
   padding: 10px 22px;
-  border-radius: 12px;
+  border-radius: var(--radius-md);
   border: none;
-  background: linear-gradient(135deg, #f59e0b, #d97706);
+  background: linear-gradient(135deg, var(--color-warning), #d97706);
   color: #fff;
   font-weight: 700;
   cursor: pointer;

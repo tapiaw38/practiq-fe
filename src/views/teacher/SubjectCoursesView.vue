@@ -23,14 +23,14 @@
 
       <div class="stats-row">
         <div class="stat-card">
-          <div class="stat-icon">📚</div>
+          <div class="stat-icon stat-icon--violet"><i class="pi pi-book"></i></div>
           <div>
             <div class="stat-value">{{ filteredCourses.length }}</div>
             <div class="stat-label">{{ filteredCourses.length === 1 ? 'Curso' : 'Cursos' }}</div>
           </div>
         </div>
         <div class="stat-card">
-          <div class="stat-icon">🏫</div>
+          <div class="stat-icon stat-icon--green"><i class="pi pi-graduation-cap"></i></div>
           <div>
             <div class="stat-value">{{ gradesInUse }}</div>
             <div class="stat-label">{{ gradesInUse === 1 ? 'Grado en uso' : 'Grados en uso' }}</div>
@@ -43,7 +43,7 @@
       </div>
 
       <div v-else-if="filteredCourses.length === 0" class="empty-state">
-        <div class="empty-icon">🗂️</div>
+        <div class="empty-icon"><i class="pi pi-folder-open"></i></div>
         <h3>Aún no hay cursos para esta materia</h3>
         <p>Desde aquí podrás crear los cursos de {{ subject?.name || 'esta materia' }} por grado.</p>
         <button class="btn btn-primary" type="button" @click="showCreateModal = true">
@@ -238,7 +238,7 @@ function formatDate(dateStr: string) {
 
 <style scoped>
 .courses-page {
-  padding: 28px 32px 40px;
+  padding: 16px 24px 32px;
   max-width: 1120px;
 }
 
@@ -247,31 +247,32 @@ function formatDate(dateStr: string) {
   align-items: center;
   justify-content: space-between;
   gap: 24px;
-  padding: 28px 32px;
-  border-radius: 24px;
+  padding: 16px 20px;
+  border-radius: var(--radius-lg);
   background: radial-gradient(ellipse at top left, rgba(124, 58, 237, 0.1), transparent 50%), rgba(255, 255, 255, 0.88);
   border: 1px solid rgba(255, 255, 255, 0.92);
   box-shadow: 0 16px 40px rgba(93, 108, 146, 0.1);
-  margin-bottom: 24px;
+  margin-bottom: 14px;
 }
 
 .hero-kicker {
-  font-size: 11px;
+  font-size: var(--text-xs);
   text-transform: uppercase;
   letter-spacing: 0.16em;
   font-weight: 700;
   color: var(--practiq-violet);
-  margin-bottom: 6px;
+  margin-bottom: 3px;
 }
 
 .hero-title {
-  margin: 0 0 8px;
-  font-size: clamp(1.5rem, 3vw, 2rem);
+  margin: 0 0 4px;
+  font-size: var(--font-hero);
   color: var(--text-primary);
 }
 
 .hero-copy {
   margin: 0;
+  font-size: var(--text-base);
   max-width: 640px;
   color: var(--text-secondary);
   line-height: 1.6;
@@ -286,39 +287,41 @@ function formatDate(dateStr: string) {
 .stats-row {
   display: grid;
   grid-template-columns: repeat(2, 1fr);
-  gap: 16px;
-  margin-bottom: 24px;
+  gap: 10px;
+  margin-bottom: 14px;
 }
 
 .stat-card {
   display: flex;
   align-items: center;
-  gap: 14px;
-  padding: 18px 20px;
-  border-radius: 20px;
+  gap: 10px;
+  padding: 10px 14px;
+  border-radius: var(--radius-md);
   background: rgba(255, 255, 255, 0.86);
   border: 1px solid rgba(255, 255, 255, 0.9);
   box-shadow: 0 8px 24px rgba(93, 108, 146, 0.08);
 }
 
 .stat-icon {
-  width: 46px;
-  height: 46px;
+  width: 36px;
+  height: 36px;
   display: grid;
   place-items: center;
-  border-radius: 14px;
-  font-size: 22px;
-  background: linear-gradient(135deg, rgba(124, 58, 237, 0.08), rgba(96, 165, 250, 0.08));
+  border-radius: var(--radius-sm);
+  font-size: 17px;
+  flex-shrink: 0;
 }
+.stat-icon--violet { background: rgba(124,58,237,0.1); color: #7c3aed; }
+.stat-icon--green  { background: rgba(16,185,129,0.1); color: #059669; }
 
 .stat-value {
-  font-size: 22px;
+  font-size: 17px;
   font-weight: 800;
   color: var(--text-primary);
 }
 
 .stat-label {
-  font-size: 13px;
+  font-size: var(--text-sm);
   color: var(--text-secondary);
 }
 
@@ -330,37 +333,44 @@ function formatDate(dateStr: string) {
 
 .empty-state {
   text-align: center;
-  padding: 72px 24px;
+  padding: 44px 24px;
   background: rgba(255, 255, 255, 0.74);
-  border-radius: 24px;
+  border-radius: var(--radius-xl);
   border: 1px dashed var(--surface-border);
 }
 
 .empty-icon {
-  font-size: 48px;
-  margin-bottom: 16px;
+  width: 64px;
+  height: 64px;
+  border-radius: var(--radius-2xl);
+  background: rgba(124,58,237,0.08);
+  color: var(--practiq-violet);
+  font-size: 28px;
+  display: grid;
+  place-items: center;
+  margin: 0 auto 16px;
 }
 
 .empty-state h3 {
   margin: 0 0 8px;
-  font-size: 18px;
+  font-size: var(--text-lg);
   color: var(--text-primary);
 }
 
 .empty-state p {
-  margin: 0 auto 24px;
+  margin: 0 auto 16px;
   max-width: 420px;
   color: var(--text-secondary);
 }
 
 .courses-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
-  gap: 20px;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: 12px;
 }
 
 .course-card {
-  border-radius: 20px;
+  border-radius: var(--radius-md);
   background: rgba(255, 255, 255, 0.9);
   border: 1px solid rgba(255, 255, 255, 0.92);
   box-shadow: 0 8px 28px rgba(93, 108, 146, 0.1);
@@ -376,15 +386,15 @@ function formatDate(dateStr: string) {
 }
 
 .course-card__accent {
-  height: 4px;
+  height: 3px;
   background: linear-gradient(90deg, var(--practiq-violet), var(--practiq-violet-light));
 }
 
 .course-card__body {
-  padding: 22px 24px 20px;
+  padding: 14px 16px 12px;
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 7px;
 }
 
 .course-card__top {
@@ -398,14 +408,14 @@ function formatDate(dateStr: string) {
 .course-level-badge {
   display: inline-flex;
   padding: 4px 10px;
-  border-radius: 999px;
-  font-size: 11px;
+  border-radius: var(--radius-pill);
+  font-size: var(--text-xs);
   font-weight: 600;
 }
 
 .course-grade-badge {
   background: rgba(16, 185, 129, 0.12);
-  color: #047857;
+  color: var(--color-success-dark);
 }
 
 .course-level-badge {
@@ -415,14 +425,14 @@ function formatDate(dateStr: string) {
 
 .course-title {
   margin: 0;
-  font-size: 17px;
+  font-size: var(--text-md);
   font-weight: 700;
   color: var(--text-primary);
 }
 
 .course-desc {
   margin: 0;
-  font-size: 13px;
+  font-size: var(--text-base);
   color: var(--text-secondary);
   line-height: 1.5;
   display: -webkit-box;
@@ -436,7 +446,7 @@ function formatDate(dateStr: string) {
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  padding-top: 12px;
+  padding-top: 8px;
   margin-top: auto;
   border-top: 1px solid rgba(148, 163, 184, 0.12);
 }
@@ -445,7 +455,7 @@ function formatDate(dateStr: string) {
   display: inline-flex;
   align-items: center;
   gap: 5px;
-  font-size: 12px;
+  font-size: var(--text-sm);
   color: var(--text-muted);
 }
 
@@ -462,8 +472,8 @@ function formatDate(dateStr: string) {
   padding: 12px 14px;
   background: rgba(245, 158, 11, 0.08);
   border: 1px solid rgba(245, 158, 11, 0.2);
-  border-radius: 12px;
-  font-size: 13px;
+  border-radius: var(--radius-md);
+  font-size: var(--text-base);
   color: #92400e;
   margin-bottom: 16px;
 }

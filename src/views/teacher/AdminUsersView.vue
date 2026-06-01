@@ -14,9 +14,9 @@
       </div>
 
       <div v-if="!isSuperAdmin" class="locked-card">
-        <div class="locked-icon">🔒</div>
+        <div class="locked-icon"><i class="pi pi-lock"></i></div>
         <h2>Acceso restringido</h2>
-        <p>Esta vista está pensada para `superadmin` o `admin` con funciones directivas.</p>
+        <p>Esta vista está pensada para superadmin o admin con funciones directivas.</p>
       </div>
 
       <template v-else>
@@ -74,32 +74,34 @@
             </div>
           </div>
 
-          <div class="teacher-grid">
-            <article v-for="teacher in filteredTeachers" :key="teacher.user.id" class="teacher-card">
-              <div class="teacher-card__top">
-                <div>
-                  <h3>{{ fullName(teacher.user) }}</h3>
-                  <p>{{ teacher.user.email }}</p>
-                </div>
-                <span class="teacher-state" :class="teacher.profile?.academic_status === 'blocked' ? 'teacher-state--blocked' : 'teacher-state--ok'">
-                  {{ teacher.profile?.academic_status === 'blocked' ? 'Bloqueado' : 'Activo' }}
-                </span>
-              </div>
-              <div class="chip-row chip-row--tight">
-                <span class="soft-chip" v-for="role in teacher.user.roles" :key="role.id">{{ role.name }}</span>
-              </div>
-              <div class="teacher-meta-grid">
-                <div class="teacher-meta-box">
-                  <span class="teacher-meta-label">Asignados</span>
-                  <strong>{{ teacherAssignments[practiqUserId(teacher.user)]?.length || 0 }}</strong>
-                </div>
-                <div class="teacher-meta-box">
-                  <span class="teacher-meta-label">Estado</span>
-                  <strong>{{ teacher.profile?.academic_status === 'blocked' ? 'Bloqueado' : 'Activo' }}</strong>
-                </div>
-              </div>
-            </article>
-          </div>
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>Nombre</th>
+                <th>Email</th>
+                <th>Roles</th>
+                <th>Asignados</th>
+                <th>Estado</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr v-for="teacher in filteredTeachers" :key="teacher.user.id">
+                <td>{{ fullName(teacher.user) }}</td>
+                <td class="cell-muted">{{ teacher.user.email }}</td>
+                <td>
+                  <div class="chip-row chip-row--inline">
+                    <span class="soft-chip" v-for="role in teacher.user.roles" :key="role.id">{{ role.name }}</span>
+                  </div>
+                </td>
+                <td class="cell-center">{{ teacherAssignments[practiqUserId(teacher.user)]?.length || 0 }}</td>
+                <td>
+                  <span class="teacher-state" :class="teacher.profile?.academic_status === 'blocked' ? 'teacher-state--blocked' : 'teacher-state--ok'">
+                    {{ teacher.profile?.academic_status === 'blocked' ? 'Bloqueado' : 'Activo' }}
+                  </span>
+                </td>
+              </tr>
+            </tbody>
+          </table>
         </section>
 
         <section v-if="pendingProfiles.length" class="panel-card">
@@ -110,23 +112,28 @@
             </div>
           </div>
 
-          <div class="teacher-grid">
-            <article v-for="item in filteredPendingProfiles" :key="item.user.id" class="teacher-card teacher-card--pending">
-              <div class="teacher-card__top">
-                <div>
-                  <h3>{{ fullName(item.user) }}</h3>
-                  <p>{{ item.user.email }}</p>
-                </div>
-                <span class="teacher-badge teacher-badge--pending">{{ practiqUserId(item.user) }}</span>
-              </div>
-              <div class="chip-row chip-row--tight">
-                <span class="soft-chip" v-for="role in item.user.roles" :key="role.id">{{ role.name }}</span>
-              </div>
-              <div class="teacher-meta teacher-meta--pending">
-                <span>Sin perfil sincronizado aún</span>
-              </div>
-            </article>
-          </div>
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>Nombre</th>
+                <th>Email</th>
+                <th>Roles</th>
+                <th>ID</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr v-for="item in filteredPendingProfiles" :key="item.user.id" class="row--pending">
+                <td>{{ fullName(item.user) }}</td>
+                <td class="cell-muted">{{ item.user.email }}</td>
+                <td>
+                  <div class="chip-row chip-row--inline">
+                    <span class="soft-chip" v-for="role in item.user.roles" :key="role.id">{{ role.name }}</span>
+                  </div>
+                </td>
+                <td><span class="teacher-badge teacher-badge--pending">{{ practiqUserId(item.user) }}</span></td>
+              </tr>
+            </tbody>
+          </table>
         </section>
 
         <section class="panel-card">
@@ -137,47 +144,44 @@
             </div>
           </div>
 
-          <div class="student-list">
-            <article v-for="item in filteredStudents" :key="item.user.id" class="student-row">
-              <div class="student-row__main">
-                <div>
-                  <h3>{{ fullName(item.user) }}</h3>
-                  <p>{{ item.user.email }}</p>
-                </div>
-                <span class="status-pill" :class="item.profile?.academic_status === 'blocked' || !item.user.is_active ? 'status-pill--blocked' : 'status-pill--ok'">
-                  {{ item.profile?.academic_status === 'blocked' || !item.user.is_active ? 'Bloqueado' : 'Activo' }}
-                </span>
-              </div>
-
-              <div class="student-row__summary">
-                <div class="summary-block">
-                  <span class="detail-label">Docentes</span>
-                  <div class="chip-row chip-row--compact">
-                    <span v-for="teacher in studentTeachers[practiqUserId(item.user)]" :key="teacher.id" class="soft-chip soft-chip--teacher">
-                      {{ teacher.name }}
-                    </span>
-                    <span v-if="!studentTeachers[practiqUserId(item.user)]?.length" class="detail-empty">Sin docente asignado</span>
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>Nombre</th>
+                <th>Email</th>
+                <th>Docentes</th>
+                <th>Grados</th>
+                <th>Estado</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr v-for="item in filteredStudents" :key="item.user.id">
+                <td>{{ fullName(item.user) }}</td>
+                <td class="cell-muted">{{ item.user.email }}</td>
+                <td>
+                  <div class="chip-row chip-row--inline">
+                    <span v-for="teacher in studentTeachers[practiqUserId(item.user)]" :key="teacher.id" class="soft-chip soft-chip--teacher">{{ teacher.name }}</span>
+                    <span v-if="!studentTeachers[practiqUserId(item.user)]?.length" class="detail-empty">Sin docente</span>
                   </div>
-                </div>
-
-                <div class="summary-block">
-                  <span class="detail-label">Grados</span>
-                  <div class="chip-row chip-row--compact">
-                    <span v-for="grade in userGrades[practiqUserId(item.user)]" :key="grade.id" class="soft-chip soft-chip--grade">
-                      {{ grade.name }}
-                    </span>
+                </td>
+                <td>
+                  <div class="chip-row chip-row--inline">
+                    <span v-for="grade in userGrades[practiqUserId(item.user)]" :key="grade.id" class="soft-chip soft-chip--grade">{{ grade.name }}</span>
                     <span v-if="!userGrades[practiqUserId(item.user)]?.length" class="detail-empty">Sin grado</span>
                   </div>
-                </div>
-              </div>
-
-              <div class="student-row__actions">
-                <button class="btn btn-secondary btn-sm" type="button" @click="openStudentEditor(item)">
-                  Editar
-                </button>
-              </div>
-            </article>
-          </div>
+                </td>
+                <td>
+                  <span class="status-pill" :class="item.profile?.academic_status === 'blocked' || !item.user.is_active ? 'status-pill--blocked' : 'status-pill--ok'">
+                    {{ item.profile?.academic_status === 'blocked' || !item.user.is_active ? 'Bloqueado' : 'Activo' }}
+                  </span>
+                </td>
+                <td class="cell-actions">
+                  <button class="btn btn-secondary btn-sm" type="button" @click="openStudentEditor(item)">Editar</button>
+                </td>
+              </tr>
+            </tbody>
+          </table>
         </section>
 
         <div v-if="editingStudent" class="modal-backdrop" @click.self="closeStudentEditor">
@@ -529,60 +533,60 @@ async function toggleBlocked(item: UserRow) {
 </script>
 
 <style scoped>
-.admin-shell { padding: 28px 32px 40px; display: flex; flex-direction: column; gap: 22px; }
+.admin-shell { padding: 16px 20px 32px; display: flex; flex-direction: column; gap: 14px; }
 .hero-card, .locked-card, .loading-card, .error-card, .panel-card, .stat-card, .teacher-card, .student-card, .toolbar-card {
   background: rgba(255,255,255,0.88);
   border: 1px solid rgba(255,255,255,0.92);
-  box-shadow: 0 12px 30px rgba(93,108,146,0.08);
-  border-radius: 24px;
+  box-shadow: var(--shadow-card);
+  border-radius: var(--radius-lg);
 }
 .hero-card, .panel-head, .student-head, .action-row, .stats-row, .chip-row, .toolbar-card, .search-box, .filter-row { display: flex; }
 .hero-card, .panel-head, .student-head { justify-content: space-between; gap: 18px; align-items: flex-start; }
-.hero-card, .panel-card, .teacher-card, .student-card, .stat-card { padding: 24px; }
-.hero-kicker, .panel-kicker { font-size: 12px; font-weight: 700; letter-spacing: 0.14em; text-transform: uppercase; color: var(--practiq-violet); }
-.hero-title { margin: 8px 0 10px; font-size: 34px; color: #182136; }
-.hero-copy { margin: 0; color: var(--text-secondary); max-width: 720px; }
-.stats-row { gap: 16px; }
-.stat-card { flex: 1; position: relative; overflow: hidden; padding-left: 76px; }
+.hero-card, .panel-card, .teacher-card, .student-card, .stat-card { padding: 16px 20px; }
+.hero-kicker, .panel-kicker { font-size: var(--text-sm); font-weight: 700; letter-spacing: 0.14em; text-transform: uppercase; color: var(--practiq-violet); }
+.hero-title { margin: 4px 0 6px; font-size: var(--font-hero); font-weight: 800; color: var(--text-heading); }
+.hero-copy { margin: 0; color: var(--text-secondary); max-width: 720px; font-size: var(--text-base); }
+.stats-row { gap: 8px; }
+.stat-card { flex: 1; position: relative; overflow: hidden; padding-left: 54px; }
 .stat-icon {
   position: absolute;
-  left: 22px;
-  top: 22px;
-  width: 40px;
-  height: 40px;
-  border-radius: 14px;
+  left: 16px;
+  top: 14px;
+  width: 34px;
+  height: 34px;
+  border-radius: var(--radius-sm);
   display: grid;
   place-items: center;
-  font-size: 18px;
+  font-size: 16px;
 }
-.stat-icon--teacher { background: rgba(59,130,246,0.12); color: #1d4ed8; }
-.stat-icon--student { background: rgba(16,185,129,0.12); color: #047857; }
-.stat-icon--pending { background: rgba(245,158,11,0.14); color: #b45309; }
-.stat-value { font-size: 28px; font-weight: 800; color: #182136; }
+.stat-icon--teacher { background: rgba(59,130,246,0.12); color: var(--color-info-dark); }
+.stat-icon--student { background: rgba(16,185,129,0.12); color: var(--color-success-dark); }
+.stat-icon--pending { background: rgba(245,158,11,0.14); color: var(--color-warning-dark); }
+.stat-value { font-size: var(--font-stat-value); font-weight: 800; color: var(--text-heading); }
 .stat-label { color: var(--text-secondary); }
 .toolbar-card {
   justify-content: space-between;
   gap: 18px;
-  padding: 18px 20px;
+  padding: 12px 14px;
   align-items: center;
 }
 .search-box {
   flex: 1;
-  gap: 10px;
+  gap: 8px;
   align-items: center;
-  padding: 12px 14px;
-  border-radius: 16px;
+  padding: 8px 12px;
+  border-radius: var(--radius-sm);
   background: rgba(248,250,252,0.92);
   border: 1px solid rgba(148,163,184,0.16);
 }
-.search-box i { color: #64748b; }
+.search-box i { color: var(--text-secondary); }
 .search-input {
   width: 100%;
   border: none;
   background: transparent;
   outline: none;
   font: inherit;
-  color: #182136;
+  color: var(--text-heading);
 }
 .filter-row {
   gap: 8px;
@@ -590,11 +594,11 @@ async function toggleBlocked(item: UserRow) {
 }
 .filter-chip {
   border: none;
-  padding: 9px 12px;
-  border-radius: 999px;
+  padding: 5px 10px;
+  border-radius: var(--radius-pill);
   background: rgba(241,245,249,0.95);
-  color: #475569;
-  font-size: 12px;
+  color: var(--text-secondary);
+  font-size: var(--text-sm);
   font-weight: 700;
   cursor: pointer;
 }
@@ -602,145 +606,112 @@ async function toggleBlocked(item: UserRow) {
   background: rgba(124,58,237,0.14);
   color: var(--practiq-violet-dark);
 }
-.panel-card { display: flex; flex-direction: column; gap: 20px; }
-.teacher-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 14px; }
-.student-list { display: flex; flex-direction: column; gap: 14px; }
-.teacher-card h3, .student-card h3 { margin: 0 0 6px; font-size: 20px; color: #182136; }
-.teacher-card p, .student-card p { margin: 0; color: var(--text-secondary); }
-.teacher-card { background: linear-gradient(180deg, rgba(255,255,255,0.96), rgba(248,250,252,0.88)); padding: 18px; }
-.teacher-card--pending { border-style: dashed; }
-.teacher-card__top {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 12px;
-}
+.panel-card { display: flex; flex-direction: column; gap: 12px; }
+.panel-head h2 { margin: 2px 0 0; font-size: var(--font-section-title); font-weight: 700; color: var(--text-heading); }
 .teacher-state {
-  padding: 6px 10px;
-  border-radius: 999px;
-  font-size: 11px;
+  display: inline-flex;
+  padding: 3px 10px;
+  border-radius: var(--radius-pill);
+  font-size: var(--text-xs);
   font-weight: 700;
 }
-.teacher-state--ok {
-  background: rgba(16,185,129,0.12);
-  color: #047857;
-}
-.teacher-state--blocked {
-  background: rgba(239,68,68,0.14);
-  color: #b91c1c;
-}
+.teacher-state--ok { background: rgba(16,185,129,0.12); color: var(--color-success-dark); }
+.teacher-state--blocked { background: rgba(239,68,68,0.14); color: var(--color-error-dark); }
 .teacher-badge {
-  padding: 6px 10px;
-  border-radius: 999px;
+  display: inline-flex;
+  padding: 3px 8px;
+  border-radius: var(--radius-pill);
   background: rgba(15,23,42,0.05);
-  color: #475569;
-  font-size: 11px;
+  color: var(--text-secondary);
+  font-size: var(--text-xs);
   font-weight: 700;
 }
-.teacher-badge--pending {
-  background: rgba(245,158,11,0.12);
-  color: #b45309;
+.teacher-badge--pending { background: rgba(245,158,11,0.12); color: var(--color-warning-dark); }
+.chip-row { display: flex; gap: 6px; flex-wrap: wrap; }
+.chip-row--inline { margin: 0; }
+.soft-chip {
+  display: inline-flex; align-items: center; gap: 4px; padding: 3px 8px; border-radius: var(--radius-pill);
+  background: rgba(124,58,237,0.1); color: var(--practiq-violet-dark); font-size: var(--text-xs); font-weight: 700;
 }
-.teacher-meta {
-  margin-top: 14px;
-  color: #182136;
-  font-weight: 600;
+.soft-chip--teacher { background: rgba(59,130,246,0.12); color: var(--color-info-dark); }
+.soft-chip--grade { background: rgba(16,185,129,0.12); color: var(--color-success-dark); }
+.chip-action { border: none; background: transparent; color: inherit; cursor: pointer; font-weight: 800; padding: 0; }
+.data-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--text-base);
 }
-.teacher-meta--pending {
-  color: #b45309;
-}
-.teacher-meta-grid {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 10px;
-  margin-top: 14px;
-}
-.teacher-meta-box {
-  padding: 12px 14px;
-  border-radius: 16px;
-  background: rgba(248,250,252,0.9);
-  border: 1px solid rgba(148,163,184,0.12);
-}
-.teacher-meta-label {
-  display: block;
-  margin-bottom: 4px;
-  font-size: 11px;
+.data-table thead th {
+  padding: 8px 12px;
+  text-align: left;
+  font-size: var(--text-xs);
+  font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.08em;
-  color: #64748b;
+  color: var(--text-secondary);
+  border-bottom: 1px solid rgba(148,163,184,0.18);
+  background: rgba(248,250,252,0.7);
 }
-.chip-row { gap: 8px; flex-wrap: wrap; margin-top: 12px; }
-.chip-row--tight { margin-top: 10px; }
-.soft-chip {
-  display: inline-flex; align-items: center; gap: 6px; padding: 6px 10px; border-radius: 999px;
-  background: rgba(124,58,237,0.1); color: var(--practiq-violet-dark); font-size: 12px; font-weight: 700;
+.data-table thead th:first-child { border-radius: var(--radius-sm) 0 0 0; }
+.data-table thead th:last-child { border-radius: 0 var(--radius-sm) 0 0; }
+.data-table tbody tr {
+  border-bottom: 1px solid rgba(148,163,184,0.1);
+  transition: background 0.15s;
 }
-.soft-chip--teacher { background: rgba(59,130,246,0.12); color: #1d4ed8; }
-.soft-chip--grade { background: rgba(16,185,129,0.12); color: #047857; }
-.chip-action { border: none; background: transparent; color: inherit; cursor: pointer; font-weight: 800; padding: 0; }
-.student-row {
-  display: grid;
-  grid-template-columns: minmax(240px, 1.2fr) minmax(320px, 2fr) auto;
-  gap: 16px;
-  align-items: center;
-  padding: 18px 20px;
-  border-radius: 20px;
-  background: linear-gradient(180deg, rgba(255,255,255,0.98), rgba(248,250,252,0.92));
-  border: 1px solid rgba(255,255,255,0.92);
-  box-shadow: 0 12px 30px rgba(93,108,146,0.08);
+.data-table tbody tr:last-child { border-bottom: none; }
+.data-table tbody tr:hover { background: rgba(124,58,237,0.04); }
+.data-table tbody tr.row--pending { background: rgba(245,158,11,0.03); }
+.data-table tbody tr.row--pending:hover { background: rgba(245,158,11,0.07); }
+.data-table td {
+  padding: 10px 12px;
+  vertical-align: middle;
+  color: var(--text-heading);
 }
-.student-row__main,
-.student-row__summary,
-.student-row__actions {
-  display: flex;
-  align-items: center;
-}
-.student-row__main {
-  justify-content: space-between;
-  gap: 16px;
-}
-.student-row__summary {
-  gap: 16px;
-}
-.student-row__actions {
-  justify-content: flex-end;
-}
-.summary-block {
-  min-width: 180px;
-}
-.chip-row--compact {
-  margin-top: 8px;
-}
+.cell-muted { color: var(--text-secondary); font-size: var(--text-sm); }
+.cell-center { text-align: center; font-weight: 700; }
+.cell-actions { text-align: right; white-space: nowrap; }
 .detail-grid { display: grid; gap: 14px; margin-top: 14px; }
 .detail-card {
-  padding: 14px 16px;
-  border-radius: 18px;
+  padding: 10px 12px;
+  border-radius: var(--radius-sm);
   background: rgba(248,250,252,0.9);
   border: 1px solid rgba(148,163,184,0.14);
 }
-.detail-label { display: block; font-size: 12px; font-weight: 700; text-transform: uppercase; color: #64748b; margin-bottom: 6px; }
-.detail-empty { color: #94a3b8; font-size: 13px; }
-.action-row { gap: 10px; align-items: center; margin-top: 14px; }
+.detail-label { display: block; font-size: var(--text-xs); font-weight: 700; text-transform: uppercase; color: var(--text-secondary); margin-bottom: 4px; }
+.detail-empty { color: var(--text-muted); font-size: var(--text-sm); }
+.action-row { gap: 8px; align-items: center; margin-top: 10px; }
 .action-row--split { justify-content: space-between; }
-.assistant-box { display: grid; gap: 10px; margin-top: 16px; }
+.assistant-box { display: grid; gap: 8px; margin-top: 12px; }
 .assistant-title {
-  font-size: 12px;
+  font-size: var(--text-sm);
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.08em;
-  color: #64748b;
+  color: var(--text-secondary);
 }
 .form-input, .form-select {
-  width: 100%; border-radius: 14px; border: 1px solid rgba(148,163,184,0.2); background: rgba(248,250,252,0.95);
-  padding: 12px 14px; font: inherit; color: #182136;
+  width: 100%; border-radius: var(--radius-sm); border: 1px solid rgba(148,163,184,0.2); background: rgba(248,250,252,0.95);
+  padding: 8px 10px; font: inherit; font-size: var(--text-base); color: var(--text-heading);
 }
-.btn-danger { background: #ef4444; color: white; border: none; }
+.btn-danger { background: var(--color-error); color: white; border: none; }
 .status-pill {
-  display: inline-flex; align-items: center; padding: 8px 12px; border-radius: 999px; font-size: 12px; font-weight: 700;
+  display: inline-flex; align-items: center; padding: 3px 10px; border-radius: var(--radius-pill); font-size: var(--text-xs); font-weight: 700;
 }
-.status-pill--ok { background: rgba(16,185,129,0.12); color: #047857; }
-.status-pill--blocked { background: rgba(239,68,68,0.14); color: #b91c1c; }
-.loading-card, .locked-card, .error-card { padding: 30px; text-align: center; }
+.status-pill--ok { background: rgba(16,185,129,0.12); color: var(--color-success-dark); }
+.status-pill--blocked { background: rgba(239,68,68,0.14); color: var(--color-error-dark); }
+.loading-card, .error-card { padding: 30px; text-align: center; }
+.locked-card { padding: 56px 30px; text-align: center; }
+.locked-icon {
+  width: 64px;
+  height: 64px;
+  border-radius: 20px;
+  background: rgba(239,68,68,0.08);
+  color: var(--color-error-dark);
+  font-size: 28px;
+  display: grid;
+  place-items: center;
+  margin: 0 auto 16px;
+}
 .modal-backdrop {
   position: fixed;
   inset: 0;
@@ -754,8 +725,8 @@ async function toggleBlocked(item: UserRow) {
   width: min(760px, 100%);
   max-height: calc(100vh - 48px);
   overflow: auto;
-  padding: 24px;
-  border-radius: 28px;
+  padding: 16px;
+  border-radius: var(--radius-xl);
   background: rgba(255,255,255,0.98);
   box-shadow: 0 24px 80px rgba(15,23,42,0.22);
 }
@@ -767,8 +738,8 @@ async function toggleBlocked(item: UserRow) {
 }
 .modal-head h3 {
   margin: 8px 0 6px;
-  font-size: 28px;
-  color: #182136;
+  font-size: 18px;
+  color: var(--text-heading);
 }
 .modal-head p {
   margin: 0;
@@ -783,9 +754,9 @@ async function toggleBlocked(item: UserRow) {
   width: 40px;
   height: 40px;
   border: none;
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   background: rgba(148,163,184,0.12);
-  color: #334155;
+  color: var(--text-primary);
   font-size: 24px;
   line-height: 1;
   cursor: pointer;
@@ -795,26 +766,9 @@ async function toggleBlocked(item: UserRow) {
 }
 @media (max-width: 920px) {
   .admin-shell { padding: 18px 16px 32px; }
-  .hero-card, .panel-head, .student-head, .action-row--split, .toolbar-card { flex-direction: column; }
+  .hero-card, .panel-head, .action-row--split, .toolbar-card { flex-direction: column; }
   .stats-row { flex-direction: column; }
-  .teacher-card__top { flex-direction: column; }
-  .teacher-meta-grid { grid-template-columns: 1fr; }
-  .student-row {
-    grid-template-columns: 1fr;
-    align-items: stretch;
-  }
-  .student-row__main,
-  .student-row__summary,
-  .student-row__actions,
-  .modal-head {
-    flex-direction: column;
-    align-items: stretch;
-  }
-  .student-row__actions {
-    justify-content: flex-start;
-  }
-  .summary-block {
-    min-width: 0;
-  }
+  .modal-head { flex-direction: column; align-items: stretch; }
+  .data-table { display: block; overflow-x: auto; -webkit-overflow-scrolling: touch; }
 }
 </style>

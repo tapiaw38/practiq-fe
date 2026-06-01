@@ -1,124 +1,57 @@
 <template>
   <TeacherLayout>
     <div class="dashboard">
-      <!-- Welcome banner -->
-      <div class="welcome-banner">
-        <div class="welcome-copy">
-          <div class="welcome-kicker">Panel del docente</div>
-          <h1 class="welcome-title">Hola, {{ teacherName }}.</h1>
-          <p class="welcome-subtitle">Gestiona tus cursos, agrega ejercicios y acompaña el progreso de tus estudiantes.</p>
-          <div class="role-row">
-            <span class="role-chip" :class="isAdmin ? 'role-chip--admin' : 'role-chip--teacher'">
-              {{ isAdmin ? 'Acceso admin habilitado' : 'Acceso docente estándar' }}
-            </span>
-          </div>
+
+      <!-- Header -->
+      <div class="page-header">
+        <div class="page-header__left">
+          <div class="page-kicker">Panel del docente</div>
+          <h1 class="page-title">Hola, {{ teacherName }}.</h1>
         </div>
-        <div class="hero-actions">
-          <button class="btn btn-secondary create-btn" @click="goToAcademicAdmin">
+        <div class="page-header__right">
+          <span class="role-chip" :class="isAdmin ? 'role-chip--admin' : 'role-chip--teacher'">
+            <i :class="isAdmin ? 'pi pi-shield' : 'pi pi-user'"></i>
+            {{ isAdmin ? 'Admin' : 'Docente' }}
+          </span>
+          <button class="btn btn-ghost" @click="goToAcademicAdmin" title="Académico">
             <i class="pi pi-sitemap"></i>
             Académico
           </button>
-          <button class="btn btn-secondary create-btn" @click="goToAdminUsers">
+          <button v-if="isAdmin" class="btn btn-ghost" @click="goToAdminUsers" title="Usuarios">
             <i class="pi pi-users"></i>
             Usuarios
           </button>
-          <button class="btn btn-primary create-btn" @click="goToAcademicAdmin">
+          <button class="btn btn-primary" @click="showCreateModal = true">
             <i class="pi pi-plus"></i>
-            Crear curso
+            Nuevo curso
           </button>
         </div>
       </div>
 
-      <div class="admin-shortcut-card" :class="{ 'admin-shortcut-card--locked': !isAdmin }" @click="goToAdminUsers">
-        <div class="admin-shortcut-copy">
-          <div class="admin-shortcut-kicker">Acceso rápido</div>
-          <h2 class="admin-shortcut-title">Administrar alumnos y perfiles</h2>
-          <p class="admin-shortcut-text">
-            Revisa usuarios de `auth-api`, perfiles de Practiq y la configuración del asistente por alumno.
-            <span v-if="!isAdmin"> Requiere rol `admin` o `superadmin`.</span>
-          </p>
+      <!-- Stats strip -->
+      <div class="stats-strip" v-if="!loading">
+        <div class="stat-item">
+          <i class="pi pi-book stat-item__icon stat-item__icon--violet"></i>
+          <span class="stat-item__val">{{ courses.length }}</span>
+          <span class="stat-item__lbl">{{ courses.length === 1 ? 'Curso' : 'Cursos' }}</span>
         </div>
-        <div class="admin-shortcut-action">
-          <span>{{ isAdmin ? 'Ir a usuarios' : 'Sin acceso' }}</span>
-          <i class="pi pi-arrow-right"></i>
+        <div class="stat-divider"></div>
+        <div class="stat-item">
+          <i class="pi pi-graduation-cap stat-item__icon stat-item__icon--blue"></i>
+          <span class="stat-item__val">{{ assignedStudents.length }}</span>
+          <span class="stat-item__lbl">{{ assignedStudents.length === 1 ? 'Alumno' : 'Alumnos' }}</span>
         </div>
-      </div>
-
-      <div class="admin-shortcut-card" @click="goToAcademicAdmin">
-        <div class="admin-shortcut-copy">
-          <div class="admin-shortcut-kicker">Estructura</div>
-          <h2 class="admin-shortcut-title">Grados, materias y cursos</h2>
-          <p class="admin-shortcut-text">
-            Define grados, materias y luego crea cursos alineados a esa estructura.
-          </p>
+        <div class="stat-divider"></div>
+        <div class="stat-item">
+          <i class="pi pi-tag stat-item__icon stat-item__icon--green"></i>
+          <span class="stat-item__val">{{ subjectCount }}</span>
+          <span class="stat-item__lbl">{{ subjectCount === 1 ? 'Materia' : 'Materias' }}</span>
         </div>
-        <div class="admin-shortcut-action">
-          <span>Ir a académico</span>
-          <i class="pi pi-arrow-right"></i>
-        </div>
-      </div>
-
-      <div v-if="assignedStudents.length" class="student-panel">
-        <div class="student-panel__head">
-          <div>
-            <div class="student-panel__kicker">Tus alumnos</div>
-            <h2 class="student-panel__title">Estudiantes asignados</h2>
-            <p class="student-panel__copy">Consulta rápidamente qué alumnos acompañas y en qué grados están organizados.</p>
-          </div>
-          <div class="student-panel__stats">
-            <span class="student-stat">{{ assignedStudents.length }} alumnos</span>
-            <span class="student-stat">{{ assignedGradeCount }} grados</span>
-          </div>
-        </div>
-
-        <div class="grade-summary-row">
-          <div v-for="group in assignedStudentsByGrade" :key="group.gradeKey" class="grade-summary-card">
-            <div class="grade-summary-name">{{ group.gradeName }}</div>
-            <div class="grade-summary-count">{{ group.students.length }} alumnos</div>
-          </div>
-        </div>
-
-        <div class="student-chip-grid">
-          <article
-            v-for="student in assignedStudents"
-            :key="student.id"
-            class="student-chip-card student-chip-card--clickable"
-            @click="goToStudentProgress(student)"
-          >
-            <div class="student-chip-name">{{ student.name }}</div>
-            <div class="student-chip-email">{{ student.email }}</div>
-            <div class="student-chip-grades">
-              <span v-for="grade in studentGrades[student.id] || []" :key="grade.id" class="student-grade-pill">
-                {{ grade.name }}
-              </span>
-              <span v-if="!(studentGrades[student.id] || []).length" class="student-grade-pill student-grade-pill--empty">
-                Sin grado
-              </span>
-            </div>
-            <div class="student-chip-action">
-              <span>Ver progreso</span>
-              <i class="pi pi-arrow-right"></i>
-            </div>
-          </article>
-        </div>
-      </div>
-
-      <!-- Stats row -->
-      <div v-if="courses.length > 0" class="stats-row">
-        <div class="stat-card">
-          <div class="stat-icon">📚</div>
-          <div class="stat-value">{{ courses.length }}</div>
-          <div class="stat-label">{{ courses.length === 1 ? 'Curso' : 'Cursos' }}</div>
-        </div>
-        <div class="stat-card">
-          <div class="stat-icon">📝</div>
-          <div class="stat-value">{{ subjectCount }}</div>
-          <div class="stat-label">{{ subjectCount === 1 ? 'Materia' : 'Materias' }}</div>
-        </div>
-        <div class="stat-card">
-          <div class="stat-icon">🗓️</div>
-          <div class="stat-value">{{ latestCourseDate }}</div>
-          <div class="stat-label">Último creado</div>
+        <div class="stat-divider" v-if="courses.length > 0"></div>
+        <div class="stat-item" v-if="courses.length > 0">
+          <i class="pi pi-calendar stat-item__icon stat-item__icon--orange"></i>
+          <span class="stat-item__val">{{ latestCourseDate }}</span>
+          <span class="stat-item__lbl">Último creado</span>
         </div>
       </div>
 
@@ -127,45 +60,104 @@
         <div class="spinner spinner-violet"></div>
       </div>
 
-      <!-- Empty state -->
-      <div v-else-if="courses.length === 0" class="empty-state">
-        <div class="empty-icon">📚</div>
-        <h3>No tienes cursos aún</h3>
-        <p>Crea tu primer curso para comenzar a agregar temas y ejercicios.</p>
-        <button class="btn btn-primary" @click="goToAcademicAdmin">
-          <i class="pi pi-plus"></i> Crear curso desde académico
-        </button>
-      </div>
-
-      <!-- Courses grid -->
-      <div v-else class="courses-grid">
-        <div
-          v-for="course in courses"
-          :key="course.id"
-          class="course-card"
-          :class="'course-card--' + (course.subject || 'general')"
-          @click="goToCourse(course.id)"
-        >
-          <div class="course-card__accent"></div>
-          <div class="course-card__body">
-            <div class="course-card__top">
-              <span class="course-subject-badge">{{ course.subject || 'General' }}</span>
-              <span class="course-level-badge" v-if="course.level">{{ course.level }}</span>
+      <template v-else>
+        <!-- Courses section -->
+        <section class="content-section">
+          <div class="section-header">
+            <div>
+              <h2 class="section-title">Mis cursos</h2>
+              <p class="section-subtitle">Accedé a los contenidos y ejercicios de cada curso.</p>
             </div>
-            <h3 class="course-title">{{ course.title }}</h3>
-            <p class="course-desc">{{ course.description || 'Sin descripción' }}</p>
-            <div class="course-card__footer">
-              <span class="course-date">
-                <i class="pi pi-calendar"></i>
-                {{ formatDate(course.created_at) }}
-              </span>
-              <button class="btn btn-secondary btn-sm" @click.stop="goToCourse(course.id)">
-                Ver curso <i class="pi pi-arrow-right"></i>
-              </button>
+            <button class="btn btn-outline btn-sm" @click="showCreateModal = true">
+              <i class="pi pi-plus"></i> Nuevo
+            </button>
+          </div>
+
+          <div v-if="courses.length === 0" class="empty-state">
+            <div class="empty-state__icon">
+              <i class="pi pi-book"></i>
+            </div>
+            <h3>Sin cursos aún</h3>
+            <p>Creá tu primer curso para agregar temas, ejercicios y cuadernos.</p>
+            <button class="btn btn-primary" @click="showCreateModal = true">
+              <i class="pi pi-plus"></i> Crear primer curso
+            </button>
+          </div>
+
+          <div v-else class="courses-grid">
+            <div
+              v-for="course in courses"
+              :key="course.id"
+              class="course-card"
+              @click="goToCourse(course.id)"
+            >
+              <div class="course-card__stripe" :class="stripeClass(course.subject)"></div>
+              <div class="course-card__body">
+                <div class="course-card__top">
+                  <span class="subject-badge" :class="stripeClass(course.subject)">
+                    {{ course.subject || 'General' }}
+                  </span>
+                  <span v-if="course.level" class="level-badge">{{ course.level }}</span>
+                </div>
+                <h3 class="course-title">{{ course.title }}</h3>
+                <p class="course-desc">{{ course.description || 'Sin descripción' }}</p>
+                <div class="course-card__footer">
+                  <span class="course-date">
+                    <i class="pi pi-calendar"></i>
+                    {{ formatDate(course.created_at) }}
+                  </span>
+                  <span class="course-cta">Ver curso <i class="pi pi-arrow-right"></i></span>
+                </div>
+              </div>
             </div>
           </div>
-        </div>
-      </div>
+        </section>
+
+        <!-- Students section -->
+        <section v-if="assignedStudents.length" class="content-section">
+          <div class="section-header">
+            <div>
+              <h2 class="section-title">Estudiantes asignados</h2>
+              <p class="section-subtitle">Hacé click en un alumno para ver su progreso.</p>
+            </div>
+            <div class="grade-pills">
+              <span
+                v-for="group in assignedStudentsByGrade"
+                :key="group.gradeKey"
+                class="grade-pill"
+              >
+                {{ group.gradeName }} · {{ group.students.length }}
+              </span>
+            </div>
+          </div>
+
+          <div class="student-grid">
+            <article
+              v-for="student in assignedStudents"
+              :key="student.id"
+              class="student-card"
+              @click="goToStudentProgress(student)"
+            >
+              <div class="student-card__avatar">
+                {{ student.name.charAt(0).toUpperCase() }}
+              </div>
+              <div class="student-card__info">
+                <div class="student-name">{{ student.name }}</div>
+                <div class="student-email">{{ student.email }}</div>
+                <div class="student-grades">
+                  <span v-for="grade in studentGrades[student.id] || []" :key="grade.id" class="student-grade-tag">
+                    {{ grade.name }}
+                  </span>
+                  <span v-if="!(studentGrades[student.id] || []).length" class="student-grade-tag student-grade-tag--empty">
+                    Sin grado
+                  </span>
+                </div>
+              </div>
+              <i class="pi pi-angle-right student-card__arrow"></i>
+            </article>
+          </div>
+        </section>
+      </template>
     </div>
 
     <!-- Create Course Modal -->
@@ -173,7 +165,10 @@
       <Transition name="fade">
         <div v-if="showCreateModal" class="modal-overlay" @click.self="showCreateModal = false">
           <div class="modal-box">
-            <h3 class="modal-title">Crear nuevo curso</h3>
+            <div class="modal-head">
+              <h3 class="modal-title">Nuevo curso</h3>
+              <button class="icon-btn" @click="showCreateModal = false"><i class="pi pi-times"></i></button>
+            </div>
 
             <div v-if="grades.length === 0 || subjects.length === 0" class="setup-notice">
               <i class="pi pi-info-circle"></i>
@@ -221,8 +216,9 @@
               <div class="modal-actions">
                 <button type="button" class="btn btn-secondary" @click="showCreateModal = false">Cancelar</button>
                 <button type="submit" class="btn btn-primary" :disabled="creating">
-                  <span v-if="creating" class="spinner"></span>
-                  Crear Curso
+                  <span v-if="creating" class="spinner spinner-sm"></span>
+                  <template v-else><i class="pi pi-check"></i></template>
+                  Crear curso
                 </button>
               </div>
             </form>
@@ -275,8 +271,8 @@ const isAdmin = computed(() => {
 })
 
 const subjectCount = computed(() => {
-  const subjects = new Set(courses.value.map(c => c.subject || 'general'))
-  return subjects.size
+  const set = new Set(courses.value.map(c => c.subject || 'general'))
+  return set.size
 })
 
 const latestCourseDate = computed(() => {
@@ -292,31 +288,21 @@ const assignedStudentsByGrade = computed(() => {
   for (const student of assignedStudents.value) {
     const gradesForStudent = studentGrades.value[student.id] || []
     if (!gradesForStudent.length) {
-      if (!buckets.has('no-grade')) {
-        buckets.set('no-grade', { gradeKey: 'no-grade', gradeName: 'Sin grado', students: [] })
-      }
+      if (!buckets.has('no-grade')) buckets.set('no-grade', { gradeKey: 'no-grade', gradeName: 'Sin grado', students: [] })
       buckets.get('no-grade')!.students.push(student)
       continue
     }
-
     for (const grade of gradesForStudent) {
-      if (!buckets.has(grade.id)) {
-        buckets.set(grade.id, { gradeKey: grade.id, gradeName: grade.name, students: [] })
-      }
+      if (!buckets.has(grade.id)) buckets.set(grade.id, { gradeKey: grade.id, gradeName: grade.name, students: [] })
       buckets.get(grade.id)!.students.push(student)
     }
   }
   return Array.from(buckets.values())
 })
 
-const assignedGradeCount = computed(() => assignedStudentsByGrade.value.length)
-
 onMounted(async () => {
   if (!authStore.profile) {
-    try {
-      const res = await profileService.get()
-      authStore.setProfile(res.data)
-    } catch {}
+    try { const res = await profileService.get(); authStore.setProfile(res.data) } catch {}
   }
   await loadCourses()
   await loadCatalogs()
@@ -361,57 +347,37 @@ async function createCourse() {
   }
 }
 
-function goToCourse(id: string) {
-  router.push(`/teacher/courses/${id}`)
-}
-
-function goToAdminUsers() {
-  router.push('/teacher/admin/users')
-}
-
-function goToAcademicAdmin() {
-  router.push('/teacher/admin/academic')
-}
+function goToCourse(id: string) { router.push(`/teacher/courses/${id}`) }
+function goToAdminUsers() { router.push('/teacher/admin/users') }
+function goToAcademicAdmin() { router.push('/teacher/admin/academic') }
 
 function goToStudentProgress(student: AssignedUser) {
   router.push({
     path: `/teacher/students/${student.id}/progress`,
-    query: {
-      name: encodeURIComponent(student.name),
-      email: encodeURIComponent(student.email)
-    }
+    query: { name: encodeURIComponent(student.name), email: encodeURIComponent(student.email) }
   })
 }
 
 async function loadCatalogs() {
   try {
-    const [gradesRes, subjectsRes] = await Promise.all([
-      gradeService.list(),
-      subjectService.list()
-    ])
+    const [gradesRes, subjectsRes] = await Promise.all([gradeService.list(), subjectService.list()])
     grades.value = gradesRes.data || []
     subjects.value = subjectsRes.data || []
-  } catch (err) {
-    console.error(err)
-  }
+  } catch (err) { console.error(err) }
 }
 
 async function loadAssignedStudents() {
   try {
     const res = await assignmentService.listMyStudents()
     assignedStudents.value = res.data || []
-
     const gradeEntries = await Promise.all(
       assignedStudents.value.map(async (student) => {
         try {
           const gradesRes = await gradeService.listUserGrades(student.id)
           return [student.id, gradesRes.data || []] as const
-        } catch {
-          return [student.id, []] as const
-        }
+        } catch { return [student.id, []] as const }
       })
     )
-
     studentGrades.value = Object.fromEntries(gradeEntries)
   } catch (err) {
     console.error(err)
@@ -423,422 +389,216 @@ async function loadAssignedStudents() {
 function formatDate(dateStr: string) {
   return new Date(dateStr).toLocaleDateString('es', { year: 'numeric', month: 'short', day: 'numeric' })
 }
+
+function stripeClass(subject?: string) {
+  const s = (subject || '').toLowerCase()
+  if (s.includes('matem')) return 'stripe--violet'
+  if (s.includes('lectura') || s.includes('lengu')) return 'stripe--blue'
+  if (s.includes('ingl')) return 'stripe--green'
+  if (s.includes('ciencia')) return 'stripe--orange'
+  if (s.includes('histor') || s.includes('social')) return 'stripe--red'
+  return 'stripe--slate'
+}
 </script>
 
 <style scoped>
 .dashboard {
-  padding: 28px 32px 40px;
-  max-width: 1100px;
+  padding: 16px 24px 32px;
+  max-width: 1140px;
 }
 
-/* ── Welcome banner ── */
-.welcome-banner {
+/* ── Page header ── */
+.page-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 24px;
-  padding: 28px 32px;
-  border-radius: 24px;
-  background:
-    radial-gradient(ellipse at top left, rgba(124, 58, 237, 0.1), transparent 50%),
-    rgba(255, 255, 255, 0.85);
-  border: 1px solid rgba(255, 255, 255, 0.9);
-  box-shadow: 0 16px 40px rgba(93, 108, 146, 0.1);
-  margin-bottom: 24px;
+  gap: 20px;
+  margin-bottom: 12px;
+  flex-wrap: wrap;
 }
 
-.welcome-kicker {
-  font-size: 11px;
+.page-kicker {
+  font-size: var(--text-xs);
   text-transform: uppercase;
   letter-spacing: 0.16em;
   font-weight: 700;
   color: var(--practiq-violet);
-  margin-bottom: 6px;
+  margin-bottom: 2px;
 }
 
-.welcome-title {
-  font-size: clamp(1.4rem, 3vw, 1.8rem);
+.page-title {
+  font-size: var(--font-hero);
   font-weight: 800;
   color: var(--text-primary);
-  line-height: 1.2;
-  margin-bottom: 6px;
+  margin: 0;
+  line-height: 1.15;
 }
 
-.welcome-subtitle {
-  font-size: 14px;
-  color: var(--text-secondary);
-  line-height: 1.6;
-  max-width: 500px;
-}
-
-.role-row {
-  margin-top: 12px;
+.page-header__right {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
 }
 
 .role-chip {
   display: inline-flex;
   align-items: center;
-  justify-content: center;
+  gap: 5px;
   padding: 6px 12px;
-  border-radius: 999px;
-  font-size: 12px;
+  border-radius: var(--radius-pill);
+  font-size: var(--text-sm);
   font-weight: 700;
 }
+.role-chip--admin   { background: rgba(16,185,129,0.12); color: var(--color-success-dark); }
+.role-chip--teacher { background: rgba(245,158,11,0.12); color: var(--color-warning-dark); }
 
-.role-chip--admin {
-  background: rgba(16, 185, 129, 0.12);
-  color: #047857;
-}
-
-.role-chip--teacher {
-  background: rgba(245, 158, 11, 0.12);
-  color: #b45309;
-}
-
-.create-btn {
-  flex-shrink: 0;
-  padding: 12px 24px;
-  border-radius: 14px;
-  font-size: 14px;
-  font-weight: 600;
-}
-
-.hero-actions {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  flex-shrink: 0;
-}
-
-.admin-shortcut-card {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 24px;
-  padding: 22px 24px;
-  margin-bottom: 24px;
-  border-radius: 22px;
-  background:
-    linear-gradient(135deg, rgba(124, 58, 237, 0.08), rgba(96, 165, 250, 0.08)),
-    rgba(255, 255, 255, 0.82);
-  border: 1px solid rgba(124, 58, 237, 0.12);
-  box-shadow: 0 12px 32px rgba(93, 108, 146, 0.08);
-  cursor: pointer;
-  transition: transform 0.18s ease, box-shadow 0.18s ease;
-}
-
-.admin-shortcut-card:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 18px 38px rgba(93, 108, 146, 0.12);
-}
-
-.admin-shortcut-card--locked {
-  opacity: 0.82;
-}
-
-.admin-shortcut-kicker {
-  font-size: 11px;
-  text-transform: uppercase;
-  letter-spacing: 0.14em;
-  font-weight: 700;
-  color: var(--practiq-violet);
-  margin-bottom: 6px;
-}
-
-.admin-shortcut-title {
-  margin: 0 0 6px;
-  font-size: 1.1rem;
-  font-weight: 800;
-  color: var(--text-primary);
-}
-
-.admin-shortcut-text {
-  margin: 0;
-  font-size: 13px;
-  color: var(--text-secondary);
-  line-height: 1.5;
-}
-
-.admin-shortcut-action {
+.btn-ghost {
   display: inline-flex;
   align-items: center;
-  gap: 8px;
-  color: var(--practiq-violet);
-  font-weight: 700;
-  white-space: nowrap;
+  gap: 6px;
+  padding: 7px 12px;
+  border-radius: var(--radius-md);
+  border: 1px solid rgba(148,163,184,0.25);
+  background: transparent;
+  font-size: var(--text-base);
+  font-weight: 600;
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: all 0.15s;
 }
+.btn-ghost:hover { background: var(--surface-hover); color: var(--text-primary); }
 
-.student-panel {
+/* ── Stats strip ── */
+.stats-strip {
   display: flex;
-  flex-direction: column;
-  gap: 18px;
-  padding: 24px;
-  margin-bottom: 24px;
-  border-radius: 24px;
-  background: rgba(255, 255, 255, 0.86);
-  border: 1px solid rgba(255, 255, 255, 0.92);
-  box-shadow: 0 12px 32px rgba(93, 108, 146, 0.08);
+  align-items: center;
+  gap: 0;
+  padding: 8px 14px;
+  border-radius: var(--radius-md);
+  background: rgba(255,255,255,0.86);
+  border: 1px solid rgba(255,255,255,0.9);
+  box-shadow: 0 4px 16px rgba(93,108,146,0.07);
+  margin-bottom: 14px;
+  flex-wrap: wrap;
+  gap: 4px;
 }
 
-.student-panel__head {
+.stat-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 10px;
+}
+
+.stat-item__icon {
+  font-size: 16px;
+}
+.stat-item__icon--violet { color: var(--practiq-violet); }
+.stat-item__icon--blue   { color: #2563eb; }
+.stat-item__icon--green  { color: #059669; }
+.stat-item__icon--orange { color: #d97706; }
+
+.stat-item__val {
+  font-size: var(--text-lg);
+  font-weight: 800;
+  color: var(--text-primary);
+  line-height: 1;
+}
+
+.stat-item__lbl {
+  font-size: var(--text-xs);
+  color: var(--text-secondary);
+}
+
+.stat-divider {
+  width: 1px;
+  height: 20px;
+  background: rgba(148,163,184,0.2);
+  flex-shrink: 0;
+}
+
+/* ── Content sections ── */
+.content-section {
+  margin-bottom: 20px;
+}
+
+.section-header {
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
-  gap: 18px;
+  gap: 16px;
+  margin-bottom: 10px;
 }
 
-.student-panel__kicker {
-  font-size: 11px;
-  text-transform: uppercase;
-  letter-spacing: 0.16em;
-  font-weight: 700;
-  color: #2563eb;
-  margin-bottom: 6px;
-}
-
-.student-panel__title {
-  margin: 0 0 6px;
-  font-size: 1.1rem;
+.section-title {
+  font-size: 0.92rem;
   font-weight: 800;
   color: var(--text-primary);
+  margin: 0 0 4px;
 }
 
-.student-panel__copy {
+.section-subtitle {
+  font-size: var(--text-sm);
+  color: var(--text-secondary);
   margin: 0;
-  font-size: 13px;
-  color: var(--text-secondary);
 }
 
-.student-panel__stats {
-  display: flex;
-  gap: 10px;
-  flex-wrap: wrap;
-}
-
-.student-stat {
+.btn-outline {
   display: inline-flex;
-  align-items: center;
-  padding: 7px 12px;
-  border-radius: 999px;
-  background: rgba(37, 99, 235, 0.08);
-  color: #1d4ed8;
-  font-size: 12px;
-  font-weight: 700;
-}
-
-.grade-summary-row {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
-  gap: 12px;
-}
-
-.grade-summary-card {
-  padding: 16px 18px;
-  border-radius: 18px;
-  background: linear-gradient(135deg, rgba(37, 99, 235, 0.06), rgba(124, 58, 237, 0.06));
-  border: 1px solid rgba(148, 163, 184, 0.16);
-}
-
-.grade-summary-name {
-  font-size: 14px;
-  font-weight: 700;
-  color: var(--text-primary);
-}
-
-.grade-summary-count {
-  margin-top: 6px;
-  font-size: 12px;
-  color: var(--text-secondary);
-}
-
-.student-chip-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-  gap: 12px;
-}
-
-.student-chip-card {
-  padding: 16px 18px;
-  border-radius: 18px;
-  background: rgba(248, 250, 252, 0.86);
-  border: 1px solid rgba(148, 163, 184, 0.16);
-}
-
-.student-chip-card--clickable {
-  cursor: pointer;
-  transition: all 0.18s ease;
-}
-.student-chip-card--clickable:hover {
-  background: rgba(255, 255, 255, 0.96);
-  border-color: rgba(124, 58, 237, 0.25);
-  box-shadow: 0 6px 20px rgba(93, 108, 146, 0.12);
-  transform: translateY(-2px);
-}
-
-.student-chip-action {
-  display: flex;
   align-items: center;
   gap: 6px;
-  margin-top: 12px;
-  font-size: 12px;
-  font-weight: 700;
+  padding: 6px 12px;
+  border-radius: var(--radius-md);
+  border: 1px solid rgba(124,58,237,0.25);
+  background: transparent;
+  font-size: var(--text-sm);
+  font-weight: 600;
   color: var(--practiq-violet);
+  cursor: pointer;
+  transition: all 0.15s;
+  white-space: nowrap;
 }
-
-.student-chip-name {
-  font-size: 14px;
-  font-weight: 700;
-  color: var(--text-primary);
-}
-
-.student-chip-email {
-  margin-top: 4px;
-  font-size: 12px;
-  color: var(--text-secondary);
-}
-
-.student-chip-grades {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-  margin-top: 12px;
-}
-
-.student-grade-pill {
-  display: inline-flex;
-  padding: 5px 10px;
-  border-radius: 999px;
-  background: rgba(16, 185, 129, 0.12);
-  color: #047857;
-  font-size: 12px;
-  font-weight: 700;
-}
-
-.student-grade-pill--empty {
-  background: rgba(148, 163, 184, 0.14);
-  color: #64748b;
-}
-
-/* ── Stats row ── */
-.stats-row {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 16px;
-  margin-bottom: 28px;
-}
-
-.stat-card {
-  display: flex;
-  align-items: center;
-  gap: 14px;
-  padding: 18px 20px;
-  border-radius: 20px;
-  background: rgba(255, 255, 255, 0.85);
-  border: 1px solid rgba(255, 255, 255, 0.9);
-  box-shadow: 0 8px 24px rgba(93, 108, 146, 0.08);
-}
-
-.stat-icon {
-  width: 46px;
-  height: 46px;
-  border-radius: 14px;
-  display: grid;
-  place-items: center;
-  font-size: 22px;
-  background: linear-gradient(135deg, rgba(124, 58, 237, 0.08), rgba(96, 165, 250, 0.08));
-  flex-shrink: 0;
-}
-
-.stat-value {
-  font-size: 22px;
-  font-weight: 800;
-  color: var(--text-primary);
-  line-height: 1.1;
-}
-
-.stat-label {
-  font-size: 13px;
-  color: var(--text-secondary);
-  margin-top: 2px;
-}
-
-/* ── Loading & empty ── */
-.loading-state {
-  display: flex;
-  justify-content: center;
-  padding: 80px;
-}
-
-.empty-state {
-  text-align: center;
-  padding: 72px 24px;
-  background: rgba(255, 255, 255, 0.7);
-  border-radius: 24px;
-  border: 1px dashed var(--surface-border);
-}
-
-.empty-icon {
-  font-size: 48px;
-  margin-bottom: 16px;
-}
-
-.empty-state h3 {
-  font-size: 18px;
-  font-weight: 700;
-  color: var(--text-primary);
-  margin-bottom: 8px;
-}
-
-.empty-state p {
-  font-size: 14px;
-  color: var(--text-secondary);
-  margin-bottom: 24px;
-  max-width: 360px;
-  margin-left: auto;
-  margin-right: auto;
-}
+.btn-outline:hover { background: rgba(124,58,237,0.06); }
 
 /* ── Courses grid ── */
 .courses-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
-  gap: 20px;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: 12px;
 }
 
 .course-card {
   position: relative;
-  border-radius: 20px;
-  background: rgba(255, 255, 255, 0.88);
-  border: 1px solid rgba(255, 255, 255, 0.9);
-  box-shadow: 0 8px 28px rgba(93, 108, 146, 0.1);
+  border-radius: var(--radius-md);
+  background: rgba(255,255,255,0.88);
+  border: 1px solid rgba(255,255,255,0.9);
+  box-shadow: 0 4px 18px rgba(93,108,146,0.08);
   overflow: hidden;
   cursor: pointer;
   transition: all 0.2s ease;
 }
-
 .course-card:hover {
   transform: translateY(-3px);
-  box-shadow: 0 14px 36px rgba(93, 108, 146, 0.16);
-  border-color: var(--practiq-violet-light);
+  box-shadow: 0 12px 32px rgba(93,108,146,0.14);
+  border-color: rgba(124,58,237,0.15);
 }
 
-.course-card__accent {
-  height: 4px;
-  background: linear-gradient(90deg, var(--practiq-violet), var(--practiq-violet-light));
+.course-card__stripe {
+  height: 3px;
 }
-
-.course-card--matematica .course-card__accent { background: linear-gradient(90deg, #7c3aed, #a78bfa); }
-.course-card--lectura .course-card__accent { background: linear-gradient(90deg, #2563eb, #60a5fa); }
-.course-card--ingles .course-card__accent { background: linear-gradient(90deg, #059669, #34d399); }
-.course-card--ciencias .course-card__accent { background: linear-gradient(90deg, #d97706, #fbbf24); }
-.course-card--historia .course-card__accent { background: linear-gradient(90deg, #dc2626, #f87171); }
-.course-card--otros .course-card__accent { background: linear-gradient(90deg, #64748b, #94a3b8); }
+.stripe--violet { background: linear-gradient(90deg, #7c3aed, #a78bfa); }
+.stripe--blue   { background: linear-gradient(90deg, #2563eb, #60a5fa); }
+.stripe--green  { background: linear-gradient(90deg, #059669, #34d399); }
+.stripe--orange { background: linear-gradient(90deg, #d97706, #fbbf24); }
+.stripe--red    { background: linear-gradient(90deg, #dc2626, #f87171); }
+.stripe--slate  { background: linear-gradient(90deg, var(--text-secondary), var(--text-muted)); }
 
 .course-card__body {
-  padding: 22px 24px 20px;
+  padding: 12px 14px 10px;
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 6px;
 }
 
 .course-card__top {
@@ -848,63 +608,239 @@ function formatDate(dateStr: string) {
   flex-wrap: wrap;
 }
 
-.course-subject-badge {
+.subject-badge {
   display: inline-flex;
-  padding: 4px 12px;
-  background: var(--practiq-violet-pale);
-  color: var(--practiq-violet);
-  border-radius: 100px;
-  font-size: 12px;
-  font-weight: 600;
+  padding: 3px 10px;
+  border-radius: var(--radius-pill);
+  font-size: var(--text-xs);
+  font-weight: 700;
   text-transform: capitalize;
 }
+.subject-badge.stripe--violet { background: rgba(124,58,237,0.1); color: #7c3aed; }
+.subject-badge.stripe--blue   { background: rgba(37,99,235,0.1);  color: #2563eb; }
+.subject-badge.stripe--green  { background: rgba(5,150,105,0.1);  color: #059669; }
+.subject-badge.stripe--orange { background: rgba(217,119,6,0.1);  color: #d97706; }
+.subject-badge.stripe--red    { background: rgba(220,38,38,0.1);  color: #dc2626; }
+.subject-badge.stripe--slate  { background: rgba(100,116,139,0.1); color: var(--text-secondary); }
 
-.course-level-badge {
+.level-badge {
   display: inline-flex;
-  padding: 4px 10px;
+  padding: 3px 10px;
   background: var(--surface-hover);
   color: var(--text-secondary);
-  border-radius: 100px;
-  font-size: 11px;
+  border-radius: var(--radius-pill);
+  font-size: var(--text-xs);
   font-weight: 600;
-  text-transform: capitalize;
 }
 
 .course-title {
-  font-size: 17px;
+  font-size: var(--text-md);
   font-weight: 700;
   color: var(--text-primary);
   line-height: 1.3;
+  margin: 0;
 }
 
 .course-desc {
-  font-size: 13px;
+  font-size: var(--text-sm);
   color: var(--text-secondary);
   line-height: 1.5;
   display: -webkit-box;
   -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
   overflow: hidden;
+  margin: 0;
 }
 
 .course-card__footer {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding-top: 12px;
-  border-top: 1px solid rgba(148, 163, 184, 0.12);
-  margin-top: auto;
+  padding-top: 8px;
+  border-top: 1px solid rgba(148,163,184,0.1);
+  margin-top: 4px;
 }
 
 .course-date {
   display: flex;
   align-items: center;
   gap: 5px;
-  font-size: 12px;
+  font-size: var(--text-sm);
   color: var(--text-muted);
 }
 
+.course-cta {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: var(--text-sm);
+  font-weight: 700;
+  color: var(--practiq-violet);
+}
+
+/* ── Students ── */
+.grade-pills {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.grade-pill {
+  display: inline-flex;
+  padding: 5px 12px;
+  border-radius: var(--radius-pill);
+  background: rgba(37,99,235,0.08);
+  color: var(--color-info-dark);
+  font-size: var(--text-sm);
+  font-weight: 700;
+}
+
+.student-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 8px;
+}
+
+.student-card {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 10px 12px;
+  border-radius: var(--radius-sm);
+  background: rgba(255,255,255,0.88);
+  border: 1px solid rgba(255,255,255,0.9);
+  box-shadow: 0 2px 10px rgba(93,108,146,0.06);
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.student-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 22px rgba(93,108,146,0.11);
+  border-color: rgba(124,58,237,0.2);
+}
+
+.student-card__avatar {
+  width: 34px;
+  height: 34px;
+  border-radius: 9px;
+  background: linear-gradient(135deg, var(--practiq-violet), #60a5fa);
+  color: #fff;
+  font-size: var(--text-md);
+  font-weight: 800;
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+}
+
+.student-card__info { flex: 1; min-width: 0; }
+
+.student-name {
+  font-size: var(--text-base);
+  font-weight: 700;
+  color: var(--text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.student-email {
+  font-size: var(--text-xs);
+  color: var(--text-secondary);
+  margin-top: 2px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.student-grades {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.student-grade-tag {
+  display: inline-flex;
+  padding: 3px 8px;
+  border-radius: var(--radius-pill);
+  background: rgba(16,185,129,0.1);
+  color: var(--color-success-dark);
+  font-size: var(--text-xs);
+  font-weight: 700;
+}
+.student-grade-tag--empty {
+  background: rgba(148,163,184,0.12);
+  color: var(--text-secondary);
+}
+
+.student-card__arrow {
+  color: var(--text-muted);
+  font-size: var(--text-md);
+  flex-shrink: 0;
+}
+
+/* ── Empty & loading ── */
+.loading-state {
+  display: flex;
+  justify-content: center;
+  padding: 80px;
+}
+
+.empty-state {
+  text-align: center;
+  padding: 40px 24px;
+  background: rgba(255,255,255,0.7);
+  border-radius: var(--radius-2xl);
+  border: 1px dashed rgba(148,163,184,0.3);
+}
+.empty-state__icon {
+  width: 48px;
+  height: 48px;
+  border-radius: var(--radius-lg);
+  background: rgba(124,58,237,0.08);
+  display: grid;
+  place-items: center;
+  margin: 0 auto 16px;
+  font-size: 22px;
+  color: var(--practiq-violet);
+}
+.empty-state h3 {
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--text-primary);
+  margin-bottom: 8px;
+}
+.empty-state p {
+  font-size: var(--text-md);
+  color: var(--text-secondary);
+  margin-bottom: 24px;
+  max-width: 360px;
+  margin-left: auto;
+  margin-right: auto;
+}
+
 /* ── Modal ── */
+.modal-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 20px;
+}
+
+.icon-btn {
+  width: 32px;
+  height: 32px;
+  border-radius: var(--radius-sm);
+  border: 1px solid rgba(148,163,184,0.25);
+  background: transparent;
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+  color: var(--text-secondary);
+  transition: all 0.15s;
+}
+.icon-btn:hover { background: var(--surface-hover); color: var(--text-primary); }
+
 .form-row {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -916,14 +852,14 @@ function formatDate(dateStr: string) {
   align-items: flex-start;
   gap: 10px;
   padding: 12px 14px;
-  background: rgba(245, 158, 11, 0.08);
-  border: 1px solid rgba(245, 158, 11, 0.2);
-  border-radius: 12px;
-  font-size: 13px;
+  background: rgba(245,158,11,0.08);
+  border: 1px solid rgba(245,158,11,0.2);
+  border-radius: var(--radius-md);
+  font-size: var(--text-base);
   color: #92400e;
   margin-bottom: 16px;
 }
-.setup-notice .pi { color: #f59e0b; flex-shrink: 0; margin-top: 1px; }
+.setup-notice .pi { color: var(--color-warning); flex-shrink: 0; margin-top: 1px; }
 .setup-link { color: var(--practiq-violet); font-weight: 600; text-decoration: none; }
 .setup-link:hover { text-decoration: underline; }
 
@@ -936,26 +872,15 @@ function formatDate(dateStr: string) {
 
 /* ── Responsive ── */
 @media (max-width: 768px) {
-  .dashboard { padding: 20px 16px 32px; }
-  .welcome-banner {
-    flex-direction: column;
-    align-items: flex-start;
-    padding: 22px 20px;
-  }
-  .hero-actions {
-    width: 100%;
-    flex-direction: column;
-  }
-  .student-panel__head {
-    flex-direction: column;
-  }
-  .create-btn { width: 100%; justify-content: center; }
-  .admin-shortcut-card {
-    flex-direction: column;
-    align-items: flex-start;
-  }
-  .stats-row { grid-template-columns: 1fr; }
+  .dashboard { padding: 20px 16px 40px; }
+  .page-header { flex-direction: column; align-items: flex-start; }
+  .page-header__right { width: 100%; }
+  .stats-strip { gap: 0; }
+  .stat-item { padding: 6px 10px; }
+  .stat-divider { display: none; }
   .courses-grid { grid-template-columns: 1fr; }
+  .student-grid { grid-template-columns: 1fr; }
   .form-row { grid-template-columns: 1fr; }
+  .section-header { flex-direction: column; align-items: flex-start; }
 }
 </style>

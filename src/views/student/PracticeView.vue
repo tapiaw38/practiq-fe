@@ -531,7 +531,7 @@ function scoreColor(score: number) {
   gap: 16px;
   padding: 20px 24px;
   background: rgba(255, 255, 255, 0.92);
-  border-radius: 20px;
+  border-radius: var(--radius-2xl);
   border: 1.5px solid rgba(124, 58, 237, 0.12);
   box-shadow: 0 4px 20px rgba(124, 58, 237, 0.06);
 }
@@ -556,7 +556,7 @@ function scoreColor(score: number) {
 .level-badge {
   display: inline-block;
   padding: 3px 12px;
-  border-radius: 20px;
+  border-radius: var(--radius-2xl);
   background: linear-gradient(135deg, #8b5cf6, #6366f1);
   color: #fff;
   font-size: 0.75rem;
@@ -587,7 +587,7 @@ function scoreColor(score: number) {
   align-items: center;
   gap: 8px;
   padding: 10px 16px;
-  border-radius: 14px;
+  border-radius: var(--radius-lg);
   background: rgba(245, 243, 255, 0.9);
   border: 1.5px solid rgba(124, 58, 237, 0.1);
 }
@@ -661,7 +661,7 @@ function scoreColor(score: number) {
   gap: 6px;
   padding: 10px 16px;
   background: rgba(255, 255, 255, 0.92);
-  border-radius: 14px;
+  border-radius: var(--radius-lg);
   border: 1.5px solid rgba(124, 58, 237, 0.1);
   flex-wrap: wrap;
 }
@@ -669,7 +669,7 @@ function scoreColor(score: number) {
 .tool-btn {
   width: 34px;
   height: 34px;
-  border-radius: 8px;
+  border-radius: var(--radius-sm);
   border: 1.5px solid rgba(124, 58, 237, 0.15);
   background: rgba(255, 255, 255, 0.8);
   cursor: pointer;
@@ -693,7 +693,7 @@ function scoreColor(score: number) {
 .color-picker {
   width: 34px;
   height: 34px;
-  border-radius: 8px;
+  border-radius: var(--radius-sm);
   border: 1.5px solid rgba(124, 58, 237, 0.15);
   padding: 2px;
   cursor: pointer;
@@ -724,7 +724,7 @@ function scoreColor(score: number) {
   align-items: flex-start;
   padding: 18px 20px;
   background: rgba(255, 255, 255, 0.9);
-  border-radius: 16px;
+  border-radius: var(--radius-xl);
   border: 1.5px solid rgba(124, 58, 237, 0.08);
   transition: border-color 0.15s;
 }
@@ -737,7 +737,7 @@ function scoreColor(score: number) {
 .ex-num {
   width: 32px;
   height: 32px;
-  border-radius: 10px;
+  border-radius: var(--radius-sm);
   background: rgba(124, 58, 237, 0.1);
   color: var(--practiq-violet);
   font-weight: 800;
@@ -750,7 +750,7 @@ function scoreColor(score: number) {
 
 .ex-num--done {
   background: rgba(16, 185, 129, 0.15);
-  color: #059669;
+  color: var(--color-success-dark);
 }
 
 .ex-body {
@@ -769,7 +769,7 @@ function scoreColor(score: number) {
 
 .difficulty-pill {
   padding: 3px 8px;
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   background: color-mix(in srgb, var(--difficulty-color) 12%, white);
   color: var(--difficulty-color);
   font-size: 0.75rem;
@@ -796,7 +796,7 @@ function scoreColor(score: number) {
 
 .ex-input {
   padding: 10px 14px 10px 62px;
-  border-radius: 12px;
+  border-radius: var(--radius-md);
   border: 1.5px solid rgba(124, 58, 237, 0.15);
   font-size: 1rem;
   color: var(--text-primary);
@@ -846,10 +846,10 @@ function scoreColor(score: number) {
   align-items: center;
   gap: 4px;
   padding: 4px 10px;
-  border-radius: 8px;
+  border-radius: var(--radius-sm);
   border: 1px solid rgba(239, 68, 68, 0.2);
   background: rgba(255, 255, 255, 0.9);
-  color: #ef4444;
+  color: var(--color-error);
   cursor: pointer;
   font-size: 0.78rem;
   transition: all 0.15s;
@@ -859,7 +859,7 @@ function scoreColor(score: number) {
 .ex-canvas {
   width: 100%;
   height: 240px;
-  border-radius: 12px;
+  border-radius: var(--radius-md);
   border: 1.5px solid rgba(124, 58, 237, 0.15);
   display: block;
   touch-action: none;
@@ -874,7 +874,7 @@ function scoreColor(score: number) {
   justify-content: space-between;
   padding: 14px 20px;
   background: rgba(255, 255, 255, 0.92);
-  border-radius: 16px;
+  border-radius: var(--radius-xl);
   border: 1.5px solid rgba(124, 58, 237, 0.1);
   position: sticky;
   bottom: 16px;
@@ -897,7 +897,7 @@ function scoreColor(score: number) {
   align-items: center;
   gap: 8px;
   padding: 12px 28px;
-  border-radius: 12px;
+  border-radius: var(--radius-md);
   border: none;
   background: linear-gradient(135deg, #8b5cf6, #6366f1);
   color: #fff;
@@ -931,7 +931,7 @@ function scoreColor(score: number) {
 
 .stat-card {
   background: rgba(245, 243, 255, 0.72);
-  border-radius: 16px;
+  border-radius: var(--radius-xl);
   padding: 16px 12px;
   text-align: center;
 }
@@ -943,7 +943,7 @@ function scoreColor(score: number) {
   gap: 12px;
   align-items: center;
   padding: 14px;
-  border-radius: 16px;
+  border-radius: var(--radius-xl);
   background: rgba(248, 250, 252, 0.9);
 }
 .rec-icon { font-size: 24px; }
@@ -951,7 +951,7 @@ function scoreColor(score: number) {
 .results-ai-feedback {
   margin-top: 10px;
   padding: 12px 14px;
-  border-radius: 14px;
+  border-radius: var(--radius-lg);
   background: rgba(250, 245, 255, 0.92);
   color: #5b21b6;
   font-size: 0.9rem;
@@ -960,9 +960,9 @@ function scoreColor(score: number) {
 .level-up-badge {
   margin-top: 12px;
   padding: 12px 16px;
-  border-radius: 14px;
+  border-radius: var(--radius-lg);
   background: rgba(16, 185, 129, 0.1);
-  color: #047857;
+  color: var(--color-success-dark);
   font-weight: 700;
   text-align: center;
 }

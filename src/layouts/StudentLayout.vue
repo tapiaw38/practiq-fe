@@ -356,7 +356,7 @@ function logout() {
 .brand-icon {
   width: 40px;
   height: 40px;
-  border-radius: 14px;
+  border-radius: var(--radius-lg);
   background: linear-gradient(135deg, #8b5cf6, #6366f1);
   color: white;
   display: grid;
@@ -368,22 +368,22 @@ function logout() {
 .brand-icon--large {
   width: 48px;
   height: 48px;
-  border-radius: 16px;
-  font-size: 20px;
+  border-radius: var(--radius-xl);
+  font-size: var(--font-stat-value);
 }
 
 .brand-name {
   font-size: 17px;
   font-weight: 800;
-  color: #182136;
+  color: var(--text-heading);
 }
 
 .brand-name--large {
-  font-size: 20px;
+  font-size: var(--font-stat-value);
 }
 
 .brand-tag {
-  font-size: 12px;
+  font-size: var(--text-sm);
   color: var(--text-secondary);
 }
 
@@ -393,7 +393,7 @@ function logout() {
   width: 42px;
   height: 42px;
   border: none;
-  border-radius: 14px;
+  border-radius: var(--radius-lg);
   background: rgba(248, 250, 252, 0.92);
   color: var(--text-secondary);
   display: grid;
@@ -421,9 +421,9 @@ function logout() {
 
 .nav-item {
   padding: 14px 16px;
-  border-radius: 18px;
+  border-radius: var(--radius-xl);
   color: var(--text-secondary);
-  font-size: 14px;
+  font-size: var(--text-md);
   font-weight: 600;
   text-decoration: none;
   transition: var(--transition);
@@ -431,7 +431,7 @@ function logout() {
 
 .nav-item:hover {
   background: rgba(255, 255, 255, 0.9);
-  color: #182136;
+  color: var(--text-heading);
 }
 
 .nav-item-active {
@@ -455,7 +455,7 @@ function logout() {
 
 .nav-chevron {
   margin-left: auto;
-  font-size: 11px;
+  font-size: var(--text-xs);
   opacity: 0.6;
 }
 
@@ -470,13 +470,13 @@ function logout() {
 
 .nav-sub-loading {
   padding: 8px 12px;
-  font-size: 12px;
+  font-size: var(--text-sm);
   color: var(--text-secondary);
 }
 
 .nav-sub-empty {
   padding: 6px 12px;
-  font-size: 12px;
+  font-size: var(--text-sm);
   color: var(--text-secondary);
 }
 
@@ -492,7 +492,7 @@ function logout() {
   align-items: center;
   gap: 8px;
   padding: 8px 10px;
-  border-radius: 12px;
+  border-radius: var(--radius-md);
   border: none;
   background: none;
   cursor: pointer;
@@ -504,13 +504,13 @@ function logout() {
   background: rgba(124, 58, 237, 0.06);
 }
 .nav-course-toggle .pi-graduation-cap {
-  font-size: 13px;
+  font-size: var(--text-base);
   color: var(--practiq-violet);
   flex-shrink: 0;
 }
 .nav-course-toggle-title {
   flex: 1;
-  font-size: 14px;
+  font-size: var(--text-md);
   font-weight: 700;
   color: var(--text-primary);
   white-space: nowrap;
@@ -531,7 +531,7 @@ function logout() {
   align-items: center;
   gap: 8px;
   padding: 6px 10px;
-  border-radius: 10px;
+  border-radius: var(--radius-sm);
   border: none;
   background: none;
   cursor: pointer;
@@ -556,7 +556,7 @@ function logout() {
   border-radius: 7px;
   background: linear-gradient(135deg, #8b5cf6, #6366f1);
   color: #fff;
-  font-size: 11px;
+  font-size: var(--text-xs);
   font-weight: 800;
   display: flex;
   align-items: center;
@@ -565,12 +565,12 @@ function logout() {
 }
 .nav-level-badge--locked {
   background: rgba(148, 163, 184, 0.2);
-  color: #94a3b8;
+  color: var(--text-muted);
 }
 
 .nav-level-label {
   flex: 1;
-  font-size: 12px;
+  font-size: var(--text-sm);
   font-weight: 700;
   color: var(--text-primary);
 }
@@ -581,7 +581,7 @@ function logout() {
   color: var(--practiq-violet);
   background: rgba(124, 58, 237, 0.1);
   padding: 2px 7px;
-  border-radius: 99px;
+  border-radius: var(--radius-pill);
   flex-shrink: 0;
 }
 
@@ -601,11 +601,11 @@ function logout() {
   align-items: center;
   gap: 8px;
   padding: 8px 12px;
-  border-radius: 10px;
+  border-radius: var(--radius-sm);
   border: none;
   background: none;
   cursor: pointer;
-  font-size: 12px;
+  font-size: var(--text-sm);
   font-weight: 500;
   color: var(--text-secondary);
   text-align: left;
@@ -620,7 +620,7 @@ function logout() {
 
 .nav-book-item--practice:hover {
   background: rgba(16, 185, 129, 0.08);
-  color: #059669;
+  color: var(--color-success-dark);
 }
 
 .nav-book-item--test:hover {
@@ -634,7 +634,7 @@ function logout() {
 }
 
 .nav-book-item .pi {
-  font-size: 12px;
+  font-size: var(--text-sm);
   flex-shrink: 0;
 }
 
@@ -658,14 +658,14 @@ function logout() {
   width: 36px;
   height: 36px;
   border: none;
-  border-radius: 12px;
+  border-radius: var(--radius-md);
   background: rgba(248, 250, 252, 0.92);
   color: var(--text-secondary);
   display: grid;
   place-items: center;
   cursor: pointer;
   transition: var(--transition);
-  font-size: 14px;
+  font-size: var(--text-md);
 }
 .icon-btn:hover {
   background: white;
@@ -688,7 +688,7 @@ function logout() {
 .topbar-avatar {
   width: 46px;
   height: 46px;
-  border-radius: 18px;
+  border-radius: var(--radius-xl);
   background: linear-gradient(135deg, #8b5cf6, #6366f1);
   color: white;
   display: grid;
@@ -703,16 +703,16 @@ function logout() {
 }
 
 .user-name {
-  font-size: 14px;
+  font-size: var(--text-md);
   font-weight: 700;
-  color: #182136;
+  color: var(--text-heading);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 
 .user-role {
-  font-size: 12px;
+  font-size: var(--text-sm);
   color: var(--text-secondary);
 }
 
@@ -753,7 +753,7 @@ function logout() {
   .topbar-avatar {
     width: 42px;
     height: 42px;
-    border-radius: 16px;
+    border-radius: var(--radius-xl);
   }
 
   .drawer-backdrop {

@@ -83,7 +83,7 @@ function loginWithGoogle() {
   justify-content: center;
   gap: 12px;
   padding: 0 16px;
-  border-radius: 18px;
+  border-radius: var(--radius-xl);
   border: 1px solid rgba(148, 163, 184, 0.18);
   background: rgba(255, 255, 255, 0.82);
   color: #162033;

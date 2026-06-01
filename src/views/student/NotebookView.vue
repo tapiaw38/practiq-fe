@@ -532,7 +532,7 @@ function goToPage(idx: number) {
   min-width: 40px;
   height: 40px;
   padding: 0 12px;
-  border-radius: 10px;
+  border-radius: var(--radius-sm);
   border: 1.5px solid rgba(124, 58, 237, 0.15);
   background: rgba(255,255,255,0.8);
   cursor: pointer;
@@ -558,11 +558,11 @@ function goToPage(idx: number) {
 
 .page-tab--done {
   border-color: rgba(16, 185, 129, 0.4);
-  color: #059669;
+  color: var(--color-success-dark);
 }
 .page-tab--done.page-tab--active {
-  background: #059669;
-  border-color: #059669;
+  background: var(--color-success-dark);
+  border-color: var(--color-success-dark);
   color: #fff;
 }
 
@@ -572,7 +572,7 @@ function goToPage(idx: number) {
 .notebook-page {
   background: rgba(255,255,255,0.92);
   backdrop-filter: blur(12px);
-  border-radius: 20px;
+  border-radius: var(--radius-2xl);
   border: 1.5px solid rgba(124, 58, 237, 0.1);
   box-shadow: 0 4px 24px rgba(124, 58, 237, 0.06);
   overflow: hidden;
@@ -603,14 +603,14 @@ function goToPage(idx: number) {
 .content-type-badge {
   font-size: 0.75rem;
   padding: 4px 10px;
-  border-radius: 20px;
+  border-radius: var(--radius-2xl);
   background: rgba(124, 58, 237, 0.08);
   color: var(--practiq-violet);
   font-weight: 600;
 }
 
 .teacher-image-wrap {
-  border-radius: 12px;
+  border-radius: var(--radius-md);
   overflow: hidden;
   border: 1.5px solid rgba(124, 58, 237, 0.1);
   background: #f8f7ff;
@@ -675,7 +675,7 @@ function goToPage(idx: number) {
 .tool-btn {
   width: 34px;
   height: 34px;
-  border-radius: 8px;
+  border-radius: var(--radius-sm);
   border: 1.5px solid rgba(124, 58, 237, 0.15);
   background: rgba(255,255,255,0.8);
   cursor: pointer;
@@ -692,7 +692,7 @@ function goToPage(idx: number) {
 .color-picker {
   width: 34px;
   height: 34px;
-  border-radius: 8px;
+  border-radius: var(--radius-sm);
   border: 1.5px solid rgba(124, 58, 237, 0.15);
   padding: 2px;
   cursor: pointer;
@@ -707,7 +707,7 @@ function goToPage(idx: number) {
 .answer-canvas {
   width: 100%;
   height: 300px;
-  border-radius: 12px;
+  border-radius: var(--radius-md);
   border: 1.5px solid rgba(124, 58, 237, 0.15);
   display: block;
   touch-action: none;
@@ -718,7 +718,7 @@ function goToPage(idx: number) {
   width: 100%;
   min-height: 280px;
   padding: 16px 16px 16px 72px;
-  border-radius: 12px;
+  border-radius: var(--radius-md);
   border: 1.5px solid rgba(124, 58, 237, 0.15);
   font-size: 1rem;
   line-height: 2rem;
@@ -751,7 +751,7 @@ function goToPage(idx: number) {
 
 .save-status {
   font-size: 0.85rem;
-  color: #059669;
+  color: var(--color-success-dark);
   display: flex;
   align-items: center;
   gap: 6px;
@@ -761,7 +761,7 @@ function goToPage(idx: number) {
   width: 100%;
   margin-top: 8px;
   padding: 10px 12px;
-  border-radius: 12px;
+  border-radius: var(--radius-md);
   background: #faf7ff;
   border: 1px solid #e9ddff;
 }
@@ -776,8 +776,8 @@ function goToPage(idx: number) {
   display: inline-flex;
   align-items: center;
   padding: 4px 10px;
-  border-radius: 999px;
-  font-size: 12px;
+  border-radius: var(--radius-pill);
+  font-size: var(--text-sm);
   font-weight: 700;
 }
 
@@ -793,12 +793,12 @@ function goToPage(idx: number) {
 
 .ai-review-badge--warn {
   background: #fef3c7;
-  color: #92400e;
+  color: var(--color-warning-dark);
 }
 
 .ai-review-text {
   margin: 8px 0 0;
-  font-size: 13px;
+  font-size: var(--text-base);
   color: #4b5563;
 }
 
@@ -811,7 +811,7 @@ function goToPage(idx: number) {
 
 .btn-nav {
   padding: 8px 16px;
-  border-radius: 10px;
+  border-radius: var(--radius-sm);
   border: 1.5px solid rgba(124, 58, 237, 0.2);
   background: rgba(255,255,255,0.8);
   cursor: pointer;
@@ -827,7 +827,7 @@ function goToPage(idx: number) {
 
 .btn-save {
   padding: 10px 22px;
-  border-radius: 10px;
+  border-radius: var(--radius-sm);
   border: none;
   background: var(--practiq-violet);
   color: #fff;
