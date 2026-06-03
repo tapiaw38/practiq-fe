@@ -858,9 +858,22 @@
     { immediate: true },
   );
 
+  watch(
+    () => props.show,
+    (visible) => {
+      if (visible) {
+        document.body.classList.add('assistant-modal-open')
+      } else {
+        document.body.classList.remove('assistant-modal-open')
+      }
+    },
+    { immediate: true }
+  )
+
   onBeforeUnmount(() => {
-    canvasResizeObserver?.disconnect();
-  });
+    document.body.classList.remove('assistant-modal-open')
+    canvasResizeObserver?.disconnect()
+  })
 </script>
 
 <style scoped>

@@ -283,6 +283,14 @@
   color: var(--text-primary);
 }
 
+/* Hide floating assistant button when modal is open */
+body.assistant-modal-open .floating-button {
+  opacity: 0 !important;
+  pointer-events: none !important;
+  transform: scale(0.8) !important;
+  transition: opacity 0.2s ease, transform 0.2s ease !important;
+}
+
 /* ── Responsive utilities ─────────────────────────────────────────── */
 
 /* Scrollable table wrapper — use on any overflow table container */
