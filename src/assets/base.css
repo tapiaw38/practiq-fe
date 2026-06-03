@@ -68,6 +68,21 @@
   /* Transitions */
   --transition: all 0.2s ease;
   --transition-fast: all 0.15s ease;
+
+  /* Breakpoints (reference — use in @media, not in var()) */
+  /* --bp-desktop:          1280px */
+  /* --bp-tablet-landscape: 1024px */
+  /* --bp-tablet-portrait:   768px */
+  /* --bp-mobile:            600px  */
+
+  /* Spacing scale */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-8: 32px;
 }
 
 *, *::before, *::after {

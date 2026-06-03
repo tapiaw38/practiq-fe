@@ -714,15 +714,24 @@ function scrollToCourses() {
 }
 
 /* ── Responsive ── */
-@media (max-width: 900px) {
-  .metrics-row {
-    grid-template-columns: 1fr 1fr;
-  }
-  .metric-card--goal {
-    grid-column: 1 / -1;
-  }
+
+/* Tablet landscape */
+@media (max-width: 1024px) {
+  .student-home { padding: 20px 20px 36px; }
+  .welcome-banner { gap: 20px; }
+  .mastery-grid { grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); }
+  .courses-grid { grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); }
 }
 
+/* Tablet portrait */
+@media (max-width: 900px) {
+  .metrics-row { grid-template-columns: 1fr 1fr; }
+  .metric-card--goal { grid-column: 1 / -1; }
+  .welcome-banner { flex-direction: column; }
+  .welcome-topic-card { width: 100%; }
+}
+
+/* Mobile */
 @media (max-width: 640px) {
   .student-home { padding: 16px 14px 28px; }
   .welcome-banner { padding: 22px 18px; border-radius: 22px; }

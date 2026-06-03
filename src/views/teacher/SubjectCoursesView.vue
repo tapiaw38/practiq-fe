@@ -495,9 +495,17 @@ function formatDate(dateStr: string) {
   margin-top: 24px;
 }
 
+/* Tablet landscape */
+@media (max-width: 1024px) {
+  .courses-grid { grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); }
+  .stats-row { grid-template-columns: repeat(2, 1fr); }
+  .form-row { grid-template-columns: 1fr 1fr; }
+}
+
+/* Tablet portrait + mobile */
 @media (max-width: 768px) {
   .courses-page {
-    padding: 20px 16px 32px;
+    padding: 16px 14px 28px;
   }
 
   .hero-card {

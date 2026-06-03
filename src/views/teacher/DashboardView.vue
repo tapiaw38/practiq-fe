@@ -871,16 +871,32 @@ function stripeClass(subject?: string) {
 }
 
 /* ── Responsive ── */
+
+/* Tablet landscape */
+@media (max-width: 1024px) {
+  .dashboard { padding: 20px 20px 40px; }
+  .courses-grid { grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); }
+  .student-grid { grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); }
+  .stats-strip { flex-wrap: wrap; gap: var(--space-2); }
+}
+
+/* Tablet portrait */
 @media (max-width: 768px) {
-  .dashboard { padding: 20px 16px 40px; }
-  .page-header { flex-direction: column; align-items: flex-start; }
+  .dashboard { padding: 16px 14px 32px; }
+  .page-header { flex-direction: column; align-items: flex-start; gap: 10px; }
   .page-header__right { width: 100%; }
   .stats-strip { gap: 0; }
   .stat-item { padding: 6px 10px; }
   .stat-divider { display: none; }
-  .courses-grid { grid-template-columns: 1fr; }
-  .student-grid { grid-template-columns: 1fr; }
+  .courses-grid { grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); }
+  .student-grid { grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); }
   .form-row { grid-template-columns: 1fr; }
   .section-header { flex-direction: column; align-items: flex-start; }
+}
+
+/* Mobile */
+@media (max-width: 600px) {
+  .courses-grid { grid-template-columns: 1fr; }
+  .student-grid { grid-template-columns: 1fr; }
 }
 </style>

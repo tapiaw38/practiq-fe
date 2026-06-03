@@ -276,6 +276,26 @@ function logout() {
   }
 }
 
+/* Tablet landscape */
+@media (max-width: 1024px) {
+  .sidebar {
+    width: 220px;
+    margin: 12px 0 12px 12px;
+    height: calc(100vh - 24px);
+  }
+
+  .main-content {
+    padding: 16px;
+  }
+}
+
+/* Tablet portrait */
+@media (max-width: 768px) {
+  .main-content {
+    padding: 12px;
+  }
+}
+
 @media (max-width: 920px) {
   .app-shell {
     display: block;

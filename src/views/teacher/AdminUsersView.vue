@@ -764,8 +764,15 @@ async function toggleBlocked(item: UserRow) {
 .modal-save {
   justify-self: flex-end;
 }
+/* Tablet landscape */
+@media (max-width: 1024px) {
+  .admin-shell { padding: 20px 20px 36px; }
+  .data-table { display: block; overflow-x: auto; -webkit-overflow-scrolling: touch; }
+}
+
+/* Tablet portrait + mobile */
 @media (max-width: 920px) {
-  .admin-shell { padding: 18px 16px 32px; }
+  .admin-shell { padding: 16px 14px 28px; }
   .hero-card, .panel-head, .action-row--split, .toolbar-card { flex-direction: column; }
   .stats-row { flex-direction: column; }
   .modal-head { flex-direction: column; align-items: stretch; }

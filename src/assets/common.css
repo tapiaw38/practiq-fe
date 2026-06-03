@@ -282,3 +282,61 @@
   margin-bottom: 20px;
   color: var(--text-primary);
 }
+
+/* ── Responsive utilities ─────────────────────────────────────────── */
+
+/* Scrollable table wrapper — use on any overflow table container */
+.table-scroll {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+/* Responsive grid helpers */
+.grid-auto { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: var(--space-4); }
+.grid-2    { display: grid; grid-template-columns: repeat(2, 1fr); gap: var(--space-4); }
+.grid-3    { display: grid; grid-template-columns: repeat(3, 1fr); gap: var(--space-4); }
+
+/* ── Tablet landscape (≤1024px) ──────────────────────────────────── */
+@media (max-width: 1024px) {
+  .grid-3 { grid-template-columns: repeat(2, 1fr); }
+
+  .btn { padding: 9px 16px; }
+
+  .card { padding: 20px; }
+
+  .modal-box { padding: 24px; }
+}
+
+/* ── Tablet portrait (≤768px) ────────────────────────────────────── */
+@media (max-width: 768px) {
+  .grid-2,
+  .grid-3 { grid-template-columns: 1fr; }
+
+  .grid-auto { grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); }
+
+  .card { padding: 16px; }
+
+  .modal-box {
+    padding: 20px;
+    max-width: 100%;
+    border-radius: var(--radius-lg);
+  }
+
+  .modal-title { font-size: 17px; }
+
+  .btn { font-size: var(--text-base); }
+
+  .badge { font-size: var(--text-xs); padding: 2px 8px; }
+}
+
+/* ── Mobile (≤600px) ─────────────────────────────────────────────── */
+@media (max-width: 600px) {
+  .grid-auto { grid-template-columns: 1fr; }
+
+  .modal-overlay { padding: 12px; align-items: flex-end; }
+
+  .modal-box {
+    border-radius: var(--radius-xl) var(--radius-xl) 0 0;
+    max-height: 95dvh;
+  }
+}
