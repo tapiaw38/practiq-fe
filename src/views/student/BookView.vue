@@ -286,12 +286,17 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, nextTick, watch } from 'vue'
+import { ref, computed, onMounted, onUnmounted, nextTick, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/authStore'
 import { practiceSheetService } from '@/services/practiceSheets/practiceSheetService'
 import { aiService } from '@/services/ai/aiService'
 import type { PracticeSheet, PracticeSheetExercise, AIMessage, SubmitResult } from '@/types'
+import {
+  composeTeacherAndStudentImage,
+  extractTeacherImageDataUrl,
+  summarizeExerciseMetadata
+} from '@/utils/assistantExerciseContext'
 
 const route = useRoute()
 const router = useRouter()
@@ -384,6 +389,11 @@ onMounted(async () => {
     await nextTick()
     initCanvases()
   }
+})
+
+onUnmounted(() => {
+  delete window.__practiqAssistantCapture
+  delete window.__practiqAssistantContext
 })
 
 watch(activeIdx, async () => {
@@ -508,6 +518,54 @@ function captureCanvas(idx: number) {
   canvasData.value[idx] = canvas.toDataURL('image/png')
 }
 
+function buildCanvasDataForAssistant(idx: number) {
+  const source = canvasRefs.value[idx]
+  if (!source) {
+    return canvasData.value[idx] || ''
+  }
+
+  const scale = 2
+  const out = document.createElement('canvas')
+  out.width = Math.max(1, Math.floor(source.width * scale))
+  out.height = Math.max(1, Math.floor(source.height * scale))
+  const ctx = out.getContext('2d')
+  if (!ctx) {
+    return canvasData.value[idx] || ''
+  }
+
+  ctx.fillStyle = '#ffffff'
+  ctx.fillRect(0, 0, out.width, out.height)
+  ctx.imageSmoothingEnabled = false
+  ctx.drawImage(source, 0, 0, out.width, out.height)
+
+  const image = ctx.getImageData(0, 0, out.width, out.height)
+  const pixels = image.data
+  for (let i = 0; i < pixels.length; i += 4) {
+    const r = pixels[i]
+    const g = pixels[i + 1]
+    const b = pixels[i + 2]
+    const alpha = pixels[i + 3]
+
+    if (alpha < 8) {
+      pixels[i] = 255
+      pixels[i + 1] = 255
+      pixels[i + 2] = 255
+      pixels[i + 3] = 255
+      continue
+    }
+
+    const gray = 0.299 * r + 0.587 * g + 0.114 * b
+    const value = gray > 205 ? 255 : 0
+    pixels[i] = value
+    pixels[i + 1] = value
+    pixels[i + 2] = value
+    pixels[i + 3] = 255
+  }
+  ctx.putImageData(image, 0, 0)
+
+  return out.toDataURL('image/jpeg', 0.92)
+}
+
 function undoDraw() {
   const stack = undoStack.value[activeIdx.value]
   const canvas = canvasRefs.value[activeIdx.value]
@@ -539,6 +597,81 @@ function clearCanvas(idx: number) {
   saveSnapshot(idx)
   ctx.clearRect(0, 0, canvas.width, canvas.height)
   delete canvasData.value[idx]
+}
+
+function getAssistantExerciseIndex() {
+  return Math.max(0, Math.min(activeIdx.value, exercises.value.length - 1))
+}
+
+window.__practiqAssistantContext = () => {
+  const index = getAssistantExerciseIndex()
+  const exercise = exercises.value[index]?.exercise
+  if (!sheet.value || !exercise) return null
+
+  return {
+    current_view: 'student_book',
+    activity_type: 'book_sheet',
+    sheet_id: sheet.value.id,
+    sheet_title: sheet.value.title,
+    level: sheet.value.level,
+    response_mode:
+      exercise.type === 'canvas' || exercise.type === 'handwritten' ? 'canvas' : 'keyboard',
+    active_exercise: {
+      id: exercise.id,
+      number: index + 1,
+      type: exercise.type,
+      difficulty: exercise.difficulty,
+      question: exercise.question,
+      has_teacher_image: !!extractTeacherImageDataUrl(exercise),
+      metadata_summary: JSON.stringify(summarizeExerciseMetadata(exercise) || {})
+    },
+    exercise_list: exercises.value.map((item, idx) => ({
+      id: item.exercise.id,
+      number: idx + 1,
+      type: item.exercise.type,
+      difficulty: item.exercise.difficulty,
+      question: item.exercise.question,
+      has_teacher_image: !!extractTeacherImageDataUrl(item.exercise)
+    }))
+  }
+}
+
+window.__practiqAssistantCapture = async () => {
+  const index = getAssistantExerciseIndex()
+  const exercise = exercises.value[index]?.exercise
+  if (!exercise) return null
+
+  const teacherDataUrl = extractTeacherImageDataUrl(exercise)
+  const studentDataUrl =
+    exercise.type === 'canvas' || exercise.type === 'handwritten'
+      ? buildCanvasDataForAssistant(index)
+      : ''
+
+  let dataUrl = studentDataUrl
+
+  if (teacherDataUrl && studentDataUrl) {
+    try {
+      dataUrl = await composeTeacherAndStudentImage({
+        teacherDataUrl,
+        studentDataUrl,
+        teacherLabel: 'Consigna del docente',
+        studentLabel: 'Respuesta del alumno'
+      })
+    } catch (error) {
+      console.error('[book-view] failed to compose teacher and student images', error)
+      dataUrl = teacherDataUrl || studentDataUrl
+    }
+  } else if (teacherDataUrl) {
+    dataUrl = teacherDataUrl
+  }
+
+  if (!dataUrl) return null
+
+  return {
+    dataUrl,
+    filename: `book-exercise-${exercise.id}.jpg`,
+    contentType: 'image/jpeg'
+  }
 }
 
 // ── Navigation ──────────────────────────────────────────────────────
@@ -707,7 +840,7 @@ function formatTime(iso: string) {
 
 .header-topic { min-width: 0; }
 .header-topic-name {
-  font-size: 15px;
+  font-size: var(--text-lg);
   font-weight: 700;
   color: var(--text-primary);
   white-space: nowrap;
@@ -715,7 +848,7 @@ function formatTime(iso: string) {
   text-overflow: ellipsis;
 }
 .header-topic-level {
-  font-size: 12px;
+  font-size: var(--text-sm);
   color: var(--text-secondary);
 }
 
@@ -728,7 +861,7 @@ function formatTime(iso: string) {
 .header-progress-track {
   flex: 1;
   height: 6px;
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   background: #e8eaf0;
   overflow: hidden;
 }
@@ -739,7 +872,7 @@ function formatTime(iso: string) {
   transition: width 0.4s ease;
 }
 .header-progress-label {
-  font-size: 13px;
+  font-size: var(--text-base);
   font-weight: 600;
   color: var(--text-secondary);
   white-space: nowrap;
@@ -755,26 +888,26 @@ function formatTime(iso: string) {
   align-items: center;
   gap: 4px;
   padding: 5px 12px;
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   background: rgba(251, 146, 60, 0.1);
   border: 1px solid rgba(251, 146, 60, 0.2);
 }
 .streak-value {
-  font-size: 15px;
+  font-size: var(--text-lg);
   font-weight: 800;
   color: #ea580c;
 }
 .streak-label {
-  font-size: 12px;
+  font-size: var(--text-sm);
   color: #ea580c;
 }
 .user-chip {
   width: 36px; height: 36px;
-  border-radius: 12px;
+  border-radius: var(--radius-md);
   background: linear-gradient(135deg, #7c3aed, #6366f1);
   color: white;
   display: grid; place-items: center;
-  font-weight: 800; font-size: 14px;
+  font-weight: 800; font-size: var(--text-md);
 }
 
 /* ── Body ───────────────────────────────────────────────────────── */
@@ -809,13 +942,13 @@ function formatTime(iso: string) {
   padding: 16px 20px;
   margin-bottom: 24px;
   background: white;
-  border-radius: 16px;
+  border-radius: var(--radius-xl);
   border: 1px solid #e8eaf0;
   box-shadow: 0 2px 12px rgba(0,0,0,0.04);
 }
 .sheet-card__icon {
   width: 44px; height: 44px;
-  border-radius: 14px;
+  border-radius: var(--radius-lg);
   background: rgba(124, 58, 237, 0.1);
   color: var(--practiq-violet);
   display: grid; place-items: center;
@@ -823,18 +956,18 @@ function formatTime(iso: string) {
   flex-shrink: 0;
 }
 .sheet-card__info { flex: 1; }
-.sheet-card__title { font-weight: 700; font-size: 15px; color: var(--text-primary); }
-.sheet-card__subtitle { font-size: 13px; color: var(--text-secondary); margin-top: 2px; }
+.sheet-card__title { font-weight: 700; font-size: var(--text-lg); color: var(--text-primary); }
+.sheet-card__subtitle { font-size: var(--text-base); color: var(--text-secondary); margin-top: 2px; }
 .sheet-card__actions { display: flex; align-items: center; gap: 8px; }
 
 .hint-btn {
   display: flex; align-items: center; gap: 6px;
   padding: 8px 16px;
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   border: 1.5px solid #e8eaf0;
   background: white;
   color: var(--practiq-violet);
-  font-size: 13px; font-weight: 600;
+  font-size: var(--text-base); font-weight: 600;
   cursor: pointer; transition: all 0.2s;
 }
 .hint-btn:hover { border-color: var(--practiq-violet); background: var(--practiq-violet-bg); }
@@ -842,7 +975,7 @@ function formatTime(iso: string) {
 /* Exercise rows */
 .exercise-list {
   background: white;
-  border-radius: 20px;
+  border-radius: var(--radius-2xl);
   border: 1px solid #e8eaf0;
   box-shadow: 0 4px 24px rgba(0,0,0,0.05);
   overflow: hidden;
@@ -869,15 +1002,15 @@ function formatTime(iso: string) {
   width: 36px; height: 36px;
   border-radius: 50%;
   display: grid; place-items: center;
-  font-size: 14px; font-weight: 700;
+  font-size: var(--text-md); font-weight: 700;
   background: rgba(124, 58, 237, 0.1);
   color: var(--practiq-violet-dark);
   flex-shrink: 0;
 }
-.ex-row--correct .ex-num { background: rgba(16, 185, 129, 0.15); color: #047857; }
-.ex-row--incorrect .ex-num { background: rgba(239, 68, 68, 0.12); color: #b91c1c; }
-.ex-check { color: #047857; font-size: 16px; }
-.ex-cross { color: #b91c1c; font-size: 16px; }
+.ex-row--correct .ex-num { background: rgba(16, 185, 129, 0.15); color: var(--color-success-dark); }
+.ex-row--incorrect .ex-num { background: rgba(239, 68, 68, 0.12); color: var(--color-error-dark); }
+.ex-check { color: var(--color-success-dark); font-size: 16px; }
+.ex-cross { color: var(--color-error-dark); font-size: 16px; }
 
 /* Question */
 .ex-question {
@@ -885,7 +1018,7 @@ function formatTime(iso: string) {
   min-width: 0;
 }
 .ex-question-text {
-  font-size: 20px;
+  font-size: var(--font-stat-value);
   font-weight: 500;
   color: var(--text-primary);
   font-family: 'Georgia', serif;
@@ -908,7 +1041,7 @@ function formatTime(iso: string) {
   width: 100%;
   min-height: 52px;
   padding: 12px 16px;
-  border-radius: 12px;
+  border-radius: var(--radius-md);
   border: 2px dashed #d1d5db;
   background: #fafafa;
   font-size: 18px;
@@ -931,20 +1064,20 @@ function formatTime(iso: string) {
   background: white;
 }
 .ex-row--correct .ex-input {
-  border-color: #10b981;
+  border-color: var(--color-success);
   border-style: solid;
-  color: #047857;
+  color: var(--color-success-dark);
 }
 .ex-row--incorrect .ex-input {
-  border-color: #ef4444;
+  border-color: var(--color-error);
   border-style: solid;
-  color: #b91c1c;
+  color: var(--color-error-dark);
 }
 
 .ex-canvas {
   width: 100%;
   height: 80px;
-  border-radius: 12px;
+  border-radius: var(--radius-md);
   border: 2px dashed #d1d5db;
   background: #fafafa;
   cursor: crosshair;
@@ -1003,13 +1136,13 @@ function formatTime(iso: string) {
 .ai-msg__bubble {
   max-width: 88%;
   padding: 10px 14px;
-  border-radius: 16px;
-  font-size: 13px;
+  border-radius: var(--radius-xl);
+  font-size: var(--text-base);
   line-height: 1.55;
 }
 .ai-msg--ai .ai-msg__bubble { background: #f3f4f6; color: var(--text-primary); border-radius: 4px 16px 16px 16px; }
-.ai-msg--user .ai-msg__bubble { background: var(--practiq-violet); color: white; border-radius: 16px 16px 4px 16px; }
-.ai-msg__time { font-size: 11px; color: var(--text-muted); padding: 0 4px; }
+.ai-msg--user .ai-msg__bubble { background: var(--practiq-violet); color: white; border-radius: var(--radius-xl) 16px 4px 16px; }
+.ai-msg__time { font-size: var(--text-xs); color: var(--text-muted); padding: 0 4px; }
 
 .ai-typing {
   display: flex;
@@ -1039,10 +1172,10 @@ function formatTime(iso: string) {
   flex: 1;
   min-width: 0;
   padding: 7px 8px;
-  border-radius: 10px;
+  border-radius: var(--radius-sm);
   border: 1px solid #e8eaf0;
   background: white;
-  font-size: 12px;
+  font-size: var(--text-sm);
   font-weight: 600;
   color: var(--text-secondary);
   cursor: pointer;
@@ -1060,16 +1193,16 @@ function formatTime(iso: string) {
 .ai-input {
   flex: 1;
   padding: 10px 14px;
-  border-radius: 12px;
+  border-radius: var(--radius-md);
   border: 1.5px solid #e8eaf0;
-  font-size: 13px;
+  font-size: var(--text-base);
   outline: none;
   transition: border-color 0.2s;
 }
 .ai-input:focus { border-color: var(--practiq-violet); }
 .ai-send-btn {
   width: 40px; height: 40px;
-  border-radius: 12px;
+  border-radius: var(--radius-md);
   border: none;
   background: var(--practiq-violet);
   color: white;
@@ -1099,10 +1232,10 @@ function formatTime(iso: string) {
   align-items: center;
   gap: 6px;
   padding: 8px 14px;
-  border-radius: 10px;
+  border-radius: var(--radius-sm);
   border: 1px solid #e8eaf0;
   background: white;
-  font-size: 13px;
+  font-size: var(--text-base);
   font-weight: 600;
   color: var(--text-secondary);
   cursor: pointer;
@@ -1125,18 +1258,18 @@ function formatTime(iso: string) {
   align-items: center;
   gap: 2px;
   padding: 6px 12px;
-  border-radius: 10px;
+  border-radius: var(--radius-sm);
   border: none;
   background: transparent;
   color: var(--text-secondary);
-  font-size: 11px;
+  font-size: var(--text-xs);
   cursor: pointer;
   transition: all 0.15s;
 }
 .draw-tool .pi { font-size: 16px; }
 .draw-tool:hover { background: #f3f4f6; color: var(--text-primary); }
 .draw-tool.active { background: rgba(124,58,237,0.1); color: var(--practiq-violet); }
-.draw-tool--danger:hover { background: rgba(239,68,68,0.08); color: #dc2626; }
+.draw-tool--danger:hover { background: rgba(239,68,68,0.08); color: var(--color-error-dark); }
 .draw-tool:disabled { opacity: 0.4; cursor: not-allowed; }
 
 .submit-btn {
@@ -1144,11 +1277,11 @@ function formatTime(iso: string) {
   align-items: center;
   gap: 8px;
   padding: 10px 22px;
-  border-radius: 14px;
+  border-radius: var(--radius-lg);
   border: none;
   background: var(--practiq-violet);
   color: white;
-  font-size: 14px;
+  font-size: var(--text-md);
   font-weight: 700;
   cursor: pointer;
   transition: all 0.2s;
@@ -1183,19 +1316,19 @@ function formatTime(iso: string) {
 }
 .nav-btn:hover:not(:disabled) { border-color: var(--practiq-violet); color: var(--practiq-violet); }
 .nav-btn:disabled { opacity: 0.35; cursor: not-allowed; }
-.nav-label { font-size: 14px; font-weight: 600; color: var(--text-secondary); min-width: 50px; text-align: center; }
+.nav-label { font-size: var(--text-md); font-weight: 600; color: var(--text-secondary); min-width: 50px; text-align: center; }
 
 /* ── Shared button ───────────────────────────────────────────────── */
 .icon-btn {
   width: 36px; height: 36px;
-  border-radius: 10px;
+  border-radius: var(--radius-sm);
   border: 1px solid #e8eaf0;
   background: white;
   color: var(--text-secondary);
   display: grid; place-items: center;
   cursor: pointer;
   transition: all 0.15s;
-  font-size: 15px;
+  font-size: var(--text-lg);
   flex-shrink: 0;
 }
 .icon-btn:hover { border-color: var(--practiq-violet); color: var(--practiq-violet); }
@@ -1204,7 +1337,7 @@ function formatTime(iso: string) {
 /* ── Summary modal ───────────────────────────────────────────────── */
 .summary-box {
   background: white;
-  border-radius: 24px;
+  border-radius: var(--radius-2xl);
   padding: 28px;
   width: 100%;
   max-width: 380px;
@@ -1222,9 +1355,9 @@ function formatTime(iso: string) {
 }
 .summary-dot {
   width: 42px; height: 42px;
-  border-radius: 12px;
+  border-radius: var(--radius-md);
   display: grid; place-items: center;
-  font-size: 14px; font-weight: 700;
+  font-size: var(--text-md); font-weight: 700;
   background: #f3f4f6;
   color: var(--text-secondary);
   cursor: pointer;
@@ -1247,11 +1380,11 @@ function formatTime(iso: string) {
 .result-icon { font-size: 56px; margin-bottom: 12px; }
 .result-score { font-size: 52px; font-weight: 900; color: var(--practiq-violet); line-height: 1; margin-bottom: 6px; }
 .result-label { font-size: 16px; color: var(--text-secondary); margin-bottom: 24px; }
-.result-mastery { background: var(--surface-hover); border-radius: 16px; padding: 16px; margin-bottom: 16px; }
-.result-mastery-label { font-size: 13px; font-weight: 600; color: var(--text-secondary); }
+.result-mastery { background: var(--surface-hover); border-radius: var(--radius-xl); padding: 16px; margin-bottom: 16px; }
+.result-mastery-label { font-size: var(--text-base); font-weight: 600; color: var(--text-secondary); }
 .result-mastery-value { font-size: 22px; font-weight: 800; color: var(--text-primary); }
-.result-levelup { background: rgba(250,204,21,0.12); border: 1px solid rgba(250,204,21,0.3); border-radius: 12px; padding: 12px; font-weight: 700; color: #92400e; margin-bottom: 12px; }
-.result-rec { font-size: 14px; color: var(--text-secondary); line-height: 1.6; margin-bottom: 24px; }
+.result-levelup { background: rgba(250,204,21,0.12); border: 1px solid rgba(250,204,21,0.3); border-radius: var(--radius-md); padding: 12px; font-weight: 700; color: var(--color-warning-dark); margin-bottom: 12px; }
+.result-rec { font-size: var(--text-md); color: var(--text-secondary); line-height: 1.6; margin-bottom: 24px; }
 .result-actions { display: flex; gap: 12px; }
 .result-actions .btn { flex: 1; justify-content: center; }
 
@@ -1267,7 +1400,7 @@ function formatTime(iso: string) {
   .ex-row { padding: 16px; gap: 10px; }
   .ex-question-text { font-size: 16px; }
   .ex-answer-area { width: 160px; }
-  .ex-input { font-size: 15px; }
+  .ex-input { font-size: var(--text-lg); }
   .ai-panel--open { width: 100%; position: absolute; top: 60px; right: 0; bottom: 120px; z-index: 20; }
   .toolbar-draw-tools { gap: 0; }
   .draw-tool span { display: none; }

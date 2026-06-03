@@ -186,7 +186,7 @@ function goLevelTest(sheet: LevelSheetSummary) {
   gap: 16px;
   padding: 20px 24px;
   background: rgba(255,255,255,0.92);
-  border-radius: 20px;
+  border-radius: var(--radius-2xl);
   border: 1.5px solid rgba(124, 58, 237, 0.1);
   box-shadow: 0 4px 20px rgba(124, 58, 237, 0.06);
 }
@@ -208,7 +208,7 @@ function goLevelTest(sheet: LevelSheetSummary) {
 
 .header-info { flex: 1; }
 .header-kicker {
-  font-size: 11px;
+  font-size: var(--text-xs);
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.1em;
@@ -228,7 +228,7 @@ function goLevelTest(sheet: LevelSheetSummary) {
   align-items: center;
   padding: 10px 20px;
   background: linear-gradient(135deg, #8b5cf6, #6366f1);
-  border-radius: 16px;
+  border-radius: var(--radius-xl);
   color: #fff;
   flex-shrink: 0;
 }
@@ -250,7 +250,7 @@ function goLevelTest(sheet: LevelSheetSummary) {
 
 .level-card {
   background: rgba(255,255,255,0.9);
-  border-radius: 20px;
+  border-radius: var(--radius-2xl);
   border: 1.5px solid rgba(124, 58, 237, 0.08);
   overflow: hidden;
   transition: box-shadow 0.15s;
@@ -282,7 +282,7 @@ function goLevelTest(sheet: LevelSheetSummary) {
 .lc-num {
   width: 44px;
   height: 44px;
-  border-radius: 14px;
+  border-radius: var(--radius-lg);
   background: linear-gradient(135deg, #8b5cf6, #6366f1);
   color: #fff;
   font-size: 1.3rem;
@@ -295,7 +295,7 @@ function goLevelTest(sheet: LevelSheetSummary) {
 }
 .lc-num--locked {
   background: rgba(148, 163, 184, 0.2);
-  color: #94a3b8;
+  color: var(--text-muted);
   box-shadow: none;
 }
 
@@ -311,13 +311,13 @@ function goLevelTest(sheet: LevelSheetSummary) {
 .status-tag {
   display: inline-block;
   padding: 2px 10px;
-  border-radius: 99px;
-  font-size: 11px;
+  border-radius: var(--radius-pill);
+  font-size: var(--text-xs);
   font-weight: 700;
 }
-.status-tag--locked { background: rgba(148,163,184,0.15); color: #94a3b8; }
+.status-tag--locked { background: rgba(148,163,184,0.15); color: var(--text-muted); }
 .status-tag--active { background: rgba(124,58,237,0.1); color: var(--practiq-violet); }
-.status-tag--done { background: rgba(16,185,129,0.1); color: #059669; }
+.status-tag--done { background: rgba(16,185,129,0.1); color: var(--color-success-dark); }
 
 .lc-current-indicator {
   display: flex;
@@ -328,7 +328,7 @@ function goLevelTest(sheet: LevelSheetSummary) {
   color: var(--practiq-violet);
   background: rgba(124,58,237,0.08);
   padding: 6px 12px;
-  border-radius: 10px;
+  border-radius: var(--radius-sm);
   flex-shrink: 0;
 }
 
@@ -350,12 +350,12 @@ function goLevelTest(sheet: LevelSheetSummary) {
   display: flex;
   align-items: center;
   gap: 6px;
-  font-size: 11px;
+  font-size: var(--text-xs);
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.07em;
 }
-.lc-section-label--practice { color: #059669; }
+.lc-section-label--practice { color: var(--color-success-dark); }
 .lc-section-label--notebook { color: #7c3aed; }
 .lc-section-label--test     { color: #d97706; }
 
@@ -370,7 +370,7 @@ function goLevelTest(sheet: LevelSheetSummary) {
   align-items: center;
   justify-content: space-between;
   padding: 12px 14px;
-  border-radius: 12px;
+  border-radius: var(--radius-md);
   border: 1.5px solid transparent;
   background: rgba(248,250,252,0.8);
   cursor: pointer;
@@ -430,7 +430,7 @@ function goLevelTest(sheet: LevelSheetSummary) {
 }
 
 .lc-item-arrow {
-  font-size: 12px;
+  font-size: var(--text-sm);
   color: var(--text-secondary);
   flex-shrink: 0;
   margin-left: 8px;
@@ -441,8 +441,8 @@ function goLevelTest(sheet: LevelSheetSummary) {
   align-items: center;
   gap: 8px;
   padding: 8px 16px;
-  border-radius: 10px;
-  background: linear-gradient(135deg, #f59e0b, #d97706);
+  border-radius: var(--radius-sm);
+  background: linear-gradient(135deg, var(--color-warning), #d97706);
   color: #fff;
   font-size: 0.82rem;
   font-weight: 700;
@@ -462,6 +462,6 @@ function goLevelTest(sheet: LevelSheetSummary) {
   gap: 8px;
   padding: 14px 20px;
   font-size: 0.85rem;
-  color: #94a3b8;
+  color: var(--text-muted);
 }
 </style>

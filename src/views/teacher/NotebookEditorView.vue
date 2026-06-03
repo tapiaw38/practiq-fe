@@ -34,7 +34,10 @@
             <span class="sidebar-num">{{ idx + 1 }}</span>
             <div class="sidebar-info">
               <div class="sidebar-pg-title">{{ page.title || 'Sin título' }}</div>
-              <div class="sidebar-pg-type">{{ page.content_type === 'canvas' ? '🖼 Imagen' : '📝 Texto' }}</div>
+              <div class="sidebar-pg-type">
+                <i :class="page.content_type === 'canvas' ? 'pi pi-image' : 'pi pi-align-left'"></i>
+                {{ page.content_type === 'canvas' ? 'Imagen' : 'Texto' }}
+              </div>
             </div>
           </div>
         </aside>
@@ -42,7 +45,7 @@
         <!-- Editor main -->
         <div class="editor-main">
           <div v-if="pages.length === 0" class="editor-empty">
-            <div class="empty-icon">📓</div>
+            <div class="empty-icon"><i class="pi pi-book"></i></div>
             <p>Agrega la primera página usando el botón de arriba.</p>
           </div>
 
@@ -56,8 +59,8 @@
                 @blur="savePage"
               />
               <select v-model="currentPage.content_type" class="type-select" @change="savePage">
-                <option value="canvas">🖼 Imagen (dibujo)</option>
-                <option value="text">📝 Texto</option>
+                <option value="canvas">Imagen / Dibujo</option>
+                <option value="text">Texto</option>
               </select>
             </div>
 
@@ -144,8 +147,8 @@
               <div class="form-group">
                 <label class="form-label">Tipo de contenido</label>
                 <select v-model="newPage.content_type" class="form-input">
-                  <option value="canvas">🖼 Imagen / Dibujo</option>
-                  <option value="text">📝 Texto</option>
+                  <option value="canvas">Imagen / Dibujo</option>
+                  <option value="text">Texto</option>
                 </select>
               </div>
               <div class="form-group">
@@ -419,7 +422,7 @@ function clearCanvas() {
 .pages-sidebar {
   background: rgba(255,255,255,0.88);
   backdrop-filter: blur(12px);
-  border-radius: 16px;
+  border-radius: var(--radius-xl);
   border: 1.5px solid rgba(124, 58, 237, 0.1);
   padding: 16px 12px;
   display: flex;
@@ -451,7 +454,7 @@ function clearCanvas() {
   align-items: center;
   gap: 10px;
   padding: 10px 10px;
-  border-radius: 10px;
+  border-radius: var(--radius-sm);
   cursor: pointer;
   transition: background 0.15s;
 }
@@ -461,7 +464,7 @@ function clearCanvas() {
 .sidebar-num {
   width: 28px;
   height: 28px;
-  border-radius: 8px;
+  border-radius: var(--radius-sm);
   background: var(--practiq-violet);
   color: #fff;
   font-size: 0.82rem;
@@ -481,13 +484,19 @@ function clearCanvas() {
   text-overflow: ellipsis;
   max-width: 130px;
 }
-.sidebar-pg-type { font-size: 0.75rem; color: var(--text-secondary); }
+.sidebar-pg-type {
+  font-size: 0.75rem;
+  color: var(--text-secondary);
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
 
 /* Editor main */
 .editor-main {
   background: rgba(255,255,255,0.92);
   backdrop-filter: blur(12px);
-  border-radius: 20px;
+  border-radius: var(--radius-2xl);
   border: 1.5px solid rgba(124, 58, 237, 0.1);
   padding: 24px 28px;
   display: flex;
@@ -501,7 +510,17 @@ function clearCanvas() {
   padding: 64px 24px;
   color: var(--text-secondary);
 }
-.empty-icon { font-size: 3rem; margin-bottom: 12px; }
+.empty-icon {
+  width: 56px;
+  height: 56px;
+  border-radius: 18px;
+  background: rgba(124,58,237,0.08);
+  color: var(--practiq-violet);
+  font-size: 24px;
+  display: grid;
+  place-items: center;
+  margin: 0 auto 12px;
+}
 
 .page-meta-bar {
   display: flex;
@@ -512,7 +531,7 @@ function clearCanvas() {
 .page-title-input {
   flex: 1;
   padding: 10px 14px;
-  border-radius: 10px;
+  border-radius: var(--radius-sm);
   border: 1.5px solid rgba(124, 58, 237, 0.15);
   font-size: 1rem;
   font-weight: 600;
@@ -524,7 +543,7 @@ function clearCanvas() {
 
 .type-select {
   padding: 10px 12px;
-  border-radius: 10px;
+  border-radius: var(--radius-sm);
   border: 1.5px solid rgba(124, 58, 237, 0.15);
   font-size: 0.9rem;
   color: var(--text-primary);
@@ -547,7 +566,7 @@ function clearCanvas() {
   flex-wrap: wrap;
   padding: 10px 14px;
   background: rgba(245, 243, 255, 0.8);
-  border-radius: 12px;
+  border-radius: var(--radius-md);
 }
 
 .tool-btn {
@@ -555,7 +574,7 @@ function clearCanvas() {
   align-items: center;
   gap: 6px;
   padding: 7px 12px;
-  border-radius: 8px;
+  border-radius: var(--radius-sm);
   border: 1.5px solid rgba(124, 58, 237, 0.15);
   background: rgba(255,255,255,0.8);
   cursor: pointer;
@@ -569,7 +588,7 @@ function clearCanvas() {
 .color-picker {
   width: 36px;
   height: 36px;
-  border-radius: 8px;
+  border-radius: var(--radius-sm);
   border: 1.5px solid rgba(124, 58, 237, 0.15);
   padding: 2px;
   cursor: pointer;
@@ -583,16 +602,16 @@ function clearCanvas() {
 .current-image-preview {
   padding: 12px;
   background: #f8f7ff;
-  border-radius: 12px;
+  border-radius: var(--radius-md);
   border: 1.5px dashed rgba(124, 58, 237, 0.2);
 }
 .preview-label { font-size: 0.78rem; color: var(--text-secondary); margin-bottom: 8px; }
-.preview-img { max-height: 120px; border-radius: 8px; }
+.preview-img { max-height: 120px; border-radius: var(--radius-sm); }
 
 .editor-canvas {
   width: 100%;
   height: 400px;
-  border-radius: 12px;
+  border-radius: var(--radius-md);
   border: 1.5px solid rgba(124, 58, 237, 0.15);
   background: #fff;
   display: block;
@@ -603,7 +622,7 @@ function clearCanvas() {
 .text-area {
   width: 100%;
   padding: 16px;
-  border-radius: 12px;
+  border-radius: var(--radius-md);
   border: 1.5px solid rgba(124, 58, 237, 0.15);
   font-size: 1rem;
   line-height: 1.7;
@@ -630,7 +649,7 @@ function clearCanvas() {
 }
 .inst-input {
   padding: 10px 14px;
-  border-radius: 10px;
+  border-radius: var(--radius-sm);
   border: 1.5px solid rgba(124, 58, 237, 0.12);
   font-size: 0.9rem;
   color: var(--text-primary);
@@ -659,7 +678,7 @@ function clearCanvas() {
 }
 .modal-box {
   background: white;
-  border-radius: 20px;
+  border-radius: var(--radius-2xl);
   padding: 28px 32px;
   width: 420px;
   max-width: 95vw;
@@ -676,7 +695,7 @@ function clearCanvas() {
 .form-input {
   width: 100%;
   padding: 10px 14px;
-  border-radius: 10px;
+  border-radius: var(--radius-sm);
   border: 1.5px solid var(--surface-border);
   font-size: 0.95rem;
   outline: none;
@@ -686,7 +705,7 @@ function clearCanvas() {
 .modal-actions { display: flex; gap: 10px; justify-content: flex-end; margin-top: 20px; }
 
 /* Buttons (local) */
-.btn { padding: 9px 18px; border-radius: 10px; border: none; font-size: 0.9rem; font-weight: 600; cursor: pointer; }
+.btn { padding: 9px 18px; border-radius: var(--radius-sm); border: none; font-size: 0.9rem; font-weight: 600; cursor: pointer; }
 .btn-primary { background: var(--practiq-violet); color: #fff; }
 .btn-primary:hover { opacity: 0.9; }
 .btn-secondary { background: var(--surface-hover); color: var(--text-primary); }

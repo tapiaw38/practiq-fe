@@ -189,6 +189,11 @@ import { useAuthStore } from '@/stores/authStore'
 import StudentLayout from '@/layouts/StudentLayout.vue'
 import { practiceSheetService } from '@/services/practiceSheets/practiceSheetService'
 import type { PracticeSheet, SubmitResult } from '@/types'
+import {
+  composeTeacherAndStudentImage,
+  extractTeacherImageDataUrl,
+  summarizeExerciseMetadata
+} from '@/utils/assistantExerciseContext'
 
 const route = useRoute()
 const router = useRouter()
@@ -261,6 +266,8 @@ onMounted(async () => {
 
 onUnmounted(() => {
   clearInterval(timerInterval)
+  delete window.__practiqAssistantCapture
+  delete window.__practiqAssistantContext
 })
 
 function startTimer() {
@@ -488,6 +495,100 @@ function buildCanvasDataForOCR(exerciseId: string) {
   return out.toDataURL('image/jpeg', 0.92)
 }
 
+function getAssistantExerciseId() {
+  if (activeCanvasId.value && answers.value[activeCanvasId.value]?.answer) {
+    return activeCanvasId.value
+  }
+
+  const answeredId = Object.entries(answers.value).find(([, data]) =>
+    data.answer?.startsWith('data:image/')
+  )?.[0]
+  if (answeredId) return answeredId
+
+  return sheet.value?.exercises?.[currentIdx.value]?.exercise.id || ''
+}
+
+function getAssistantExerciseIndex(exerciseId: string) {
+  return sheet.value?.exercises.findIndex((pse) => pse.exercise.id === exerciseId) ?? -1
+}
+
+window.__practiqAssistantContext = () => {
+  if (!sheet.value) return null
+
+  const activeExerciseId = getAssistantExerciseId()
+  const activeExerciseIndex = getAssistantExerciseIndex(activeExerciseId)
+  const activeExercise =
+    activeExerciseIndex >= 0 ? sheet.value.exercises[activeExerciseIndex]?.exercise : null
+
+  return {
+    current_view: 'student_practice',
+    activity_type: 'practice_sheet',
+    sheet_id: sheet.value.id,
+    sheet_title: sheet.value.title,
+    level: sheet.value.level,
+    response_mode: 'canvas',
+    exercise_count: sheet.value.exercises.length,
+    active_exercise: activeExercise
+      ? {
+          id: activeExercise.id,
+          number: activeExerciseIndex + 1,
+          type: activeExercise.type,
+          difficulty: activeExercise.difficulty,
+          question: activeExercise.question,
+          has_teacher_image: !!extractTeacherImageDataUrl(activeExercise),
+          metadata_summary: JSON.stringify(summarizeExerciseMetadata(activeExercise) || {})
+        }
+      : null,
+    exercise_list: sheet.value.exercises.map((pse, idx) => ({
+      id: pse.exercise.id,
+      number: idx + 1,
+      type: pse.exercise.type,
+      difficulty: pse.exercise.difficulty,
+      question: pse.exercise.question,
+      has_teacher_image: !!extractTeacherImageDataUrl(pse.exercise)
+    })),
+    answered_exercise_ids: Object.entries(answers.value)
+      .filter(([, data]) => !!data.answer)
+      .map(([exerciseId]) => exerciseId)
+  }
+}
+
+window.__practiqAssistantCapture = async () => {
+  const exerciseId = getAssistantExerciseId()
+  if (!exerciseId) return null
+  const exerciseIndex = getAssistantExerciseIndex(exerciseId)
+  const exercise =
+    exerciseIndex >= 0 ? sheet.value?.exercises?.[exerciseIndex]?.exercise : null
+
+  const studentDataUrl = buildCanvasDataForOCR(exerciseId)
+  const teacherDataUrl = extractTeacherImageDataUrl(exercise)
+  let dataUrl = studentDataUrl
+
+  if (teacherDataUrl && studentDataUrl) {
+    try {
+      dataUrl = await composeTeacherAndStudentImage({
+        teacherDataUrl,
+        studentDataUrl,
+        teacherLabel: 'Consigna del docente',
+        studentLabel: 'Respuesta del alumno'
+      })
+    } catch (error) {
+      console.error('[practice-view] failed to compose teacher and student images', error)
+      dataUrl = teacherDataUrl || studentDataUrl
+    }
+  } else if (teacherDataUrl) {
+    dataUrl = teacherDataUrl
+  }
+
+  if (!dataUrl) return null
+
+  return {
+    dataUrl,
+    filename: `practice-${exerciseId}.jpg`,
+    contentType: 'image/jpeg'
+  }
+}
+
 function closeSubmitConfirm() {
   if (submitting.value) return
   showSubmitConfirm.value = false
@@ -531,7 +632,7 @@ function scoreColor(score: number) {
   gap: 16px;
   padding: 20px 24px;
   background: rgba(255, 255, 255, 0.92);
-  border-radius: 20px;
+  border-radius: var(--radius-2xl);
   border: 1.5px solid rgba(124, 58, 237, 0.12);
   box-shadow: 0 4px 20px rgba(124, 58, 237, 0.06);
 }
@@ -556,7 +657,7 @@ function scoreColor(score: number) {
 .level-badge {
   display: inline-block;
   padding: 3px 12px;
-  border-radius: 20px;
+  border-radius: var(--radius-2xl);
   background: linear-gradient(135deg, #8b5cf6, #6366f1);
   color: #fff;
   font-size: 0.75rem;
@@ -587,7 +688,7 @@ function scoreColor(score: number) {
   align-items: center;
   gap: 8px;
   padding: 10px 16px;
-  border-radius: 14px;
+  border-radius: var(--radius-lg);
   background: rgba(245, 243, 255, 0.9);
   border: 1.5px solid rgba(124, 58, 237, 0.1);
 }
@@ -661,7 +762,7 @@ function scoreColor(score: number) {
   gap: 6px;
   padding: 10px 16px;
   background: rgba(255, 255, 255, 0.92);
-  border-radius: 14px;
+  border-radius: var(--radius-lg);
   border: 1.5px solid rgba(124, 58, 237, 0.1);
   flex-wrap: wrap;
 }
@@ -669,7 +770,7 @@ function scoreColor(score: number) {
 .tool-btn {
   width: 34px;
   height: 34px;
-  border-radius: 8px;
+  border-radius: var(--radius-sm);
   border: 1.5px solid rgba(124, 58, 237, 0.15);
   background: rgba(255, 255, 255, 0.8);
   cursor: pointer;
@@ -693,7 +794,7 @@ function scoreColor(score: number) {
 .color-picker {
   width: 34px;
   height: 34px;
-  border-radius: 8px;
+  border-radius: var(--radius-sm);
   border: 1.5px solid rgba(124, 58, 237, 0.15);
   padding: 2px;
   cursor: pointer;
@@ -724,7 +825,7 @@ function scoreColor(score: number) {
   align-items: flex-start;
   padding: 18px 20px;
   background: rgba(255, 255, 255, 0.9);
-  border-radius: 16px;
+  border-radius: var(--radius-xl);
   border: 1.5px solid rgba(124, 58, 237, 0.08);
   transition: border-color 0.15s;
 }
@@ -737,7 +838,7 @@ function scoreColor(score: number) {
 .ex-num {
   width: 32px;
   height: 32px;
-  border-radius: 10px;
+  border-radius: var(--radius-sm);
   background: rgba(124, 58, 237, 0.1);
   color: var(--practiq-violet);
   font-weight: 800;
@@ -750,7 +851,7 @@ function scoreColor(score: number) {
 
 .ex-num--done {
   background: rgba(16, 185, 129, 0.15);
-  color: #059669;
+  color: var(--color-success-dark);
 }
 
 .ex-body {
@@ -769,7 +870,7 @@ function scoreColor(score: number) {
 
 .difficulty-pill {
   padding: 3px 8px;
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   background: color-mix(in srgb, var(--difficulty-color) 12%, white);
   color: var(--difficulty-color);
   font-size: 0.75rem;
@@ -796,7 +897,7 @@ function scoreColor(score: number) {
 
 .ex-input {
   padding: 10px 14px 10px 62px;
-  border-radius: 12px;
+  border-radius: var(--radius-md);
   border: 1.5px solid rgba(124, 58, 237, 0.15);
   font-size: 1rem;
   color: var(--text-primary);
@@ -846,10 +947,10 @@ function scoreColor(score: number) {
   align-items: center;
   gap: 4px;
   padding: 4px 10px;
-  border-radius: 8px;
+  border-radius: var(--radius-sm);
   border: 1px solid rgba(239, 68, 68, 0.2);
   background: rgba(255, 255, 255, 0.9);
-  color: #ef4444;
+  color: var(--color-error);
   cursor: pointer;
   font-size: 0.78rem;
   transition: all 0.15s;
@@ -859,7 +960,7 @@ function scoreColor(score: number) {
 .ex-canvas {
   width: 100%;
   height: 240px;
-  border-radius: 12px;
+  border-radius: var(--radius-md);
   border: 1.5px solid rgba(124, 58, 237, 0.15);
   display: block;
   touch-action: none;
@@ -874,7 +975,7 @@ function scoreColor(score: number) {
   justify-content: space-between;
   padding: 14px 20px;
   background: rgba(255, 255, 255, 0.92);
-  border-radius: 16px;
+  border-radius: var(--radius-xl);
   border: 1.5px solid rgba(124, 58, 237, 0.1);
   position: sticky;
   bottom: 16px;
@@ -897,7 +998,7 @@ function scoreColor(score: number) {
   align-items: center;
   gap: 8px;
   padding: 12px 28px;
-  border-radius: 12px;
+  border-radius: var(--radius-md);
   border: none;
   background: linear-gradient(135deg, #8b5cf6, #6366f1);
   color: #fff;
@@ -931,7 +1032,7 @@ function scoreColor(score: number) {
 
 .stat-card {
   background: rgba(245, 243, 255, 0.72);
-  border-radius: 16px;
+  border-radius: var(--radius-xl);
   padding: 16px 12px;
   text-align: center;
 }
@@ -943,7 +1044,7 @@ function scoreColor(score: number) {
   gap: 12px;
   align-items: center;
   padding: 14px;
-  border-radius: 16px;
+  border-radius: var(--radius-xl);
   background: rgba(248, 250, 252, 0.9);
 }
 .rec-icon { font-size: 24px; }
@@ -951,7 +1052,7 @@ function scoreColor(score: number) {
 .results-ai-feedback {
   margin-top: 10px;
   padding: 12px 14px;
-  border-radius: 14px;
+  border-radius: var(--radius-lg);
   background: rgba(250, 245, 255, 0.92);
   color: #5b21b6;
   font-size: 0.9rem;
@@ -960,9 +1061,9 @@ function scoreColor(score: number) {
 .level-up-badge {
   margin-top: 12px;
   padding: 12px 16px;
-  border-radius: 14px;
+  border-radius: var(--radius-lg);
   background: rgba(16, 185, 129, 0.1);
-  color: #047857;
+  color: var(--color-success-dark);
   font-weight: 700;
   text-align: center;
 }

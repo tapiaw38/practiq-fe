@@ -38,9 +38,9 @@
                 <i class="pi pi-play-circle"></i>
                 Continuar práctica
               </button>
-              <button class="btn btn-secondary welcome-btn" @click="scrollToCourses">
-                <i class="pi pi-bolt"></i>
-                Practicar con mi copiloto
+              <button class="btn btn-secondary welcome-btn" @click="showAssistant = true">
+                <i class="pi pi-comments"></i>
+                Practicar con mi asistente
               </button>
             </div>
         </section>
@@ -151,6 +151,12 @@
       <img src="@/assets/backpack.png" class="dashboard-mascot" alt="" aria-hidden="true" />
     </div>
   </StudentLayout>
+
+  <AssistantChatModal
+    :show="showAssistant"
+    :student-context="assistantContext"
+    @close="showAssistant = false"
+  />
 </template>
 
 <script setup lang="ts">
@@ -158,6 +164,7 @@ import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/authStore'
 import StudentLayout from '@/layouts/StudentLayout.vue'
+import AssistantChatModal from '@/components/AssistantChatModal.vue'
 import { courseService } from '@/services/courses/courseService'
 import { practiceSheetService } from '@/services/practiceSheets/practiceSheetService'
 import { notebookService } from '@/services/notebooks/notebookService'
@@ -174,6 +181,7 @@ const courseSheets = ref<Record<string, PracticeSheet[]>>({})
 const courseNotebooks = ref<Record<string, Notebook[]>>({})
 const courseCurrentLevel = ref<Record<string, number>>({})
 const loading = ref(true)
+const showAssistant = ref(false)
 
 const firstName = computed(() => {
   const name = authStore.profile?.name || ''
@@ -223,6 +231,22 @@ const goalProgress = computed(() =>
     ? Math.min(100, Math.round((totalCorrect.value / totalAttempts.value) * 100))
     : 0
 )
+
+const assistantContext = computed(() => ({
+  studentName: authStore.profile?.name,
+  courses: courses.value.map(c => ({
+    title: c.title,
+    subject: c.subject_name || c.subject || '',
+    grade: c.grade_name || '',
+    currentLevel: courseCurrentLevel.value[c.id] ?? 1,
+  })),
+  topicProgress: groupedProgress.value.map(p => ({
+    topic: p.topic_title,
+    mastery: p.mastery_score,
+    level: p.current_level,
+    streak: p.streak_days,
+  })),
+}))
 const featuredSheetId = computed(() => {
   for (const course of courses.value) {
     const firstSheet = courseSheets.value[course.id]?.[0]
@@ -346,7 +370,7 @@ function scrollToCourses() {
 
 .welcome-kicker,
 .section-kicker {
-  font-size: 11px;
+  font-size: var(--text-xs);
   text-transform: uppercase;
   letter-spacing: 0.14em;
   font-weight: 700;
@@ -364,7 +388,7 @@ function scrollToCourses() {
 
 .welcome-subtitle {
   max-width: 560px;
-  font-size: 14px;
+  font-size: var(--text-md);
   color: var(--text-secondary);
   line-height: 1.65;
   margin-bottom: 20px;
@@ -373,7 +397,7 @@ function scrollToCourses() {
 .welcome-topic-card {
   background: rgba(255, 255, 255, 0.85);
   border: 1px solid rgba(255, 255, 255, 0.95);
-  border-radius: 18px;
+  border-radius: var(--radius-xl);
   padding: 16px 20px;
   margin-bottom: 18px;
   max-width: 600px;
@@ -388,7 +412,7 @@ function scrollToCourses() {
 }
 
 .topic-card__label {
-  font-size: 11px;
+  font-size: var(--text-xs);
   color: var(--text-muted);
   margin-bottom: 2px;
   text-transform: uppercase;
@@ -403,10 +427,10 @@ function scrollToCourses() {
 
 .topic-card__level {
   padding: 5px 12px;
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   background: rgba(124, 58, 237, 0.1);
   color: var(--practiq-violet-dark);
-  font-size: 12px;
+  font-size: var(--text-sm);
   font-weight: 700;
   flex-shrink: 0;
 }
@@ -418,7 +442,7 @@ function scrollToCourses() {
 .topic-progress-meta {
   display: flex;
   justify-content: space-between;
-  font-size: 12px;
+  font-size: var(--text-sm);
   color: var(--text-secondary);
 }
 
@@ -430,8 +454,8 @@ function scrollToCourses() {
 
 .welcome-btn {
   min-height: 44px;
-  border-radius: 14px;
-  font-size: 14px;
+  border-radius: var(--radius-lg);
+  font-size: var(--text-md);
 }
 
 /* ── Metrics row ── */
@@ -447,7 +471,7 @@ function scrollToCourses() {
   align-items: center;
   gap: 14px;
   padding: 18px 22px;
-  border-radius: 20px;
+  border-radius: var(--radius-2xl);
   background: rgba(255, 255, 255, 0.85);
   border: 1px solid rgba(255, 255, 255, 0.92);
   box-shadow: 0 8px 24px rgba(93, 108, 146, 0.08);
@@ -462,7 +486,7 @@ function scrollToCourses() {
 .metric-card__icon {
   width: 48px;
   height: 48px;
-  border-radius: 16px;
+  border-radius: var(--radius-xl);
   display: grid;
   place-items: center;
   font-size: 22px;
@@ -481,7 +505,7 @@ function scrollToCourses() {
 }
 
 .metric-card__label {
-  font-size: 13px;
+  font-size: var(--text-base);
   color: var(--text-secondary);
   margin-top: 3px;
 }
@@ -499,7 +523,7 @@ function scrollToCourses() {
 }
 
 .metric-goal-count {
-  font-size: 13px;
+  font-size: var(--text-base);
   font-weight: 700;
   color: var(--text-primary);
 }
@@ -533,7 +557,7 @@ function scrollToCourses() {
 
 .mastery-card {
   padding: 18px 20px;
-  border-radius: 20px;
+  border-radius: var(--radius-2xl);
   background: rgba(255, 255, 255, 0.85);
   border: 1px solid rgba(255, 255, 255, 0.92);
   box-shadow: 0 6px 20px rgba(93, 108, 146, 0.08);
@@ -550,17 +574,17 @@ function scrollToCourses() {
 }
 
 .mastery-topic {
-  font-size: 15px;
+  font-size: var(--text-lg);
   font-weight: 700;
   color: var(--text-primary);
 }
 
 .mastery-level {
   padding: 4px 10px;
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   background: rgba(124, 58, 237, 0.08);
   color: var(--practiq-violet-dark);
-  font-size: 11px;
+  font-size: var(--text-xs);
   font-weight: 700;
   flex-shrink: 0;
 }
@@ -568,7 +592,7 @@ function scrollToCourses() {
 .mastery-meta {
   display: flex;
   justify-content: space-between;
-  font-size: 12px;
+  font-size: var(--text-sm);
   color: var(--text-secondary);
   margin-top: 8px;
 }
@@ -578,14 +602,14 @@ function scrollToCourses() {
   text-align: center;
   padding: 64px 20px;
   background: rgba(255, 255, 255, 0.6);
-  border-radius: 24px;
+  border-radius: var(--radius-2xl);
   border: 1px dashed var(--surface-border);
   color: var(--text-secondary);
 }
 
 .empty-icon { font-size: 48px; margin-bottom: 14px; }
 .empty-state h3 { font-size: 17px; font-weight: 700; color: var(--text-primary); margin-bottom: 8px; }
-.empty-state p { font-size: 14px; }
+.empty-state p { font-size: var(--text-md); }
 
 .courses-grid {
   display: grid;
@@ -595,7 +619,7 @@ function scrollToCourses() {
 
 .course-card {
   padding: 24px;
-  border-radius: 24px;
+  border-radius: var(--radius-2xl);
   background: rgba(255, 255, 255, 0.85);
   border: 1px solid rgba(255, 255, 255, 0.92);
   box-shadow: 0 8px 28px rgba(93, 108, 146, 0.08);
@@ -614,10 +638,10 @@ function scrollToCourses() {
 .course-subject {
   display: inline-flex;
   padding: 5px 12px;
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   background: rgba(124, 58, 237, 0.1);
   color: var(--practiq-violet-dark);
-  font-size: 12px;
+  font-size: var(--text-sm);
   font-weight: 700;
   text-transform: capitalize;
 }
@@ -635,7 +659,7 @@ function scrollToCourses() {
   align-items: center;
   gap: 0;
   background: rgba(248, 250, 252, 0.8);
-  border-radius: 14px;
+  border-radius: var(--radius-lg);
   padding: 14px 0;
 }
 
@@ -655,7 +679,7 @@ function scrollToCourses() {
 }
 
 .course-stat__label {
-  font-size: 11px;
+  font-size: var(--text-xs);
   color: var(--text-muted);
   font-weight: 600;
   text-transform: uppercase;
@@ -674,11 +698,11 @@ function scrollToCourses() {
   justify-content: center;
   gap: 7px;
   padding: 11px 16px;
-  border-radius: 12px;
+  border-radius: var(--radius-md);
   border: 1.5px solid rgba(124, 58, 237, 0.2);
   background: rgba(245, 243, 255, 0.8);
   color: var(--practiq-violet);
-  font-size: 13px;
+  font-size: var(--text-base);
   font-weight: 700;
   cursor: pointer;
   transition: var(--transition);

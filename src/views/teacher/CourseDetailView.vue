@@ -458,7 +458,7 @@
               <div class="form-group">
                 <label class="form-label">Tipo</label>
                 <select v-model="newSheet.sheet_type" class="form-input">
-                  <option value="practice">📝 Hoja de Práctica</option>
+                  <option value="practice">Hoja de Práctica</option>
                   <option value="level_test">🏆 Prueba de Nivel</option>
                 </select>
               </div>
@@ -516,7 +516,7 @@
               <div class="form-group">
                 <label class="form-label">Tipo</label>
                 <select v-model="editSheet.sheet_type" class="form-select">
-                  <option value="practice">📝 Hoja de Práctica</option>
+                  <option value="practice">Hoja de Práctica</option>
                   <option value="level_test">🏆 Prueba de Nivel</option>
                 </select>
               </div>
@@ -999,7 +999,7 @@ async function deleteNotebook(id: string) {
   padding: 10px 18px;
   background: none;
   border: none;
-  font-size: 13px;
+  font-size: var(--text-base);
   font-weight: 500;
   color: var(--text-secondary);
   cursor: pointer;
@@ -1016,12 +1016,12 @@ async function deleteNotebook(id: string) {
 @keyframes fade-in { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; } }
 .section-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; gap: 16px; }
 .section-header h2 { font-size: 17px; font-weight: 600; }
-.section-copy { margin: 6px 0 0; font-size: 13px; color: var(--text-secondary); line-height: 1.5; }
+.section-copy { margin: 6px 0 0; font-size: var(--text-base); color: var(--text-secondary); line-height: 1.5; }
 .levels-grid { display: grid; gap: 16px; }
 .teacher-level-card {
   background: linear-gradient(180deg, rgba(255,255,255,0.98), rgba(248,250,252,0.94));
   border: 1px solid rgba(148,163,184,0.16);
-  border-radius: 20px;
+  border-radius: var(--radius-2xl);
   padding: 20px;
   display: grid;
   gap: 16px;
@@ -1032,7 +1032,7 @@ async function deleteNotebook(id: string) {
 .teacher-level-card__top { justify-content: space-between; align-items: flex-start; gap: 16px; }
 .teacher-level-actions { gap: 10px; flex-wrap: wrap; }
 .teacher-level-label { font-size: 18px; font-weight: 800; color: var(--text-primary); }
-.teacher-level-meta { margin-top: 6px; color: var(--text-secondary); font-size: 13px; }
+.teacher-level-meta { margin-top: 6px; color: var(--text-secondary); font-size: var(--text-base); }
 .teacher-level-sections { gap: 14px; flex-wrap: wrap; }
 .teacher-level-block {
   flex: 1 1 220px;
@@ -1040,25 +1040,25 @@ async function deleteNotebook(id: string) {
   padding: 14px 16px;
   background: rgba(248,250,252,0.9);
   border: 1px solid rgba(148,163,184,0.14);
-  border-radius: 16px;
+  border-radius: var(--radius-xl);
 }
-.teacher-level-block__title { font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; color: #64748b; margin-bottom: 10px; }
+.teacher-level-block__title { font-size: var(--text-sm); font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-secondary); margin-bottom: 10px; }
 .mini-list { display: grid; gap: 8px; }
 .mini-item {
   display: flex;
   flex-direction: column;
   gap: 3px;
   padding: 10px 12px;
-  border-radius: 12px;
+  border-radius: var(--radius-md);
   border: 1px solid rgba(148,163,184,0.12);
   background: white;
   text-align: left;
 }
-.mini-item span { font-size: 14px; font-weight: 700; color: var(--text-primary); }
-.mini-item small { font-size: 12px; color: var(--text-secondary); }
+.mini-item span { font-size: var(--text-md); font-weight: 700; color: var(--text-primary); }
+.mini-item small { font-size: var(--text-sm); color: var(--text-secondary); }
 .mini-item--link { cursor: pointer; }
-.mini-empty { font-size: 13px; color: var(--text-muted); }
-.empty-inline { color: var(--text-muted); font-size: 14px; padding: 20px 0; }
+.mini-empty { font-size: var(--text-base); color: var(--text-muted); }
+.empty-inline { color: var(--text-muted); font-size: var(--text-md); padding: 20px 0; }
 .items-list { display: flex; flex-direction: column; gap: 8px; }
 .list-item {
   background: white;
@@ -1083,23 +1083,23 @@ async function deleteNotebook(id: string) {
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 12px;
+  font-size: var(--text-sm);
   font-weight: 700;
   flex-shrink: 0;
 }
-.item-title { font-size: 14px; font-weight: 600; color: var(--text-primary); }
+.item-title { font-size: var(--text-md); font-weight: 600; color: var(--text-primary); }
 .item-title--with-badge { display: inline-flex; align-items: center; gap: 8px; flex-wrap: wrap; }
-.item-subtitle { font-size: 12px; color: var(--text-secondary); margin-top: 2px; }
+.item-subtitle { font-size: var(--text-sm); color: var(--text-secondary); margin-top: 2px; }
 .sheet-type-pill {
   display: inline-flex;
   align-items: center;
   padding: 3px 9px;
-  border-radius: 999px;
-  font-size: 11px;
+  border-radius: var(--radius-pill);
+  font-size: var(--text-xs);
   font-weight: 700;
   line-height: 1;
 }
-.sheet-type-pill--practice { background: rgba(37, 99, 235, 0.12); color: #1d4ed8; }
+.sheet-type-pill--practice { background: rgba(37, 99, 235, 0.12); color: var(--color-info-dark); }
 .sheet-type-pill--test { background: rgba(124, 58, 237, 0.12); color: #6d28d9; }
 .difficulty-badge {
   width: 28px;
@@ -1108,7 +1108,7 @@ async function deleteNotebook(id: string) {
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 12px;
+  font-size: var(--text-sm);
   font-weight: 700;
   flex-shrink: 0;
 }
@@ -1122,14 +1122,14 @@ async function deleteNotebook(id: string) {
   align-items: center;
   justify-content: center;
   font-weight: 700;
-  font-size: 15px;
+  font-size: var(--text-lg);
 }
 .level-badge {
   background: var(--practiq-violet-pale);
   color: var(--practiq-violet);
   padding: 4px 10px;
-  border-radius: 100px;
-  font-size: 12px;
+  border-radius: var(--radius-pill);
+  font-size: var(--text-sm);
   font-weight: 600;
 }
 .exercise-selector {
@@ -1145,7 +1145,7 @@ async function deleteNotebook(id: string) {
   gap: 8px;
   padding: 6px 4px;
   cursor: pointer;
-  font-size: 13px;
+  font-size: var(--text-base);
   color: var(--text-primary);
 }
 .modal-actions { display: flex; gap: 12px; justify-content: flex-end; margin-top: 24px; }
