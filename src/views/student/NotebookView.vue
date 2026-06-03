@@ -138,12 +138,13 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch, nextTick, onMounted } from 'vue'
+import { ref, computed, watch, nextTick, onMounted, onUnmounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/authStore'
 import StudentLayout from '@/layouts/StudentLayout.vue'
 import { notebookService } from '@/services/notebooks/notebookService'
 import type { Notebook, NotebookPage } from '@/types'
+import { composeTeacherAndStudentImage } from '@/utils/assistantExerciseContext'
 
 const route = useRoute()
 const router = useRouter()
@@ -198,6 +199,11 @@ onMounted(async () => {
     await nextTick()
     initCanvas()
   }
+})
+
+onUnmounted(() => {
+  delete window.__practiqAssistantCapture
+  delete window.__practiqAssistantContext
 })
 
 watch(currentPageIndex, async () => {
@@ -430,6 +436,85 @@ function captureCanvas(): string {
   ctx.putImageData(image, 0, 0)
 
   return out.toDataURL('image/jpeg', 0.92)
+}
+
+async function buildNotebookAssistantImage(): Promise<string> {
+  const teacherDataUrl =
+    currentPage.value?.content_type === 'canvas' && currentPage.value?.content_data
+      ? currentPage.value.content_data
+      : ''
+  const studentDataUrl = captureCanvas()
+
+  if (!teacherDataUrl) {
+    return studentDataUrl
+  }
+
+  try {
+    return await composeTeacherAndStudentImage({
+      teacherDataUrl,
+      studentDataUrl,
+      teacherLabel: 'Consigna del docente',
+      studentLabel: 'Respuesta del alumno'
+    })
+  } catch (error) {
+    console.error('[notebook-view] failed to compose teacher and student images', error)
+    return teacherDataUrl || studentDataUrl
+  }
+}
+
+window.__practiqAssistantCapture = async () => {
+  if (!currentPage.value) return null
+
+  const dataUrl = await buildNotebookAssistantImage()
+  if (!dataUrl) return null
+
+  console.log('[notebook-view] assistant capture generated', {
+    pageId: currentPage.value.id,
+    pageNumber: currentPage.value.page_number,
+    hasTeacherImage: currentPage.value.content_type === 'canvas' && !!currentPage.value.content_data,
+    dataUrlPrefix: dataUrl.slice(0, 32),
+    dataUrlLength: dataUrl.length
+  })
+
+  return {
+    dataUrl,
+    filename: `notebook-page-${currentPage.value.page_number || currentPageIndex.value + 1}.jpg`,
+    contentType: 'image/jpeg'
+  }
+}
+
+window.__practiqAssistantContext = () => {
+  if (!notebook.value || !currentPage.value) return null
+
+  return {
+    current_view: 'student_notebook',
+    activity_type: 'notebook_page',
+    notebook_id: notebook.value.id,
+    notebook_title: notebook.value.title,
+    notebook_description: notebook.value.description,
+    current_page: {
+      id: currentPage.value.id,
+      number: currentPage.value.page_number,
+      title: currentPage.value.title,
+      content_type: currentPage.value.content_type,
+      instructions: currentPage.value.instructions || '',
+      teacher_content_text:
+        currentPage.value.content_type === 'text' ? currentPage.value.content_data : '',
+      has_teacher_image:
+        currentPage.value.content_type === 'canvas' && !!currentPage.value.content_data,
+      has_student_submission: !!currentPage.value.submission,
+      ai_feedback_visible: !!currentPage.value.submission?.ai_feedback
+    },
+    page_list: pages.value.map((page) => ({
+      id: page.id,
+      number: page.page_number,
+      title: page.title,
+      content_type: page.content_type,
+      instructions: page.instructions || '',
+      teacher_content_text: page.content_type === 'text' ? page.content_data : '',
+      has_teacher_image: page.content_type === 'canvas' && !!page.content_data
+    }))
+  }
 }
 
 async function saveAndNext() {

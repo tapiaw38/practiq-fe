@@ -286,12 +286,17 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, nextTick, watch } from 'vue'
+import { ref, computed, onMounted, onUnmounted, nextTick, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/authStore'
 import { practiceSheetService } from '@/services/practiceSheets/practiceSheetService'
 import { aiService } from '@/services/ai/aiService'
 import type { PracticeSheet, PracticeSheetExercise, AIMessage, SubmitResult } from '@/types'
+import {
+  composeTeacherAndStudentImage,
+  extractTeacherImageDataUrl,
+  summarizeExerciseMetadata
+} from '@/utils/assistantExerciseContext'
 
 const route = useRoute()
 const router = useRouter()
@@ -384,6 +389,11 @@ onMounted(async () => {
     await nextTick()
     initCanvases()
   }
+})
+
+onUnmounted(() => {
+  delete window.__practiqAssistantCapture
+  delete window.__practiqAssistantContext
 })
 
 watch(activeIdx, async () => {
@@ -508,6 +518,54 @@ function captureCanvas(idx: number) {
   canvasData.value[idx] = canvas.toDataURL('image/png')
 }
 
+function buildCanvasDataForAssistant(idx: number) {
+  const source = canvasRefs.value[idx]
+  if (!source) {
+    return canvasData.value[idx] || ''
+  }
+
+  const scale = 2
+  const out = document.createElement('canvas')
+  out.width = Math.max(1, Math.floor(source.width * scale))
+  out.height = Math.max(1, Math.floor(source.height * scale))
+  const ctx = out.getContext('2d')
+  if (!ctx) {
+    return canvasData.value[idx] || ''
+  }
+
+  ctx.fillStyle = '#ffffff'
+  ctx.fillRect(0, 0, out.width, out.height)
+  ctx.imageSmoothingEnabled = false
+  ctx.drawImage(source, 0, 0, out.width, out.height)
+
+  const image = ctx.getImageData(0, 0, out.width, out.height)
+  const pixels = image.data
+  for (let i = 0; i < pixels.length; i += 4) {
+    const r = pixels[i]
+    const g = pixels[i + 1]
+    const b = pixels[i + 2]
+    const alpha = pixels[i + 3]
+
+    if (alpha < 8) {
+      pixels[i] = 255
+      pixels[i + 1] = 255
+      pixels[i + 2] = 255
+      pixels[i + 3] = 255
+      continue
+    }
+
+    const gray = 0.299 * r + 0.587 * g + 0.114 * b
+    const value = gray > 205 ? 255 : 0
+    pixels[i] = value
+    pixels[i + 1] = value
+    pixels[i + 2] = value
+    pixels[i + 3] = 255
+  }
+  ctx.putImageData(image, 0, 0)
+
+  return out.toDataURL('image/jpeg', 0.92)
+}
+
 function undoDraw() {
   const stack = undoStack.value[activeIdx.value]
   const canvas = canvasRefs.value[activeIdx.value]
@@ -539,6 +597,81 @@ function clearCanvas(idx: number) {
   saveSnapshot(idx)
   ctx.clearRect(0, 0, canvas.width, canvas.height)
   delete canvasData.value[idx]
+}
+
+function getAssistantExerciseIndex() {
+  return Math.max(0, Math.min(activeIdx.value, exercises.value.length - 1))
+}
+
+window.__practiqAssistantContext = () => {
+  const index = getAssistantExerciseIndex()
+  const exercise = exercises.value[index]?.exercise
+  if (!sheet.value || !exercise) return null
+
+  return {
+    current_view: 'student_book',
+    activity_type: 'book_sheet',
+    sheet_id: sheet.value.id,
+    sheet_title: sheet.value.title,
+    level: sheet.value.level,
+    response_mode:
+      exercise.type === 'canvas' || exercise.type === 'handwritten' ? 'canvas' : 'keyboard',
+    active_exercise: {
+      id: exercise.id,
+      number: index + 1,
+      type: exercise.type,
+      difficulty: exercise.difficulty,
+      question: exercise.question,
+      has_teacher_image: !!extractTeacherImageDataUrl(exercise),
+      metadata_summary: JSON.stringify(summarizeExerciseMetadata(exercise) || {})
+    },
+    exercise_list: exercises.value.map((item, idx) => ({
+      id: item.exercise.id,
+      number: idx + 1,
+      type: item.exercise.type,
+      difficulty: item.exercise.difficulty,
+      question: item.exercise.question,
+      has_teacher_image: !!extractTeacherImageDataUrl(item.exercise)
+    }))
+  }
+}
+
+window.__practiqAssistantCapture = async () => {
+  const index = getAssistantExerciseIndex()
+  const exercise = exercises.value[index]?.exercise
+  if (!exercise) return null
+
+  const teacherDataUrl = extractTeacherImageDataUrl(exercise)
+  const studentDataUrl =
+    exercise.type === 'canvas' || exercise.type === 'handwritten'
+      ? buildCanvasDataForAssistant(index)
+      : ''
+
+  let dataUrl = studentDataUrl
+
+  if (teacherDataUrl && studentDataUrl) {
+    try {
+      dataUrl = await composeTeacherAndStudentImage({
+        teacherDataUrl,
+        studentDataUrl,
+        teacherLabel: 'Consigna del docente',
+        studentLabel: 'Respuesta del alumno'
+      })
+    } catch (error) {
+      console.error('[book-view] failed to compose teacher and student images', error)
+      dataUrl = teacherDataUrl || studentDataUrl
+    }
+  } else if (teacherDataUrl) {
+    dataUrl = teacherDataUrl
+  }
+
+  if (!dataUrl) return null
+
+  return {
+    dataUrl,
+    filename: `book-exercise-${exercise.id}.jpg`,
+    contentType: 'image/jpeg'
+  }
 }
 
 // ── Navigation ──────────────────────────────────────────────────────

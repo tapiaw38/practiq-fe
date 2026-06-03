@@ -38,9 +38,9 @@
                 <i class="pi pi-play-circle"></i>
                 Continuar práctica
               </button>
-              <button class="btn btn-secondary welcome-btn" @click="scrollToCourses">
-                <i class="pi pi-bolt"></i>
-                Practicar con mi copiloto
+              <button class="btn btn-secondary welcome-btn" @click="showAssistant = true">
+                <i class="pi pi-comments"></i>
+                Practicar con mi asistente
               </button>
             </div>
         </section>
@@ -151,6 +151,12 @@
       <img src="@/assets/backpack.png" class="dashboard-mascot" alt="" aria-hidden="true" />
     </div>
   </StudentLayout>
+
+  <AssistantChatModal
+    :show="showAssistant"
+    :student-context="assistantContext"
+    @close="showAssistant = false"
+  />
 </template>
 
 <script setup lang="ts">
@@ -158,6 +164,7 @@ import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/authStore'
 import StudentLayout from '@/layouts/StudentLayout.vue'
+import AssistantChatModal from '@/components/AssistantChatModal.vue'
 import { courseService } from '@/services/courses/courseService'
 import { practiceSheetService } from '@/services/practiceSheets/practiceSheetService'
 import { notebookService } from '@/services/notebooks/notebookService'
@@ -174,6 +181,7 @@ const courseSheets = ref<Record<string, PracticeSheet[]>>({})
 const courseNotebooks = ref<Record<string, Notebook[]>>({})
 const courseCurrentLevel = ref<Record<string, number>>({})
 const loading = ref(true)
+const showAssistant = ref(false)
 
 const firstName = computed(() => {
   const name = authStore.profile?.name || ''
@@ -223,6 +231,22 @@ const goalProgress = computed(() =>
     ? Math.min(100, Math.round((totalCorrect.value / totalAttempts.value) * 100))
     : 0
 )
+
+const assistantContext = computed(() => ({
+  studentName: authStore.profile?.name,
+  courses: courses.value.map(c => ({
+    title: c.title,
+    subject: c.subject_name || c.subject || '',
+    grade: c.grade_name || '',
+    currentLevel: courseCurrentLevel.value[c.id] ?? 1,
+  })),
+  topicProgress: groupedProgress.value.map(p => ({
+    topic: p.topic_title,
+    mastery: p.mastery_score,
+    level: p.current_level,
+    streak: p.streak_days,
+  })),
+}))
 const featuredSheetId = computed(() => {
   for (const course of courses.value) {
     const firstSheet = courseSheets.value[course.id]?.[0]

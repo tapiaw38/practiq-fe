@@ -5,7 +5,8 @@ export default defineConfig({
     plugins: [vue()],
     resolve: {
         alias: {
-            '@': fileURLToPath(new URL('./src', import.meta.url))
+            '@': fileURLToPath(new URL('./src', import.meta.url)),
+            'practiq-assistant-package': fileURLToPath(new URL('../ai-assistant-package/src/index.ts', import.meta.url))
         }
     },
     server: {

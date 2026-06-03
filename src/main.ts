@@ -15,6 +15,7 @@ import App from './App.vue'
 import router from './router'
 import { primeVueConfig } from './primevue-config'
 import './assets/main.css'
+import 'katex/dist/katex.min.css'
 
 const app = createApp(App)
 

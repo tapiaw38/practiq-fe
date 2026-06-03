@@ -167,6 +167,11 @@ import { useConfirm } from '@/composables/useConfirm'
 import { practiceSheetService } from '@/services/practiceSheets/practiceSheetService'
 import { useAuthStore } from '@/stores/authStore'
 import type { PracticeSheet, PracticeSheetExercise, SubmitResult } from '@/types'
+import {
+  composeTeacherAndStudentImage,
+  extractTeacherImageDataUrl,
+  summarizeExerciseMetadata
+} from '@/utils/assistantExerciseContext'
 
 const route = useRoute()
 const router = useRouter()
@@ -372,6 +377,8 @@ onMounted(async () => {
 
 onUnmounted(() => {
   if (timer) clearInterval(timer)
+  delete window.__practiqAssistantCapture
+  delete window.__practiqAssistantContext
 })
 
 function focusNext(idx: number) {
@@ -476,6 +483,102 @@ function buildCanvasDataForOCR(exerciseId: string) {
   ctx.putImageData(image, 0, 0)
 
   return out.toDataURL('image/jpeg', 0.92)
+}
+
+function getAssistantExerciseId() {
+  if (activeId.value && canvasData.value[activeId.value]) {
+    return activeId.value
+  }
+
+  const answeredId = Object.keys(canvasData.value)[0]
+  if (answeredId) return answeredId
+
+  return exercises.value[0]?.exercise.id || ''
+}
+
+function getAssistantExerciseIndex(exerciseId: string) {
+  return exercises.value.findIndex((item) => item.exercise.id === exerciseId)
+}
+
+window.__practiqAssistantContext = () => {
+  if (!sheet.value) return null
+
+  const activeExerciseId = getAssistantExerciseId()
+  const activeExerciseIndex = getAssistantExerciseIndex(activeExerciseId)
+  const activeExercise =
+    activeExerciseIndex >= 0 ? exercises.value[activeExerciseIndex]?.exercise : null
+
+  return {
+    current_view: 'student_level_test',
+    activity_type: 'level_test',
+    sheet_id: sheet.value.id,
+    sheet_title: sheet.value.title,
+    level: sheet.value.level,
+    response_mode: isCanvas.value ? 'canvas' : 'keyboard',
+    exercise_count: exercises.value.length,
+    active_exercise: activeExercise
+      ? {
+          id: activeExercise.id,
+          number: activeExerciseIndex + 1,
+          type: activeExercise.type,
+          difficulty: activeExercise.difficulty,
+          question: activeExercise.question,
+          has_teacher_image: !!extractTeacherImageDataUrl(activeExercise),
+          metadata_summary: JSON.stringify(summarizeExerciseMetadata(activeExercise) || {})
+        }
+      : null,
+    exercise_list: exercises.value.map((item, idx) => ({
+      id: item.exercise.id,
+      number: idx + 1,
+      type: item.exercise.type,
+      difficulty: item.exercise.difficulty,
+      question: item.exercise.question,
+      has_teacher_image: !!extractTeacherImageDataUrl(item.exercise)
+    })),
+    answered_exercise_ids: isCanvas.value
+      ? Object.keys(canvasData.value)
+      : Object.entries(answers.value)
+          .filter(([, answer]) => answer.trim() !== '')
+          .map(([exerciseId]) => exerciseId)
+  }
+}
+
+window.__practiqAssistantCapture = async () => {
+  if (!isCanvas.value) return null
+
+  const exerciseId = getAssistantExerciseId()
+  if (!exerciseId) return null
+  const exerciseIndex = getAssistantExerciseIndex(exerciseId)
+  const exercise =
+    exerciseIndex >= 0 ? exercises.value[exerciseIndex]?.exercise : null
+
+  const studentDataUrl = buildCanvasDataForOCR(exerciseId)
+  const teacherDataUrl = extractTeacherImageDataUrl(exercise)
+  let dataUrl = studentDataUrl
+
+  if (teacherDataUrl && studentDataUrl) {
+    try {
+      dataUrl = await composeTeacherAndStudentImage({
+        teacherDataUrl,
+        studentDataUrl,
+        teacherLabel: 'Consigna del docente',
+        studentLabel: 'Respuesta del alumno'
+      })
+    } catch (error) {
+      console.error('[level-test-view] failed to compose teacher and student images', error)
+      dataUrl = teacherDataUrl || studentDataUrl
+    }
+  } else if (teacherDataUrl) {
+    dataUrl = teacherDataUrl
+  }
+
+  if (!dataUrl) return null
+
+  return {
+    dataUrl,
+    filename: `level-test-${exerciseId}.jpg`,
+    contentType: 'image/jpeg'
+  }
 }
 
 function retry() {
