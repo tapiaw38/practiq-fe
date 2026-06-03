@@ -113,7 +113,7 @@ function mountAssistant() {
     authToken: token,
     authMode: 'bearer',
     title: 'Asistente',
-    placeholder: 'Pregúntale al asistente sobre tu práctica',
+    placeholder: 'Pregúntale al asistente…',
     initialMessage: 'Hola, soy tu asistente. ¿Tienes alguna duda?',
     audioInput: true,
     audioAnswers: true,
