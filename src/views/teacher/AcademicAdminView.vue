@@ -548,7 +548,7 @@ async function confirmDeleteSubject(id: string) {
   display: flex;
   flex-direction: column;
   min-height: 100vh;
-  background: #f5f6fa;
+  background: var(--surface-bg);
 }
 
 /* ── Top bar ──────────────────────────────────────────────────────────────── */
@@ -557,8 +557,8 @@ async function confirmDeleteSubject(id: string) {
   align-items: center;
   justify-content: space-between;
   padding: 12px 20px 10px;
-  background: #fff;
-  border-bottom: 1px solid #e8eaf0;
+  background: var(--surface-card);
+  border-bottom: 1px solid var(--surface-border);
   flex-shrink: 0;
 }
 
@@ -573,9 +573,9 @@ async function confirmDeleteSubject(id: string) {
 }
 
 .ac-title {
-  font-size: 16px;
+  font-size: var(--font-section-title);
   font-weight: 800;
-  color: #111827;
+  color: var(--text-heading);
   margin: 0;
 }
 
@@ -585,8 +585,8 @@ async function confirmDeleteSubject(id: string) {
   gap: 8px;
   padding: 6px 12px;
   border: 1.5px solid #e0d9f7;
-  background: #faf8ff;
-  color: #5b21b6;
+  background: var(--practiq-violet-bg);
+  color: var(--practiq-violet-dark);
   border-radius: var(--radius-pill);
   font-size: var(--text-sm);
   font-weight: 700;
@@ -594,8 +594,8 @@ async function confirmDeleteSubject(id: string) {
   transition: all 0.15s;
 }
 .catalog-pill:hover {
-  background: #ede9fe;
-  border-color: #c4b5fd;
+  background: var(--practiq-violet-pale);
+  border-color: var(--practiq-violet-light);
 }
 .catalog-pill__badge {
   min-width: 20px;
@@ -632,9 +632,9 @@ async function confirmDeleteSubject(id: string) {
 }
 
 .onboarding__card {
-  background: #fff;
-  border: 1px solid #e8eaf0;
-  border-radius: 24px;
+  background: var(--surface-card);
+  border: 1px solid var(--surface-border);
+  border-radius: var(--radius-2xl);
   padding: 24px 28px;
   max-width: 500px;
   width: 100%;
@@ -660,7 +660,7 @@ async function confirmDeleteSubject(id: string) {
 .onboarding__card h2 {
   font-size: 17px;
   font-weight: 800;
-  color: #111827;
+  color: var(--text-heading);
   margin: 0;
 }
 
@@ -686,7 +686,7 @@ async function confirmDeleteSubject(id: string) {
   align-items: flex-start;
   gap: 14px;
   padding: 9px 12px;
-  background: #f8f9fc;
+  background: var(--surface-bg);
   border: 1px solid #eef0f5;
   border-radius: var(--radius-lg);
 }
@@ -713,7 +713,7 @@ async function confirmDeleteSubject(id: string) {
 
 .step-item strong {
   font-size: var(--text-base);
-  color: #111827;
+  color: var(--text-heading);
 }
 
 .step-item span {
@@ -742,8 +742,8 @@ async function confirmDeleteSubject(id: string) {
 .grade-sidebar {
   display: flex;
   flex-direction: column;
-  background: #fff;
-  border-right: 1px solid #e8eaf0;
+  background: var(--surface-card);
+  border-right: 1px solid var(--surface-border);
   overflow: hidden;
 }
 
@@ -753,7 +753,7 @@ async function confirmDeleteSubject(id: string) {
 }
 
 .sidebar-label {
-  font-size: 10px;
+  font-size: var(--text-xs);
   font-weight: 700;
   letter-spacing: 0.1em;
   text-transform: uppercase;
@@ -789,7 +789,7 @@ async function confirmDeleteSubject(id: string) {
   background: rgba(124,58,237,0.09);
 }
 .grade-nav-item--active .grade-nav-item__name {
-  color: #5b21b6;
+  color: var(--practiq-violet-dark);
   font-weight: 700;
 }
 .grade-nav-item--active .grade-nav-item__dot {
@@ -797,14 +797,14 @@ async function confirmDeleteSubject(id: string) {
 }
 .grade-nav-item--active .grade-nav-item__count {
   background: rgba(124,58,237,0.12);
-  color: #5b21b6;
+  color: var(--practiq-violet-dark);
 }
 
 .grade-nav-item__dot {
   width: 7px;
   height: 7px;
   border-radius: 50%;
-  background: #d1d5db;
+  background: var(--surface-border);
   flex-shrink: 0;
   transition: background 0.12s;
 }
@@ -812,7 +812,7 @@ async function confirmDeleteSubject(id: string) {
 .grade-nav-item__name {
   flex: 1;
   font-size: var(--text-base);
-  color: #374151;
+  color: var(--text-secondary);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -822,7 +822,7 @@ async function confirmDeleteSubject(id: string) {
   font-size: var(--text-xs);
   font-weight: 700;
   color: var(--text-muted);
-  background: #f1f5f9;
+  background: var(--surface-hover);
   border-radius: var(--radius-pill);
   padding: 2px 8px;
   flex-shrink: 0;
@@ -835,7 +835,7 @@ async function confirmDeleteSubject(id: string) {
   gap: 8px;
   padding: 10px 14px;
   border: none;
-  border-top: 1px solid #e8eaf0;
+  border-top: 1px solid var(--surface-border);
   background: none;
   color: var(--text-secondary);
   font-size: var(--text-sm);
@@ -861,7 +861,7 @@ async function confirmDeleteSubject(id: string) {
   align-items: center;
   justify-content: center;
   gap: 10px;
-  color: #cbd5e1;
+  color: var(--text-muted);
   font-size: var(--text-md);
 }
 
@@ -872,15 +872,15 @@ async function confirmDeleteSubject(id: string) {
   justify-content: space-between;
   gap: 16px;
   padding: 12px 18px 10px;
-  background: #fff;
-  border-bottom: 1px solid #e8eaf0;
+  background: var(--surface-card);
+  border-bottom: 1px solid var(--surface-border);
   flex-shrink: 0;
 }
 
 .grade-header__name {
   font-size: var(--text-lg);
   font-weight: 800;
-  color: #111827;
+  color: var(--text-heading);
   margin: 0 0 3px;
 }
 
@@ -916,7 +916,7 @@ async function confirmDeleteSubject(id: string) {
 .courses-area__head h3 {
   font-size: var(--text-md);
   font-weight: 700;
-  color: #111827;
+  color: var(--text-heading);
   margin: 0 0 4px;
 }
 .courses-area__head h3 em {
@@ -937,7 +937,7 @@ async function confirmDeleteSubject(id: string) {
   align-items: center;
   gap: 10px;
   padding: 32px 20px;
-  background: #fff;
+  background: var(--surface-card);
   border: 1.5px dashed #dde1ed;
   border-radius: var(--radius-2xl);
   text-align: center;
@@ -955,7 +955,7 @@ async function confirmDeleteSubject(id: string) {
 }
 .courses-empty p {
   font-size: var(--text-md);
-  color: #374151;
+  color: var(--text-secondary);
   margin: 0;
   font-weight: 600;
 }
@@ -973,7 +973,7 @@ async function confirmDeleteSubject(id: string) {
 }
 
 .course-card {
-  background: #fff;
+  background: var(--surface-card);
   border: 1.5px solid #eaecf4;
   border-radius: var(--radius-xl);
   overflow: hidden;
@@ -983,7 +983,7 @@ async function confirmDeleteSubject(id: string) {
   transition: border-color 0.15s, box-shadow 0.15s, transform 0.12s;
 }
 .course-card:hover {
-  border-color: #c4b5fd;
+  border-color: var(--practiq-violet-light);
   box-shadow: 0 6px 20px rgba(124,58,237,0.09);
   transform: translateY(-2px);
 }
@@ -1012,7 +1012,7 @@ async function confirmDeleteSubject(id: string) {
 .card-action-btn {
   width: 24px;
   height: 24px;
-  border-radius: 6px;
+  border-radius: var(--radius-xs);
   border: none;
   background: rgba(255,255,255,0.7);
   color: var(--color-info-dark);
@@ -1022,7 +1022,7 @@ async function confirmDeleteSubject(id: string) {
   font-size: var(--text-xs);
   transition: all 0.12s;
 }
-.card-action-btn:hover { background: #fff; }
+.card-action-btn:hover { background: var(--surface-card); }
 .card-action-btn--danger:hover { color: var(--color-error); }
 
 .course-card__body {
@@ -1033,7 +1033,7 @@ async function confirmDeleteSubject(id: string) {
 .course-card__title {
   font-size: var(--text-base);
   font-weight: 700;
-  color: #111827;
+  color: var(--text-heading);
   margin: 0 0 6px;
   line-height: 1.4;
 }
@@ -1061,13 +1061,13 @@ async function confirmDeleteSubject(id: string) {
   font-size: var(--text-xs);
   font-weight: 700;
   color: var(--text-secondary);
-  background: #f1f5f9;
+  background: var(--surface-hover);
   border-radius: var(--radius-pill);
   padding: 3px 9px;
 }
 
 .course-card__go {
-  color: #c4b5fd;
+  color: var(--practiq-violet-light);
   font-size: var(--text-sm);
   transition: color 0.12s, transform 0.12s;
 }
@@ -1083,7 +1083,7 @@ async function confirmDeleteSubject(id: string) {
   gap: 7px;
   padding: 9px 18px;
   border: none;
-  border-radius: 11px;
+  border-radius: var(--radius-md);
   background: var(--practiq-violet, #7c3aed);
   color: #fff;
   font-size: var(--text-base);
@@ -1101,7 +1101,7 @@ async function confirmDeleteSubject(id: string) {
   gap: 8px;
   padding: 12px 24px;
   border: none;
-  border-radius: 13px;
+  border-radius: var(--radius-lg);
   background: var(--practiq-violet, #7c3aed);
   color: #fff;
   font-weight: 700;
@@ -1117,7 +1117,7 @@ async function confirmDeleteSubject(id: string) {
   gap: 7px;
   padding: 10px 20px;
   border: none;
-  border-radius: 11px;
+  border-radius: var(--radius-md);
   background: var(--practiq-violet, #7c3aed);
   color: #fff;
   font-weight: 700;
@@ -1128,14 +1128,14 @@ async function confirmDeleteSubject(id: string) {
 .btn-primary:disabled { opacity: 0.5; }
 .btn-primary:hover:not(:disabled) { opacity: 0.88; }
 
-.btn-sm { font-size: var(--text-base); padding: 7px 14px; border-radius: 9px; }
+.btn-sm { font-size: var(--text-base); padding: 7px 14px; border-radius: var(--radius-md); }
 
 .btn-secondary {
   padding: 10px 20px;
   border: 1.5px solid #dde1ed;
-  border-radius: 11px;
-  background: #fff;
-  color: #374151;
+  border-radius: var(--radius-md);
+  background: var(--surface-card);
+  color: var(--text-secondary);
   font-weight: 600;
   font-size: var(--text-md);
   cursor: pointer;
@@ -1149,9 +1149,9 @@ async function confirmDeleteSubject(id: string) {
   gap: 7px;
   padding: 10px 20px;
   border: 1.5px solid #dde1ed;
-  border-radius: 11px;
-  background: #fff;
-  color: #374151;
+  border-radius: var(--radius-md);
+  background: var(--surface-card);
+  color: var(--text-secondary);
   font-weight: 600;
   font-size: var(--text-md);
   cursor: pointer;
@@ -1159,14 +1159,14 @@ async function confirmDeleteSubject(id: string) {
 }
 .btn-ghost:hover { border-color: var(--practiq-violet, #7c3aed); color: var(--practiq-violet, #7c3aed); }
 
-.btn-ghost.btn-sm { font-size: var(--text-base); padding: 7px 14px; border-radius: 9px; }
+.btn-ghost.btn-sm { font-size: var(--text-base); padding: 7px 14px; border-radius: var(--radius-md); }
 
 .icon-btn {
   width: 33px;
   height: 33px;
-  border-radius: 9px;
+  border-radius: var(--radius-md);
   border: 1.5px solid #eaecf4;
-  background: #fff;
+  background: var(--surface-card);
   color: var(--text-secondary);
   cursor: pointer;
   display: grid;
@@ -1174,8 +1174,8 @@ async function confirmDeleteSubject(id: string) {
   font-size: var(--text-base);
   transition: all 0.12s;
 }
-.icon-btn:hover { border-color: #c4b5fd; color: var(--practiq-violet, #7c3aed); }
-.icon-btn--danger:hover { border-color: #fca5a5; color: var(--color-error); background: #fef2f2; }
+.icon-btn:hover { border-color: var(--practiq-violet-light); color: var(--practiq-violet, #7c3aed); }
+.icon-btn--danger:hover { border-color: #fca5a5; color: var(--color-error); background: var(--color-error-bg); }
 .icon-btn--sm { width: 28px; height: 28px; border-radius: 7px; font-size: var(--text-xs); }
 
 /* ── Modals ───────────────────────────────────────────────────────────────── */
@@ -1191,7 +1191,7 @@ async function confirmDeleteSubject(id: string) {
 }
 
 .modal-card {
-  background: #fff;
+  background: var(--surface-card);
   border-radius: var(--radius-2xl);
   width: min(500px, 100%);
   max-height: calc(100vh - 48px);
@@ -1206,13 +1206,13 @@ async function confirmDeleteSubject(id: string) {
   justify-content: space-between;
   gap: 16px;
   padding: 14px 18px 12px;
-  border-bottom: 1px solid #eef0f6;
+  border-bottom: 1px solid var(--surface-border);
 }
 
 .modal-head h3 {
   font-size: 17px;
   font-weight: 800;
-  color: #111827;
+  color: var(--text-heading);
   margin: 0 0 3px;
 }
 
@@ -1227,7 +1227,7 @@ async function confirmDeleteSubject(id: string) {
   height: 30px;
   border-radius: var(--radius-sm);
   border: none;
-  background: #f1f5f9;
+  background: var(--surface-hover);
   color: var(--text-secondary);
   font-size: 17px;
   cursor: pointer;
@@ -1236,7 +1236,7 @@ async function confirmDeleteSubject(id: string) {
   flex-shrink: 0;
   line-height: 1;
 }
-.modal-close:hover { background: #e2e8f0; }
+.modal-close:hover { background: var(--surface-border); }
 
 .modal-body {
   padding: 14px 18px 16px;
@@ -1257,14 +1257,14 @@ async function confirmDeleteSubject(id: string) {
   display: flex;
   gap: 12px;
   padding: 16px;
-  border-radius: 13px;
+  border-radius: var(--radius-lg);
   font-size: var(--text-base);
 }
 .notice--warning {
-  background: #fffbeb;
+  background: var(--color-warning-bg);
   border: 1px solid #fde68a;
 }
-.notice--warning .pi { color: #d97706; font-size: 17px; flex-shrink: 0; margin-top: 2px; }
+.notice--warning .pi { color: var(--color-warning-dark); font-size: 17px; flex-shrink: 0; margin-top: 2px; }
 .notice--warning strong { display: block; color: #92400e; font-size: var(--text-md); margin-bottom: 4px; }
 .notice--warning p { color: #78350f; margin: 0; }
 
@@ -1297,9 +1297,9 @@ async function confirmDeleteSubject(id: string) {
   align-items: center;
   gap: 10px;
   padding: 11px 13px;
-  background: #f8f9fc;
+  background: var(--surface-bg);
   border: 1px solid #eef0f5;
-  border-radius: 11px;
+  border-radius: var(--radius-md);
 }
 
 .subject-list-item__info {
@@ -1311,7 +1311,7 @@ async function confirmDeleteSubject(id: string) {
 }
 .subject-list-item__info strong {
   font-size: var(--text-md);
-  color: #111827;
+  color: var(--text-heading);
 }
 .subject-list-item__info span {
   font-size: var(--text-sm);
@@ -1322,7 +1322,7 @@ async function confirmDeleteSubject(id: string) {
   font-size: var(--text-xs);
   font-weight: 700;
   color: var(--text-muted);
-  background: #f1f5f9;
+  background: var(--surface-hover);
   border-radius: var(--radius-pill);
   padding: 2px 9px;
   white-space: nowrap;
@@ -1347,7 +1347,7 @@ async function confirmDeleteSubject(id: string) {
 .form-label {
   font-size: var(--text-base);
   font-weight: 700;
-  color: #374151;
+  color: var(--text-secondary);
 }
 
 .optional { font-weight: 400; color: var(--text-muted); }
@@ -1359,19 +1359,19 @@ async function confirmDeleteSubject(id: string) {
   box-sizing: border-box;
   padding: 10px 13px;
   border: 1.5px solid #dde1ed;
-  border-radius: 11px;
+  border-radius: var(--radius-md);
   background: #f9fafb;
   font: inherit;
   font-size: var(--text-md);
-  color: #111827;
+  color: var(--text-heading);
   outline: none;
   transition: border-color 0.15s, background 0.15s;
 }
 .form-input:focus, .form-textarea:focus, .form-select:focus {
   border-color: var(--practiq-violet, #7c3aed);
-  background: #fff;
+  background: var(--surface-card);
 }
-.form-input--sm { padding: 7px 11px; font-size: var(--text-base); border-radius: 9px; }
+.form-input--sm { padding: 7px 11px; font-size: var(--text-base); border-radius: var(--radius-md); }
 .form-textarea { min-height: 78px; resize: vertical; }
 
 /* ── Responsive ───────────────────────────────────────────────────────────── */
@@ -1379,7 +1379,7 @@ async function confirmDeleteSubject(id: string) {
   .ac-layout { grid-template-columns: 1fr; grid-template-rows: auto 1fr; }
   .grade-sidebar {
     border-right: none;
-    border-bottom: 1px solid #e8eaf0;
+    border-bottom: 1px solid var(--surface-border);
     max-height: 180px;
   }
   .grade-nav { flex-direction: row; flex-wrap: nowrap; overflow-x: auto; padding: 4px 8px; }
