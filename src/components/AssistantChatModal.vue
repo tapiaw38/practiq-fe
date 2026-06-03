@@ -1503,6 +1503,28 @@
     }
   }
 
+  /* ── Tablet portrait ────────────────────────────────────────────────────── */
+  @media (max-width: 768px) {
+    .acm-modal {
+      width: 96vw;
+      height: 92vh;
+    }
+
+    .acm-piz-split {
+      flex-direction: column;
+    }
+
+    .acm-piz-exercise {
+      flex: 0 0 45%;
+      border-right: none;
+      border-bottom: 1px solid var(--surface-border);
+    }
+
+    .acm-bubble { max-width: 80%; }
+
+    .acm-messages { padding: 16px; }
+  }
+
   /* ── Mobile ──────────────────────────────────────────────────────────────── */
   @media (max-width: 600px) {
     .acm-overlay {
