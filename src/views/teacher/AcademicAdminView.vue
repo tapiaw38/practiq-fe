@@ -1375,6 +1375,14 @@ async function confirmDeleteSubject(id: string) {
 .form-textarea { min-height: 78px; resize: vertical; }
 
 /* ── Responsive ───────────────────────────────────────────────────────────── */
+/* Tablet landscape */
+@media (max-width: 1024px) {
+  .ac-layout { grid-template-columns: 200px 1fr; }
+  .grade-sidebar { min-width: 0; }
+  .courses-grid { grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); }
+  .courses-area, .grade-header { padding: 12px 14px; }
+}
+
 @media (max-width: 820px) {
   .ac-layout { grid-template-columns: 1fr; grid-template-rows: auto 1fr; }
   .grade-sidebar {

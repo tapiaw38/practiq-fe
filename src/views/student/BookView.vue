@@ -1395,6 +1395,16 @@ function formatTime(iso: string) {
 }
 
 /* ── Responsive ──────────────────────────────────────────────────── */
+/* Tablet landscape */
+@media (max-width: 1024px) {
+  .worksheet { padding: 16px 20px; }
+  .ex-row { padding: 16px 20px; gap: 12px; }
+  .ex-answer-area { width: 200px; }
+  .ai-panel--open { width: 280px; }
+  .ai-panel-inner { width: 280px; }
+  .book-toolbar { padding: 0 12px; gap: 10px; }
+}
+
 @media (max-width: 768px) {
   .worksheet { padding: 16px; }
   .ex-row { padding: 16px; gap: 10px; }

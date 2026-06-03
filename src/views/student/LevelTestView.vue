@@ -1030,4 +1030,95 @@ function retry() {
   font-size: 0.9rem;
 }
 .btn-retry:hover { opacity: 0.9; }
+
+@media (max-width: 1024px) {
+  .test-shell {
+    padding: 20px 16px 48px;
+  }
+  .test-header {
+    padding: 16px 20px;
+  }
+}
+
+@media (max-width: 768px) {
+  .test-shell {
+    padding: 16px 12px 40px;
+    gap: 12px;
+  }
+  .test-header {
+    padding: 14px 16px;
+    gap: 10px;
+    flex-wrap: wrap;
+  }
+  .test-title {
+    font-size: 1.1rem;
+  }
+  .test-subtitle {
+    font-size: 0.78rem;
+  }
+  .timer {
+    font-size: 0.95rem;
+    padding: 6px 12px;
+  }
+  .ex-card {
+    padding: 14px 16px;
+    gap: 12px;
+  }
+  .draw-tools-bar {
+    padding: 8px 12px;
+  }
+  .test-footer {
+    padding: 12px 16px;
+  }
+  .btn-submit {
+    padding: 10px 20px;
+    font-size: 0.88rem;
+  }
+  .result-card {
+    padding: 28px 24px;
+  }
+}
+
+@media (max-width: 600px) {
+  .test-shell {
+    padding: 10px 8px 32px;
+    gap: 10px;
+  }
+  .test-header {
+    padding: 12px;
+  }
+  .ex-card {
+    padding: 12px;
+    flex-direction: column;
+    gap: 8px;
+  }
+  .ex-num {
+    width: 28px;
+    height: 28px;
+    font-size: 0.82rem;
+  }
+  .ex-canvas {
+    height: 180px;
+  }
+  .test-footer {
+    padding: 10px 12px;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+  .btn-submit {
+    width: 100%;
+    justify-content: center;
+  }
+  .result-card {
+    padding: 20px 16px;
+  }
+  .result-actions {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .btn-secondary,
+  .btn-retry {
+    text-align: center;
+  }
+}
 </style>

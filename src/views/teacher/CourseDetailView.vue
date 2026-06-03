@@ -1152,4 +1152,23 @@ async function deleteNotebook(id: string) {
 .item-actions { display: flex; gap: 4px; align-items: center; flex-shrink: 0; }
 .inline-edit-row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
 .inline-edit-input { min-width: 200px; }
+
+/* Tablet landscape */
+@media (max-width: 1024px) {
+  .course-detail { padding: 24px 20px; }
+  .levels-grid { grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); }
+}
+
+/* Tablet portrait */
+@media (max-width: 768px) {
+  .course-detail { padding: 16px 14px 32px; max-width: 100%; }
+  .levels-grid { grid-template-columns: repeat(2, 1fr); }
+  .section-header { flex-direction: column; align-items: flex-start; gap: 10px; }
+  .section-header h2 { font-size: 17px; }
+}
+
+/* Mobile */
+@media (max-width: 600px) {
+  .levels-grid { grid-template-columns: 1fr; }
+}
 </style>

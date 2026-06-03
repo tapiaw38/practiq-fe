@@ -922,4 +922,68 @@ function goToPage(idx: number) {
   transition: opacity 0.15s;
 }
 .btn-save:hover { opacity: 0.9; }
+
+@media (max-width: 1024px) {
+  .notebook-shell {
+    padding: 20px 16px 40px;
+  }
+  .page-content {
+    padding: 20px 22px 16px;
+  }
+  .answer-section {
+    padding: 16px 22px;
+  }
+  .save-bar {
+    padding: 14px 22px;
+  }
+  .answer-canvas {
+    height: 260px;
+  }
+}
+
+@media (max-width: 600px) {
+  .notebook-shell {
+    padding: 12px 8px 32px;
+    gap: 10px;
+  }
+  .nb-header {
+    flex-wrap: wrap;
+    gap: 10px;
+  }
+  .nb-title {
+    font-size: 1.1rem;
+  }
+  .page-content {
+    padding: 14px 14px 12px;
+  }
+  .page-header-row {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 6px;
+  }
+  .answer-section {
+    padding: 12px 14px;
+  }
+  .answer-header {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+  .answer-canvas {
+    height: 200px;
+  }
+  .save-bar {
+    padding: 12px 14px;
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .page-nav {
+    margin-left: 0;
+    justify-content: space-between;
+    width: 100%;
+  }
+  .btn-save {
+    width: 100%;
+    text-align: center;
+  }
+}
 </style>

@@ -713,4 +713,22 @@ function clearCanvas() {
 
 .fade-enter-active, .fade-leave-active { transition: opacity 0.2s; }
 .fade-enter-from, .fade-leave-to { opacity: 0; }
+
+/* Tablet landscape */
+@media (max-width: 1024px) {
+  .editor-body { grid-template-columns: 180px 1fr; }
+}
+
+/* Tablet portrait */
+@media (max-width: 768px) {
+  .editor-body { grid-template-columns: 1fr; grid-template-rows: auto 1fr; }
+  .pages-sidebar { border-right: none; border-bottom: 1px solid var(--surface-border); max-height: 220px; overflow-y: auto; }
+  .editor-main { padding: 16px; }
+}
+
+/* Mobile */
+@media (max-width: 600px) {
+  .pages-sidebar { max-height: 160px; }
+  .editor-empty { padding: 32px; }
+}
 </style>

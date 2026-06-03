@@ -1422,6 +1422,15 @@ function formatAIFeedback(value?: string) {
 .slide-up-leave-to   { opacity: 0; transform: translateY(8px); }
 
 /* Responsive */
+/* Tablet landscape */
+@media (max-width: 1024px) {
+  .sp-page { padding: 12px 16px 28px; }
+  .summary-row { grid-template-columns: repeat(2, 1fr); }
+  .course-topic-row { grid-template-columns: 140px 1fr 52px 60px; }
+  .progress-grid { grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); }
+  .nb-page-content { grid-template-columns: 1fr 1fr; }
+}
+
 @media (max-width: 768px) {
   .sp-page { padding: 20px 16px 40px; }
   .sp-header { flex-direction: column; }

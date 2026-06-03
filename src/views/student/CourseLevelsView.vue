@@ -464,4 +464,82 @@ function goLevelTest(sheet: LevelSheetSummary) {
   font-size: 0.85rem;
   color: var(--text-muted);
 }
+
+@media (max-width: 1024px) {
+  .levels-shell {
+    padding: 20px 16px 48px;
+  }
+  .levels-header {
+    padding: 16px 20px;
+  }
+}
+
+@media (max-width: 768px) {
+  .levels-shell {
+    padding: 16px 12px 40px;
+    gap: 14px;
+  }
+  .levels-header {
+    padding: 14px 16px;
+    gap: 12px;
+    flex-wrap: wrap;
+  }
+  .header-title {
+    font-size: 1.1rem;
+  }
+  .current-level-badge {
+    padding: 8px 14px;
+  }
+  .cl-value {
+    font-size: 1.5rem;
+  }
+  .lc-header {
+    padding: 14px 16px;
+    gap: 10px;
+    flex-wrap: wrap;
+  }
+  .lc-current-indicator {
+    width: 100%;
+  }
+  .lc-body {
+    padding: 12px 16px;
+  }
+  .lc-item {
+    padding: 10px 12px;
+  }
+  .lc-item--test-big {
+    padding: 12px 14px;
+  }
+  .test-cta {
+    padding: 6px 12px;
+    font-size: 0.78rem;
+  }
+}
+
+@media (max-width: 600px) {
+  .levels-shell {
+    padding: 12px 8px 32px;
+    gap: 10px;
+  }
+  .levels-header {
+    padding: 12px;
+  }
+  .lc-header {
+    padding: 12px;
+  }
+  .lc-body {
+    padding: 10px 12px;
+  }
+  .lc-item {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 8px;
+  }
+  .test-cta {
+    align-self: flex-end;
+  }
+  .lc-item-arrow {
+    display: none;
+  }
+}
 </style>
