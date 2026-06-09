@@ -340,13 +340,11 @@ function scrollToCourses() {
   z-index: 2;
   padding: 28px 32px;
   border-radius: 28px;
-  background:
-    radial-gradient(circle at top left, rgba(124, 58, 237, 0.12), transparent 28%),
-    radial-gradient(circle at bottom right, rgba(96, 165, 250, 0.1), transparent 22%),
-    rgba(255, 255, 255, 0.85);
-  border: 1px solid rgba(255, 255, 255, 0.92);
-  box-shadow: 0 20px 48px rgba(98, 112, 149, 0.1);
+  background: var(--gradient-card-accent);
+  border: 1px solid var(--surface-elevated-strong);
+  box-shadow: var(--shadow-soft);
   margin-bottom: 20px;
+  backdrop-filter: blur(18px);
 }
 
 /* ── Dashboard mascot ── */
@@ -381,7 +379,7 @@ function scrollToCourses() {
 .welcome-title {
   font-size: clamp(1.6rem, 3vw, 2.2rem);
   line-height: 1.1;
-  color: #162033;
+  color: var(--text-heading);
   margin-bottom: 6px;
   font-weight: 800;
 }
@@ -395,8 +393,8 @@ function scrollToCourses() {
 }
 
 .welcome-topic-card {
-  background: rgba(255, 255, 255, 0.85);
-  border: 1px solid rgba(255, 255, 255, 0.95);
+  background: var(--surface-elevated);
+  border: 1px solid var(--surface-elevated-strong);
   border-radius: var(--radius-xl);
   padding: 16px 20px;
   margin-bottom: 18px;
@@ -422,13 +420,13 @@ function scrollToCourses() {
 .topic-card__name {
   font-size: 18px;
   font-weight: 700;
-  color: #1e1f4b;
+  color: var(--text-heading);
 }
 
 .topic-card__level {
   padding: 5px 12px;
   border-radius: var(--radius-pill);
-  background: rgba(124, 58, 237, 0.1);
+  background: var(--fill-primary-soft);
   color: var(--practiq-violet-dark);
   font-size: var(--text-sm);
   font-weight: 700;
@@ -472,9 +470,9 @@ function scrollToCourses() {
   gap: 14px;
   padding: 18px 22px;
   border-radius: var(--radius-2xl);
-  background: rgba(255, 255, 255, 0.85);
-  border: 1px solid rgba(255, 255, 255, 0.92);
-  box-shadow: 0 8px 24px rgba(93, 108, 146, 0.08);
+  background: var(--surface-elevated);
+  border: 1px solid var(--surface-elevated-strong);
+  box-shadow: var(--shadow-card-lg);
   position: relative;
   z-index: 2;
 }
@@ -493,15 +491,15 @@ function scrollToCourses() {
   flex-shrink: 0;
 }
 
-.metric-card__icon--fire { background: linear-gradient(135deg, rgba(251, 146, 60, 0.15), rgba(239, 68, 68, 0.1)); }
-.metric-card__icon--star { background: linear-gradient(135deg, rgba(250, 204, 21, 0.2), rgba(124, 58, 237, 0.1)); }
-.metric-card__icon--goal { background: linear-gradient(135deg, rgba(124, 58, 237, 0.12), rgba(96, 165, 250, 0.1)); }
+.metric-card__icon--fire { background: var(--gradient-fire-soft); }
+.metric-card__icon--star { background: var(--gradient-star-soft); }
+.metric-card__icon--goal { background: var(--gradient-goal-soft); }
 
 .metric-card__value {
   font-size: 28px;
   line-height: 1;
   font-weight: 800;
-  color: #17203a;
+  color: var(--text-heading);
 }
 
 .metric-card__label {
@@ -545,7 +543,7 @@ function scrollToCourses() {
 .section-title {
   font-size: 22px;
   font-weight: 800;
-  color: #162033;
+  color: var(--text-heading);
   line-height: 1.2;
 }
 
@@ -558,11 +556,18 @@ function scrollToCourses() {
 .mastery-card {
   padding: 18px 20px;
   border-radius: var(--radius-2xl);
-  background: rgba(255, 255, 255, 0.85);
-  border: 1px solid rgba(255, 255, 255, 0.92);
-  box-shadow: 0 6px 20px rgba(93, 108, 146, 0.08);
+  background: var(--surface-elevated);
+  border: 1px solid var(--surface-elevated-strong);
+  box-shadow: var(--shadow-card);
   position: relative;
   z-index: 2;
+  transition: var(--transition);
+}
+
+.mastery-card:hover,
+.course-card:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-card-lg);
 }
 
 .mastery-card__top {
@@ -582,7 +587,7 @@ function scrollToCourses() {
 .mastery-level {
   padding: 4px 10px;
   border-radius: var(--radius-pill);
-  background: rgba(124, 58, 237, 0.08);
+  background: var(--fill-primary-subtle);
   color: var(--practiq-violet-dark);
   font-size: var(--text-xs);
   font-weight: 700;
@@ -601,7 +606,7 @@ function scrollToCourses() {
 .empty-state {
   text-align: center;
   padding: 64px 20px;
-  background: rgba(255, 255, 255, 0.6);
+  background: var(--surface-glass);
   border-radius: var(--radius-2xl);
   border: 1px dashed var(--surface-border);
   color: var(--text-secondary);
@@ -620,14 +625,15 @@ function scrollToCourses() {
 .course-card {
   padding: 24px;
   border-radius: var(--radius-2xl);
-  background: rgba(255, 255, 255, 0.85);
-  border: 1px solid rgba(255, 255, 255, 0.92);
-  box-shadow: 0 8px 28px rgba(93, 108, 146, 0.08);
+  background: var(--surface-elevated);
+  border: 1px solid var(--surface-elevated-strong);
+  box-shadow: var(--shadow-card-lg);
   display: flex;
   flex-direction: column;
   gap: 16px;
   position: relative;
   z-index: 2;
+  transition: var(--transition);
 }
 
 .course-card__eyebrow {
@@ -639,7 +645,7 @@ function scrollToCourses() {
   display: inline-flex;
   padding: 5px 12px;
   border-radius: var(--radius-pill);
-  background: rgba(124, 58, 237, 0.1);
+  background: var(--fill-primary-soft);
   color: var(--practiq-violet-dark);
   font-size: var(--text-sm);
   font-weight: 700;
@@ -658,7 +664,7 @@ function scrollToCourses() {
   display: flex;
   align-items: center;
   gap: 0;
-  background: rgba(248, 250, 252, 0.8);
+  background: var(--surface-subtle);
   border-radius: var(--radius-lg);
   padding: 14px 0;
 }
@@ -689,7 +695,7 @@ function scrollToCourses() {
 .course-stat-divider {
   width: 1px;
   height: 32px;
-  background: rgba(148, 163, 184, 0.2);
+  background: var(--fill-border-muted);
 }
 
 .btn-levels {
@@ -699,8 +705,8 @@ function scrollToCourses() {
   gap: 7px;
   padding: 11px 16px;
   border-radius: var(--radius-md);
-  border: 1.5px solid rgba(124, 58, 237, 0.2);
-  background: rgba(245, 243, 255, 0.8);
+  border: 1.5px solid rgba(var(--practiq-violet-rgb), 0.2);
+  background: var(--practiq-violet-bg);
   color: var(--practiq-violet);
   font-size: var(--text-base);
   font-weight: 700;
@@ -709,8 +715,9 @@ function scrollToCourses() {
   width: 100%;
 }
 .btn-levels:hover {
-  background: rgba(124, 58, 237, 0.1);
-  border-color: rgba(124, 58, 237, 0.35);
+  background: var(--fill-primary-soft);
+  border-color: rgba(var(--practiq-violet-rgb), 0.35);
+  transform: translateY(-1px);
 }
 
 /* ── Responsive ── */

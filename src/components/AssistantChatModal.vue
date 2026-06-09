@@ -6,7 +6,9 @@
           <!-- ── Header ── -->
           <div class="acm-header">
             <div class="acm-header-info">
-              <div class="acm-avatar"><i class="pi pi-robot"></i></div>
+              <div class="acm-avatar" aria-hidden="true">
+                <img src="@/assets/robot.png" alt="" />
+              </div>
               <div>
                 <div class="acm-title">Mi Asistente</div>
                 <div class="acm-status">
@@ -925,8 +927,8 @@
     align-items: center;
     justify-content: space-between;
     padding: 16px 24px;
-    background: var(--practiq-violet);
-    color: #fff;
+    background: var(--gradient-brand);
+    color: var(--color-on-primary);
     flex-shrink: 0;
   }
 
@@ -934,17 +936,31 @@
     display: flex;
     align-items: center;
     gap: 14px;
+    min-width: 0;
   }
 
   .acm-avatar {
-    width: 42px;
-    height: 42px;
-    border-radius: 50%;
-    background: rgba(255, 255, 255, 0.18);
+    width: 44px;
+    height: 44px;
+    min-width: 44px;
+    border-radius: 0;
+    background: transparent;
+    border: none;
+    color: var(--color-on-primary);
     display: flex;
     align-items: center;
     justify-content: center;
-    font-size: 20px;
+    font-size: 21px;
+    flex: 0 0 auto;
+    box-shadow: none;
+  }
+
+  .acm-avatar img {
+    display: block;
+    width: 42px;
+    height: 42px;
+    object-fit: contain;
+    filter: drop-shadow(0 3px 6px rgba(var(--text-primary-rgb), 0.16));
   }
 
   .acm-title {

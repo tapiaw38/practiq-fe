@@ -201,8 +201,22 @@ const eraserCursor = `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/20
 const canvasCursor = computed(() => tool.value === 'eraser' ? eraserCursor : penCursor)
 
 // Timer — 30 min
-const timeLeft = ref(30 * 60)
+const TEST_DURATION_SECONDS = 30 * 60
+const timeLeft = ref(TEST_DURATION_SECONDS)
 let timer: ReturnType<typeof setInterval> | null = null
+
+function startTimer() {
+  if (timer) clearInterval(timer)
+  timer = setInterval(() => {
+    if (timeLeft.value <= 0) {
+      clearInterval(timer!)
+      timer = null
+      submit()
+    } else {
+      timeLeft.value--
+    }
+  }, 1000)
+}
 
 const exercises = computed<PracticeSheetExercise[]>(() => sheet.value?.exercises || [])
 const isCanvas = computed(() => sheet.value?.test_style === 'canvas')
@@ -361,18 +375,10 @@ onMounted(async () => {
     for (const ex of exercises.value) {
       answers.value[ex.exercise.id] = ''
     }
+    startTimer()
   } finally {
     loading.value = false
   }
-
-  timer = setInterval(() => {
-    if (timeLeft.value <= 0) {
-      clearInterval(timer!)
-      submit()
-    } else {
-      timeLeft.value--
-    }
-  }, 1000)
 })
 
 onUnmounted(() => {
@@ -400,11 +406,16 @@ async function submit() {
   submitting.value = true
   if (timer) clearInterval(timer)
 
+  const elapsedSeconds = TEST_DURATION_SECONDS - timeLeft.value
+  const perExerciseSeconds = exercises.value.length
+    ? Math.round(elapsedSeconds / exercises.value.length)
+    : 0
+
   const attempts = exercises.value.map(ex => ({
     exercise_id: ex.exercise.id,
     answer_text: isCanvas.value ? '' : (answers.value[ex.exercise.id] || ''),
     canvas_data: isCanvas.value ? buildCanvasDataForOCR(ex.exercise.id) : '',
-    time_spent_seconds: 0,
+    time_spent_seconds: perExerciseSeconds,
     hints_used: 0
   }))
 
@@ -584,7 +595,7 @@ window.__practiqAssistantCapture = async () => {
 function retry() {
   submitted.value = false
   result.value = null
-  timeLeft.value = 30 * 60
+  timeLeft.value = TEST_DURATION_SECONDS
   canvasData.value = {}
   for (const key in answers.value) answers.value[key] = ''
   // Re-init canvases after DOM updates
@@ -593,10 +604,7 @@ function retry() {
       initializedIds.delete(id)
     }
   })
-  timer = setInterval(() => {
-    if (timeLeft.value <= 0) { clearInterval(timer!); submit() }
-    else timeLeft.value--
-  }, 1000)
+  startTimer()
 }
 </script>
 

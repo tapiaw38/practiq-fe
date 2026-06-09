@@ -403,18 +403,44 @@ function stripeClass(subject?: string) {
 
 <style scoped>
 .dashboard {
-  padding: 16px 24px 32px;
-  max-width: 1140px;
+  padding: 24px 28px 40px;
+  max-width: 1180px;
 }
 
 /* ── Page header ── */
 .page-header {
+  position: relative;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 20px;
-  margin-bottom: 12px;
+  gap: 24px;
+  margin-bottom: 16px;
+  padding: 24px 28px;
+  border-radius: 28px;
+  background: var(--gradient-card-accent);
+  border: 1px solid var(--surface-elevated-strong);
+  box-shadow: var(--shadow-soft);
+  backdrop-filter: blur(18px);
   flex-wrap: wrap;
+  overflow: hidden;
+}
+
+.page-header::after {
+  content: '';
+  position: absolute;
+  right: 28px;
+  bottom: -44px;
+  width: 160px;
+  height: 160px;
+  border-radius: 50%;
+  background: var(--gradient-brand-soft);
+  pointer-events: none;
+}
+
+.page-header__left,
+.page-header__right {
+  position: relative;
+  z-index: 1;
 }
 
 .page-kicker {
@@ -450,8 +476,8 @@ function stripeClass(subject?: string) {
   font-size: var(--text-sm);
   font-weight: 700;
 }
-.role-chip--admin   { background: rgba(16,185,129,0.12); color: var(--color-success-dark); }
-.role-chip--teacher { background: rgba(245,158,11,0.12); color: var(--color-warning-dark); }
+.role-chip--admin   { background: rgba(var(--color-success-rgb), 0.12); color: var(--color-success-dark); }
+.role-chip--teacher { background: rgba(var(--color-warning-rgb), 0.12); color: var(--color-warning-dark); }
 
 .btn-ghost {
   display: inline-flex;
@@ -459,45 +485,47 @@ function stripeClass(subject?: string) {
   gap: 6px;
   padding: 7px 12px;
   border-radius: var(--radius-md);
-  border: 1px solid rgba(148,163,184,0.25);
+  border: 1px solid rgba(var(--surface-border-rgb), 0.25);
   background: transparent;
   font-size: var(--text-base);
   font-weight: 600;
   color: var(--text-secondary);
   cursor: pointer;
-  transition: all 0.15s;
+  transition: var(--transition-fast);
 }
 .btn-ghost:hover { background: var(--surface-hover); color: var(--text-primary); }
 
 /* ── Stats strip ── */
 .stats-strip {
-  display: flex;
-  align-items: center;
-  gap: 0;
-  padding: 8px 14px;
-  border-radius: var(--radius-md);
-  background: rgba(255,255,255,0.86);
-  border: 1px solid rgba(255,255,255,0.9);
-  box-shadow: 0 4px 16px rgba(93,108,146,0.07);
-  margin-bottom: 14px;
-  flex-wrap: wrap;
-  gap: 4px;
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+  margin-bottom: 22px;
 }
 
 .stat-item {
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 4px 10px;
+  gap: 10px;
+  padding: 14px 16px;
+  border-radius: var(--radius-xl);
+  background: var(--surface-elevated);
+  border: 1px solid var(--surface-elevated-strong);
+  box-shadow: var(--shadow-card);
 }
 
 .stat-item__icon {
+  width: 36px;
+  height: 36px;
+  display: grid;
+  place-items: center;
+  border-radius: var(--radius-md);
   font-size: 16px;
 }
-.stat-item__icon--violet { color: var(--practiq-violet); }
-.stat-item__icon--blue   { color: #2563eb; }
-.stat-item__icon--green  { color: #059669; }
-.stat-item__icon--orange { color: #d97706; }
+.stat-item__icon--violet { background: var(--fill-primary-soft); color: var(--practiq-violet); }
+.stat-item__icon--blue   { background: var(--color-info-bg); color: var(--color-info-dark); }
+.stat-item__icon--green  { background: var(--color-success-bg); color: var(--color-success-dark); }
+.stat-item__icon--orange { background: var(--color-warning-bg); color: var(--color-warning-strong); }
 
 .stat-item__val {
   font-size: var(--text-lg);
@@ -512,15 +540,12 @@ function stripeClass(subject?: string) {
 }
 
 .stat-divider {
-  width: 1px;
-  height: 20px;
-  background: rgba(148,163,184,0.2);
-  flex-shrink: 0;
+  display: none;
 }
 
 /* ── Content sections ── */
 .content-section {
-  margin-bottom: 20px;
+  margin-bottom: 26px;
 }
 
 .section-header {
@@ -528,11 +553,11 @@ function stripeClass(subject?: string) {
   align-items: flex-start;
   justify-content: space-between;
   gap: 16px;
-  margin-bottom: 10px;
+  margin-bottom: 14px;
 }
 
 .section-title {
-  font-size: 0.92rem;
+  font-size: 1rem;
   font-weight: 800;
   color: var(--text-primary);
   margin: 0 0 4px;
@@ -550,52 +575,52 @@ function stripeClass(subject?: string) {
   gap: 6px;
   padding: 6px 12px;
   border-radius: var(--radius-md);
-  border: 1px solid rgba(124,58,237,0.25);
+  border: 1px solid rgba(var(--practiq-violet-rgb), 0.25);
   background: transparent;
   font-size: var(--text-sm);
   font-weight: 600;
   color: var(--practiq-violet);
   cursor: pointer;
-  transition: all 0.15s;
+  transition: var(--transition-fast);
   white-space: nowrap;
 }
-.btn-outline:hover { background: rgba(124,58,237,0.06); }
+.btn-outline:hover { background: var(--fill-primary-faint); }
 
 /* ── Courses grid ── */
 .courses-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
-  gap: 12px;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 16px;
 }
 
 .course-card {
   position: relative;
-  border-radius: var(--radius-md);
-  background: rgba(255,255,255,0.88);
-  border: 1px solid rgba(255,255,255,0.9);
-  box-shadow: 0 4px 18px rgba(93,108,146,0.08);
+  border-radius: var(--radius-2xl);
+  background: var(--surface-elevated);
+  border: 1px solid var(--surface-elevated-strong);
+  box-shadow: var(--shadow-card);
   overflow: hidden;
   cursor: pointer;
-  transition: all 0.2s ease;
+  transition: var(--transition);
 }
 .course-card:hover {
   transform: translateY(-3px);
-  box-shadow: 0 12px 32px rgba(93,108,146,0.14);
-  border-color: rgba(124,58,237,0.15);
+  box-shadow: var(--shadow-card-lg);
+  border-color: rgba(var(--practiq-violet-rgb), 0.18);
 }
 
 .course-card__stripe {
   height: 3px;
 }
-.stripe--violet { background: linear-gradient(90deg, #7c3aed, #a78bfa); }
-.stripe--blue   { background: linear-gradient(90deg, #2563eb, #60a5fa); }
-.stripe--green  { background: linear-gradient(90deg, #059669, #34d399); }
-.stripe--orange { background: linear-gradient(90deg, #d97706, #fbbf24); }
-.stripe--red    { background: linear-gradient(90deg, #dc2626, #f87171); }
+.stripe--violet { background: linear-gradient(90deg, var(--practiq-violet), var(--practiq-violet-light)); }
+.stripe--blue   { background: linear-gradient(90deg, var(--color-info-dark), var(--color-info)); }
+.stripe--green  { background: linear-gradient(90deg, var(--color-success-dark), var(--color-success)); }
+.stripe--orange { background: linear-gradient(90deg, var(--color-warning-strong), var(--color-warning)); }
+.stripe--red    { background: linear-gradient(90deg, var(--color-error-dark), var(--color-error)); }
 .stripe--slate  { background: linear-gradient(90deg, var(--text-secondary), var(--text-muted)); }
 
 .course-card__body {
-  padding: 12px 14px 10px;
+  padding: 16px 18px 14px;
   display: flex;
   flex-direction: column;
   gap: 6px;
@@ -616,12 +641,12 @@ function stripeClass(subject?: string) {
   font-weight: 700;
   text-transform: capitalize;
 }
-.subject-badge.stripe--violet { background: rgba(124,58,237,0.1); color: #7c3aed; }
-.subject-badge.stripe--blue   { background: rgba(37,99,235,0.1);  color: #2563eb; }
-.subject-badge.stripe--green  { background: rgba(5,150,105,0.1);  color: #059669; }
-.subject-badge.stripe--orange { background: rgba(217,119,6,0.1);  color: #d97706; }
-.subject-badge.stripe--red    { background: rgba(220,38,38,0.1);  color: #dc2626; }
-.subject-badge.stripe--slate  { background: rgba(100,116,139,0.1); color: var(--text-secondary); }
+.subject-badge.stripe--violet { background: var(--fill-primary-soft); color: var(--practiq-violet); }
+.subject-badge.stripe--blue   { background: var(--color-info-bg); color: var(--color-info-dark); }
+.subject-badge.stripe--green  { background: var(--color-success-bg); color: var(--color-success-dark); }
+.subject-badge.stripe--orange { background: var(--color-warning-bg); color: var(--color-warning-strong); }
+.subject-badge.stripe--red    { background: var(--color-error-bg); color: var(--color-error-dark); }
+.subject-badge.stripe--slate  { background: rgba(var(--surface-border-rgb), 0.14); color: var(--text-secondary); }
 
 .level-badge {
   display: inline-flex;
@@ -634,7 +659,7 @@ function stripeClass(subject?: string) {
 }
 
 .course-title {
-  font-size: var(--text-md);
+  font-size: var(--text-lg);
   font-weight: 700;
   color: var(--text-primary);
   line-height: 1.3;
@@ -657,7 +682,7 @@ function stripeClass(subject?: string) {
   align-items: center;
   justify-content: space-between;
   padding-top: 8px;
-  border-top: 1px solid rgba(148,163,184,0.1);
+  border-top: 1px solid rgba(var(--surface-border-rgb), 0.1);
   margin-top: 4px;
 }
 
@@ -689,7 +714,7 @@ function stripeClass(subject?: string) {
   display: inline-flex;
   padding: 5px 12px;
   border-radius: var(--radius-pill);
-  background: rgba(37,99,235,0.08);
+  background: var(--color-info-bg);
   color: var(--color-info-dark);
   font-size: var(--text-sm);
   font-weight: 700;
@@ -697,8 +722,8 @@ function stripeClass(subject?: string) {
 
 .student-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
-  gap: 8px;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: 12px;
 }
 
 .student-card {
@@ -706,25 +731,25 @@ function stripeClass(subject?: string) {
   align-items: center;
   gap: 14px;
   padding: 10px 12px;
-  border-radius: var(--radius-sm);
-  background: rgba(255,255,255,0.88);
-  border: 1px solid rgba(255,255,255,0.9);
-  box-shadow: 0 2px 10px rgba(93,108,146,0.06);
+  border-radius: var(--radius-xl);
+  background: var(--surface-elevated);
+  border: 1px solid var(--surface-elevated-strong);
+  box-shadow: var(--shadow-card);
   cursor: pointer;
-  transition: all 0.15s;
+  transition: var(--transition-fast);
 }
 .student-card:hover {
   transform: translateY(-2px);
-  box-shadow: 0 8px 22px rgba(93,108,146,0.11);
-  border-color: rgba(124,58,237,0.2);
+  box-shadow: var(--shadow-card-lg);
+  border-color: rgba(var(--practiq-violet-rgb), 0.2);
 }
 
 .student-card__avatar {
   width: 34px;
   height: 34px;
   border-radius: 9px;
-  background: linear-gradient(135deg, var(--practiq-violet), #60a5fa);
-  color: #fff;
+  background: var(--gradient-brand);
+  color: var(--color-on-primary);
   font-size: var(--text-md);
   font-weight: 800;
   display: grid;
@@ -763,13 +788,13 @@ function stripeClass(subject?: string) {
   display: inline-flex;
   padding: 3px 8px;
   border-radius: var(--radius-pill);
-  background: rgba(16,185,129,0.1);
+  background: var(--color-success-bg);
   color: var(--color-success-dark);
   font-size: var(--text-xs);
   font-weight: 700;
 }
 .student-grade-tag--empty {
-  background: rgba(148,163,184,0.12);
+  background: rgba(var(--surface-border-rgb), 0.12);
   color: var(--text-secondary);
 }
 
@@ -789,15 +814,15 @@ function stripeClass(subject?: string) {
 .empty-state {
   text-align: center;
   padding: 40px 24px;
-  background: rgba(255,255,255,0.7);
+  background: var(--surface-glass);
   border-radius: var(--radius-2xl);
-  border: 1px dashed rgba(148,163,184,0.3);
+  border: 1px dashed rgba(var(--surface-border-rgb), 0.3);
 }
 .empty-state__icon {
   width: 48px;
   height: 48px;
   border-radius: var(--radius-lg);
-  background: rgba(124,58,237,0.08);
+  background: var(--fill-primary-subtle);
   display: grid;
   place-items: center;
   margin: 0 auto 16px;
@@ -831,13 +856,13 @@ function stripeClass(subject?: string) {
   width: 32px;
   height: 32px;
   border-radius: var(--radius-sm);
-  border: 1px solid rgba(148,163,184,0.25);
+  border: 1px solid rgba(var(--surface-border-rgb), 0.25);
   background: transparent;
   display: grid;
   place-items: center;
   cursor: pointer;
   color: var(--text-secondary);
-  transition: all 0.15s;
+  transition: var(--transition-fast);
 }
 .icon-btn:hover { background: var(--surface-hover); color: var(--text-primary); }
 
@@ -852,11 +877,11 @@ function stripeClass(subject?: string) {
   align-items: flex-start;
   gap: 10px;
   padding: 12px 14px;
-  background: rgba(245,158,11,0.08);
-  border: 1px solid rgba(245,158,11,0.2);
+  background: var(--fill-warning-subtle);
+  border: 1px solid rgba(var(--color-warning-rgb), 0.2);
   border-radius: var(--radius-md);
   font-size: var(--text-base);
-  color: #92400e;
+  color: var(--color-warning-dark);
   margin-bottom: 16px;
 }
 .setup-notice .pi { color: var(--color-warning); flex-shrink: 0; margin-top: 1px; }
@@ -877,16 +902,17 @@ function stripeClass(subject?: string) {
   .dashboard { padding: 20px 20px 40px; }
   .courses-grid { grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); }
   .student-grid { grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); }
-  .stats-strip { flex-wrap: wrap; gap: var(--space-2); }
+  .stats-strip { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 
 /* Tablet portrait */
 @media (max-width: 768px) {
   .dashboard { padding: 16px 14px 32px; }
+  .page-header { padding: 22px 18px; border-radius: 22px; }
   .page-header { flex-direction: column; align-items: flex-start; gap: 10px; }
   .page-header__right { width: 100%; }
-  .stats-strip { gap: 0; }
-  .stat-item { padding: 6px 10px; }
+  .stats-strip { grid-template-columns: 1fr; }
+  .stat-item { padding: 12px 14px; }
   .stat-divider { display: none; }
   .courses-grid { grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); }
   .student-grid { grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); }

@@ -485,21 +485,18 @@ async function completePendingProfile() {
   min-height: 100vh;
   display: grid;
   grid-template-columns: 1.1fr 1fr;
-  background:
-    radial-gradient(ellipse at 90% 10%, rgba(124, 58, 237, 0.06), transparent 50%),
-    radial-gradient(ellipse at 10% 90%, rgba(96, 165, 250, 0.06), transparent 50%),
-    #f8fafc;
+  background: var(--gradient-auth-bg);
 }
 
 /* ───────── LEFT PANEL ───────── */
 .auth-left {
   position: relative;
   overflow: hidden;
-  color: white;
+  color: var(--color-on-brand-panel);
   padding: 0px 48px 40px;
   display: flex;
   flex-direction: column;
-  background: linear-gradient(155deg, #312e81 0%, #4338ca 40%, #6366f1 100%);
+  background: var(--gradient-brand-panel);
 }
 
 .glow {
@@ -508,8 +505,8 @@ async function completePendingProfile() {
   filter: blur(80px);
   pointer-events: none;
 }
-.glow--top   { top: -120px; right: -60px; width: 320px; height: 320px; background: rgba(167, 139, 250, 0.35); }
-.glow--bottom { bottom: -100px; left: -80px; width: 280px; height: 280px; background: rgba(96, 165, 250, 0.25); }
+.glow--top   { top: -120px; right: -60px; width: 320px; height: 320px; background: rgba(var(--practiq-violet-light-rgb), 0.35); }
+.glow--bottom { bottom: -100px; left: -80px; width: 280px; height: 280px; background: rgba(var(--color-info-rgb), 0.25); }
 
 .left-brand { display: flex; align-items: center; gap: 14px; position: relative; z-index: 1; margin-top: -16px; margin-bottom: 32px; }
 
@@ -527,14 +524,14 @@ async function completePendingProfile() {
   width: 44px; height: 44px; border-radius: var(--radius-lg);
   display: grid; place-items: center;
   font-weight: 800; font-size: var(--font-stat-value);
-  color: #312e81;
-  background: rgba(255,255,255,0.95);
-  box-shadow: 0 8px 24px rgba(0,0,0,0.15);
+  color: var(--practiq-violet-900);
+  background: rgba(var(--surface-card-rgb), 0.95);
+  box-shadow: var(--shadow-md);
 }
 .brand-mark--mobile {
-  color: white;
-  background: linear-gradient(135deg, #7c3aed, #6366f1);
-  box-shadow: 0 8px 24px rgba(124,58,237,0.3);
+  color: var(--color-on-primary);
+  background: var(--gradient-brand);
+  box-shadow: var(--shadow-violet-lg);
 }
 .brand-name { font-size: var(--font-stat-value); font-weight: 800; line-height: 1.2; }
 .brand-tag  { font-size: var(--text-sm); opacity: 0.75; }
@@ -550,8 +547,8 @@ async function completePendingProfile() {
   opacity: 0.7; margin-bottom: 16px;
 }
 .left-copy h1 { font-size: clamp(1.8rem, 3.5vw, 2.6rem); line-height: 1.15; font-weight: 800; }
-.left-copy h1 span { color: #c7d2fe; }
-.left-copy p { margin-top: 16px; max-width: 440px; font-size: var(--text-lg); line-height: 1.7; color: rgba(255,255,255,0.8); }
+.left-copy h1 span { color: var(--practiq-indigo-soft); }
+.left-copy p { margin-top: 16px; max-width: 440px; font-size: var(--text-lg); line-height: 1.7; color: var(--text-brand-panel-muted); }
 
 .feature-list {
   position: relative; z-index: 1;
@@ -562,11 +559,11 @@ async function completePendingProfile() {
 .feature-pill {
   display: flex; align-items: center; gap: 10px;
   padding: 12px 16px; border-radius: var(--radius-lg);
-  background: rgba(255,255,255,0.1);
-  border: 1px solid rgba(255,255,255,0.12);
+  background: rgba(var(--surface-card-rgb), 0.1);
+  border: 1px solid rgba(var(--surface-card-rgb), 0.12);
   font-size: var(--text-base); font-weight: 500;
 }
-.feature-pill .pi { color: #a5b4fc; font-size: var(--text-lg); }
+.feature-pill .pi { color: var(--practiq-violet-300); font-size: var(--text-lg); }
 
 .left-preview {
   position: absolute; right: 0; bottom: 0;
@@ -578,7 +575,7 @@ async function completePendingProfile() {
   display: block;
   pointer-events: none;
   user-select: none;
-  filter: drop-shadow(0 20px 40px rgba(0,0,0,0.18));
+  filter: drop-shadow(var(--shadow-illustration));
 }
 
 /* ───────── RIGHT PANEL ───────── */
@@ -592,9 +589,9 @@ async function completePendingProfile() {
 .auth-card {
   width: 100%; max-width: 440px;
   padding: 36px 32px; border-radius: var(--radius-2xl);
-  background: #fff;
-  border: 1px solid #e8ecf1;
-  box-shadow: 0 1px 3px rgba(0,0,0,0.04), 0 12px 40px rgba(100,116,139,0.08);
+  background: var(--surface-card);
+  border: 1px solid var(--surface-card-border);
+  box-shadow: var(--shadow-auth-card);
 }
 .card-header { margin-bottom: 28px; }
 .card-title {
@@ -609,7 +606,7 @@ async function completePendingProfile() {
 .auth-form .form-input { padding: 12px 16px; border-radius: var(--radius-md); font-size: var(--text-md); }
 
 .form-input--error { border-color: var(--color-error) !important; }
-.form-input--error:focus { box-shadow: 0 0 0 3px rgba(239,68,68,0.12) !important; }
+.form-input--error:focus { box-shadow: var(--focus-ring-error) !important; }
 
 .label-row {
   display: flex; align-items: center;
@@ -625,13 +622,13 @@ async function completePendingProfile() {
   border: 1.5px solid var(--surface-border);
   background: var(--surface-card);
   text-align: left; cursor: pointer;
-  transition: all 0.2s ease;
+  transition: var(--transition);
 }
 .profile-option:hover { border-color: var(--practiq-violet-light); background: var(--practiq-violet-bg); }
 .profile-option.active {
   border-color: var(--practiq-violet);
   background: var(--practiq-violet-bg);
-  box-shadow: 0 0 0 3px rgba(124,58,237,0.1);
+  box-shadow: 0 0 0 3px var(--fill-primary-soft);
 }
 .profile-option__emoji { display: block; font-size: 22px; margin-bottom: 8px; }
 .profile-option__name { display: block; font-weight: 700; font-size: var(--text-md); color: var(--text-primary); }
@@ -643,14 +640,14 @@ async function completePendingProfile() {
   width: 100%; min-height: 48px;
   border: none; border-radius: var(--radius-md);
   font-size: var(--text-lg); font-weight: 600; cursor: pointer;
-  background: var(--practiq-violet); color: white;
-  box-shadow: 0 4px 14px rgba(124,58,237,0.25);
-  transition: all 0.2s ease;
+  background: var(--practiq-violet); color: var(--color-on-primary);
+  box-shadow: var(--shadow-violet);
+  transition: var(--transition);
 }
 .submit-btn:hover:not(:disabled) {
   background: var(--practiq-violet-dark);
   transform: translateY(-1px);
-  box-shadow: 0 6px 20px rgba(124,58,237,0.3);
+  box-shadow: var(--shadow-violet-lg);
 }
 .submit-btn:disabled { opacity: 0.5; cursor: not-allowed; }
 
@@ -659,7 +656,7 @@ async function completePendingProfile() {
   border: 1px solid var(--surface-border); border-radius: var(--radius-md);
   font-size: var(--text-md); font-weight: 600; cursor: pointer;
   background: var(--surface-card); color: var(--text-primary);
-  transition: all 0.2s ease;
+  transition: var(--transition);
 }
 .ghost-btn:hover { background: var(--surface-hover); }
 
@@ -676,8 +673,8 @@ async function completePendingProfile() {
   padding: 12px 14px; border-radius: var(--radius-md);
   font-size: var(--text-base); line-height: 1.5;
 }
-.alert--error { background: var(--color-error-bg); color: var(--color-error-dark); border: 1px solid rgba(239,68,68,0.12); }
-.alert--success { background: var(--color-success-bg); color: var(--color-success-dark); border: 1px solid rgba(16,185,129,0.12); }
+.alert--error { background: var(--color-error-bg); color: var(--color-error-dark); border: 1px solid rgba(var(--color-error-rgb), 0.12); }
+.alert--success { background: var(--color-success-bg); color: var(--color-success-dark); border: 1px solid rgba(var(--color-success-rgb), 0.12); }
 
 /* Divider */
 .auth-divider {
@@ -688,7 +685,7 @@ async function completePendingProfile() {
   content: ''; position: absolute; left: 0; right: 0; top: 50%;
   height: 1px; background: var(--surface-border);
 }
-.auth-divider span { position: relative; z-index: 1; padding: 0 14px; background: #fff; }
+.auth-divider span { position: relative; z-index: 1; padding: 0 14px; background: var(--surface-card); }
 
 /* Footer */
 .card-footer {
@@ -706,7 +703,7 @@ async function completePendingProfile() {
 .identity-avatar {
   width: 48px; height: 48px; border-radius: var(--radius-lg);
   display: grid; place-items: center;
-  background: var(--practiq-violet); color: white;
+  background: var(--practiq-violet); color: var(--color-on-primary);
   font-weight: 800; font-size: 18px; flex-shrink: 0;
 }
 .identity-name { font-weight: 700; font-size: var(--text-lg); color: var(--text-primary); }

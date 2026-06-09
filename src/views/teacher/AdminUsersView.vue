@@ -533,21 +533,50 @@ async function toggleBlocked(item: UserRow) {
 </script>
 
 <style scoped>
-.admin-shell { padding: 16px 20px 32px; display: flex; flex-direction: column; gap: 14px; }
+.admin-shell { padding: 24px 28px 40px; display: flex; flex-direction: column; gap: 18px; }
 .hero-card, .locked-card, .loading-card, .error-card, .panel-card, .stat-card, .teacher-card, .student-card, .toolbar-card {
-  background: rgba(255,255,255,0.88);
-  border: 1px solid rgba(255,255,255,0.92);
+  background: var(--surface-elevated);
+  border: 1px solid var(--surface-elevated-strong);
   box-shadow: var(--shadow-card);
-  border-radius: var(--radius-lg);
+  border-radius: var(--radius-2xl);
 }
 .hero-card, .panel-head, .student-head, .action-row, .stats-row, .chip-row, .toolbar-card, .search-box, .filter-row { display: flex; }
 .hero-card, .panel-head, .student-head { justify-content: space-between; gap: 18px; align-items: flex-start; }
 .hero-card, .panel-card, .teacher-card, .student-card, .stat-card { padding: 16px 20px; }
+.hero-card {
+  position: relative;
+  padding: 24px 28px;
+  background: var(--gradient-card-accent);
+  box-shadow: var(--shadow-soft);
+  backdrop-filter: blur(18px);
+  overflow: hidden;
+  border-radius: 28px;
+}
+.hero-card::after {
+  content: '';
+  position: absolute;
+  right: 28px;
+  bottom: -48px;
+  width: 170px;
+  height: 170px;
+  border-radius: 50%;
+  background: var(--gradient-brand-soft);
+  pointer-events: none;
+}
+.hero-card > * {
+  position: relative;
+  z-index: 1;
+}
+.hero-card > .btn {
+  align-self: flex-start;
+  width: auto;
+  flex: 0 0 auto;
+}
 .hero-kicker, .panel-kicker { font-size: var(--text-sm); font-weight: 700; letter-spacing: 0.14em; text-transform: uppercase; color: var(--practiq-violet); }
 .hero-title { margin: 4px 0 6px; font-size: var(--font-hero); font-weight: 800; color: var(--text-heading); }
 .hero-copy { margin: 0; color: var(--text-secondary); max-width: 720px; font-size: var(--text-base); }
-.stats-row { gap: 8px; }
-.stat-card { flex: 1; position: relative; overflow: hidden; padding-left: 54px; }
+.stats-row { gap: 12px; }
+.stat-card { flex: 1; position: relative; overflow: hidden; padding-left: 58px; }
 .stat-icon {
   position: absolute;
   left: 16px;
@@ -559,9 +588,9 @@ async function toggleBlocked(item: UserRow) {
   place-items: center;
   font-size: 16px;
 }
-.stat-icon--teacher { background: rgba(59,130,246,0.12); color: var(--color-info-dark); }
-.stat-icon--student { background: rgba(16,185,129,0.12); color: var(--color-success-dark); }
-.stat-icon--pending { background: rgba(245,158,11,0.14); color: var(--color-warning-dark); }
+.stat-icon--teacher { background: var(--color-info-bg); color: var(--color-info-dark); }
+.stat-icon--student { background: var(--color-success-bg); color: var(--color-success-dark); }
+.stat-icon--pending { background: var(--color-warning-bg); color: var(--color-warning-dark); }
 .stat-value { font-size: var(--font-stat-value); font-weight: 800; color: var(--text-heading); }
 .stat-label { color: var(--text-secondary); }
 .toolbar-card {
@@ -576,8 +605,8 @@ async function toggleBlocked(item: UserRow) {
   align-items: center;
   padding: 8px 12px;
   border-radius: var(--radius-sm);
-  background: rgba(248,250,252,0.92);
-  border: 1px solid rgba(148,163,184,0.16);
+  background: var(--surface-subtle);
+  border: 1px solid rgba(var(--surface-border-rgb), 0.16);
 }
 .search-box i { color: var(--text-secondary); }
 .search-input {
@@ -596,14 +625,14 @@ async function toggleBlocked(item: UserRow) {
   border: none;
   padding: 5px 10px;
   border-radius: var(--radius-pill);
-  background: rgba(241,245,249,0.95);
+  background: var(--surface-hover);
   color: var(--text-secondary);
   font-size: var(--text-sm);
   font-weight: 700;
   cursor: pointer;
 }
 .filter-chip--active {
-  background: rgba(124,58,237,0.14);
+  background: var(--fill-primary-soft);
   color: var(--practiq-violet-dark);
 }
 .panel-card { display: flex; flex-direction: column; gap: 12px; }
@@ -615,26 +644,26 @@ async function toggleBlocked(item: UserRow) {
   font-size: var(--text-xs);
   font-weight: 700;
 }
-.teacher-state--ok { background: rgba(16,185,129,0.12); color: var(--color-success-dark); }
-.teacher-state--blocked { background: rgba(239,68,68,0.14); color: var(--color-error-dark); }
+.teacher-state--ok { background: var(--color-success-bg); color: var(--color-success-dark); }
+.teacher-state--blocked { background: var(--color-error-bg); color: var(--color-error-dark); }
 .teacher-badge {
   display: inline-flex;
   padding: 3px 8px;
   border-radius: var(--radius-pill);
-  background: rgba(15,23,42,0.05);
+  background: rgba(var(--text-primary-rgb), 0.05);
   color: var(--text-secondary);
   font-size: var(--text-xs);
   font-weight: 700;
 }
-.teacher-badge--pending { background: rgba(245,158,11,0.12); color: var(--color-warning-dark); }
+.teacher-badge--pending { background: var(--color-warning-bg); color: var(--color-warning-dark); }
 .chip-row { display: flex; gap: 6px; flex-wrap: wrap; }
 .chip-row--inline { margin: 0; }
 .soft-chip {
   display: inline-flex; align-items: center; gap: 4px; padding: 3px 8px; border-radius: var(--radius-pill);
-  background: rgba(124,58,237,0.1); color: var(--practiq-violet-dark); font-size: var(--text-xs); font-weight: 700;
+  background: var(--fill-primary-soft); color: var(--practiq-violet-dark); font-size: var(--text-xs); font-weight: 700;
 }
-.soft-chip--teacher { background: rgba(59,130,246,0.12); color: var(--color-info-dark); }
-.soft-chip--grade { background: rgba(16,185,129,0.12); color: var(--color-success-dark); }
+.soft-chip--teacher { background: var(--color-info-bg); color: var(--color-info-dark); }
+.soft-chip--grade { background: var(--color-success-bg); color: var(--color-success-dark); }
 .chip-action { border: none; background: transparent; color: inherit; cursor: pointer; font-weight: 800; padding: 0; }
 .data-table {
   width: 100%;
@@ -649,19 +678,19 @@ async function toggleBlocked(item: UserRow) {
   text-transform: uppercase;
   letter-spacing: 0.08em;
   color: var(--text-secondary);
-  border-bottom: 1px solid rgba(148,163,184,0.18);
-  background: rgba(248,250,252,0.7);
+  border-bottom: 1px solid rgba(var(--surface-border-rgb), 0.18);
+  background: var(--surface-subtle);
 }
 .data-table thead th:first-child { border-radius: var(--radius-sm) 0 0 0; }
 .data-table thead th:last-child { border-radius: 0 var(--radius-sm) 0 0; }
 .data-table tbody tr {
-  border-bottom: 1px solid rgba(148,163,184,0.1);
+  border-bottom: 1px solid rgba(var(--surface-border-rgb), 0.1);
   transition: background 0.15s;
 }
 .data-table tbody tr:last-child { border-bottom: none; }
-.data-table tbody tr:hover { background: rgba(124,58,237,0.04); }
-.data-table tbody tr.row--pending { background: rgba(245,158,11,0.03); }
-.data-table tbody tr.row--pending:hover { background: rgba(245,158,11,0.07); }
+.data-table tbody tr:hover { background: var(--fill-primary-faint); }
+.data-table tbody tr.row--pending { background: rgba(var(--color-warning-rgb), 0.03); }
+.data-table tbody tr.row--pending:hover { background: var(--fill-warning-subtle); }
 .data-table td {
   padding: 10px 12px;
   vertical-align: middle;
@@ -674,8 +703,8 @@ async function toggleBlocked(item: UserRow) {
 .detail-card {
   padding: 10px 12px;
   border-radius: var(--radius-sm);
-  background: rgba(248,250,252,0.9);
-  border: 1px solid rgba(148,163,184,0.14);
+  background: var(--surface-subtle);
+  border: 1px solid rgba(var(--surface-border-rgb), 0.14);
 }
 .detail-label { display: block; font-size: var(--text-xs); font-weight: 700; text-transform: uppercase; color: var(--text-secondary); margin-bottom: 4px; }
 .detail-empty { color: var(--text-muted); font-size: var(--text-sm); }
@@ -690,22 +719,22 @@ async function toggleBlocked(item: UserRow) {
   color: var(--text-secondary);
 }
 .form-input, .form-select {
-  width: 100%; border-radius: var(--radius-sm); border: 1px solid rgba(148,163,184,0.2); background: rgba(248,250,252,0.95);
+  width: 100%; border-radius: var(--radius-sm); border: 1px solid rgba(var(--surface-border-rgb), 0.2); background: var(--surface-subtle);
   padding: 8px 10px; font: inherit; font-size: var(--text-base); color: var(--text-heading);
 }
-.btn-danger { background: var(--color-error); color: white; border: none; }
+.btn-danger { background: var(--color-error); color: var(--color-on-primary); border: none; }
 .status-pill {
   display: inline-flex; align-items: center; padding: 3px 10px; border-radius: var(--radius-pill); font-size: var(--text-xs); font-weight: 700;
 }
-.status-pill--ok { background: rgba(16,185,129,0.12); color: var(--color-success-dark); }
-.status-pill--blocked { background: rgba(239,68,68,0.14); color: var(--color-error-dark); }
+.status-pill--ok { background: var(--color-success-bg); color: var(--color-success-dark); }
+.status-pill--blocked { background: var(--color-error-bg); color: var(--color-error-dark); }
 .loading-card, .error-card { padding: 30px; text-align: center; }
 .locked-card { padding: 56px 30px; text-align: center; }
 .locked-icon {
   width: 64px;
   height: 64px;
   border-radius: 20px;
-  background: rgba(239,68,68,0.08);
+  background: var(--color-error-bg);
   color: var(--color-error-dark);
   font-size: 28px;
   display: grid;
@@ -715,7 +744,7 @@ async function toggleBlocked(item: UserRow) {
 .modal-backdrop {
   position: fixed;
   inset: 0;
-  background: rgba(15, 23, 42, 0.4);
+  background: var(--surface-scrim);
   display: grid;
   place-items: center;
   padding: 24px;
@@ -727,8 +756,8 @@ async function toggleBlocked(item: UserRow) {
   overflow: auto;
   padding: 16px;
   border-radius: var(--radius-xl);
-  background: rgba(255,255,255,0.98);
-  box-shadow: 0 24px 80px rgba(15,23,42,0.22);
+  background: var(--surface-card);
+  box-shadow: var(--shadow-panel);
 }
 .modal-head {
   display: flex;
@@ -755,7 +784,7 @@ async function toggleBlocked(item: UserRow) {
   height: 40px;
   border: none;
   border-radius: var(--radius-pill);
-  background: rgba(148,163,184,0.12);
+  background: rgba(var(--surface-border-rgb), 0.12);
   color: var(--text-primary);
   font-size: 24px;
   line-height: 1;
@@ -774,6 +803,8 @@ async function toggleBlocked(item: UserRow) {
 @media (max-width: 920px) {
   .admin-shell { padding: 16px 14px 28px; }
   .hero-card, .panel-head, .action-row--split, .toolbar-card { flex-direction: column; }
+  .hero-card { padding: 22px 18px; border-radius: 22px; }
+  .hero-card > .btn { align-self: flex-start; width: auto; }
   .stats-row { flex-direction: column; }
   .modal-head { flex-direction: column; align-items: stretch; }
   .data-table { display: block; overflow-x: auto; -webkit-overflow-scrolling: touch; }

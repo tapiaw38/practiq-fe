@@ -89,10 +89,7 @@ function logout() {
 .app-shell {
   min-height: 100vh;
   display: flex;
-  background:
-    radial-gradient(circle at top left, rgba(124, 58, 237, 0.12), transparent 16%),
-    radial-gradient(circle at bottom right, rgba(96, 165, 250, 0.12), transparent 18%),
-    linear-gradient(180deg, #f8fbff 0%, #f7f8ff 42%, #f6f8fc 100%);
+  background: var(--gradient-app-bg);
 }
 
 .mobile-topbar {
@@ -104,9 +101,9 @@ function logout() {
   flex-shrink: 0;
   margin: 18px 0 18px 18px;
   border-radius: 32px;
-  background: rgba(255, 255, 255, 0.78);
-  border: 1px solid rgba(255, 255, 255, 0.9);
-  box-shadow: 0 24px 52px rgba(93, 108, 146, 0.14);
+  background: var(--surface-glass);
+  border: 1px solid var(--surface-glass-border);
+  box-shadow: var(--shadow-panel);
   backdrop-filter: blur(18px);
   display: flex;
   flex-direction: column;
@@ -155,7 +152,7 @@ function logout() {
   height: 42px;
   border: none;
   border-radius: var(--radius-lg);
-  background: rgba(248, 250, 252, 0.92);
+  background: var(--surface-subtle);
   color: var(--text-secondary);
   display: grid;
   place-items: center;
@@ -166,7 +163,7 @@ function logout() {
 .close-btn:hover,
 .topbar-btn:hover,
 .logout-btn:hover {
-  background: white;
+  background: var(--surface-card);
   color: var(--text-primary);
 }
 
@@ -189,12 +186,13 @@ function logout() {
 }
 
 .nav-item:hover {
-  background: rgba(255, 255, 255, 0.9);
+  background: var(--surface-elevated-strong);
   color: var(--text-heading);
+  transform: translateX(2px);
 }
 
 .nav-item-active {
-  background: linear-gradient(135deg, rgba(124, 58, 237, 0.12), rgba(96, 165, 250, 0.12));
+  background: var(--gradient-brand-soft);
   color: var(--practiq-violet-dark);
 }
 
@@ -202,7 +200,7 @@ function logout() {
   justify-content: space-between;
   gap: 12px;
   padding-top: 18px;
-  border-top: 1px solid rgba(148, 163, 184, 0.14);
+  border-top: 1px solid rgba(var(--surface-border-rgb), 0.14);
 }
 
 .user-info {
@@ -215,7 +213,7 @@ function logout() {
   width: 44px;
   height: 44px;
   border-radius: var(--radius-xl);
-  background: linear-gradient(135deg, rgba(124, 58, 237, 0.18), rgba(96, 165, 250, 0.2));
+  background: var(--gradient-brand-avatar);
   color: var(--practiq-violet-dark);
   display: grid;
   place-items: center;
@@ -256,7 +254,7 @@ function logout() {
   width: 42px;
   height: 42px;
   border-radius: var(--radius-lg);
-  background: rgba(124, 58, 237, 0.12);
+  background: var(--fill-primary-soft);
   color: var(--practiq-violet-dark);
   display: grid;
   place-items: center;
@@ -309,7 +307,7 @@ function logout() {
     position: sticky;
     top: 0;
     z-index: 30;
-    background: linear-gradient(180deg, rgba(247, 248, 255, 0.96), rgba(247, 248, 255, 0.76) 75%, transparent);
+    background: var(--gradient-mobile-topbar);
     backdrop-filter: blur(16px);
   }
 
@@ -317,7 +315,7 @@ function logout() {
     display: block;
     position: fixed;
     inset: 0;
-    background: rgba(15, 23, 42, 0.34);
+    background: var(--surface-scrim);
     z-index: 34;
   }
 

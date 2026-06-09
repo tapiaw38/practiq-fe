@@ -19,6 +19,7 @@ export class AIService {
     exercise_id?: string
     question: string
     help_type?: 'hint' | 'explanation' | 'similar_example'
+    conversation_id?: string
   }): Promise<{ data: { id: string; response: string; help_type: string } }> {
     const { data } = await practiqApi.post('/ai/help', params)
     return data

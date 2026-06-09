@@ -188,7 +188,8 @@ import { useRoute, useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/authStore'
 import StudentLayout from '@/layouts/StudentLayout.vue'
 import { practiceSheetService } from '@/services/practiceSheets/practiceSheetService'
-import type { PracticeSheet, SubmitResult } from '@/types'
+import { progressService } from '@/services/progress/progressService'
+import type { PracticeSheet, SubmitResult, TopicProgress } from '@/types'
 import {
   composeTeacherAndStudentImage,
   extractTeacherImageDataUrl,
@@ -242,7 +243,14 @@ const progressPct = computed(() =>
   totalCount.value ? Math.round((answeredCount.value / totalCount.value) * 100) : 0
 )
 
-const streakCount = computed(() => Math.max(4, Math.ceil(progressPct.value / 8)))
+const topicProgress = ref<TopicProgress[]>([])
+
+const streakCount = computed(() => {
+  const topicId = sheet.value?.topic_id
+  const match = topicId ? topicProgress.value.find((p) => p.topic_id === topicId) : undefined
+  if (match) return match.streak_days
+  return Math.max(...topicProgress.value.map((p) => p.streak_days), 0)
+})
 const studentInitial = computed(() => {
   const name = authStore.profile?.name?.trim() || 'Estudiante'
   return name.charAt(0).toUpperCase()
@@ -259,6 +267,7 @@ onMounted(async () => {
     }
 
     startTimer()
+    loadTopicProgress()
   } finally {
     loading.value = false
   }
@@ -440,10 +449,22 @@ async function submitAnswers() {
     }
     showSubmitConfirm.value = false
     showResults.value = true
+    loadTopicProgress()
   } catch (err) {
     console.error(err)
   } finally {
     submitting.value = false
+  }
+}
+
+async function loadTopicProgress() {
+  const courseId = sheet.value?.course_id
+  if (!courseId) return
+  try {
+    const res = await progressService.getCourseProgress(courseId)
+    topicProgress.value = res.data ?? []
+  } catch {
+    topicProgress.value = []
   }
 }
 

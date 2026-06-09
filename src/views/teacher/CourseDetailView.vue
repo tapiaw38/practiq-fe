@@ -9,7 +9,7 @@
           <h1 class="page-title">{{ course.title }}</h1>
           <div class="course-badges">
             <span class="badge badge-violet">{{ course.subject || 'General' }}</span>
-            <span class="badge" style="background: var(--surface-hover); color: var(--text-secondary)">{{ course.level || 'Sin nivel' }}</span>
+            <span class="badge badge-muted">{{ course.level || 'Sin nivel' }}</span>
           </div>
         </div>
       </div>
@@ -151,7 +151,7 @@
         <div class="section-header">
           <div class="flex gap-3 items-center">
             <h2>Ejercicios</h2>
-            <select v-model="selectedTopicId" class="form-select" style="width: 200px; padding: 6px 10px">
+            <select v-model="selectedTopicId" class="form-select topic-select">
               <option value="">Seleccionar tema</option>
               <option v-for="t in topics" :key="t.id" :value="t.id">{{ t.title }}</option>
             </select>
@@ -195,7 +195,7 @@
         <div class="items-list">
           <div v-for="mat in materials" :key="mat.id" class="list-item">
             <div class="item-info">
-              <i :class="matIcon(mat.type)" style="font-size: 20px; color: var(--practiq-violet)"></i>
+              <i :class="matIcon(mat.type)" class="item-leading-icon"></i>
               <div>
                 <div class="item-title">{{ mat.title }}</div>
                 <div class="item-subtitle">{{ mat.type }} · {{ mat.status }}</div>
@@ -281,7 +281,7 @@
             class="list-item"
           >
             <div class="item-info">
-              <i class="pi pi-book" style="font-size: 20px; color: var(--practiq-violet)"></i>
+              <i class="pi pi-book item-leading-icon"></i>
               <div>
                 <div class="item-title">{{ nb.title }}</div>
                 <div class="item-subtitle">{{ nb.description || 'Sin descripción' }} · {{ nb.pages?.length || 0 }} páginas</div>
@@ -476,7 +476,7 @@
               <div class="form-group">
                 <label class="form-label">Ejercicios (seleccionar)</label>
                 <div class="exercise-selector">
-                  <div v-if="sheetExercises.length === 0" class="empty-inline" style="padding: 12px 0">
+                  <div v-if="sheetExercises.length === 0" class="empty-inline empty-inline--compact">
                     {{ newSheet.topic_id ? 'Este tema no tiene ejercicios aún.' : 'Selecciona un tema para ver los ejercicios.' }}
                   </div>
                   <label v-for="ex in sheetExercises" :key="ex.id" class="exercise-checkbox">
@@ -534,7 +534,7 @@
               <div class="form-group">
                 <label class="form-label">Ejercicios</label>
                 <div class="exercise-selector">
-                  <div v-if="editSheetExercises.length === 0" class="empty-inline" style="padding: 12px 0">
+                  <div v-if="editSheetExercises.length === 0" class="empty-inline empty-inline--compact">
                     {{ editSheet.topic_id ? 'Este tema no tiene ejercicios aún.' : 'Selecciona un tema para ver los ejercicios.' }}
                   </div>
                   <label v-for="ex in editSheetExercises" :key="ex.id" class="exercise-checkbox">
@@ -822,9 +822,9 @@ async function deleteExercise(id: string) {
 }
 
 function diffColor(d: number) {
-  if (d <= 3) return '#dcfce7'
-  if (d <= 6) return '#fef9c3'
-  return '#fee2e2'
+  if (d <= 3) return 'var(--color-success-bg)'
+  if (d <= 6) return 'var(--color-warning-bg)'
+  return 'var(--color-error-bg)'
 }
 
 function matIcon(type: string) {
@@ -990,41 +990,144 @@ async function deleteNotebook(id: string) {
 </script>
 
 <style scoped>
-.course-detail { padding: 32px; max-width: 1000px; }
-.course-header { margin-bottom: 28px; display: flex; flex-direction: column; gap: 12px; }
-.page-title { font-size: 24px; font-weight: 700; color: var(--text-primary); }
-.course-badges { display: flex; gap: 8px; margin-top: 8px; }
-.tabs { display: flex; gap: 4px; border-bottom: 2px solid var(--surface-border); margin-bottom: 28px; }
+.course-detail {
+  padding: 24px 28px 40px;
+  max-width: 1180px;
+}
+
+.course-header {
+  position: relative;
+  margin-bottom: 18px;
+  padding: 24px 28px;
+  border-radius: 28px;
+  background: var(--gradient-card-accent);
+  border: 1px solid var(--surface-elevated-strong);
+  box-shadow: var(--shadow-soft);
+  backdrop-filter: blur(18px);
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 14px;
+  overflow: hidden;
+}
+
+.course-header > .btn {
+  align-self: flex-start;
+  width: auto;
+  flex: 0 0 auto;
+}
+
+.course-header::after {
+  content: '';
+  position: absolute;
+  right: 28px;
+  bottom: -52px;
+  width: 180px;
+  height: 180px;
+  border-radius: 50%;
+  background: var(--gradient-brand-soft);
+  pointer-events: none;
+}
+
+.course-header > * {
+  position: relative;
+  z-index: 1;
+}
+
+.page-title {
+  font-size: clamp(1.4rem, 2.4vw, 2rem);
+  font-weight: 800;
+  color: var(--text-heading);
+  line-height: 1.12;
+  margin: 0;
+}
+
+.course-badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.badge-muted {
+  background: var(--surface-hover);
+  color: var(--text-secondary);
+}
+
+.tabs {
+  display: flex;
+  gap: 8px;
+  padding: 8px;
+  border-radius: var(--radius-2xl);
+  background: var(--surface-glass);
+  border: 1px solid var(--surface-elevated-strong);
+  box-shadow: var(--shadow-card);
+  margin-bottom: 24px;
+  overflow-x: auto;
+  scrollbar-width: thin;
+}
+
 .tab {
-  padding: 10px 18px;
-  background: none;
-  border: none;
+  padding: 10px 14px;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: var(--radius-xl);
   font-size: var(--text-base);
-  font-weight: 500;
+  font-weight: 700;
   color: var(--text-secondary);
   cursor: pointer;
-  border-bottom: 2px solid transparent;
-  margin-bottom: -2px;
   transition: var(--transition);
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 8px;
+  white-space: nowrap;
 }
-.tab:hover { color: var(--text-primary); }
-.tab-active { color: var(--practiq-violet); border-bottom-color: var(--practiq-violet); }
+
+.tab:hover {
+  background: var(--surface-elevated-strong);
+  color: var(--text-heading);
+}
+
+.tab-active {
+  color: var(--practiq-violet-dark);
+  background: var(--gradient-brand-soft);
+  border-color: rgba(var(--practiq-violet-rgb), 0.18);
+}
+
 .tab-content { animation: fade-in 0.2s ease; }
 @keyframes fade-in { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; } }
-.section-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; gap: 16px; }
-.section-header h2 { font-size: 17px; font-weight: 600; }
+
+.section-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  margin-bottom: 16px;
+  gap: 16px;
+}
+
+.section-header h2 {
+  font-size: 1.05rem;
+  font-weight: 800;
+  color: var(--text-heading);
+  margin: 0;
+}
+
 .section-copy { margin: 6px 0 0; font-size: var(--text-base); color: var(--text-secondary); line-height: 1.5; }
 .levels-grid { display: grid; gap: 16px; }
 .teacher-level-card {
-  background: linear-gradient(180deg, rgba(255,255,255,0.98), rgba(248,250,252,0.94));
-  border: 1px solid rgba(148,163,184,0.16);
+  background: var(--surface-elevated);
+  border: 1px solid var(--surface-elevated-strong);
   border-radius: var(--radius-2xl);
   padding: 20px;
   display: grid;
   gap: 16px;
+  box-shadow: var(--shadow-card);
+  transition: var(--transition);
+}
+
+.teacher-level-card:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-card-lg);
 }
 .teacher-level-card__top,
 .teacher-level-actions,
@@ -1038,8 +1141,8 @@ async function deleteNotebook(id: string) {
   flex: 1 1 220px;
   min-width: 0;
   padding: 14px 16px;
-  background: rgba(248,250,252,0.9);
-  border: 1px solid rgba(148,163,184,0.14);
+  background: var(--surface-subtle);
+  border: 1px solid rgba(var(--surface-border-rgb), 0.14);
   border-radius: var(--radius-xl);
 }
 .teacher-level-block__title { font-size: var(--text-sm); font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-secondary); margin-bottom: 10px; }
@@ -1050,30 +1153,52 @@ async function deleteNotebook(id: string) {
   gap: 3px;
   padding: 10px 12px;
   border-radius: var(--radius-md);
-  border: 1px solid rgba(148,163,184,0.12);
-  background: white;
+  border: 1px solid rgba(var(--surface-border-rgb), 0.12);
+  background: var(--surface-card);
   text-align: left;
+  transition: var(--transition-fast);
+}
+.mini-item--link:hover {
+  border-color: rgba(var(--practiq-violet-rgb), 0.2);
+  background: var(--fill-primary-faint);
 }
 .mini-item span { font-size: var(--text-md); font-weight: 700; color: var(--text-primary); }
 .mini-item small { font-size: var(--text-sm); color: var(--text-secondary); }
 .mini-item--link { cursor: pointer; }
 .mini-empty { font-size: var(--text-base); color: var(--text-muted); }
-.empty-inline { color: var(--text-muted); font-size: var(--text-md); padding: 20px 0; }
-.items-list { display: flex; flex-direction: column; gap: 8px; }
+.empty-inline {
+  color: var(--text-muted);
+  font-size: var(--text-md);
+  padding: 24px 18px;
+  border: 1px dashed rgba(var(--surface-border-rgb), 0.3);
+  border-radius: var(--radius-xl);
+  background: var(--surface-glass);
+}
+
+.empty-inline--compact {
+  padding: 12px;
+}
+
+.items-list { display: flex; flex-direction: column; gap: 10px; }
 .list-item {
-  background: white;
-  border: 1px solid var(--surface-border);
-  border-radius: var(--radius-md);
-  padding: 16px 20px;
+  background: var(--surface-elevated);
+  border: 1px solid var(--surface-elevated-strong);
+  border-radius: var(--radius-xl);
+  padding: 16px 18px;
   display: flex;
   align-items: center;
   justify-content: space-between;
   transition: var(--transition);
+  box-shadow: var(--shadow-card);
+  gap: 16px;
 }
-.list-item:hover { box-shadow: var(--shadow-sm); }
+.list-item:hover {
+  transform: translateY(-1px);
+  box-shadow: var(--shadow-card-lg);
+}
 .list-item--link { cursor: pointer; }
-.list-item--link:hover { border-color: rgba(124, 58, 237, 0.25); box-shadow: 0 4px 12px rgba(124, 58, 237, 0.08); }
-.item-info { display: flex; align-items: center; gap: 14px; }
+.list-item--link:hover { border-color: rgba(var(--practiq-violet-rgb), 0.25); }
+.item-info { display: flex; align-items: center; gap: 14px; min-width: 0; }
 .item-order {
   width: 28px;
   height: 28px;
@@ -1099,8 +1224,8 @@ async function deleteNotebook(id: string) {
   font-weight: 700;
   line-height: 1;
 }
-.sheet-type-pill--practice { background: rgba(37, 99, 235, 0.12); color: var(--color-info-dark); }
-.sheet-type-pill--test { background: rgba(124, 58, 237, 0.12); color: #6d28d9; }
+.sheet-type-pill--practice { background: var(--color-info-bg); color: var(--color-info-dark); }
+.sheet-type-pill--test { background: var(--fill-primary-soft); color: var(--practiq-violet-dark); }
 .difficulty-badge {
   width: 28px;
   height: 28px;
@@ -1124,6 +1249,17 @@ async function deleteNotebook(id: string) {
   font-weight: 700;
   font-size: var(--text-lg);
 }
+.item-leading-icon {
+  width: 36px;
+  height: 36px;
+  border-radius: var(--radius-md);
+  display: grid;
+  place-items: center;
+  background: var(--fill-primary-soft);
+  color: var(--practiq-violet);
+  font-size: 18px;
+  flex-shrink: 0;
+}
 .level-badge {
   background: var(--practiq-violet-pale);
   color: var(--practiq-violet);
@@ -1133,11 +1269,12 @@ async function deleteNotebook(id: string) {
   font-weight: 600;
 }
 .exercise-selector {
-  border: 1px solid var(--surface-border);
-  border-radius: var(--radius-sm);
+  border: 1px solid rgba(var(--surface-border-rgb), 0.2);
+  border-radius: var(--radius-lg);
   padding: 8px;
   max-height: 180px;
   overflow-y: auto;
+  background: var(--surface-subtle);
 }
 .exercise-checkbox {
   display: flex;
@@ -1147,28 +1284,57 @@ async function deleteNotebook(id: string) {
   cursor: pointer;
   font-size: var(--text-base);
   color: var(--text-primary);
+  border-radius: var(--radius-sm);
+}
+
+.exercise-checkbox:hover {
+  background: var(--surface-hover);
 }
 .modal-actions { display: flex; gap: 12px; justify-content: flex-end; margin-top: 24px; }
 .item-actions { display: flex; gap: 4px; align-items: center; flex-shrink: 0; }
 .inline-edit-row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
 .inline-edit-input { min-width: 200px; }
+.topic-select {
+  width: 220px;
+  padding: 7px 10px;
+}
 
 /* Tablet landscape */
 @media (max-width: 1024px) {
-  .course-detail { padding: 24px 20px; }
-  .levels-grid { grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); }
+  .course-detail { padding: 20px 20px 40px; }
+  .levels-grid { grid-template-columns: 1fr; }
 }
 
 /* Tablet portrait */
 @media (max-width: 768px) {
   .course-detail { padding: 16px 14px 32px; max-width: 100%; }
-  .levels-grid { grid-template-columns: repeat(2, 1fr); }
+  .course-header { padding: 22px 18px; border-radius: 22px; }
+  .levels-grid { grid-template-columns: 1fr; }
   .section-header { flex-direction: column; align-items: flex-start; gap: 10px; }
   .section-header h2 { font-size: 17px; }
+  .teacher-level-card__top { flex-direction: column; }
+  .teacher-level-actions { width: 100%; }
+  .teacher-level-actions .btn { flex: 1 1 130px; }
+  .list-item { align-items: flex-start; flex-direction: column; }
+  .item-actions { width: 100%; justify-content: flex-end; }
+  .topic-select { width: 100%; }
 }
 
 /* Mobile */
 @media (max-width: 600px) {
   .levels-grid { grid-template-columns: 1fr; }
+  .tabs {
+    margin-left: -4px;
+    margin-right: -4px;
+  }
+  .tab {
+    padding: 9px 12px;
+  }
+  .modal-actions {
+    flex-direction: column-reverse;
+  }
+  .modal-actions .btn {
+    width: 100%;
+  }
 }
 </style>

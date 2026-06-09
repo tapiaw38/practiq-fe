@@ -238,8 +238,8 @@ function formatDate(dateStr: string) {
 
 <style scoped>
 .courses-page {
-  padding: 16px 24px 32px;
-  max-width: 1120px;
+  padding: 24px 28px 40px;
+  max-width: 1180px;
 }
 
 .hero-card {
@@ -247,12 +247,13 @@ function formatDate(dateStr: string) {
   align-items: center;
   justify-content: space-between;
   gap: 24px;
-  padding: 16px 20px;
-  border-radius: var(--radius-lg);
-  background: radial-gradient(ellipse at top left, rgba(124, 58, 237, 0.1), transparent 50%), rgba(255, 255, 255, 0.88);
-  border: 1px solid rgba(255, 255, 255, 0.92);
-  box-shadow: 0 16px 40px rgba(93, 108, 146, 0.1);
-  margin-bottom: 14px;
+  padding: 24px 28px;
+  border-radius: 28px;
+  background: var(--gradient-card-accent);
+  border: 1px solid var(--surface-elevated-strong);
+  box-shadow: var(--shadow-soft);
+  backdrop-filter: blur(18px);
+  margin-bottom: 18px;
 }
 
 .hero-kicker {
@@ -287,19 +288,19 @@ function formatDate(dateStr: string) {
 .stats-row {
   display: grid;
   grid-template-columns: repeat(2, 1fr);
-  gap: 10px;
-  margin-bottom: 14px;
+  gap: 12px;
+  margin-bottom: 20px;
 }
 
 .stat-card {
   display: flex;
   align-items: center;
   gap: 10px;
-  padding: 10px 14px;
-  border-radius: var(--radius-md);
-  background: rgba(255, 255, 255, 0.86);
-  border: 1px solid rgba(255, 255, 255, 0.9);
-  box-shadow: 0 8px 24px rgba(93, 108, 146, 0.08);
+  padding: 14px 16px;
+  border-radius: var(--radius-xl);
+  background: var(--surface-elevated);
+  border: 1px solid var(--surface-elevated-strong);
+  box-shadow: var(--shadow-card);
 }
 
 .stat-icon {
@@ -311,8 +312,8 @@ function formatDate(dateStr: string) {
   font-size: 17px;
   flex-shrink: 0;
 }
-.stat-icon--violet { background: rgba(124,58,237,0.1); color: #7c3aed; }
-.stat-icon--green  { background: rgba(16,185,129,0.1); color: #059669; }
+.stat-icon--violet { background: var(--fill-primary-soft); color: var(--practiq-violet); }
+.stat-icon--green  { background: var(--color-success-bg); color: var(--color-success-dark); }
 
 .stat-value {
   font-size: 17px;
@@ -334,7 +335,7 @@ function formatDate(dateStr: string) {
 .empty-state {
   text-align: center;
   padding: 44px 24px;
-  background: rgba(255, 255, 255, 0.74);
+  background: var(--surface-glass);
   border-radius: var(--radius-xl);
   border: 1px dashed var(--surface-border);
 }
@@ -343,7 +344,7 @@ function formatDate(dateStr: string) {
   width: 64px;
   height: 64px;
   border-radius: var(--radius-2xl);
-  background: rgba(124,58,237,0.08);
+  background: var(--fill-primary-subtle);
   color: var(--practiq-violet);
   font-size: 28px;
   display: grid;
@@ -365,33 +366,33 @@ function formatDate(dateStr: string) {
 
 .courses-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
-  gap: 12px;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 16px;
 }
 
 .course-card {
-  border-radius: var(--radius-md);
-  background: rgba(255, 255, 255, 0.9);
-  border: 1px solid rgba(255, 255, 255, 0.92);
-  box-shadow: 0 8px 28px rgba(93, 108, 146, 0.1);
+  border-radius: var(--radius-2xl);
+  background: var(--surface-elevated);
+  border: 1px solid var(--surface-elevated-strong);
+  box-shadow: var(--shadow-card);
   overflow: hidden;
   cursor: pointer;
-  transition: all 0.2s ease;
+  transition: var(--transition);
 }
 
 .course-card:hover {
   transform: translateY(-3px);
-  box-shadow: 0 14px 36px rgba(93, 108, 146, 0.16);
-  border-color: var(--practiq-violet-light);
+  box-shadow: var(--shadow-card-lg);
+  border-color: rgba(var(--practiq-violet-rgb), 0.22);
 }
 
 .course-card__accent {
   height: 3px;
-  background: linear-gradient(90deg, var(--practiq-violet), var(--practiq-violet-light));
+  background: var(--gradient-brand);
 }
 
 .course-card__body {
-  padding: 14px 16px 12px;
+  padding: 16px 18px 14px;
   display: flex;
   flex-direction: column;
   gap: 7px;
@@ -414,7 +415,7 @@ function formatDate(dateStr: string) {
 }
 
 .course-grade-badge {
-  background: rgba(16, 185, 129, 0.12);
+  background: var(--color-success-bg);
   color: var(--color-success-dark);
 }
 
@@ -448,7 +449,7 @@ function formatDate(dateStr: string) {
   gap: 12px;
   padding-top: 8px;
   margin-top: auto;
-  border-top: 1px solid rgba(148, 163, 184, 0.12);
+  border-top: 1px solid rgba(var(--surface-border-rgb), 0.12);
 }
 
 .course-date {
@@ -470,11 +471,11 @@ function formatDate(dateStr: string) {
   align-items: flex-start;
   gap: 10px;
   padding: 12px 14px;
-  background: rgba(245, 158, 11, 0.08);
-  border: 1px solid rgba(245, 158, 11, 0.2);
+  background: var(--fill-warning-subtle);
+  border: 1px solid rgba(var(--color-warning-rgb), 0.2);
   border-radius: var(--radius-md);
   font-size: var(--text-base);
-  color: #92400e;
+  color: var(--color-warning-dark);
   margin-bottom: 16px;
 }
 
@@ -505,13 +506,14 @@ function formatDate(dateStr: string) {
 /* Tablet portrait + mobile */
 @media (max-width: 768px) {
   .courses-page {
-    padding: 16px 14px 28px;
+    padding: 16px 14px 32px;
   }
 
   .hero-card {
     flex-direction: column;
     align-items: flex-start;
-    padding: 22px 20px;
+    padding: 22px 18px;
+    border-radius: 22px;
   }
 
   .hero-actions {

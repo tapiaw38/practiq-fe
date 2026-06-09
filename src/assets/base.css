@@ -1,10 +1,36 @@
 :root {
   /* Violet accent */
+  --practiq-violet-50: #f5f3ff;
+  --practiq-violet-100: #ede9fe;
+  --practiq-violet-200: #ddd6fe;
+  --practiq-violet-300: #c4b5fd;
+  --practiq-violet-400: #a78bfa;
+  --practiq-violet-500: #8b5cf6;
+  --practiq-violet-600: #7c3aed;
+  --practiq-violet-700: #6d28d9;
+  --practiq-violet-800: #5b21b6;
+  --practiq-violet-900: #4c1d95;
+  --practiq-violet-950: #2e1065;
   --practiq-violet: #7c3aed;
   --practiq-violet-light: #8b5cf6;
   --practiq-violet-pale: #ede9fe;
   --practiq-violet-bg: #f5f3ff;
   --practiq-violet-dark: #5b21b6;
+  --practiq-indigo: #6366f1;
+  --practiq-indigo-soft: #c7d2fe;
+
+  /* RGB channels for alpha and gradients */
+  --practiq-violet-rgb: 124, 58, 237;
+  --practiq-violet-light-rgb: 139, 92, 246;
+  --practiq-indigo-rgb: 99, 102, 241;
+  --color-success-rgb: 16, 185, 129;
+  --color-error-rgb: 239, 68, 68;
+  --color-warning-rgb: 245, 158, 11;
+  --color-info-rgb: 59, 130, 246;
+  --surface-card-rgb: 255, 255, 255;
+  --surface-bg-rgb: 248, 250, 252;
+  --surface-border-rgb: 148, 163, 184;
+  --text-primary-rgb: 30, 41, 59;
 
   /* Semantic colors */
   --color-success: #10b981;
@@ -16,22 +42,37 @@
   --color-warning: #f59e0b;
   --color-warning-bg: #fffbeb;
   --color-warning-dark: #b45309;
+  --color-warning-strong: #d97706;
   --color-info: #3b82f6;
   --color-info-bg: rgba(59, 130, 246, 0.1);
   --color-info-dark: #1d4ed8;
+  --color-on-primary: #ffffff;
+  --color-on-brand-panel: #ffffff;
 
   /* Surfaces */
   --surface-bg: #f8fafc;
+  --surface-bg-soft: #f7f8ff;
+  --surface-bg-cool: #f8fbff;
+  --surface-bg-muted: #f6f8fc;
   --surface-card: #ffffff;
   --surface-hover: #f1f5f9;
   --surface-border: #e2e8f0;
   --surface-subtle: rgba(248, 250, 252, 0.9);
+  --surface-elevated: rgba(var(--surface-card-rgb), 0.85);
+  --surface-elevated-strong: rgba(var(--surface-card-rgb), 0.92);
+  --surface-glass: rgba(var(--surface-card-rgb), 0.78);
+  --surface-glass-border: rgba(var(--surface-card-rgb), 0.9);
+  --surface-scrim: rgba(15, 23, 42, 0.34);
+  --surface-overlay: rgba(0, 0, 0, 0.4);
+  --surface-card-border: #e8ecf1;
 
   /* Text */
   --text-heading: #182136;
   --text-primary: #1e293b;
   --text-secondary: #64748b;
   --text-muted: #94a3b8;
+  --text-brand-panel-muted: rgba(var(--surface-card-rgb), 0.8);
+  --text-brand-panel-soft: rgba(var(--surface-card-rgb), 0.75);
 
   /* Typography — font sizes */
   --text-xs: 11px;
@@ -54,7 +95,44 @@
   --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.08);
   --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.1);
   --shadow-card: 0 4px 14px rgba(93, 108, 146, 0.08);
+  --shadow-card-lg: 0 8px 28px rgba(93, 108, 146, 0.08);
+  --shadow-panel: 0 24px 52px rgba(93, 108, 146, 0.14);
+  --shadow-soft: 0 20px 48px rgba(98, 112, 149, 0.1);
   --shadow-violet: 0 4px 14px rgba(124, 58, 237, 0.25);
+  --shadow-violet-lg: 0 6px 20px rgba(124, 58, 237, 0.3);
+  --shadow-indigo: 0 12px 22px rgba(99, 102, 241, 0.2);
+  --shadow-auth-card: 0 1px 3px rgba(0, 0, 0, 0.04), 0 12px 40px rgba(100, 116, 139, 0.08);
+  --shadow-illustration: 0 20px 40px rgba(0, 0, 0, 0.18);
+
+  /* Gradients and transparent fills */
+  --gradient-app-bg:
+    radial-gradient(circle at top left, rgba(var(--practiq-violet-rgb), 0.12), transparent 16%),
+    radial-gradient(circle at bottom right, rgba(var(--color-info-rgb), 0.12), transparent 18%),
+    linear-gradient(180deg, var(--surface-bg-cool) 0%, var(--surface-bg-soft) 42%, var(--surface-bg-muted) 100%);
+  --gradient-auth-bg:
+    radial-gradient(ellipse at 90% 10%, rgba(var(--practiq-violet-rgb), 0.06), transparent 50%),
+    radial-gradient(ellipse at 10% 90%, rgba(var(--color-info-rgb), 0.06), transparent 50%),
+    var(--surface-bg);
+  --gradient-brand-panel: linear-gradient(155deg, var(--practiq-violet-900) 0%, var(--practiq-violet-700) 40%, var(--practiq-indigo) 100%);
+  --gradient-brand: linear-gradient(135deg, var(--practiq-violet-light), var(--practiq-indigo));
+  --gradient-brand-soft: linear-gradient(135deg, rgba(var(--practiq-violet-rgb), 0.12), rgba(var(--color-info-rgb), 0.12));
+  --gradient-brand-avatar: linear-gradient(135deg, rgba(var(--practiq-violet-rgb), 0.18), rgba(var(--color-info-rgb), 0.2));
+  --gradient-mobile-topbar: linear-gradient(180deg, rgba(var(--surface-bg-rgb), 0.96), rgba(var(--surface-bg-rgb), 0.76) 75%, transparent);
+  --gradient-card-accent:
+    radial-gradient(circle at top left, rgba(var(--practiq-violet-rgb), 0.12), transparent 28%),
+    radial-gradient(circle at bottom right, rgba(var(--color-info-rgb), 0.1), transparent 22%),
+    var(--surface-elevated);
+  --gradient-fire-soft: linear-gradient(135deg, rgba(251, 146, 60, 0.15), rgba(var(--color-error-rgb), 0.1));
+  --gradient-star-soft: linear-gradient(135deg, rgba(250, 204, 21, 0.2), rgba(var(--practiq-violet-rgb), 0.1));
+  --gradient-goal-soft: linear-gradient(135deg, rgba(var(--practiq-violet-rgb), 0.12), rgba(var(--color-info-rgb), 0.1));
+  --fill-primary-soft: rgba(var(--practiq-violet-rgb), 0.1);
+  --fill-primary-subtle: rgba(var(--practiq-violet-rgb), 0.08);
+  --fill-primary-faint: rgba(var(--practiq-violet-rgb), 0.06);
+  --fill-success-subtle: rgba(var(--color-success-rgb), 0.08);
+  --fill-warning-subtle: rgba(var(--color-warning-rgb), 0.08);
+  --fill-border-muted: rgba(var(--surface-border-rgb), 0.2);
+  --focus-ring-primary: 0 0 0 3px rgba(var(--practiq-violet-light-rgb), 0.12);
+  --focus-ring-error: 0 0 0 3px rgba(var(--color-error-rgb), 0.12);
 
   /* Border radius */
   --radius-xs: 6px;
@@ -98,7 +176,7 @@ html {
 }
 
 body {
-  background-color: var(--surface-bg);
+  background: var(--gradient-app-bg);
   color: var(--text-primary);
   line-height: 1.6;
 }
@@ -111,4 +189,17 @@ a {
 input, textarea, select {
   font-family: inherit;
   font-size: inherit;
+}
+
+button,
+a,
+input,
+textarea,
+select {
+  -webkit-tap-highlight-color: transparent;
+}
+
+:focus-visible {
+  outline: 3px solid rgba(var(--practiq-violet-rgb), 0.28);
+  outline-offset: 3px;
 }
