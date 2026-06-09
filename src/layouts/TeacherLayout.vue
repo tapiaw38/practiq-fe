@@ -23,16 +23,17 @@
       </div>
 
       <nav class="sidebar-nav">
+        <div class="nav-section-label">Docente</div>
         <RouterLink to="/teacher/dashboard" class="nav-item" active-class="nav-item-active" @click="navOpen = false">
-          <i class="pi pi-home"></i>
+          <span class="nav-icon"><i class="pi pi-home"></i></span>
           <span>Inicio</span>
         </RouterLink>
         <RouterLink to="/teacher/admin/users" class="nav-item" active-class="nav-item-active" @click="navOpen = false">
-          <i class="pi pi-users"></i>
+          <span class="nav-icon"><i class="pi pi-users"></i></span>
           <span>Usuarios</span>
         </RouterLink>
         <RouterLink to="/teacher/admin/academic" class="nav-item" active-class="nav-item-active" @click="navOpen = false">
-          <i class="pi pi-sitemap"></i>
+          <span class="nav-icon"><i class="pi pi-sitemap"></i></span>
           <span>Académico</span>
         </RouterLink>
       </nav>
@@ -107,7 +108,7 @@ function logout() {
   backdrop-filter: blur(18px);
   display: flex;
   flex-direction: column;
-  padding: 22px 18px;
+  padding: 18px 14px 14px;
   position: sticky;
   top: 18px;
   height: calc(100vh - 36px);
@@ -127,6 +128,8 @@ function logout() {
   justify-content: space-between;
   align-items: center;
   gap: 12px;
+  padding: 4px 8px 14px;
+  border-bottom: 1px solid rgba(var(--surface-border-rgb), 0.12);
 }
 
 .topbar-brand,
@@ -171,18 +174,33 @@ function logout() {
   flex: 1;
   display: flex;
   flex-direction: column;
-  gap: 8px;
-  margin-top: 24px;
+  gap: 6px;
+  margin-top: 16px;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: 0 4px 8px;
+  scrollbar-width: thin;
+}
+
+.nav-section-label {
+  padding: 4px 10px 6px;
+  font-size: var(--text-xs);
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--text-muted);
 }
 
 .nav-item {
-  padding: 14px 16px;
+  position: relative;
+  padding: 10px 12px;
   border-radius: var(--radius-xl);
   color: var(--text-secondary);
   font-size: var(--text-md);
-  font-weight: 600;
+  font-weight: 700;
   text-decoration: none;
   transition: var(--transition);
+  min-height: 46px;
 }
 
 .nav-item:hover {
@@ -192,14 +210,43 @@ function logout() {
 }
 
 .nav-item-active {
-  background: var(--gradient-brand-soft);
+  background: var(--surface-card);
   color: var(--practiq-violet-dark);
+  box-shadow: var(--shadow-card);
+}
+
+.nav-item-active::before {
+  content: '';
+  position: absolute;
+  left: -4px;
+  top: 12px;
+  bottom: 12px;
+  width: 3px;
+  border-radius: var(--radius-pill);
+  background: var(--practiq-violet);
+}
+
+.nav-icon {
+  width: 30px;
+  height: 30px;
+  border-radius: var(--radius-md);
+  display: grid;
+  place-items: center;
+  background: rgba(var(--surface-border-rgb), 0.12);
+  color: var(--text-secondary);
+  flex-shrink: 0;
+}
+
+.nav-item:hover .nav-icon,
+.nav-item-active .nav-icon {
+  background: var(--gradient-brand);
+  color: var(--color-on-primary);
 }
 
 .sidebar-footer {
   justify-content: space-between;
   gap: 12px;
-  padding-top: 18px;
+  padding: 14px 8px 0;
   border-top: 1px solid rgba(var(--surface-border-rgb), 0.14);
 }
 
@@ -210,8 +257,8 @@ function logout() {
 }
 
 .user-avatar {
-  width: 44px;
-  height: 44px;
+  width: 42px;
+  height: 42px;
   border-radius: var(--radius-xl);
   background: var(--gradient-brand-avatar);
   color: var(--practiq-violet-dark);

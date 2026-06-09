@@ -23,15 +23,16 @@
       </div>
 
       <nav class="sidebar-nav">
+        <div class="nav-section-label">Estudiante</div>
         <RouterLink to="/student/dashboard" class="nav-item" active-class="nav-item-active" @click="navOpen = false">
-          <i class="pi pi-home"></i>
+          <span class="nav-icon"><i class="pi pi-home"></i></span>
           <span>Inicio</span>
         </RouterLink>
 
         <!-- Mis Cursos desplegable -->
         <div class="nav-group">
           <button class="nav-item nav-item-btn" @click="coursesOpen = !coursesOpen">
-            <i class="pi pi-book"></i>
+            <span class="nav-icon"><i class="pi pi-book"></i></span>
             <span>Mis Cursos</span>
             <i class="pi nav-chevron" :class="coursesOpen ? 'pi-chevron-down' : 'pi-chevron-right'"></i>
           </button>
@@ -310,7 +311,7 @@ function logout() {
   backdrop-filter: blur(18px);
   display: flex;
   flex-direction: column;
-  padding: 12px 18px;
+  padding: 18px 14px 14px;
   position: sticky;
   top: 18px;
   height: calc(100vh - 36px);
@@ -341,6 +342,8 @@ function logout() {
   justify-content: space-between;
   align-items: center;
   gap: 12px;
+  padding: 4px 8px 14px;
+  border-bottom: 1px solid rgba(var(--surface-border-rgb), 0.12);
 }
 
 .sidebar-brand-main,
@@ -410,20 +413,33 @@ function logout() {
   flex: 1;
   display: flex;
   flex-direction: column;
-  gap: 8px;
-  margin-top: 20px;
+  gap: 6px;
+  margin-top: 16px;
   overflow-y: auto;
   overflow-x: hidden;
+  padding: 0 4px 8px;
+  scrollbar-width: thin;
+}
+
+.nav-section-label {
+  padding: 4px 10px 6px;
+  font-size: var(--text-xs);
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--text-muted);
 }
 
 .nav-item {
-  padding: 14px 16px;
+  position: relative;
+  padding: 10px 12px;
   border-radius: var(--radius-xl);
   color: var(--text-secondary);
   font-size: var(--text-md);
-  font-weight: 600;
+  font-weight: 700;
   text-decoration: none;
   transition: var(--transition);
+  min-height: 46px;
 }
 
 .nav-item:hover {
@@ -433,8 +449,38 @@ function logout() {
 }
 
 .nav-item-active {
-  background: var(--gradient-brand-soft);
+  background: var(--surface-card);
   color: var(--practiq-violet-dark);
+  box-shadow: var(--shadow-card);
+}
+
+.nav-item-active::before {
+  content: '';
+  position: absolute;
+  left: -4px;
+  top: 12px;
+  bottom: 12px;
+  width: 3px;
+  border-radius: var(--radius-pill);
+  background: var(--practiq-violet);
+}
+
+.nav-icon {
+  width: 30px;
+  height: 30px;
+  border-radius: var(--radius-md);
+  display: grid;
+  place-items: center;
+  background: rgba(var(--surface-border-rgb), 0.12);
+  color: var(--text-secondary);
+  flex-shrink: 0;
+}
+
+.nav-item:hover .nav-icon,
+.nav-item-active .nav-icon,
+.nav-item-btn:hover .nav-icon {
+  background: var(--gradient-brand);
+  color: var(--color-on-primary);
 }
 
 .nav-group {
@@ -458,12 +504,13 @@ function logout() {
 }
 
 .nav-sub {
-  margin-top: 4px;
-  padding-left: 8px;
+  margin-top: 6px;
+  padding: 8px 0 4px 12px;
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: 8px;
   overflow: hidden;
+  border-left: 1px solid rgba(var(--surface-border-rgb), 0.16);
 }
 
 .nav-sub-loading {
@@ -481,28 +528,35 @@ function logout() {
 .nav-course-group {
   display: flex;
   flex-direction: column;
-  gap: 2px;
-  margin-bottom: 4px;
+  gap: 4px;
+  margin-bottom: 2px;
 }
 
 .nav-course-toggle {
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 8px 10px;
-  border-radius: var(--radius-md);
-  border: none;
-  background: none;
+  gap: 9px;
+  padding: 10px 11px;
+  border-radius: var(--radius-lg);
+  border: 1px solid transparent;
+  background: rgba(var(--surface-card-rgb), 0.42);
   cursor: pointer;
   text-align: left;
   transition: var(--transition);
   width: 100%;
 }
 .nav-course-toggle:hover {
-  background: var(--fill-primary-faint);
+  background: var(--surface-elevated-strong);
+  border-color: rgba(var(--practiq-violet-rgb), 0.12);
 }
 .nav-course-toggle .pi-graduation-cap {
-  font-size: var(--text-base);
+  width: 26px;
+  height: 26px;
+  border-radius: var(--radius-sm);
+  display: grid;
+  place-items: center;
+  background: var(--fill-primary-soft);
+  font-size: var(--text-sm);
   color: var(--practiq-violet);
   flex-shrink: 0;
 }
@@ -520,28 +574,30 @@ function logout() {
 .nav-level-group {
   display: flex;
   flex-direction: column;
-  gap: 1px;
-  padding-left: 8px;
+  gap: 4px;
+  padding-left: 6px;
 }
 
 .nav-level-row {
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 6px 10px;
-  border-radius: var(--radius-sm);
-  border: none;
-  background: none;
+  padding: 8px 10px;
+  border-radius: var(--radius-md);
+  border: 1px solid transparent;
+  background: transparent;
   cursor: pointer;
   width: 100%;
   text-align: left;
   transition: var(--transition);
 }
 .nav-level-row:hover:not(:disabled) {
-  background: var(--fill-primary-faint);
+  background: var(--surface-elevated-strong);
+  border-color: rgba(var(--practiq-violet-rgb), 0.1);
 }
 .nav-level-row--current {
   background: var(--fill-primary-subtle);
+  border-color: rgba(var(--practiq-violet-rgb), 0.12);
 }
 .nav-level-row--locked {
   cursor: default;
@@ -549,8 +605,8 @@ function logout() {
 }
 
 .nav-level-badge {
-  width: 22px;
-  height: 22px;
+  width: 24px;
+  height: 24px;
   border-radius: 7px;
   background: var(--gradient-brand);
   color: var(--color-on-primary);
@@ -589,22 +645,21 @@ function logout() {
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.06em;
-  color: var(--text-secondary);
-  padding: 5px 12px 1px;
-  opacity: 0.5;
+  color: var(--text-muted);
+  padding: 7px 12px 2px;
 }
 
 .nav-book-item {
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 8px 12px;
-  border-radius: var(--radius-sm);
-  border: none;
-  background: none;
+  padding: 8px 10px 8px 12px;
+  border-radius: var(--radius-md);
+  border: 1px solid transparent;
+  background: rgba(var(--surface-bg-rgb), 0.5);
   cursor: pointer;
   font-size: var(--text-sm);
-  font-weight: 500;
+  font-weight: 650;
   color: var(--text-secondary);
   text-align: left;
   width: 100%;
@@ -613,27 +668,44 @@ function logout() {
 
 .nav-book-item:hover {
   background: var(--fill-primary-subtle);
+  border-color: rgba(var(--practiq-violet-rgb), 0.12);
   color: var(--practiq-violet-dark);
 }
 
 .nav-book-item--practice:hover {
   background: var(--fill-success-subtle);
+  border-color: rgba(var(--color-success-rgb), 0.14);
   color: var(--color-success-dark);
 }
 
 .nav-book-item--test:hover {
   background: var(--fill-warning-subtle);
+  border-color: rgba(var(--color-warning-rgb), 0.16);
   color: var(--color-warning-strong);
 }
 
 .nav-book-item--notebook:hover {
   background: var(--fill-primary-subtle);
+  border-color: rgba(var(--practiq-violet-rgb), 0.12);
   color: var(--practiq-violet);
 }
 
 .nav-book-item .pi {
-  font-size: var(--text-sm);
+  width: 22px;
+  height: 22px;
+  border-radius: var(--radius-xs);
+  display: grid;
+  place-items: center;
+  background: rgba(var(--surface-card-rgb), 0.7);
+  font-size: var(--text-xs);
   flex-shrink: 0;
+}
+
+.nav-book-item span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .sidebar-footer {
@@ -641,7 +713,7 @@ function logout() {
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  padding-top: 18px;
+  padding: 14px 8px 0;
   border-top: 1px solid rgba(var(--surface-border-rgb), 0.14);
 }
 
