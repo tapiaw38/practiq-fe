@@ -3,14 +3,14 @@
     <div class="editor-shell">
       <!-- Header -->
       <header class="editor-header">
-        <button class="btn-back" @click="router.back()">
+        <button class="btn-back" type="button" aria-label="Volver" @click="router.back()">
           <i class="pi pi-arrow-left"></i>
         </button>
         <div class="header-info">
           <h1 class="editor-title">{{ notebook?.title || 'Cuaderno' }}</h1>
           <span class="editor-desc">{{ notebook?.description }}</span>
         </div>
-        <button class="btn btn-primary btn-sm" @click="showAddPage = true">
+        <button class="btn btn-primary btn-sm" type="button" @click="showAddPage = true">
           <i class="pi pi-plus"></i> Agregar página
         </button>
       </header>
@@ -29,7 +29,11 @@
             :key="page.id"
             class="sidebar-item"
             :class="{ 'sidebar-item--active': idx === selectedIdx }"
+            role="button"
+            tabindex="0"
             @click="selectPage(idx)"
+            @keydown.enter.prevent="selectPage(idx)"
+            @keydown.space.prevent="selectPage(idx)"
           >
             <span class="sidebar-num">{{ idx + 1 }}</span>
             <div class="sidebar-info">
@@ -67,17 +71,17 @@
             <!-- Canvas content editor -->
             <div v-if="currentPage.content_type === 'canvas'" class="canvas-editor">
               <div class="canvas-toolbar">
-                <button class="tool-btn" :class="{ 'tool-btn--active': tool === 'pen' }" @click="tool = 'pen'">
+                <button class="tool-btn" type="button" aria-label="Usar lápiz" :class="{ 'tool-btn--active': tool === 'pen' }" @click="tool = 'pen'">
                   <i class="pi pi-pencil"></i> Lápiz
                 </button>
-                <button class="tool-btn" :class="{ 'tool-btn--active': tool === 'eraser' }" @click="tool = 'eraser'">
+                <button class="tool-btn" type="button" aria-label="Usar borrador" :class="{ 'tool-btn--active': tool === 'eraser' }" @click="tool = 'eraser'">
                   <i class="pi pi-times-circle"></i> Borrador
                 </button>
-                <button class="tool-btn" @click="undoDraw"><i class="pi pi-undo"></i> Deshacer</button>
-                <button class="tool-btn" @click="clearCanvas"><i class="pi pi-trash"></i> Limpiar</button>
-                <input type="color" v-model="penColor" class="color-picker" title="Color" />
-                <input type="range" v-model.number="penSize" min="1" max="20" class="size-slider" />
-                <button class="btn btn-primary btn-sm" @click="saveCanvasContent" :disabled="saving">
+                <button class="tool-btn" type="button" aria-label="Deshacer trazo" @click="undoDraw"><i class="pi pi-undo"></i> Deshacer</button>
+                <button class="tool-btn" type="button" aria-label="Limpiar dibujo" @click="clearCanvas"><i class="pi pi-trash"></i> Limpiar</button>
+                <input type="color" v-model="penColor" class="color-picker" title="Color" aria-label="Color del lápiz" />
+                <input type="range" v-model.number="penSize" min="1" max="20" class="size-slider" aria-label="Grosor del lápiz" />
+                <button class="btn btn-primary btn-sm" type="button" @click="saveCanvasContent" :disabled="saving">
                   <i class="pi pi-save"></i> {{ saving ? 'Guardando...' : 'Guardar imagen' }}
                 </button>
               </div>
@@ -188,10 +192,15 @@ const saveMsg = ref('')
 // Canvas refs
 const editorCanvas = ref<HTMLCanvasElement | null>(null)
 const tool = ref<'pen' | 'eraser'>('pen')
-const penColor = ref('#1e1e2e')
+const penColor = ref(cssVar('--text-primary', '#1e293b'))
 const penSize = ref(3)
 const isDrawing = ref(false)
 const undoStack = ref<ImageData[]>([])
+
+function cssVar(name: string, fallback: string) {
+  if (typeof window === 'undefined') return fallback
+  return getComputedStyle(document.documentElement).getPropertyValue(name).trim() || fallback
+}
 
 const penCursor = `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24'%3E%3Cpath fill='%231e1e2e' d='M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04a1 1 0 0 0 0-1.41l-2.34-2.34a1 1 0 0 0-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z'/%3E%3C/svg%3E") 0 24, crosshair`
 const eraserCursor = `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='20' height='20' viewBox='0 0 20 20'%3E%3Ccircle cx='10' cy='10' r='8' fill='none' stroke='%23666' stroke-width='1.5'/%3E%3C/svg%3E") 10 10, cell`
@@ -292,7 +301,7 @@ function initCanvas(loadExisting = false) {
   canvas.height = rect.height || 400
   const ctx = canvas.getContext('2d')!
 
-  ctx.fillStyle = '#fff'
+  ctx.fillStyle = cssVar('--surface-card', '#ffffff')
   ctx.fillRect(0, 0, canvas.width, canvas.height)
   undoStack.value = []
 
@@ -364,7 +373,7 @@ function clearCanvas() {
   const ctx = getCtx()
   if (!canvas || !ctx) return
   undoStack.value = []
-  ctx.fillStyle = '#fff'
+  ctx.fillStyle = cssVar('--surface-card', '#ffffff')
   ctx.fillRect(0, 0, canvas.width, canvas.height)
   if (currentPage.value) currentPage.value.content_data = ''
 }
@@ -377,20 +386,26 @@ function clearCanvas() {
   flex-direction: column;
   padding: 20px 24px;
   gap: 16px;
+  background: var(--gradient-app-bg);
 }
 
 .editor-header {
   display: flex;
   align-items: center;
   gap: 16px;
+  padding: 18px 20px;
+  border: 1px solid rgba(var(--surface-border-rgb), 0.16);
+  border-radius: var(--radius-2xl);
+  background: var(--gradient-card-accent);
+  box-shadow: var(--shadow-card);
 }
 
 .btn-back {
   width: 38px;
   height: 38px;
   border-radius: 50%;
-  border: 1.5px solid rgba(124, 58, 237, 0.2);
-  background: rgba(255,255,255,0.8);
+  border: 1.5px solid rgba(var(--practiq-violet-rgb), 0.2);
+  background: var(--surface-elevated-strong);
   cursor: pointer;
   display: flex;
   align-items: center;
@@ -398,7 +413,7 @@ function clearCanvas() {
   flex-shrink: 0;
   transition: background 0.15s;
 }
-.btn-back:hover { background: rgba(124,58,237,0.06); }
+.btn-back:hover { background: var(--fill-primary-faint); }
 
 .header-info { flex: 1; }
 .editor-title { font-size: 1.35rem; font-weight: 700; color: var(--text-primary); margin: 0; }
@@ -420,10 +435,10 @@ function clearCanvas() {
 
 /* Sidebar */
 .pages-sidebar {
-  background: rgba(255,255,255,0.88);
+  background: var(--surface-elevated-strong);
   backdrop-filter: blur(12px);
   border-radius: var(--radius-xl);
-  border: 1.5px solid rgba(124, 58, 237, 0.1);
+  border: 1.5px solid rgba(var(--practiq-violet-rgb), 0.1);
   padding: 16px 12px;
   display: flex;
   flex-direction: column;
@@ -438,7 +453,7 @@ function clearCanvas() {
   letter-spacing: 0.06em;
   color: var(--text-secondary);
   padding: 0 4px 8px;
-  border-bottom: 1.5px solid rgba(124, 58, 237, 0.08);
+  border-bottom: 1.5px solid rgba(var(--practiq-violet-rgb), 0.08);
   margin-bottom: 4px;
 }
 
@@ -458,15 +473,15 @@ function clearCanvas() {
   cursor: pointer;
   transition: background 0.15s;
 }
-.sidebar-item:hover { background: rgba(124, 58, 237, 0.06); }
-.sidebar-item--active { background: rgba(124, 58, 237, 0.1); }
+.sidebar-item:hover { background: var(--fill-primary-faint); }
+.sidebar-item--active { background: var(--fill-primary-soft); box-shadow: inset 3px 0 0 var(--practiq-violet); }
 
 .sidebar-num {
   width: 28px;
   height: 28px;
   border-radius: var(--radius-sm);
   background: var(--practiq-violet);
-  color: #fff;
+  color: var(--color-on-primary);
   font-size: 0.82rem;
   font-weight: 700;
   display: flex;
@@ -494,10 +509,11 @@ function clearCanvas() {
 
 /* Editor main */
 .editor-main {
-  background: rgba(255,255,255,0.92);
+  background: var(--surface-elevated-strong);
   backdrop-filter: blur(12px);
   border-radius: var(--radius-2xl);
-  border: 1.5px solid rgba(124, 58, 237, 0.1);
+  border: 1.5px solid rgba(var(--practiq-violet-rgb), 0.1);
+  box-shadow: var(--shadow-card-lg);
   padding: 24px 28px;
   display: flex;
   flex-direction: column;
@@ -514,7 +530,7 @@ function clearCanvas() {
   width: 56px;
   height: 56px;
   border-radius: 18px;
-  background: rgba(124,58,237,0.08);
+  background: var(--fill-primary-subtle);
   color: var(--practiq-violet);
   font-size: 24px;
   display: grid;
@@ -532,7 +548,7 @@ function clearCanvas() {
   flex: 1;
   padding: 10px 14px;
   border-radius: var(--radius-sm);
-  border: 1.5px solid rgba(124, 58, 237, 0.15);
+  border: 1.5px solid rgba(var(--practiq-violet-rgb), 0.15);
   font-size: 1rem;
   font-weight: 600;
   color: var(--text-primary);
@@ -544,11 +560,11 @@ function clearCanvas() {
 .type-select {
   padding: 10px 12px;
   border-radius: var(--radius-sm);
-  border: 1.5px solid rgba(124, 58, 237, 0.15);
+  border: 1.5px solid rgba(var(--practiq-violet-rgb), 0.15);
   font-size: 0.9rem;
   color: var(--text-primary);
   outline: none;
-  background: white;
+  background: var(--surface-card);
   cursor: pointer;
 }
 
@@ -565,7 +581,7 @@ function clearCanvas() {
   gap: 8px;
   flex-wrap: wrap;
   padding: 10px 14px;
-  background: rgba(245, 243, 255, 0.8);
+  background: var(--gradient-brand-soft);
   border-radius: var(--radius-md);
 }
 
@@ -575,21 +591,21 @@ function clearCanvas() {
   gap: 6px;
   padding: 7px 12px;
   border-radius: var(--radius-sm);
-  border: 1.5px solid rgba(124, 58, 237, 0.15);
-  background: rgba(255,255,255,0.8);
+  border: 1.5px solid rgba(var(--practiq-violet-rgb), 0.15);
+  background: var(--surface-elevated);
   cursor: pointer;
   font-size: 0.85rem;
   color: var(--text-secondary);
   transition: all 0.15s;
 }
 .tool-btn:hover { border-color: var(--practiq-violet); color: var(--practiq-violet); }
-.tool-btn--active { background: var(--practiq-violet); color: #fff; border-color: var(--practiq-violet); }
+.tool-btn--active { background: var(--practiq-violet); color: var(--color-on-primary); border-color: var(--practiq-violet); }
 
 .color-picker {
   width: 36px;
   height: 36px;
   border-radius: var(--radius-sm);
-  border: 1.5px solid rgba(124, 58, 237, 0.15);
+  border: 1.5px solid rgba(var(--practiq-violet-rgb), 0.15);
   padding: 2px;
   cursor: pointer;
   background: none;
@@ -601,9 +617,9 @@ function clearCanvas() {
 
 .current-image-preview {
   padding: 12px;
-  background: #f8f7ff;
+  background: var(--surface-bg-soft);
   border-radius: var(--radius-md);
-  border: 1.5px dashed rgba(124, 58, 237, 0.2);
+  border: 1.5px dashed rgba(var(--practiq-violet-rgb), 0.2);
 }
 .preview-label { font-size: 0.78rem; color: var(--text-secondary); margin-bottom: 8px; }
 .preview-img { max-height: 120px; border-radius: var(--radius-sm); }
@@ -612,8 +628,8 @@ function clearCanvas() {
   width: 100%;
   height: 400px;
   border-radius: var(--radius-md);
-  border: 1.5px solid rgba(124, 58, 237, 0.15);
-  background: #fff;
+  border: 1.5px solid rgba(var(--practiq-violet-rgb), 0.15);
+  background: var(--surface-card);
   display: block;
   touch-action: none;
 }
@@ -623,7 +639,7 @@ function clearCanvas() {
   width: 100%;
   padding: 16px;
   border-radius: var(--radius-md);
-  border: 1.5px solid rgba(124, 58, 237, 0.15);
+  border: 1.5px solid rgba(var(--practiq-violet-rgb), 0.15);
   font-size: 1rem;
   line-height: 1.7;
   color: var(--text-primary);
@@ -650,7 +666,7 @@ function clearCanvas() {
 .inst-input {
   padding: 10px 14px;
   border-radius: var(--radius-sm);
-  border: 1.5px solid rgba(124, 58, 237, 0.12);
+  border: 1.5px solid rgba(var(--practiq-violet-rgb), 0.12);
   font-size: 0.9rem;
   color: var(--text-primary);
   outline: none;
@@ -660,7 +676,7 @@ function clearCanvas() {
 
 .save-feedback {
   font-size: 0.85rem;
-  color: #059669;
+  color: var(--color-success-dark);
   display: flex;
   align-items: center;
   gap: 6px;
@@ -670,19 +686,19 @@ function clearCanvas() {
 .modal-overlay {
   position: fixed;
   inset: 0;
-  background: rgba(0,0,0,0.35);
+  background: var(--surface-scrim);
   display: flex;
   align-items: center;
   justify-content: center;
   z-index: 1000;
 }
 .modal-box {
-  background: white;
+  background: var(--surface-card);
   border-radius: var(--radius-2xl);
   padding: 28px 32px;
   width: 420px;
   max-width: 95vw;
-  box-shadow: 0 20px 60px rgba(0,0,0,0.15);
+  box-shadow: var(--shadow-panel);
 }
 .modal-title {
   font-size: 1.15rem;
@@ -706,7 +722,7 @@ function clearCanvas() {
 
 /* Buttons (local) */
 .btn { padding: 9px 18px; border-radius: var(--radius-sm); border: none; font-size: 0.9rem; font-weight: 600; cursor: pointer; }
-.btn-primary { background: var(--practiq-violet); color: #fff; }
+.btn-primary { background: var(--practiq-violet); color: var(--color-on-primary); }
 .btn-primary:hover { opacity: 0.9; }
 .btn-secondary { background: var(--surface-hover); color: var(--text-primary); }
 .btn-sm { padding: 7px 14px; font-size: 0.85rem; display: flex; align-items: center; gap: 6px; }
@@ -728,7 +744,12 @@ function clearCanvas() {
 
 /* Mobile */
 @media (max-width: 600px) {
+  .editor-shell { padding: 12px; }
+  .editor-header { flex-wrap: wrap; align-items: flex-start; }
+  .editor-header .btn-primary { width: 100%; justify-content: center; }
   .pages-sidebar { max-height: 160px; }
+  .page-meta-bar { flex-direction: column; align-items: stretch; }
+  .canvas-toolbar { position: sticky; top: 0; z-index: 2; }
   .editor-empty { padding: 32px; }
 }
 </style>

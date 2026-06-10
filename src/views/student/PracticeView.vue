@@ -3,7 +3,7 @@
     <div class="practice-shell">
       <!-- Header -->
       <header class="practice-header">
-        <button class="btn-back" @click="router.back()">
+        <button class="btn-back" type="button" aria-label="Volver" @click="router.back()">
           <i class="pi pi-arrow-left"></i>
         </button>
         <div class="practice-header-info">
@@ -39,18 +39,18 @@
           <main class="practice-area">
             <!-- Canvas toolbar -->
             <div v-if="hasCanvasExercises" class="draw-tools-bar">
-              <button class="tool-btn" :class="{ 'tool-btn--active': tool === 'pen' }" @click="tool = 'pen'" title="Lápiz">
+              <button class="tool-btn" type="button" aria-label="Usar lápiz" :class="{ 'tool-btn--active': tool === 'pen' }" @click="tool = 'pen'" title="Lápiz">
                 <i class="pi pi-pencil"></i>
               </button>
-              <button class="tool-btn" :class="{ 'tool-btn--active': tool === 'eraser' }" @click="tool = 'eraser'" title="Borrador">
+              <button class="tool-btn" type="button" aria-label="Usar borrador" :class="{ 'tool-btn--active': tool === 'eraser' }" @click="tool = 'eraser'" title="Borrador">
                 <i class="pi pi-times-circle"></i>
               </button>
-              <button class="tool-btn" @click="undoActive" title="Deshacer">
+              <button class="tool-btn" type="button" aria-label="Deshacer trazo" @click="undoActive" title="Deshacer">
                 <i class="pi pi-undo"></i>
               </button>
               <div class="tool-sep"></div>
-              <input type="color" v-model="penColor" class="color-picker" title="Color" />
-              <input type="range" v-model.number="penSize" min="1" max="20" class="size-slider" title="Grosor" />
+              <input type="color" v-model="penColor" class="color-picker" title="Color" aria-label="Color del lápiz" />
+              <input type="range" v-model.number="penSize" min="1" max="20" class="size-slider" title="Grosor" aria-label="Grosor del lápiz" />
               <span class="size-val">{{ penSize }}px</span>
             </div>
 
@@ -81,7 +81,7 @@
                   <div class="canvas-wrap">
                     <div class="canvas-header">
                       <span class="canvas-label">Tu respuesta</span>
-                      <button class="btn-clear-canvas" @click="clearCanvas(pse.exercise.id)" title="Borrar todo">
+                      <button class="btn-clear-canvas" type="button" @click="clearCanvas(pse.exercise.id)" title="Borrar todo" aria-label="Limpiar respuesta">
                         <i class="pi pi-trash"></i> Limpiar
                       </button>
                     </div>
@@ -216,7 +216,7 @@ const undoStacks: Record<string, ImageData[]> = {}
 const isDrawingMap: Record<string, boolean> = {}
 const lastPos: Record<string, { x: number; y: number }> = {}
 const tool = ref<'pen' | 'eraser'>('pen')
-const penColor = ref('#1e293b')
+const penColor = ref(cssVar('--text-primary', '#1e293b'))
 const penSize = ref(3)
 const activeCanvasId = ref('')
 
@@ -224,6 +224,11 @@ const showSubmitConfirm = ref(false)
 const showResults = ref(false)
 const submitting = ref(false)
 const result = ref<SubmitResult | null>(null)
+
+function cssVar(name: string, fallback: string) {
+  if (typeof window === 'undefined') return fallback
+  return getComputedStyle(document.documentElement).getPropertyValue(name).trim() || fallback
+}
 
 let timerInterval: ReturnType<typeof setInterval>
 
@@ -307,17 +312,17 @@ function setCanvasRef(id: string, el: HTMLCanvasElement | null) {
 }
 
 function drawBackground(ctx: CanvasRenderingContext2D, w: number, h: number) {
-  ctx.fillStyle = '#fafaf7'
+  ctx.fillStyle = cssVar('--surface-bg-soft', '#fafaf7')
   ctx.fillRect(0, 0, w, h)
   // Red margin line
-  ctx.strokeStyle = 'rgba(239,68,68,0.25)'
+  ctx.strokeStyle = `rgba(${cssVar('--color-error-rgb', '239, 68, 68')}, 0.25)`
   ctx.lineWidth = 1.5
   ctx.beginPath()
   ctx.moveTo(56, 0)
   ctx.lineTo(56, h)
   ctx.stroke()
   // Horizontal ruled lines
-  ctx.strokeStyle = 'rgba(124,58,237,0.1)'
+  ctx.strokeStyle = `rgba(${cssVar('--practiq-violet-rgb', '124, 58, 237')}, 0.1)`
   ctx.lineWidth = 1
   for (let y = 32; y < h; y += 32) {
     ctx.beginPath()
@@ -483,7 +488,7 @@ function buildCanvasDataForOCR(exerciseId: string) {
     return answers.value[exerciseId]?.answer || ''
   }
 
-  ctx.fillStyle = '#ffffff'
+  ctx.fillStyle = cssVar('--surface-card', '#ffffff')
   ctx.fillRect(0, 0, out.width, out.height)
   ctx.imageSmoothingEnabled = false
   ctx.drawImage(source, 0, 0, out.width, out.height)
@@ -624,15 +629,15 @@ function formatTime(secs: number) {
 }
 
 function diffColor(d: number) {
-  if (d <= 3) return '#10b981'
-  if (d <= 6) return '#f59e0b'
-  return '#ef4444'
+  if (d <= 3) return 'var(--color-success)'
+  if (d <= 6) return 'var(--color-warning)'
+  return 'var(--color-error)'
 }
 
 function scoreColor(score: number) {
-  if (score >= 90) return '#10b981'
-  if (score >= 70) return '#f59e0b'
-  return '#ef4444'
+  if (score >= 90) return 'var(--color-success)'
+  if (score >= 70) return 'var(--color-warning)'
+  return 'var(--color-error)'
 }
 </script>
 
@@ -644,6 +649,7 @@ function scoreColor(score: number) {
   display: flex;
   flex-direction: column;
   gap: 16px;
+  background: var(--gradient-app-bg);
 }
 
 /* Header */
@@ -652,18 +658,18 @@ function scoreColor(score: number) {
   align-items: flex-start;
   gap: 16px;
   padding: 20px 24px;
-  background: rgba(255, 255, 255, 0.92);
+  background: var(--gradient-card-accent);
   border-radius: var(--radius-2xl);
-  border: 1.5px solid rgba(124, 58, 237, 0.12);
-  box-shadow: 0 4px 20px rgba(124, 58, 237, 0.06);
+  border: 1.5px solid rgba(var(--practiq-violet-rgb), 0.12);
+  box-shadow: var(--shadow-card);
 }
 
 .btn-back {
   width: 38px;
   height: 38px;
   border-radius: 50%;
-  border: 1.5px solid rgba(124, 58, 237, 0.2);
-  background: rgba(255, 255, 255, 0.8);
+  border: 1.5px solid rgba(var(--practiq-violet-rgb), 0.2);
+  background: var(--surface-elevated-strong);
   cursor: pointer;
   display: flex;
   align-items: center;
@@ -671,7 +677,7 @@ function scoreColor(score: number) {
   flex-shrink: 0;
   margin-top: 2px;
 }
-.btn-back:hover { background: rgba(124, 58, 237, 0.06); }
+.btn-back:hover { background: var(--fill-primary-faint); }
 
 .practice-header-info { flex: 1; }
 
@@ -679,8 +685,8 @@ function scoreColor(score: number) {
   display: inline-block;
   padding: 3px 12px;
   border-radius: var(--radius-2xl);
-  background: linear-gradient(135deg, #8b5cf6, #6366f1);
-  color: #fff;
+  background: var(--gradient-brand);
+  color: var(--color-on-primary);
   font-size: 0.75rem;
   font-weight: 700;
   margin-bottom: 6px;
@@ -710,8 +716,8 @@ function scoreColor(score: number) {
   gap: 8px;
   padding: 10px 16px;
   border-radius: var(--radius-lg);
-  background: rgba(245, 243, 255, 0.9);
-  border: 1.5px solid rgba(124, 58, 237, 0.1);
+  background: var(--gradient-brand-soft);
+  border: 1.5px solid rgba(var(--practiq-violet-rgb), 0.1);
 }
 
 .streak-val {
@@ -730,11 +736,11 @@ function scoreColor(score: number) {
   width: 42px;
   height: 42px;
   border-radius: 50%;
-  background: linear-gradient(135deg, #8b5cf6, #6366f1);
+  background: var(--gradient-brand);
   display: flex;
   align-items: center;
   justify-content: center;
-  color: white;
+  color: var(--color-on-primary);
   font-weight: 800;
   font-size: 1.1rem;
 }
@@ -742,13 +748,13 @@ function scoreColor(score: number) {
 /* Progress */
 .practice-progress-bar {
   height: 6px;
-  background: rgba(124, 58, 237, 0.1);
+  background: var(--fill-primary-soft);
   border-radius: 99px;
   overflow: hidden;
 }
 .practice-progress-fill {
   height: 100%;
-  background: linear-gradient(90deg, #8b5cf6, #6366f1);
+  background: var(--gradient-brand);
   border-radius: 99px;
   transition: width 0.3s ease;
 }
@@ -782,9 +788,9 @@ function scoreColor(score: number) {
   align-items: center;
   gap: 6px;
   padding: 10px 16px;
-  background: rgba(255, 255, 255, 0.92);
+  background: var(--surface-elevated-strong);
   border-radius: var(--radius-lg);
-  border: 1.5px solid rgba(124, 58, 237, 0.1);
+  border: 1.5px solid rgba(var(--practiq-violet-rgb), 0.1);
   flex-wrap: wrap;
 }
 
@@ -792,8 +798,8 @@ function scoreColor(score: number) {
   width: 34px;
   height: 34px;
   border-radius: var(--radius-sm);
-  border: 1.5px solid rgba(124, 58, 237, 0.15);
-  background: rgba(255, 255, 255, 0.8);
+  border: 1.5px solid rgba(var(--practiq-violet-rgb), 0.15);
+  background: var(--surface-elevated);
   cursor: pointer;
   display: flex;
   align-items: center;
@@ -803,12 +809,12 @@ function scoreColor(score: number) {
   transition: all 0.15s;
 }
 .tool-btn:hover { border-color: var(--practiq-violet); color: var(--practiq-violet); }
-.tool-btn--active { background: var(--practiq-violet); color: #fff; border-color: var(--practiq-violet); }
+.tool-btn--active { background: var(--practiq-violet); color: var(--color-on-primary); border-color: var(--practiq-violet); }
 
 .tool-sep {
   width: 1px;
   height: 28px;
-  background: rgba(124, 58, 237, 0.15);
+  background: rgba(var(--practiq-violet-rgb), 0.15);
   margin: 0 4px;
 }
 
@@ -816,7 +822,7 @@ function scoreColor(score: number) {
   width: 34px;
   height: 34px;
   border-radius: var(--radius-sm);
-  border: 1.5px solid rgba(124, 58, 237, 0.15);
+  border: 1.5px solid rgba(var(--practiq-violet-rgb), 0.15);
   padding: 2px;
   cursor: pointer;
   background: none;
@@ -845,22 +851,22 @@ function scoreColor(score: number) {
   gap: 16px;
   align-items: flex-start;
   padding: 18px 20px;
-  background: rgba(255, 255, 255, 0.9);
+  background: var(--surface-elevated-strong);
   border-radius: var(--radius-xl);
-  border: 1.5px solid rgba(124, 58, 237, 0.08);
+  border: 1.5px solid rgba(var(--practiq-violet-rgb), 0.08);
   transition: border-color 0.15s;
 }
 
 .ex-card--answered {
-  border-color: rgba(16, 185, 129, 0.3);
-  background: rgba(236, 253, 245, 0.6);
+  border-color: rgba(var(--color-success-rgb), 0.3);
+  background: var(--color-success-bg);
 }
 
 .ex-num {
   width: 32px;
   height: 32px;
   border-radius: var(--radius-sm);
-  background: rgba(124, 58, 237, 0.1);
+  background: var(--fill-primary-soft);
   color: var(--practiq-violet);
   font-weight: 800;
   font-size: 0.9rem;
@@ -871,7 +877,7 @@ function scoreColor(score: number) {
 }
 
 .ex-num--done {
-  background: rgba(16, 185, 129, 0.15);
+  background: rgba(var(--color-success-rgb), 0.15);
   color: var(--color-success-dark);
 }
 
@@ -892,7 +898,7 @@ function scoreColor(score: number) {
 .difficulty-pill {
   padding: 3px 8px;
   border-radius: var(--radius-pill);
-  background: color-mix(in srgb, var(--difficulty-color) 12%, white);
+  background: color-mix(in srgb, var(--difficulty-color) 12%, var(--surface-card));
   color: var(--difficulty-color);
   font-size: 0.75rem;
   font-weight: 700;
@@ -906,7 +912,7 @@ function scoreColor(score: number) {
 
 .hint-count {
   font-size: 0.78rem;
-  color: var(--color-warning, #f59e0b);
+  color: var(--color-warning);
 }
 
 .ex-question {
@@ -919,26 +925,26 @@ function scoreColor(score: number) {
 .ex-input {
   padding: 10px 14px 10px 62px;
   border-radius: var(--radius-md);
-  border: 1.5px solid rgba(124, 58, 237, 0.15);
+  border: 1.5px solid rgba(var(--practiq-violet-rgb), 0.15);
   font-size: 1rem;
   color: var(--text-primary);
   outline: none;
   transition: border-color 0.15s;
   min-height: 96px;
-  background-color: #fafaf7;
+  background-color: var(--surface-bg-soft);
   background-image:
-    linear-gradient(to right, rgba(239,68,68,0.25) 1.5px, transparent 1.5px),
+    linear-gradient(to right, rgba(var(--color-error-rgb), 0.25) 1.5px, transparent 1.5px),
     repeating-linear-gradient(
       to bottom,
       transparent,
       transparent 31px,
-      rgba(124,58,237,0.1) 31px,
-      rgba(124,58,237,0.1) 32px
+      rgba(var(--practiq-violet-rgb), 0.1) 31px,
+      rgba(var(--practiq-violet-rgb), 0.1) 32px
     );
   background-size: 56px 32px;
   background-position: 0 0;
   line-height: 32px;
-  box-shadow: 0 2px 12px rgba(124, 58, 237, 0.06);
+  box-shadow: var(--shadow-card);
 }
 .ex-input:focus { border-color: var(--practiq-violet); }
 
@@ -969,24 +975,24 @@ function scoreColor(score: number) {
   gap: 4px;
   padding: 4px 10px;
   border-radius: var(--radius-sm);
-  border: 1px solid rgba(239, 68, 68, 0.2);
-  background: rgba(255, 255, 255, 0.9);
+  border: 1px solid rgba(var(--color-error-rgb), 0.2);
+  background: var(--surface-elevated-strong);
   color: var(--color-error);
   cursor: pointer;
   font-size: 0.78rem;
   transition: all 0.15s;
 }
-.btn-clear-canvas:hover { background: rgba(239, 68, 68, 0.08); }
+.btn-clear-canvas:hover { background: rgba(var(--color-error-rgb), 0.08); }
 
 .ex-canvas {
   width: 100%;
   height: 240px;
   border-radius: var(--radius-md);
-  border: 1.5px solid rgba(124, 58, 237, 0.15);
+  border: 1.5px solid rgba(var(--practiq-violet-rgb), 0.15);
   display: block;
   touch-action: none;
   cursor: crosshair;
-  box-shadow: 0 2px 12px rgba(124, 58, 237, 0.06);
+  box-shadow: var(--shadow-card);
 }
 
 /* Sticky footer */
@@ -995,12 +1001,12 @@ function scoreColor(score: number) {
   align-items: center;
   justify-content: space-between;
   padding: 14px 20px;
-  background: rgba(255, 255, 255, 0.92);
+  background: var(--surface-elevated-strong);
   border-radius: var(--radius-xl);
-  border: 1.5px solid rgba(124, 58, 237, 0.1);
+  border: 1.5px solid rgba(var(--practiq-violet-rgb), 0.1);
   position: sticky;
   bottom: 16px;
-  box-shadow: 0 4px 24px rgba(124, 58, 237, 0.1);
+  box-shadow: var(--shadow-card-lg);
 }
 
 .footer-left {
@@ -1021,12 +1027,12 @@ function scoreColor(score: number) {
   padding: 12px 28px;
   border-radius: var(--radius-md);
   border: none;
-  background: linear-gradient(135deg, #8b5cf6, #6366f1);
-  color: #fff;
+  background: var(--gradient-brand);
+  color: var(--color-on-primary);
   font-weight: 700;
   font-size: 0.95rem;
   cursor: pointer;
-  box-shadow: 0 4px 16px rgba(99, 102, 241, 0.3);
+  box-shadow: var(--shadow-indigo);
   transition: opacity 0.15s;
 }
 .btn-submit:hover { opacity: 0.9; }
@@ -1052,7 +1058,7 @@ function scoreColor(score: number) {
 }
 
 .stat-card {
-  background: rgba(245, 243, 255, 0.72);
+  background: var(--gradient-brand-soft);
   border-radius: var(--radius-xl);
   padding: 16px 12px;
   text-align: center;
@@ -1066,7 +1072,7 @@ function scoreColor(score: number) {
   align-items: center;
   padding: 14px;
   border-radius: var(--radius-xl);
-  background: rgba(248, 250, 252, 0.9);
+  background: var(--surface-subtle);
 }
 .rec-icon { font-size: 24px; }
 
@@ -1074,8 +1080,8 @@ function scoreColor(score: number) {
   margin-top: 10px;
   padding: 12px 14px;
   border-radius: var(--radius-lg);
-  background: rgba(250, 245, 255, 0.92);
-  color: #5b21b6;
+  background: var(--fill-primary-subtle);
+  color: var(--practiq-violet-dark);
   font-size: 0.9rem;
 }
 
@@ -1083,7 +1089,7 @@ function scoreColor(score: number) {
   margin-top: 12px;
   padding: 12px 16px;
   border-radius: var(--radius-lg);
-  background: rgba(16, 185, 129, 0.1);
+  background: var(--fill-success-subtle);
   color: var(--color-success-dark);
   font-weight: 700;
   text-align: center;

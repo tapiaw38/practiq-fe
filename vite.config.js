@@ -11,5 +11,23 @@ export default defineConfig({
     },
     server: {
         port: 5174
+    },
+    build: {
+        rollupOptions: {
+            output: {
+                manualChunks(id) {
+                    if (!id.includes('node_modules'))
+                        return undefined;
+                    if (id.includes('primevue') || id.includes('@primevue') || id.includes('@primeuix') || id.includes('primeicons')) {
+                        return 'vendor-primevue';
+                    }
+                    if (id.includes('vue') || id.includes('pinia'))
+                        return 'vendor-vue';
+                    if (id.includes('katex'))
+                        return 'vendor-katex';
+                    return 'vendor';
+                }
+            }
+        }
     }
 });

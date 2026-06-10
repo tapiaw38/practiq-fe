@@ -86,15 +86,15 @@
             </thead>
             <tbody>
               <tr v-for="teacher in filteredTeachers" :key="teacher.user.id">
-                <td>{{ fullName(teacher.user) }}</td>
-                <td class="cell-muted">{{ teacher.user.email }}</td>
-                <td>
+                <td data-label="Nombre">{{ fullName(teacher.user) }}</td>
+                <td data-label="Email" class="cell-muted">{{ teacher.user.email }}</td>
+                <td data-label="Roles">
                   <div class="chip-row chip-row--inline">
                     <span class="soft-chip" v-for="role in teacher.user.roles" :key="role.id">{{ role.name }}</span>
                   </div>
                 </td>
-                <td class="cell-center">{{ teacherAssignments[practiqUserId(teacher.user)]?.length || 0 }}</td>
-                <td>
+                <td data-label="Asignados" class="cell-center">{{ teacherAssignments[practiqUserId(teacher.user)]?.length || 0 }}</td>
+                <td data-label="Estado">
                   <span class="teacher-state" :class="teacher.profile?.academic_status === 'blocked' ? 'teacher-state--blocked' : 'teacher-state--ok'">
                     {{ teacher.profile?.academic_status === 'blocked' ? 'Bloqueado' : 'Activo' }}
                   </span>
@@ -102,6 +102,10 @@
               </tr>
             </tbody>
           </table>
+          <div v-if="!filteredTeachers.length" class="empty-state">
+            <i class="pi pi-users"></i>
+            <span>No hay profesores para este filtro.</span>
+          </div>
         </section>
 
         <section v-if="pendingProfiles.length" class="panel-card">
@@ -123,17 +127,21 @@
             </thead>
             <tbody>
               <tr v-for="item in filteredPendingProfiles" :key="item.user.id" class="row--pending">
-                <td>{{ fullName(item.user) }}</td>
-                <td class="cell-muted">{{ item.user.email }}</td>
-                <td>
+                <td data-label="Nombre">{{ fullName(item.user) }}</td>
+                <td data-label="Email" class="cell-muted">{{ item.user.email }}</td>
+                <td data-label="Roles">
                   <div class="chip-row chip-row--inline">
                     <span class="soft-chip" v-for="role in item.user.roles" :key="role.id">{{ role.name }}</span>
                   </div>
                 </td>
-                <td><span class="teacher-badge teacher-badge--pending">{{ practiqUserId(item.user) }}</span></td>
+                <td data-label="ID"><span class="teacher-badge teacher-badge--pending">{{ practiqUserId(item.user) }}</span></td>
               </tr>
             </tbody>
           </table>
+          <div v-if="!filteredPendingProfiles.length" class="empty-state">
+            <i class="pi pi-check-circle"></i>
+            <span>No hay usuarios pendientes para este filtro.</span>
+          </div>
         </section>
 
         <section class="panel-card">
@@ -157,31 +165,35 @@
             </thead>
             <tbody>
               <tr v-for="item in filteredStudents" :key="item.user.id">
-                <td>{{ fullName(item.user) }}</td>
-                <td class="cell-muted">{{ item.user.email }}</td>
-                <td>
+                <td data-label="Nombre">{{ fullName(item.user) }}</td>
+                <td data-label="Email" class="cell-muted">{{ item.user.email }}</td>
+                <td data-label="Docentes">
                   <div class="chip-row chip-row--inline">
                     <span v-for="teacher in studentTeachers[practiqUserId(item.user)]" :key="teacher.id" class="soft-chip soft-chip--teacher">{{ teacher.name }}</span>
                     <span v-if="!studentTeachers[practiqUserId(item.user)]?.length" class="detail-empty">Sin docente</span>
                   </div>
                 </td>
-                <td>
+                <td data-label="Grados">
                   <div class="chip-row chip-row--inline">
                     <span v-for="grade in userGrades[practiqUserId(item.user)]" :key="grade.id" class="soft-chip soft-chip--grade">{{ grade.name }}</span>
                     <span v-if="!userGrades[practiqUserId(item.user)]?.length" class="detail-empty">Sin grado</span>
                   </div>
                 </td>
-                <td>
+                <td data-label="Estado">
                   <span class="status-pill" :class="item.profile?.academic_status === 'blocked' || !item.user.is_active ? 'status-pill--blocked' : 'status-pill--ok'">
                     {{ item.profile?.academic_status === 'blocked' || !item.user.is_active ? 'Bloqueado' : 'Activo' }}
                   </span>
                 </td>
-                <td class="cell-actions">
+                <td data-label="Acciones" class="cell-actions">
                   <button class="btn btn-secondary btn-sm" type="button" @click="openStudentEditor(item)">Editar</button>
                 </td>
               </tr>
             </tbody>
           </table>
+          <div v-if="!filteredStudents.length" class="empty-state">
+            <i class="pi pi-user"></i>
+            <span>No hay alumnos para este filtro.</span>
+          </div>
         </section>
 
         <div v-if="editingStudent" class="modal-backdrop" @click.self="closeStudentEditor">
@@ -708,6 +720,22 @@ async function toggleBlocked(item: UserRow) {
 }
 .detail-label { display: block; font-size: var(--text-xs); font-weight: 700; text-transform: uppercase; color: var(--text-secondary); margin-bottom: 4px; }
 .detail-empty { color: var(--text-muted); font-size: var(--text-sm); }
+.empty-state {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  justify-content: center;
+  padding: 28px 16px;
+  border: 1px dashed rgba(var(--surface-border-rgb), 0.24);
+  border-radius: var(--radius-xl);
+  background: var(--surface-subtle);
+  color: var(--text-secondary);
+  font-size: var(--text-sm);
+  font-weight: 700;
+}
+.empty-state i {
+  color: var(--practiq-violet);
+}
 .action-row { gap: 8px; align-items: center; margin-top: 10px; }
 .action-row--split { justify-content: space-between; }
 .assistant-box { display: grid; gap: 8px; margin-top: 12px; }
@@ -808,5 +836,74 @@ async function toggleBlocked(item: UserRow) {
   .stats-row { flex-direction: column; }
   .modal-head { flex-direction: column; align-items: stretch; }
   .data-table { display: block; overflow-x: auto; -webkit-overflow-scrolling: touch; }
+}
+
+@media (max-width: 720px) {
+  .toolbar-card { align-items: stretch; }
+  .filter-row { gap: 6px; }
+  .filter-chip { flex: 1 1 calc(50% - 6px); }
+  .data-table {
+    overflow: visible;
+  }
+  .data-table thead {
+    display: none;
+  }
+  .data-table,
+  .data-table tbody,
+  .data-table tr,
+  .data-table td {
+    display: block;
+    width: 100%;
+  }
+  .data-table tbody {
+    display: grid;
+    gap: 10px;
+  }
+  .data-table tbody tr {
+    padding: 12px;
+    border: 1px solid rgba(var(--surface-border-rgb), 0.16);
+    border-radius: var(--radius-xl);
+    background: var(--surface-card);
+    box-shadow: var(--shadow-sm);
+  }
+  .data-table td {
+    display: grid;
+    grid-template-columns: minmax(92px, 34%) 1fr;
+    gap: 10px;
+    align-items: start;
+    padding: 8px 0;
+    border-bottom: 1px solid rgba(var(--surface-border-rgb), 0.1);
+  }
+  .data-table td:last-child {
+    border-bottom: none;
+  }
+  .data-table td::before {
+    content: attr(data-label);
+    color: var(--text-secondary);
+    font-size: var(--text-xs);
+    font-weight: 800;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+  }
+  .cell-center,
+  .cell-actions {
+    text-align: left;
+  }
+  .cell-actions .btn {
+    width: 100%;
+    justify-content: center;
+  }
+  .modal-backdrop {
+    padding: 10px;
+    align-items: end;
+  }
+  .modal-card {
+    max-height: 92vh;
+    border-radius: var(--radius-2xl) var(--radius-2xl) 0 0;
+  }
+  .action-row {
+    flex-direction: column;
+    align-items: stretch;
+  }
 }
 </style>

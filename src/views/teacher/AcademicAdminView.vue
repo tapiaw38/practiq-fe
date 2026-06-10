@@ -68,6 +68,10 @@
         <aside class="grade-sidebar">
           <div class="sidebar-header">
             <span class="sidebar-label">Grados</span>
+            <button class="sidebar-add-btn" type="button" @click="openCreateGrade">
+              <i class="pi pi-plus"></i>
+              Nuevo
+            </button>
           </div>
           <nav class="grade-nav">
             <button
@@ -82,9 +86,6 @@
               <span class="grade-nav-item__count">{{ gradeCourses(grade.id).length }}</span>
             </button>
           </nav>
-          <button class="sidebar-add-btn" @click="openCreateGrade">
-            <i class="pi pi-plus"></i> Nuevo grado
-          </button>
         </aside>
 
         <!-- Contenido -->
@@ -777,8 +778,13 @@ async function confirmDeleteSubject(id: string) {
 }
 
 .sidebar-header {
-  padding: 12px 12px 8px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 12px 12px 10px;
   flex-shrink: 0;
+  border-bottom: 1px solid rgba(var(--surface-border-rgb), 0.14);
 }
 
 .sidebar-label {
@@ -861,19 +867,21 @@ async function confirmDeleteSubject(id: string) {
 .sidebar-add-btn {
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 10px 14px;
-  border: none;
-  border-top: 1px solid rgba(var(--surface-border-rgb), 0.14);
-  background: none;
-  color: var(--text-secondary);
+  gap: 6px;
+  padding: 7px 10px;
+  border: 1px solid rgba(var(--practiq-violet-rgb), 0.18);
+  border-radius: var(--radius-pill);
+  background: var(--fill-primary-faint);
+  color: var(--practiq-violet-dark);
   font-size: var(--text-sm);
-  font-weight: 600;
+  font-weight: 700;
   cursor: pointer;
-  transition: color 0.12s;
+  transition: var(--transition-fast);
   flex-shrink: 0;
 }
 .sidebar-add-btn:hover {
+  background: var(--fill-primary-soft);
+  border-color: rgba(var(--practiq-violet-rgb), 0.28);
   color: var(--practiq-violet);
 }
 

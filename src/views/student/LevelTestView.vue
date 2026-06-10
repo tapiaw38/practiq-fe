@@ -3,7 +3,7 @@
     <div class="test-shell">
       <!-- Header -->
       <header class="test-header">
-        <button class="btn-back" @click="confirmExit" title="Salir">
+        <button class="btn-back" type="button" aria-label="Salir de prueba" @click="confirmExit" title="Salir">
           <i class="pi pi-arrow-left"></i>
         </button>
         <div class="test-header-info">
@@ -30,18 +30,18 @@
 
         <!-- Canvas toolbar (only in canvas mode) -->
         <div v-if="isCanvas" class="draw-tools-bar">
-          <button class="tool-btn" :class="{ 'tool-btn--active': tool === 'pen' }" @click="tool = 'pen'" title="Lápiz">
+          <button class="tool-btn" type="button" aria-label="Usar lápiz" :class="{ 'tool-btn--active': tool === 'pen' }" @click="tool = 'pen'" title="Lápiz">
             <i class="pi pi-pencil"></i>
           </button>
-          <button class="tool-btn" :class="{ 'tool-btn--active': tool === 'eraser' }" @click="tool = 'eraser'" title="Borrador">
+          <button class="tool-btn" type="button" aria-label="Usar borrador" :class="{ 'tool-btn--active': tool === 'eraser' }" @click="tool = 'eraser'" title="Borrador">
             <i class="pi pi-times-circle"></i>
           </button>
-          <button class="tool-btn" @click="undoActive" title="Deshacer">
+          <button class="tool-btn" type="button" aria-label="Deshacer trazo" @click="undoActive" title="Deshacer">
             <i class="pi pi-undo"></i>
           </button>
           <div class="tool-sep"></div>
-          <input type="color" v-model="penColor" class="color-picker" title="Color" />
-          <input type="range" v-model.number="penSize" min="1" max="20" class="size-slider" title="Grosor" />
+          <input type="color" v-model="penColor" class="color-picker" title="Color" aria-label="Color del lápiz" />
+          <input type="range" v-model.number="penSize" min="1" max="20" class="size-slider" title="Grosor" aria-label="Grosor del lápiz" />
           <span class="size-val">{{ penSize }}px</span>
         </div>
 
@@ -70,7 +70,7 @@
               <div v-else class="canvas-wrap">
                 <div class="canvas-header">
                   <span class="canvas-label">Tu respuesta</span>
-                  <button class="btn-clear-canvas" @click="clearCanvas(ex.exercise.id)" title="Borrar todo">
+                  <button class="btn-clear-canvas" type="button" @click="clearCanvas(ex.exercise.id)" title="Borrar todo" aria-label="Limpiar respuesta">
                     <i class="pi pi-trash"></i> Limpiar
                   </button>
                 </div>
@@ -111,10 +111,10 @@
 
           <div class="score-ring">
             <svg viewBox="0 0 120 120" class="ring-svg">
-              <circle cx="60" cy="60" r="50" fill="none" stroke="#e5e7eb" stroke-width="10"/>
+              <circle cx="60" cy="60" r="50" fill="none" stroke="var(--surface-border)" stroke-width="10"/>
               <circle
                 cx="60" cy="60" r="50" fill="none"
-                :stroke="result.should_level_up ? '#10b981' : '#f59e0b'"
+                :stroke="result.should_level_up ? 'var(--color-success)' : 'var(--color-warning)'"
                 stroke-width="10"
                 stroke-linecap="round"
                 stroke-dasharray="314"
@@ -193,12 +193,17 @@ const undoStacks: Record<string, ImageData[]> = {}
 const isDrawing: Record<string, boolean> = {}
 const activeId = ref<string>('')
 const tool = ref<'pen' | 'eraser'>('pen')
-const penColor = ref('#1e1e2e')
+const penColor = ref(cssVar('--text-primary', '#1e293b'))
 const penSize = ref(3)
 
 const penCursor = `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24'%3E%3Cpath fill='%231e1e2e' d='M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04a1 1 0 0 0 0-1.41l-2.34-2.34a1 1 0 0 0-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z'/%3E%3C/svg%3E") 0 24, crosshair`
 const eraserCursor = `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='20' height='20' viewBox='0 0 20 20'%3E%3Ccircle cx='10' cy='10' r='8' fill='none' stroke='%23666' stroke-width='1.5'/%3E%3C/svg%3E") 10 10, cell`
 const canvasCursor = computed(() => tool.value === 'eraser' ? eraserCursor : penCursor)
+
+function cssVar(name: string, fallback: string) {
+  if (typeof window === 'undefined') return fallback
+  return getComputedStyle(document.documentElement).getPropertyValue(name).trim() || fallback
+}
 
 // Timer — 30 min
 const TEST_DURATION_SECONDS = 30 * 60
@@ -253,15 +258,15 @@ function setCanvasRef(id: string, el: HTMLCanvasElement | null) {
 }
 
 function drawBackground(ctx: CanvasRenderingContext2D, w: number, h: number) {
-  ctx.fillStyle = '#fafaf7'
+  ctx.fillStyle = cssVar('--surface-bg-soft', '#fafaf7')
   ctx.fillRect(0, 0, w, h)
-  ctx.strokeStyle = 'rgba(239,68,68,0.25)'
+  ctx.strokeStyle = `rgba(${cssVar('--color-error-rgb', '239, 68, 68')}, 0.25)`
   ctx.lineWidth = 1.5
   ctx.beginPath()
   ctx.moveTo(56, 0)
   ctx.lineTo(56, h)
   ctx.stroke()
-  ctx.strokeStyle = 'rgba(124,58,237,0.1)'
+  ctx.strokeStyle = `rgba(${cssVar('--practiq-violet-rgb', '124, 58, 237')}, 0.1)`
   ctx.lineWidth = 1
   for (let y = 32; y < h; y += 32) {
     ctx.beginPath()
@@ -463,7 +468,7 @@ function buildCanvasDataForOCR(exerciseId: string) {
     return canvasData.value[exerciseId] || ''
   }
 
-  ctx.fillStyle = '#ffffff'
+  ctx.fillStyle = cssVar('--surface-card', '#ffffff')
   ctx.fillRect(0, 0, out.width, out.height)
   ctx.imageSmoothingEnabled = false
   ctx.drawImage(source, 0, 0, out.width, out.height)
@@ -616,6 +621,7 @@ function retry() {
   display: flex;
   flex-direction: column;
   gap: 16px;
+  background: var(--gradient-app-bg);
 }
 
 /* Header */
@@ -624,18 +630,18 @@ function retry() {
   align-items: flex-start;
   gap: 16px;
   padding: 20px 24px;
-  background: rgba(255,255,255,0.92);
+  background: var(--gradient-card-accent);
   border-radius: var(--radius-2xl);
-  border: 1.5px solid rgba(124, 58, 237, 0.12);
-  box-shadow: 0 4px 20px rgba(124, 58, 237, 0.06);
+  border: 1.5px solid rgba(var(--practiq-violet-rgb), 0.12);
+  box-shadow: var(--shadow-card);
 }
 
 .btn-back {
   width: 38px;
   height: 38px;
   border-radius: 50%;
-  border: 1.5px solid rgba(124, 58, 237, 0.2);
-  background: rgba(255,255,255,0.8);
+  border: 1.5px solid rgba(var(--practiq-violet-rgb), 0.2);
+  background: var(--surface-elevated-strong);
   cursor: pointer;
   display: flex;
   align-items: center;
@@ -643,7 +649,7 @@ function retry() {
   flex-shrink: 0;
   margin-top: 2px;
 }
-.btn-back:hover { background: rgba(124,58,237,0.06); }
+.btn-back:hover { background: var(--fill-primary-faint); }
 
 .test-header-info { flex: 1; }
 
@@ -651,8 +657,8 @@ function retry() {
   display: inline-block;
   padding: 3px 12px;
   border-radius: var(--radius-2xl);
-  background: linear-gradient(135deg, #8b5cf6, #6366f1);
-  color: #fff;
+  background: var(--gradient-brand);
+  color: var(--color-on-primary);
   font-size: 0.75rem;
   font-weight: 700;
   margin-bottom: 6px;
@@ -677,23 +683,23 @@ function retry() {
   font-size: 1.1rem;
   font-weight: 700;
   color: var(--text-secondary);
-  background: rgba(245, 243, 255, 0.9);
+  background: var(--gradient-brand-soft);
   padding: 8px 16px;
   border-radius: var(--radius-md);
   flex-shrink: 0;
 }
-.timer--warning { color: var(--color-error-dark); background: rgba(254, 226, 226, 0.9); }
+.timer--warning { color: var(--color-error-dark); background: var(--color-error-bg); }
 
 /* Progress */
 .test-progress-bar {
   height: 6px;
-  background: rgba(124, 58, 237, 0.1);
+  background: var(--fill-primary-soft);
   border-radius: var(--radius-pill);
   overflow: hidden;
 }
 .test-progress-fill {
   height: 100%;
-  background: linear-gradient(90deg, #8b5cf6, #6366f1);
+  background: var(--gradient-brand);
   border-radius: var(--radius-pill);
   transition: width 0.3s ease;
 }
@@ -709,9 +715,9 @@ function retry() {
   align-items: center;
   gap: 6px;
   padding: 10px 16px;
-  background: rgba(255,255,255,0.92);
+  background: var(--surface-elevated-strong);
   border-radius: var(--radius-lg);
-  border: 1.5px solid rgba(124, 58, 237, 0.1);
+  border: 1.5px solid rgba(var(--practiq-violet-rgb), 0.1);
   flex-wrap: wrap;
 }
 
@@ -719,8 +725,8 @@ function retry() {
   width: 34px;
   height: 34px;
   border-radius: var(--radius-sm);
-  border: 1.5px solid rgba(124, 58, 237, 0.15);
-  background: rgba(255,255,255,0.8);
+  border: 1.5px solid rgba(var(--practiq-violet-rgb), 0.15);
+  background: var(--surface-elevated);
   cursor: pointer;
   display: flex;
   align-items: center;
@@ -730,12 +736,12 @@ function retry() {
   transition: all 0.15s;
 }
 .tool-btn:hover { border-color: var(--practiq-violet); color: var(--practiq-violet); }
-.tool-btn--active { background: var(--practiq-violet); color: #fff; border-color: var(--practiq-violet); }
+.tool-btn--active { background: var(--practiq-violet); color: var(--color-on-primary); border-color: var(--practiq-violet); }
 
 .tool-sep {
   width: 1px;
   height: 28px;
-  background: rgba(124, 58, 237, 0.15);
+  background: rgba(var(--practiq-violet-rgb), 0.15);
   margin: 0 4px;
 }
 
@@ -743,7 +749,7 @@ function retry() {
   width: 34px;
   height: 34px;
   border-radius: var(--radius-sm);
-  border: 1.5px solid rgba(124, 58, 237, 0.15);
+  border: 1.5px solid rgba(var(--practiq-violet-rgb), 0.15);
   padding: 2px;
   cursor: pointer;
   background: none;
@@ -772,22 +778,22 @@ function retry() {
   gap: 16px;
   align-items: flex-start;
   padding: 18px 20px;
-  background: rgba(255,255,255,0.9);
+  background: var(--surface-elevated-strong);
   border-radius: var(--radius-xl);
-  border: 1.5px solid rgba(124, 58, 237, 0.08);
+  border: 1.5px solid rgba(var(--practiq-violet-rgb), 0.08);
   transition: border-color 0.15s;
 }
 
 .ex-card--answered {
-  border-color: rgba(16, 185, 129, 0.3);
-  background: rgba(236, 253, 245, 0.6);
+  border-color: rgba(var(--color-success-rgb), 0.3);
+  background: var(--color-success-bg);
 }
 
 .ex-num {
   width: 32px;
   height: 32px;
   border-radius: var(--radius-sm);
-  background: rgba(124, 58, 237, 0.1);
+  background: var(--fill-primary-soft);
   color: var(--practiq-violet);
   font-weight: 800;
   font-size: 0.9rem;
@@ -798,7 +804,7 @@ function retry() {
 }
 
 .ex-card--answered .ex-num {
-  background: rgba(16, 185, 129, 0.15);
+  background: rgba(var(--color-success-rgb), 0.15);
   color: var(--color-success-dark);
 }
 
@@ -814,10 +820,10 @@ function retry() {
 .ex-input {
   padding: 10px 14px;
   border-radius: var(--radius-sm);
-  border: 1.5px solid rgba(124, 58, 237, 0.15);
+  border: 1.5px solid rgba(var(--practiq-violet-rgb), 0.15);
   font-size: 1rem;
   color: var(--text-primary);
-  background: rgba(255,255,255,0.9);
+  background: var(--surface-elevated-strong);
   outline: none;
   transition: border-color 0.15s;
 }
@@ -850,23 +856,23 @@ function retry() {
   gap: 4px;
   padding: 4px 10px;
   border-radius: var(--radius-sm);
-  border: 1px solid rgba(239, 68, 68, 0.2);
-  background: rgba(255, 255, 255, 0.9);
+  border: 1px solid rgba(var(--color-error-rgb), 0.2);
+  background: var(--surface-elevated-strong);
   color: var(--color-error);
   cursor: pointer;
   font-size: 0.78rem;
   transition: all 0.15s;
 }
-.btn-clear-canvas:hover { background: rgba(239, 68, 68, 0.08); }
+.btn-clear-canvas:hover { background: rgba(var(--color-error-rgb), 0.08); }
 
 .ex-canvas {
   width: 100%;
   height: 220px;
   border-radius: var(--radius-md);
-  border: 1.5px solid rgba(124, 58, 237, 0.15);
+  border: 1.5px solid rgba(var(--practiq-violet-rgb), 0.15);
   display: block;
   touch-action: none;
-  box-shadow: 0 2px 12px rgba(124, 58, 237, 0.06);
+  box-shadow: var(--shadow-card);
 }
 
 /* Footer */
@@ -875,9 +881,9 @@ function retry() {
   align-items: center;
   justify-content: space-between;
   padding: 16px 20px;
-  background: rgba(255,255,255,0.92);
+  background: var(--surface-elevated-strong);
   border-radius: var(--radius-xl);
-  border: 1.5px solid rgba(124, 58, 237, 0.1);
+  border: 1.5px solid rgba(var(--practiq-violet-rgb), 0.1);
   position: sticky;
   bottom: 16px;
 }
@@ -894,12 +900,12 @@ function retry() {
   padding: 12px 28px;
   border-radius: var(--radius-md);
   border: none;
-  background: linear-gradient(135deg, #8b5cf6, #6366f1);
-  color: #fff;
+  background: var(--gradient-brand);
+  color: var(--color-on-primary);
   font-weight: 700;
   font-size: 0.95rem;
   cursor: pointer;
-  box-shadow: 0 4px 16px rgba(99, 102, 241, 0.3);
+  box-shadow: var(--shadow-indigo);
   transition: opacity 0.15s;
 }
 .btn-submit:hover:not(:disabled) { opacity: 0.9; }
@@ -920,13 +926,13 @@ function retry() {
 }
 
 .result-card {
-  background: rgba(255,255,255,0.95);
+  background: var(--surface-elevated-strong);
   border-radius: 28px;
   padding: 40px 48px;
   text-align: center;
   max-width: 460px;
   width: 100%;
-  box-shadow: 0 16px 48px rgba(0,0,0,0.08);
+  box-shadow: var(--shadow-panel);
   border: 2px solid transparent;
   display: flex;
   flex-direction: column;
@@ -934,8 +940,8 @@ function retry() {
   gap: 20px;
 }
 
-.result-card--pass { border-color: rgba(16, 185, 129, 0.3); }
-.result-card--fail { border-color: rgba(245, 158, 11, 0.3); }
+.result-card--pass { border-color: rgba(var(--color-success-rgb), 0.3); }
+.result-card--fail { border-color: rgba(var(--color-warning-rgb), 0.3); }
 
 .result-icon { font-size: 3rem; line-height: 1; }
 
@@ -983,7 +989,7 @@ function retry() {
   padding: 8px 20px;
   border-radius: var(--radius-pill);
   background: linear-gradient(135deg, var(--color-success), var(--color-success-dark));
-  color: #fff;
+  color: var(--color-on-primary);
   font-weight: 700;
   font-size: 0.95rem;
 }
@@ -996,8 +1002,8 @@ function retry() {
 }
 
 .result-ai-feedback {
-  background: rgba(124, 58, 237, 0.06);
-  border: 1px solid rgba(124, 58, 237, 0.15);
+  background: var(--fill-primary-faint);
+  border: 1px solid rgba(var(--practiq-violet-rgb), 0.15);
   border-radius: var(--radius-sm);
   padding: 10px 14px;
   font-size: 0.88rem;
@@ -1017,8 +1023,8 @@ function retry() {
 .btn-secondary {
   padding: 10px 22px;
   border-radius: var(--radius-md);
-  border: 1.5px solid rgba(124, 58, 237, 0.2);
-  background: rgba(255,255,255,0.9);
+  border: 1.5px solid rgba(var(--practiq-violet-rgb), 0.2);
+  background: var(--surface-elevated-strong);
   color: var(--text-primary);
   font-weight: 600;
   cursor: pointer;
@@ -1031,8 +1037,8 @@ function retry() {
   padding: 10px 22px;
   border-radius: var(--radius-md);
   border: none;
-  background: linear-gradient(135deg, var(--color-warning), #d97706);
-  color: #fff;
+  background: linear-gradient(135deg, var(--color-warning), var(--color-warning-strong));
+  color: var(--color-on-primary);
   font-weight: 700;
   cursor: pointer;
   font-size: 0.9rem;

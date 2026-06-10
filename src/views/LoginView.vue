@@ -46,7 +46,7 @@
         <img src="@/assets/logo.png" class="brand-logo brand-logo--mobile" alt="Practiq" />
       </div>
 
-      <div class="auth-card">
+      <div class="auth-card" :class="`auth-card--${currentView}`">
         <!-- ── HEADER ── -->
         <div class="card-header">
           <h2 class="card-title">
@@ -61,6 +61,26 @@
              : currentView === 'forgot' ? 'Te enviaremos un enlace para recuperar el acceso.'
              : 'Antes de continuar, elige tu tipo de perfil.' }}
           </p>
+          <div v-if="currentView === 'login' || currentView === 'register'" class="auth-switch" aria-label="Cambiar modo de acceso">
+            <button
+              type="button"
+              class="auth-switch__btn"
+              :class="{ 'auth-switch__btn--active': currentView === 'login' }"
+              :aria-pressed="currentView === 'login'"
+              @click="goLogin"
+            >
+              Ingresar
+            </button>
+            <button
+              type="button"
+              class="auth-switch__btn"
+              :class="{ 'auth-switch__btn--active': currentView === 'register' }"
+              :aria-pressed="currentView === 'register'"
+              @click="goRegister"
+            >
+              Crear cuenta
+            </button>
+          </div>
         </div>
 
         <!-- ── LOGIN FORM ── -->
@@ -125,12 +145,12 @@
           <div class="form-group">
             <label class="form-label">Tipo de perfil</label>
             <div class="profile-grid">
-              <button type="button" class="profile-option" :class="{ active: profileType === 'student' }" @click="profileType = 'student'">
+              <button type="button" class="profile-option" :class="{ active: profileType === 'student' }" :aria-pressed="profileType === 'student'" @click="profileType = 'student'">
                 <span class="profile-option__emoji">🎒</span>
                 <span class="profile-option__name">Estudiante</span>
                 <span class="profile-option__desc">Practicar y avanzar por temas.</span>
               </button>
-              <button type="button" class="profile-option" :class="{ active: profileType === 'teacher' }" @click="profileType = 'teacher'">
+              <button type="button" class="profile-option" :class="{ active: profileType === 'teacher' }" :aria-pressed="profileType === 'teacher'" @click="profileType = 'teacher'">
                 <span class="profile-option__emoji">🧑‍🏫</span>
                 <span class="profile-option__name">Docente</span>
                 <span class="profile-option__desc">Crear cursos y acompañar estudiantes.</span>
@@ -149,6 +169,7 @@
               <label class="form-label" for="register-password">Contraseña</label>
               <input id="register-password" v-model="password" type="password" class="form-input" :class="{ 'form-input--error': registerPasswordError }" placeholder="Mín. 8 caracteres" autocomplete="new-password" required />
               <small v-if="registerPasswordError" class="form-error">{{ registerPasswordError }}</small>
+              <small v-else-if="password" class="form-help">Segura para crear cuenta.</small>
             </div>
             <div class="form-group">
               <label class="form-label" for="confirm-password">Confirmar</label>
@@ -206,12 +227,12 @@
           <div class="form-group">
             <label class="form-label">Tipo de perfil</label>
             <div class="profile-grid">
-              <button type="button" class="profile-option" :class="{ active: pendingProfile.profile_type === 'student' }" @click="pendingProfile.profile_type = 'student'">
+              <button type="button" class="profile-option" :class="{ active: pendingProfile.profile_type === 'student' }" :aria-pressed="pendingProfile.profile_type === 'student'" @click="pendingProfile.profile_type = 'student'">
                 <span class="profile-option__emoji">🎒</span>
                 <span class="profile-option__name">Estudiante</span>
                 <span class="profile-option__desc">Entrar a prácticas y progreso.</span>
               </button>
-              <button type="button" class="profile-option" :class="{ active: pendingProfile.profile_type === 'teacher' }" @click="pendingProfile.profile_type = 'teacher'">
+              <button type="button" class="profile-option" :class="{ active: pendingProfile.profile_type === 'teacher' }" :aria-pressed="pendingProfile.profile_type === 'teacher'" @click="pendingProfile.profile_type = 'teacher'">
                 <span class="profile-option__emoji">🧑‍🏫</span>
                 <span class="profile-option__name">Docente</span>
                 <span class="profile-option__desc">Entrar a cursos y gestión de contenido.</span>
@@ -482,15 +503,17 @@ async function completePendingProfile() {
 <style scoped>
 /* ───────── PAGE GRID ───────── */
 .auth-page {
-  min-height: 100vh;
+  height: 100dvh;
   display: grid;
   grid-template-columns: 1.1fr 1fr;
   background: var(--gradient-auth-bg);
+  overflow: hidden;
 }
 
 /* ───────── LEFT PANEL ───────── */
 .auth-left {
   position: relative;
+  height: 100dvh;
   overflow: hidden;
   color: var(--color-on-brand-panel);
   padding: 0px 48px 40px;
@@ -580,30 +603,73 @@ async function completePendingProfile() {
 
 /* ───────── RIGHT PANEL ───────── */
 .auth-right {
-  display: flex; flex-direction: column;
-  align-items: center; justify-content: center;
+  height: 100dvh;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-start;
   padding: 40px 32px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
 }
 .auth-mobile-brand { display: none; }
 
 .auth-card {
   width: 100%; max-width: 440px;
+  margin-block: auto;
   padding: 36px 32px; border-radius: var(--radius-2xl);
   background: var(--surface-card);
   border: 1px solid var(--surface-card-border);
   box-shadow: var(--shadow-auth-card);
 }
-.card-header { margin-bottom: 28px; }
+.auth-card--register {
+  max-width: 520px;
+  padding: 28px 28px;
+}
+.card-header { margin-bottom: 24px; }
+.auth-card--register .card-header { margin-bottom: 18px; }
 .card-title {
   font-size: 1.5rem; font-weight: 700;
   color: var(--text-primary); line-height: 1.2; margin-bottom: 6px;
 }
 .card-subtitle { font-size: var(--text-md); color: var(--text-secondary); line-height: 1.5; }
 
+.auth-switch {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 4px;
+  margin-top: 18px;
+  padding: 4px;
+  border-radius: var(--radius-pill);
+  background: var(--surface-subtle);
+  border: 1px solid var(--surface-border);
+}
+
+.auth-switch__btn {
+  border: none;
+  border-radius: var(--radius-pill);
+  padding: 9px 12px;
+  background: transparent;
+  color: var(--text-secondary);
+  font-size: var(--text-sm);
+  font-weight: 800;
+  cursor: pointer;
+  transition: var(--transition-fast);
+}
+
+.auth-switch__btn--active {
+  background: var(--surface-card);
+  color: var(--practiq-violet-dark);
+  box-shadow: var(--shadow-sm);
+}
+
 /* ───────── FORM ───────── */
-.auth-form { display: flex; flex-direction: column; gap: 18px; }
+.auth-form { display: flex; flex-direction: column; gap: 16px; }
+.auth-card--register .auth-form { gap: 12px; }
 .auth-form .form-group { margin-bottom: 0; }
 .auth-form .form-input { padding: 12px 16px; border-radius: var(--radius-md); font-size: var(--text-md); }
+.auth-card--register .auth-form .form-input { padding: 10px 13px; }
 
 .form-input--error { border-color: var(--color-error) !important; }
 .form-input--error:focus { box-shadow: var(--focus-ring-error) !important; }
@@ -614,6 +680,7 @@ async function completePendingProfile() {
 }
 .label-row .form-label { margin-bottom: 0; }
 .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+.auth-card--register .two-col { gap: 10px; }
 
 /* Profile picker */
 .profile-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
@@ -624,6 +691,8 @@ async function completePendingProfile() {
   text-align: left; cursor: pointer;
   transition: var(--transition);
 }
+.auth-card--register .profile-grid { gap: 10px; }
+.auth-card--register .profile-option { padding: 12px 12px; }
 .profile-option:hover { border-color: var(--practiq-violet-light); background: var(--practiq-violet-bg); }
 .profile-option.active {
   border-color: var(--practiq-violet);
@@ -631,8 +700,18 @@ async function completePendingProfile() {
   box-shadow: 0 0 0 3px var(--fill-primary-soft);
 }
 .profile-option__emoji { display: block; font-size: 22px; margin-bottom: 8px; }
+.auth-card--register .profile-option__emoji { font-size: 19px; margin-bottom: 5px; }
 .profile-option__name { display: block; font-weight: 700; font-size: var(--text-md); color: var(--text-primary); }
 .profile-option__desc { display: block; margin-top: 2px; font-size: var(--text-sm); color: var(--text-secondary); line-height: 1.4; }
+.auth-card--register .profile-option__desc { font-size: var(--text-xs); line-height: 1.3; }
+
+.form-help {
+  display: block;
+  margin-top: 6px;
+  color: var(--color-success-dark);
+  font-size: var(--text-xs);
+  font-weight: 600;
+}
 
 /* Buttons */
 .submit-btn {
@@ -681,6 +760,7 @@ async function completePendingProfile() {
   position: relative; margin: 22px 0 18px;
   text-align: center; color: var(--text-muted); font-size: var(--text-base);
 }
+.auth-card--register .auth-divider { margin: 16px 0 14px; }
 .auth-divider::before {
   content: ''; position: absolute; left: 0; right: 0; top: 50%;
   height: 1px; background: var(--surface-border);
@@ -714,12 +794,22 @@ async function completePendingProfile() {
   .auth-page { grid-template-columns: 1fr; }
   .auth-left { display: none; }
   .auth-mobile-brand { display: flex; align-items: center; gap: 12px; margin-bottom: 24px; }
-  .auth-right { min-height: 100vh; }
+  .auth-right { height: 100dvh; min-height: 0; }
 }
 @media (max-width: 480px) {
-  .auth-right { padding: 24px 16px; }
-  .auth-card { padding: 28px 20px; border-radius: var(--radius-2xl); }
+  .auth-right { padding: 18px 14px; }
+  .auth-mobile-brand { margin-bottom: 12px; }
+  .auth-card,
+  .auth-card--register {
+    padding: 22px 18px;
+    border-radius: var(--radius-2xl);
+  }
   .two-col, .profile-grid { grid-template-columns: 1fr; }
+  .auth-card--register .profile-grid { grid-template-columns: 1fr 1fr; }
+  .auth-card--register .profile-option { padding: 10px; }
+  .auth-card--register .profile-option__desc { display: none; }
   .card-title { font-size: 1.3rem; }
+  .card-subtitle { font-size: var(--text-base); }
+  .auth-switch { margin-top: 14px; }
 }
 </style>
