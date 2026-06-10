@@ -140,3 +140,58 @@ export async function composeTeacherAndStudentImage(params: {
 
   return canvas.toDataURL('image/jpeg', 0.92)
 }
+
+export async function dataUrlHasUserInk(dataUrl: string): Promise<boolean> {
+  if (!dataUrl) return false
+
+  let img: HTMLImageElement
+  try {
+    img = await loadImageFromDataUrl(dataUrl)
+  } catch {
+    return false
+  }
+
+  const sample = document.createElement('canvas')
+  const maxSide = 320
+  const scale = Math.min(1, maxSide / Math.max(img.naturalWidth || img.width, img.naturalHeight || img.height))
+  sample.width = Math.max(1, Math.floor((img.naturalWidth || img.width) * scale))
+  sample.height = Math.max(1, Math.floor((img.naturalHeight || img.height) * scale))
+
+  const ctx = sample.getContext('2d')
+  if (!ctx) return false
+  ctx.drawImage(img, 0, 0, sample.width, sample.height)
+
+  const pixels = ctx.getImageData(0, 0, sample.width, sample.height).data
+  let darkPixels = 0
+  for (let i = 0; i < pixels.length; i += 4) {
+    const alpha = pixels[i + 3]
+    if (alpha < 20) continue
+    const gray = 0.299 * pixels[i] + 0.587 * pixels[i + 1] + 0.114 * pixels[i + 2]
+    if (gray < 140) darkPixels++
+    if (darkPixels > 12) return true
+  }
+
+  return false
+}
+
+export async function pickBestStudentImage(dataUrls: Array<string | undefined | null>): Promise<string> {
+  const candidates = dataUrls.filter((value): value is string => !!value)
+  for (const dataUrl of candidates) {
+    if (await dataUrlHasUserInk(dataUrl)) {
+      return dataUrl
+    }
+  }
+  return candidates[0] || ''
+}
+
+export async function composeAssistantWorkImage(params: {
+  teacherDataUrl?: string
+  studentDataUrl?: string
+  teacherLabel?: string
+  studentLabel?: string
+}): Promise<string> {
+  if (params.teacherDataUrl && params.studentDataUrl) {
+    return composeTeacherAndStudentImage(params)
+  }
+  return params.teacherDataUrl || params.studentDataUrl || ''
+}

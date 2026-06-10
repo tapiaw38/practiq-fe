@@ -36,6 +36,14 @@
           <span class="nav-icon"><i class="pi pi-sitemap"></i></span>
           <span>Académico</span>
         </RouterLink>
+        <RouterLink to="/teacher/notebook-reviews" class="nav-item" active-class="nav-item-active" @click="navOpen = false">
+          <span class="nav-icon"><i class="pi pi-book"></i></span>
+          <span>Cuadernos</span>
+        </RouterLink>
+        <RouterLink to="/teacher/strategies" class="nav-item" active-class="nav-item-active" @click="navOpen = false">
+          <span class="nav-icon"><i class="pi pi-cog"></i></span>
+          <span>Estrategias</span>
+        </RouterLink>
       </nav>
 
       <div class="sidebar-footer">

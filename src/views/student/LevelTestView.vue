@@ -156,6 +156,131 @@
     @confirm="onConfirm"
     @cancel="onCancel"
   />
+
+  <!-- Instructions Modal (before test) -->
+  <Teleport to="body">
+    <Transition name="fade">
+      <div v-if="showInstructionsModal" class="modal-overlay">
+        <div class="modal-box instructions-modal">
+          <div class="instructions-icon">
+            <i class="pi pi-info-circle"></i>
+          </div>
+          <h3 class="modal-title">Prueba de Nivel {{ sheet?.level }}</h3>
+          <div class="instructions-content">
+            <p class="instructions-intro">
+              Estas a punto de comenzar una prueba de nivel. Lee atentamente las siguientes instrucciones:
+            </p>
+            <ul class="instructions-list">
+              <li>
+                <i class="pi pi-clock"></i>
+                Tiempo limite: <strong>30 minutos</strong>
+              </li>
+              <li>
+                <i class="pi pi-check-circle"></i>
+                Necesitas <strong>75%</strong> de respuestas correctas para aprobar
+              </li>
+              <li>
+                <i class="pi pi-pencil"></i>
+                Responde todos los ejercicios antes de enviar
+              </li>
+              <li>
+                <i class="pi pi-exclamation-triangle"></i>
+                No podras pausar la prueba una vez iniciada
+              </li>
+            </ul>
+            <p class="instructions-tip">
+              <strong>Consejo:</strong> Revisa todas tus respuestas antes de entregar.
+            </p>
+          </div>
+          <div class="modal-actions">
+            <button class="btn btn-secondary" @click="goBackFromInstructions">
+              <i class="pi pi-arrow-left"></i> Volver
+            </button>
+            <button class="btn btn-primary" @click="startTest">
+              <i class="pi pi-play"></i> Comenzar prueba
+            </button>
+          </div>
+        </div>
+      </div>
+    </Transition>
+  </Teleport>
+
+  <!-- Time Warning Toast -->
+  <Teleport to="body">
+    <Transition name="slide-up">
+      <div v-if="showTimeWarning" class="time-warning-toast">
+        <i class="pi pi-clock"></i>
+        <span>Quedan <strong>5 minutos</strong> para terminar la prueba</span>
+        <button class="toast-close" @click="showTimeWarning = false">
+          <i class="pi pi-times"></i>
+        </button>
+      </div>
+    </Transition>
+  </Teleport>
+
+  <!-- Retry Confirmation Modal -->
+  <Teleport to="body">
+    <Transition name="fade">
+      <div v-if="showRetryModal" class="modal-overlay" @click.self="showRetryModal = false">
+        <div class="modal-box">
+          <h3 class="modal-title">
+            <i class="pi pi-refresh"></i> Reintentar prueba
+          </h3>
+          <p class="modal-desc">
+            ¿Estas seguro de que deseas reintentar la prueba de nivel?
+          </p>
+          <div class="retry-warning">
+            <i class="pi pi-exclamation-triangle"></i>
+            <div>
+              <strong>Ten en cuenta:</strong>
+              <ul>
+                <li>Tendras otros 30 minutos para completar la prueba</li>
+                <li>Tus respuestas anteriores no se conservaran</li>
+                <li>Necesitaras 75% de respuestas correctas para aprobar</li>
+              </ul>
+            </div>
+          </div>
+          <div class="modal-actions">
+            <button class="btn btn-secondary" @click="showRetryModal = false">Cancelar</button>
+            <button class="btn btn-primary" @click="confirmRetry">
+              <i class="pi pi-refresh"></i> Reintentar
+            </button>
+          </div>
+        </div>
+      </div>
+    </Transition>
+  </Teleport>
+
+  <!-- Success Congratulations Modal -->
+  <Teleport to="body">
+    <Transition name="fade">
+      <div v-if="showSuccessModal" class="modal-overlay">
+        <div class="modal-box success-modal">
+          <div class="success-confetti">
+            <span class="confetti-piece">🎉</span>
+            <span class="confetti-piece">🏆</span>
+            <span class="confetti-piece">⭐</span>
+          </div>
+          <h3 class="modal-title success-title">Felicitaciones!</h3>
+          <p class="success-message">
+            Has aprobado la prueba de nivel {{ sheet?.level }} con un <strong>{{ Math.round(result?.score || 0) }}%</strong>
+          </p>
+          <div class="level-unlock-badge">
+            <i class="pi pi-lock-open"></i>
+            Nivel {{ (result?.next_level || (sheet?.level || 0) + 1) }} desbloqueado
+          </div>
+          <p class="success-recommendation" v-if="result?.recommendation">
+            {{ result.recommendation }}
+          </p>
+          <div class="modal-actions">
+            <button class="btn btn-primary btn-lg" @click="closeSuccessAndGoHome">
+              <i class="pi pi-home"></i> Continuar
+            </button>
+          </div>
+        </div>
+      </div>
+    </Transition>
+  </Teleport>
 </template>
 
 <script setup lang="ts">
@@ -168,8 +293,9 @@ import { practiceSheetService } from '@/services/practiceSheets/practiceSheetSer
 import { useAuthStore } from '@/stores/authStore'
 import type { PracticeSheet, PracticeSheetExercise, SubmitResult } from '@/types'
 import {
-  composeTeacherAndStudentImage,
+  composeAssistantWorkImage,
   extractTeacherImageDataUrl,
+  pickBestStudentImage,
   summarizeExerciseMetadata
 } from '@/utils/assistantExerciseContext'
 
@@ -184,6 +310,14 @@ const submitted = ref(false)
 const submitting = ref(false)
 const result = ref<SubmitResult | null>(null)
 const answers = ref<Record<string, string>>({})
+
+// Modal states
+const showInstructionsModal = ref(true)
+const showTimeWarning = ref(false)
+const showRetryModal = ref(false)
+const showSuccessModal = ref(false)
+const testStarted = ref(false)
+let warningShown = false
 
 // Canvas state
 const canvasRefs: Record<string, HTMLCanvasElement | null> = {}
@@ -217,6 +351,14 @@ function startTimer() {
       clearInterval(timer!)
       timer = null
       submit()
+    } else if (timeLeft.value === 300 && !warningShown) {
+      // Show 5 minute warning
+      showTimeWarning.value = true
+      warningShown = true
+      // Auto-hide after 10 seconds
+      setTimeout(() => {
+        showTimeWarning.value = false
+      }, 10000)
     } else {
       timeLeft.value--
     }
@@ -380,7 +522,7 @@ onMounted(async () => {
     for (const ex of exercises.value) {
       answers.value[ex.exercise.id] = ''
     }
-    startTimer()
+    // Timer starts when user clicks "Comenzar" in instructions modal
   } finally {
     loading.value = false
   }
@@ -388,8 +530,11 @@ onMounted(async () => {
 
 onUnmounted(() => {
   if (timer) clearInterval(timer)
-  delete window.__practiqAssistantCapture
-  delete window.__practiqAssistantContext
+  if ((window as any).__practiqAssistantHookSource === 'level-test') {
+    delete window.__practiqAssistantCapture
+    delete window.__practiqAssistantContext
+    delete (window as any).__practiqAssistantHookSource
+  }
 })
 
 function focusNext(idx: number) {
@@ -446,6 +591,11 @@ async function submit() {
       throw new Error('No se recibió resultado de evaluación')
     }
     submitted.value = true
+
+    // Show success modal if passed
+    if (result.value.should_level_up) {
+      showSuccessModal.value = true
+    }
   } catch (err) {
     console.error(err)
   } finally {
@@ -516,6 +666,8 @@ function getAssistantExerciseIndex(exerciseId: string) {
   return exercises.value.findIndex((item) => item.exercise.id === exerciseId)
 }
 
+;(window as any).__practiqAssistantHookSource = 'level-test'
+
 window.__practiqAssistantContext = () => {
   if (!sheet.value) return null
 
@@ -568,25 +720,17 @@ window.__practiqAssistantCapture = async () => {
   const exercise =
     exerciseIndex >= 0 ? exercises.value[exerciseIndex]?.exercise : null
 
-  const studentDataUrl = buildCanvasDataForOCR(exerciseId)
+  const studentDataUrl = await pickBestStudentImage([
+    buildCanvasDataForOCR(exerciseId),
+    canvasData.value[exerciseId]
+  ])
   const teacherDataUrl = extractTeacherImageDataUrl(exercise)
-  let dataUrl = studentDataUrl
-
-  if (teacherDataUrl && studentDataUrl) {
-    try {
-      dataUrl = await composeTeacherAndStudentImage({
-        teacherDataUrl,
-        studentDataUrl,
-        teacherLabel: 'Consigna del docente',
-        studentLabel: 'Respuesta del alumno'
-      })
-    } catch (error) {
-      console.error('[level-test-view] failed to compose teacher and student images', error)
-      dataUrl = teacherDataUrl || studentDataUrl
-    }
-  } else if (teacherDataUrl) {
-    dataUrl = teacherDataUrl
-  }
+  const dataUrl = await composeAssistantWorkImage({
+    teacherDataUrl,
+    studentDataUrl,
+    teacherLabel: 'Consigna del docente',
+    studentLabel: 'Respuesta del alumno'
+  })
 
   if (!dataUrl) return null
 
@@ -598,9 +742,15 @@ window.__practiqAssistantCapture = async () => {
 }
 
 function retry() {
+  showRetryModal.value = true
+}
+
+function confirmRetry() {
+  showRetryModal.value = false
   submitted.value = false
   result.value = null
   timeLeft.value = TEST_DURATION_SECONDS
+  warningShown = false
   canvasData.value = {}
   for (const key in answers.value) answers.value[key] = ''
   // Re-init canvases after DOM updates
@@ -610,6 +760,21 @@ function retry() {
     }
   })
   startTimer()
+}
+
+function goBackFromInstructions() {
+  router.back()
+}
+
+function startTest() {
+  showInstructionsModal.value = false
+  testStarted.value = true
+  startTimer()
+}
+
+function closeSuccessAndGoHome() {
+  showSuccessModal.value = false
+  router.push('/student/dashboard')
 }
 </script>
 
@@ -1044,6 +1209,231 @@ function retry() {
   font-size: 0.9rem;
 }
 .btn-retry:hover { opacity: 0.9; }
+
+/* Instructions Modal */
+.instructions-modal {
+  max-width: 500px;
+  text-align: center;
+}
+
+.instructions-icon {
+  width: 64px;
+  height: 64px;
+  margin: 0 auto 20px;
+  border-radius: 50%;
+  background: var(--fill-primary-soft);
+  display: grid;
+  place-items: center;
+  font-size: 28px;
+  color: var(--practiq-violet);
+}
+
+.instructions-content {
+  text-align: left;
+  margin-bottom: 20px;
+}
+
+.instructions-intro {
+  font-size: var(--text-base);
+  color: var(--text-secondary);
+  margin-bottom: 16px;
+}
+
+.instructions-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.instructions-list li {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 16px;
+  background: var(--surface-subtle);
+  border-radius: var(--radius-md);
+  font-size: var(--text-base);
+  color: var(--text-primary);
+}
+
+.instructions-list li i {
+  color: var(--practiq-violet);
+  font-size: 18px;
+  flex-shrink: 0;
+}
+
+.instructions-tip {
+  margin-top: 16px;
+  padding: 12px 16px;
+  background: var(--fill-primary-faint);
+  border-radius: var(--radius-md);
+  font-size: var(--text-sm);
+  color: var(--practiq-violet-dark);
+}
+
+/* Time Warning Toast */
+.time-warning-toast {
+  position: fixed;
+  bottom: 100px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 24px;
+  background: linear-gradient(135deg, var(--color-warning), var(--color-warning-strong));
+  color: white;
+  border-radius: var(--radius-xl);
+  box-shadow: 0 8px 32px rgba(245, 158, 11, 0.3);
+  font-size: var(--text-base);
+  font-weight: 600;
+  z-index: 10000;
+  animation: pulse 1s ease-in-out infinite;
+}
+
+@keyframes pulse {
+  0%, 100% { transform: translateX(-50%) scale(1); }
+  50% { transform: translateX(-50%) scale(1.02); }
+}
+
+.toast-close {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  border: none;
+  background: rgba(255, 255, 255, 0.2);
+  color: white;
+  cursor: pointer;
+  display: grid;
+  place-items: center;
+  margin-left: 8px;
+}
+
+.toast-close:hover {
+  background: rgba(255, 255, 255, 0.3);
+}
+
+/* Retry Warning */
+.retry-warning {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 14px 16px;
+  background: rgba(var(--color-warning-rgb), 0.1);
+  border: 1px solid rgba(var(--color-warning-rgb), 0.3);
+  border-radius: var(--radius-md);
+  margin: 16px 0;
+  text-align: left;
+}
+
+.retry-warning > i {
+  color: var(--color-warning-dark);
+  font-size: 20px;
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+
+.retry-warning ul {
+  margin: 8px 0 0;
+  padding-left: 20px;
+  font-size: var(--text-sm);
+  color: var(--text-secondary);
+}
+
+.retry-warning li {
+  margin-bottom: 4px;
+}
+
+.modal-desc {
+  font-size: var(--text-base);
+  color: var(--text-secondary);
+  margin: 0;
+}
+
+/* Success Modal */
+.success-modal {
+  max-width: 440px;
+  text-align: center;
+}
+
+.success-confetti {
+  display: flex;
+  justify-content: center;
+  gap: 16px;
+  margin-bottom: 16px;
+}
+
+.confetti-piece {
+  font-size: 42px;
+  animation: bounce 0.6s ease-out;
+}
+
+.confetti-piece:nth-child(2) {
+  animation-delay: 0.1s;
+}
+
+.confetti-piece:nth-child(3) {
+  animation-delay: 0.2s;
+}
+
+@keyframes bounce {
+  0% { transform: translateY(20px) scale(0); opacity: 0; }
+  60% { transform: translateY(-10px) scale(1.1); }
+  100% { transform: translateY(0) scale(1); opacity: 1; }
+}
+
+.success-title {
+  color: var(--color-success-dark);
+  font-size: 1.8rem;
+}
+
+.success-message {
+  font-size: var(--text-lg);
+  color: var(--text-primary);
+  margin-bottom: 20px;
+}
+
+.level-unlock-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  padding: 14px 24px;
+  background: var(--gradient-brand);
+  color: white;
+  border-radius: var(--radius-xl);
+  font-size: var(--text-lg);
+  font-weight: 700;
+  margin-bottom: 16px;
+}
+
+.success-recommendation {
+  font-size: var(--text-sm);
+  color: var(--text-secondary);
+  padding: 12px 16px;
+  background: var(--surface-subtle);
+  border-radius: var(--radius-md);
+  margin-bottom: 16px;
+}
+
+.btn-lg {
+  padding: 14px 32px;
+  font-size: var(--text-lg);
+}
+
+/* Slide-up transition for toast */
+.slide-up-enter-active,
+.slide-up-leave-active {
+  transition: all 0.3s ease;
+}
+
+.slide-up-enter-from,
+.slide-up-leave-to {
+  transform: translateX(-50%) translateY(100px);
+  opacity: 0;
+}
 
 @media (max-width: 1024px) {
   .test-shell {

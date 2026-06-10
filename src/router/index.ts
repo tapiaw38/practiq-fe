@@ -109,6 +109,18 @@ const router = createRouter({
       meta: { requiresAuth: true, profileType: 'teacher' }
     },
     {
+      path: '/teacher/notebook-reviews',
+      name: 'teacher-notebook-reviews',
+      component: () => import('@/views/teacher/NotebookReviewView.vue'),
+      meta: { requiresAuth: true, profileType: 'teacher' }
+    },
+    {
+      path: '/teacher/strategies',
+      name: 'teacher-strategies',
+      component: () => import('@/views/teacher/StrategyManagementView.vue'),
+      meta: { requiresAuth: true, profileType: 'teacher' }
+    },
+    {
       path: '/:pathMatch(.*)*',
       redirect: '/'
     }

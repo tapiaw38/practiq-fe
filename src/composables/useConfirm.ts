@@ -7,13 +7,14 @@ interface ConfirmOptions {
 }
 
 export function useConfirm() {
+  let resolver: ((value: boolean) => void) | null = null
+
   const confirmState = reactive({
     show: false,
     message: '',
     description: '',
     confirmLabel: 'Eliminar',
     danger: true,
-    resolve: null as ((value: boolean) => void) | null,
   })
 
   function showConfirm(message: string, options?: ConfirmOptions): Promise<boolean> {
@@ -23,20 +24,20 @@ export function useConfirm() {
     confirmState.danger = options?.danger ?? true
     confirmState.show = true
     return new Promise(resolve => {
-      confirmState.resolve = resolve
+      resolver = resolve
     })
   }
 
   function onConfirm() {
     confirmState.show = false
-    confirmState.resolve?.(true)
-    confirmState.resolve = null
+    resolver?.(true)
+    resolver = null
   }
 
   function onCancel() {
     confirmState.show = false
-    confirmState.resolve?.(false)
-    confirmState.resolve = null
+    resolver?.(false)
+    resolver = null
   }
 
   return { confirmState, showConfirm, onConfirm, onCancel }

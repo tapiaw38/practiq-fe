@@ -122,12 +122,51 @@
             <article v-for="course in courses" :key="course.id" class="course-card">
               <div class="course-card__eyebrow">
                 <span class="course-subject">{{ course.subject || 'General' }}</span>
+                <span class="course-level-pill">Nivel {{ courseCurrentLevel[course.id] || 1 }}</span>
               </div>
               <h3 class="course-title">{{ course.title }}</h3>
+
+              <!-- Course Progress Bar -->
+              <div class="course-progress-wrap">
+                <div class="course-progress-header">
+                  <span class="progress-label">Progreso del curso</span>
+                  <span class="progress-value">{{ getCourseProgressPercent(course.id) }}%</span>
+                </div>
+                <div class="progress-bar">
+                  <div class="progress-fill" :style="{ width: getCourseProgressPercent(course.id) + '%' }"></div>
+                </div>
+              </div>
+
+              <!-- Topics needing review -->
+              <div v-if="topicsNeedingReview(course.id).length > 0 && !dismissedReviewCards[course.id]" class="topics-review">
+                <div class="review-head">
+                  <span class="review-label">
+                    <i class="pi pi-exclamation-triangle"></i>
+                    Repasar
+                  </span>
+                  <button
+                    type="button"
+                    class="review-dismiss"
+                    aria-label="Ocultar temas para repasar"
+                    @click="dismissReviewCard(course.id)"
+                  >
+                    <i class="pi pi-times"></i>
+                  </button>
+                </div>
+                <div class="review-topics">
+                  <span v-for="topic in topicsNeedingReview(course.id).slice(0, 2)" :key="topic.topic_id" class="review-topic-tag">
+                    {{ topic.topic_title }}
+                  </span>
+                  <span v-if="topicsNeedingReview(course.id).length > 2" class="review-more">
+                    +{{ topicsNeedingReview(course.id).length - 2 }}
+                  </span>
+                </div>
+              </div>
+
               <div class="course-stats">
                 <div class="course-stat">
                   <span class="course-stat__value">{{ practiceSheets(course.id).length }}</span>
-                  <span class="course-stat__label">Prácticas</span>
+                  <span class="course-stat__label">Practicas</span>
                 </div>
                 <div class="course-stat-divider"></div>
                 <div class="course-stat">
@@ -180,6 +219,7 @@ const progress = ref<TopicProgress[]>([])
 const courseSheets = ref<Record<string, PracticeSheet[]>>({})
 const courseNotebooks = ref<Record<string, Notebook[]>>({})
 const courseCurrentLevel = ref<Record<string, number>>({})
+const dismissedReviewCards = ref<Record<string, boolean>>(loadDismissedReviewCards())
 const loading = ref(true)
 const showAssistant = ref(false)
 
@@ -312,13 +352,54 @@ function startPractice(sheetId: string) {
   router.push(`/student/practice/${sheetId}`)
 }
 
-
 function startFeaturedPractice() {
   if (featuredSheetId.value) startPractice(featuredSheetId.value)
 }
 
 function scrollToCourses() {
   document.getElementById('courses-section')?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+}
+
+function loadDismissedReviewCards(): Record<string, boolean> {
+  try {
+    return JSON.parse(localStorage.getItem('student-dashboard-dismissed-review-cards') || '{}')
+  } catch {
+    return {}
+  }
+}
+
+function dismissReviewCard(courseId: string) {
+  dismissedReviewCards.value = {
+    ...dismissedReviewCards.value,
+    [courseId]: true,
+  }
+  localStorage.setItem(
+    'student-dashboard-dismissed-review-cards',
+    JSON.stringify(dismissedReviewCards.value)
+  )
+}
+
+// Progress helper functions
+function getCourseProgressPercent(courseId: string): number {
+  const level = courseCurrentLevel.value[courseId] || 1
+  // Assume 10 levels max for percentage calculation
+  const maxLevels = 10
+  return Math.min(100, Math.round((level / maxLevels) * 100))
+}
+
+function topicsNeedingReview(courseId: string): typeof progress.value {
+  const topicIds = new Set(
+    (courseSheets.value[courseId] || [])
+      .map(sheet => sheet.topic_id)
+      .filter(Boolean)
+  )
+
+  if (topicIds.size === 0) return []
+
+  return progress.value
+    .filter(p => topicIds.has(p.topic_id) && p.mastery_score < 60 && p.total_attempts > 0)
+    .sort((a, b) => a.mastery_score - b.mastery_score)
+    .slice(0, 5)
 }
 </script>
 
@@ -639,6 +720,18 @@ function scrollToCourses() {
 .course-card__eyebrow {
   display: flex;
   align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.course-level-pill {
+  display: inline-flex;
+  padding: 4px 10px;
+  border-radius: var(--radius-pill);
+  background: var(--gradient-brand);
+  color: var(--color-on-primary);
+  font-size: var(--text-xs);
+  font-weight: 700;
 }
 
 .course-subject {
@@ -658,6 +751,101 @@ function scrollToCourses() {
   color: var(--text-primary);
   margin: 0;
   line-height: 1.3;
+}
+
+/* Course Progress */
+.course-progress-wrap {
+  padding: 12px 0;
+}
+
+.course-progress-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+}
+
+.progress-label {
+  font-size: var(--text-sm);
+  color: var(--text-secondary);
+  font-weight: 600;
+}
+
+.progress-value {
+  font-size: var(--text-sm);
+  color: var(--practiq-violet);
+  font-weight: 700;
+}
+
+/* Topics needing review */
+.topics-review {
+  padding: 8px 10px;
+  background: rgba(var(--color-warning-rgb), 0.08);
+  border-radius: var(--radius-sm);
+  border: 1px solid rgba(var(--color-warning-rgb), 0.2);
+  margin-bottom: 4px;
+}
+
+.review-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+
+.review-label {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: var(--text-xs);
+  font-weight: 700;
+  color: var(--color-warning-dark);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.review-dismiss {
+  display: inline-grid;
+  place-items: center;
+  width: 20px;
+  height: 20px;
+  border: 0;
+  border-radius: var(--radius-pill);
+  background: transparent;
+  color: var(--color-warning-dark);
+  cursor: pointer;
+  transition: var(--transition);
+}
+
+.review-dismiss:hover {
+  background: rgba(var(--color-warning-rgb), 0.14);
+}
+
+.review-dismiss i {
+  font-size: 10px;
+}
+
+.review-topics {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+}
+
+.review-topic-tag {
+  display: inline-flex;
+  padding: 2px 7px;
+  border-radius: var(--radius-pill);
+  background: rgba(var(--color-warning-rgb), 0.15);
+  color: var(--color-warning-dark);
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.review-more {
+  font-size: var(--text-xs);
+  color: var(--color-warning-dark);
+  font-weight: 600;
 }
 
 .course-stats {

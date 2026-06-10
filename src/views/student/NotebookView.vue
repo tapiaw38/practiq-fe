@@ -106,18 +106,45 @@
               <i class="pi" :class="saveStatus === 'saved' ? 'pi-check-circle' : 'pi-spin pi-spinner'"></i>
               {{ saveStatus === 'saved' ? 'Guardado' : 'Evaluando con IA...' }}
             </div>
-            <div v-if="currentPage?.submission" class="ai-review-box">
+
+            <!-- AI Review Box - Enhanced -->
+            <div v-if="currentPage?.submission" class="ai-review-box" :class="getReviewBoxClass(currentPage.submission)">
               <div class="ai-review-head">
-                <span
-                  v-if="currentPage.submission.ai_is_correct !== undefined"
-                  class="ai-review-badge"
-                  :class="currentPage.submission.ai_is_correct ? 'ai-review-badge--ok' : 'ai-review-badge--fail'"
-                >
-                  {{ currentPage.submission.ai_is_correct ? 'Asistente: Correcto' : 'Asistente: Incorrecto' }}
-                </span>
-                <span v-else class="ai-review-badge ai-review-badge--warn">Asistente: Sin calificación</span>
+                <div class="ai-review-icon">
+                  <i v-if="currentPage.submission.ai_is_correct === true" class="pi pi-check-circle"></i>
+                  <i v-else-if="currentPage.submission.ai_is_correct === false" class="pi pi-times-circle"></i>
+                  <i v-else class="pi pi-clock"></i>
+                </div>
+                <div class="ai-review-status">
+                  <span
+                    v-if="currentPage.submission.ai_is_correct !== undefined"
+                    class="ai-review-badge"
+                    :class="currentPage.submission.ai_is_correct ? 'ai-review-badge--ok' : 'ai-review-badge--fail'"
+                  >
+                    {{ currentPage.submission.ai_is_correct ? 'Correcto' : 'Incorrecto' }}
+                  </span>
+                  <span v-else class="ai-review-badge ai-review-badge--warn">Pendiente de revision</span>
+                  <span v-if="currentPage.submission.ai_reviewed_at" class="ai-review-time">
+                    Revisado {{ formatRelativeTime(currentPage.submission.ai_reviewed_at) }}
+                  </span>
+                </div>
               </div>
               <p class="ai-review-text">{{ formatAIFeedback(currentPage.submission.ai_feedback) }}</p>
+
+              <!-- Teacher override indicator -->
+              <div v-if="currentPage.submission.teacher_feedback" class="teacher-review-section">
+                <div class="teacher-review-head">
+                  <i class="pi pi-user"></i>
+                  <span>Tu docente dice:</span>
+                  <span
+                    class="teacher-badge"
+                    :class="currentPage.submission.teacher_is_correct ? 'teacher-badge--ok' : 'teacher-badge--fail'"
+                  >
+                    {{ currentPage.submission.teacher_is_correct ? 'Correcto' : 'Incorrecto' }}
+                  </span>
+                </div>
+                <p class="teacher-review-text">{{ currentPage.submission.teacher_feedback }}</p>
+              </div>
             </div>
             <div class="page-nav">
               <button class="btn-nav" :disabled="currentPageIndex === 0" @click="goToPage(currentPageIndex - 1)">
@@ -144,7 +171,7 @@ import { useAuthStore } from '@/stores/authStore'
 import StudentLayout from '@/layouts/StudentLayout.vue'
 import { notebookService } from '@/services/notebooks/notebookService'
 import type { Notebook, NotebookPage } from '@/types'
-import { composeTeacherAndStudentImage } from '@/utils/assistantExerciseContext'
+import { composeAssistantWorkImage, pickBestStudentImage } from '@/utils/assistantExerciseContext'
 
 const route = useRoute()
 const router = useRouter()
@@ -198,17 +225,18 @@ onMounted(async () => {
     loading.value = false
     await nextTick()
     initCanvas()
+    registerAssistantHooks()
   }
 })
 
 onUnmounted(() => {
-  delete window.__practiqAssistantCapture
-  delete window.__practiqAssistantContext
+  unregisterAssistantHooks()
 })
 
 watch(currentPageIndex, async () => {
   await nextTick()
   initCanvas()
+  registerAssistantHooks()
   if (currentPage.value) {
     textAnswer.value = textAnswers.value[currentPage.value.id] || ''
   }
@@ -336,6 +364,27 @@ function formatAIFeedback(value?: string) {
   return feedback
 }
 
+function getReviewBoxClass(submission: { ai_is_correct?: boolean }) {
+  if (submission.ai_is_correct === true) return 'ai-review-box--success'
+  if (submission.ai_is_correct === false) return 'ai-review-box--error'
+  return 'ai-review-box--pending'
+}
+
+function formatRelativeTime(dateStr?: string) {
+  if (!dateStr) return ''
+  const date = new Date(dateStr)
+  const now = new Date()
+  const diffMs = now.getTime() - date.getTime()
+  const diffMins = Math.floor(diffMs / 60000)
+  const diffHours = Math.floor(diffMs / 3600000)
+  const diffDays = Math.floor(diffMs / 86400000)
+
+  if (diffMins < 1) return 'hace un momento'
+  if (diffMins < 60) return `hace ${diffMins} min`
+  if (diffHours < 24) return `hace ${diffHours}h`
+  return `hace ${diffDays}d`
+}
+
 function captureCanvas(): string {
   const source = answerCanvas.value
   if (!source) return ''
@@ -438,19 +487,28 @@ function captureCanvas(): string {
   return out.toDataURL('image/jpeg', 0.92)
 }
 
+async function getBestStudentNotebookImage(): Promise<string> {
+  const pageId = currentPage.value?.id || ''
+  return pickBestStudentImage([
+    captureCanvas(),
+    canvasSnapshots.value[pageId],
+    currentPage.value?.submission?.canvas_data
+  ])
+}
+
 async function buildNotebookAssistantImage(): Promise<string> {
   const teacherDataUrl =
     currentPage.value?.content_type === 'canvas' && currentPage.value?.content_data
       ? currentPage.value.content_data
       : ''
-  const studentDataUrl = captureCanvas()
+  const studentDataUrl = await getBestStudentNotebookImage()
 
   if (!teacherDataUrl) {
     return studentDataUrl
   }
 
   try {
-    return await composeTeacherAndStudentImage({
+    return await composeAssistantWorkImage({
       teacherDataUrl,
       studentDataUrl,
       teacherLabel: 'Consigna del docente',
@@ -462,7 +520,7 @@ async function buildNotebookAssistantImage(): Promise<string> {
   }
 }
 
-window.__practiqAssistantCapture = async () => {
+const notebookAssistantCapture = async () => {
   if (!currentPage.value) return null
 
   const dataUrl = await buildNotebookAssistantImage()
@@ -483,7 +541,7 @@ window.__practiqAssistantCapture = async () => {
   }
 }
 
-window.__practiqAssistantContext = () => {
+const notebookAssistantContext = () => {
   if (!notebook.value || !currentPage.value) return null
 
   return {
@@ -515,6 +573,27 @@ window.__practiqAssistantContext = () => {
       has_teacher_image: page.content_type === 'canvas' && !!page.content_data
     }))
   }
+}
+
+function registerAssistantHooks() {
+  window.__practiqAssistantCapture = notebookAssistantCapture
+  window.__practiqAssistantContext = notebookAssistantContext
+  ;(window as any).__practiqAssistantHookSource = 'notebook'
+  console.log('[notebook-view] assistant hooks registered', {
+    notebookId: notebook.value?.id || null,
+    pageId: currentPage.value?.id || null
+  })
+}
+
+function unregisterAssistantHooks() {
+  if ((window as any).__practiqAssistantHookSource !== 'notebook') return
+  if (window.__practiqAssistantCapture === notebookAssistantCapture) {
+    delete window.__practiqAssistantCapture
+  }
+  if (window.__practiqAssistantContext === notebookAssistantContext) {
+    delete window.__practiqAssistantContext
+  }
+  delete (window as any).__practiqAssistantHookSource
 }
 
 async function saveAndNext() {
@@ -845,22 +924,71 @@ function goToPage(idx: number) {
 .ai-review-box {
   width: 100%;
   margin-top: 8px;
-  padding: 10px 12px;
-  border-radius: var(--radius-md);
+  padding: 14px 16px;
+  border-radius: var(--radius-lg);
   background: #faf7ff;
-  border: 1px solid #e9ddff;
+  border: 1.5px solid #e9ddff;
+  transition: all 0.2s;
+}
+
+.ai-review-box--success {
+  background: linear-gradient(135deg, rgba(16, 185, 129, 0.06), rgba(16, 185, 129, 0.02));
+  border-color: rgba(16, 185, 129, 0.3);
+}
+
+.ai-review-box--error {
+  background: linear-gradient(135deg, rgba(239, 68, 68, 0.06), rgba(239, 68, 68, 0.02));
+  border-color: rgba(239, 68, 68, 0.3);
+}
+
+.ai-review-box--pending {
+  background: linear-gradient(135deg, rgba(245, 158, 11, 0.06), rgba(245, 158, 11, 0.02));
+  border-color: rgba(245, 158, 11, 0.3);
 }
 
 .ai-review-head {
   display: flex;
   align-items: center;
+  gap: 12px;
+}
+
+.ai-review-icon {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 18px;
+  flex-shrink: 0;
+}
+
+.ai-review-box--success .ai-review-icon {
+  background: rgba(16, 185, 129, 0.15);
+  color: #059669;
+}
+
+.ai-review-box--error .ai-review-icon {
+  background: rgba(239, 68, 68, 0.15);
+  color: #dc2626;
+}
+
+.ai-review-box--pending .ai-review-icon {
+  background: rgba(245, 158, 11, 0.15);
+  color: #d97706;
+}
+
+.ai-review-status {
+  display: flex;
+  align-items: center;
   gap: 8px;
+  flex-wrap: wrap;
 }
 
 .ai-review-badge {
   display: inline-flex;
   align-items: center;
-  padding: 4px 10px;
+  padding: 4px 12px;
   border-radius: var(--radius-pill);
   font-size: var(--text-sm);
   font-weight: 700;
@@ -881,10 +1009,59 @@ function goToPage(idx: number) {
   color: var(--color-warning-dark);
 }
 
+.ai-review-time {
+  font-size: var(--text-xs);
+  color: var(--text-muted);
+}
+
 .ai-review-text {
-  margin: 8px 0 0;
+  margin: 10px 0 0;
   font-size: var(--text-base);
   color: #4b5563;
+  line-height: 1.6;
+  padding-left: 48px;
+}
+
+/* Teacher review section */
+.teacher-review-section {
+  margin-top: 14px;
+  padding-top: 14px;
+  border-top: 1px dashed rgba(124, 58, 237, 0.2);
+  padding-left: 48px;
+}
+
+.teacher-review-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: var(--text-sm);
+  font-weight: 600;
+  color: var(--practiq-violet);
+  margin-bottom: 6px;
+}
+
+.teacher-badge {
+  padding: 2px 8px;
+  border-radius: var(--radius-pill);
+  font-size: var(--text-xs);
+  font-weight: 700;
+}
+
+.teacher-badge--ok {
+  background: rgba(16, 185, 129, 0.15);
+  color: #059669;
+}
+
+.teacher-badge--fail {
+  background: rgba(239, 68, 68, 0.15);
+  color: #dc2626;
+}
+
+.teacher-review-text {
+  margin: 0;
+  font-size: var(--text-sm);
+  color: var(--text-secondary);
+  line-height: 1.5;
 }
 
 .page-nav {

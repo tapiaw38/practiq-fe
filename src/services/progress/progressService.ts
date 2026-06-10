@@ -1,5 +1,5 @@
 import { practiqApi } from '@/api/request/server'
-import type { TopicProgress, StudentAttempt } from '@/types'
+import type { TopicProgress, StudentAttempt, CourseProgress } from '@/types'
 
 export class ProgressService {
   async getMyProgress(): Promise<{ data: TopicProgress[] }> {
@@ -26,6 +26,17 @@ export class ProgressService {
     const { data } = await practiqApi.get(`/teachers/me/students/${studentId}/attempts`, {
       params: { sheet_id: sheetId }
     })
+    return data
+  }
+
+  // New course progress endpoints
+  async getStudentCourseProgressNew(studentId: string, courseId: string): Promise<{ data: CourseProgress }> {
+    const { data } = await practiqApi.get(`/students/${studentId}/courses/${courseId}/progress`)
+    return data
+  }
+
+  async getAllStudentProgress(studentId: string): Promise<{ data: CourseProgress[] }> {
+    const { data } = await practiqApi.get(`/students/${studentId}/progress`)
     return data
   }
 }

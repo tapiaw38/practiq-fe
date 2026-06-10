@@ -7,9 +7,21 @@
           <i class="pi pi-arrow-left"></i>
         </button>
         <div class="practice-header-info">
-          <div class="level-badge">Nivel {{ sheet?.level }}</div>
+          <div class="level-badges">
+            <div class="level-badge">Nivel {{ sheet?.level }}</div>
+            <div v-if="sheet?.sheet_type === 'level_test'" class="level-test-badge">
+              <i class="pi pi-star"></i> Prueba de Nivel
+            </div>
+            <div v-if="sheet?.test_style === 'keyboard'" class="input-mode-badge">
+              <i class="pi pi-keyboard"></i> Teclado
+            </div>
+          </div>
           <h1 class="practice-title">{{ sheet?.title }}</h1>
-          <span class="practice-subtitle">Resuelve los siguientes ejercicios a tu propio ritmo</span>
+          <span class="practice-subtitle">
+            {{ sheet?.sheet_type === 'level_test'
+              ? 'Responde correctamente el 75% para avanzar al siguiente nivel'
+              : 'Resuelve los siguientes ejercicios a tu propio ritmo' }}
+          </span>
         </div>
         <div class="header-right">
           <div class="streak-chip">
@@ -37,8 +49,8 @@
         <div class="practice-body">
           <!-- Exercises + footer -->
           <main class="practice-area">
-            <!-- Canvas toolbar -->
-            <div v-if="hasCanvasExercises" class="draw-tools-bar">
+            <!-- Canvas toolbar (only in canvas mode) -->
+            <div v-if="isCanvasMode && hasCanvasExercises" class="draw-tools-bar">
               <button class="tool-btn" type="button" aria-label="Usar lápiz" :class="{ 'tool-btn--active': tool === 'pen' }" @click="tool = 'pen'" title="Lápiz">
                 <i class="pi pi-pencil"></i>
               </button>
@@ -78,7 +90,19 @@
 
                   <div class="ex-question">{{ pse.exercise.question }}</div>
 
-                  <div class="canvas-wrap">
+                  <!-- Keyboard mode input -->
+                  <div v-if="!isCanvasMode" class="keyboard-input-wrap">
+                    <textarea
+                      v-model="keyboardAnswers[pse.exercise.id]"
+                      class="ex-textarea"
+                      :placeholder="getPlaceholder(pse.exercise.type)"
+                      rows="4"
+                      @input="markKeyboardAnswered(pse.exercise.id)"
+                    ></textarea>
+                  </div>
+
+                  <!-- Canvas mode input -->
+                  <div v-else class="canvas-wrap">
                     <div class="canvas-header">
                       <span class="canvas-label">Tu respuesta</span>
                       <button class="btn-clear-canvas" type="button" @click="clearCanvas(pse.exercise.id)" title="Borrar todo" aria-label="Limpiar respuesta">
@@ -105,15 +129,47 @@
             <div class="practice-footer">
               <div class="footer-left">
                 <span class="footer-hint">{{ totalCount - answeredCount }} sin responder</span>
+                <span v-if="hasDraft" class="draft-indicator">
+                  <i class="pi pi-save"></i> Borrador guardado
+                </span>
               </div>
-              <button class="btn-submit" @click="showSubmitConfirm = true">
-                <i class="pi pi-send"></i>
-                Revisar respuestas
-              </button>
+              <div class="footer-actions">
+                <button v-if="isCanvasMode" class="btn-draft" @click="saveDraft">
+                  <i class="pi pi-save"></i>
+                  Guardar borrador
+                </button>
+                <button class="btn-submit" @click="showSubmitConfirm = true">
+                  <i class="pi pi-send"></i>
+                  Revisar respuestas
+                </button>
+              </div>
             </div>
           </main>
         </div>
       </template>
+
+      <!-- Restore draft modal -->
+      <Teleport to="body">
+        <Transition name="fade">
+          <div v-if="showRestoreModal" class="modal-overlay">
+            <div class="modal-box">
+              <h3 class="modal-title">
+                <i class="pi pi-save"></i> Borrador encontrado
+              </h3>
+              <p class="submit-copy">
+                Encontramos un borrador guardado de esta practica.
+                ¿Deseas restaurar tu progreso anterior?
+              </p>
+              <div class="modal-actions">
+                <button class="btn btn-secondary" @click="discardDraft">Descartar</button>
+                <button class="btn btn-primary" @click="restoreDraft">
+                  <i class="pi pi-refresh"></i> Restaurar
+                </button>
+              </div>
+            </div>
+          </div>
+        </Transition>
+      </Teleport>
 
       <!-- Submit confirm modal -->
       <Teleport to="body">
@@ -191,8 +247,9 @@ import { practiceSheetService } from '@/services/practiceSheets/practiceSheetSer
 import { progressService } from '@/services/progress/progressService'
 import type { PracticeSheet, SubmitResult, TopicProgress } from '@/types'
 import {
-  composeTeacherAndStudentImage,
+  composeAssistantWorkImage,
   extractTeacherImageDataUrl,
+  pickBestStudentImage,
   summarizeExerciseMetadata
 } from '@/utils/assistantExerciseContext'
 
@@ -206,6 +263,7 @@ const loading = ref(true)
 const currentIdx = ref(0)
 
 const answers = ref<Record<string, { answer: string; timeStart: number; hints: number }>>({})
+const keyboardAnswers = ref<Record<string, string>>({})
 const timers = ref<Record<string, number>>({})
 const hints = ref<Record<string, number>>({})
 
@@ -224,6 +282,8 @@ const showSubmitConfirm = ref(false)
 const showResults = ref(false)
 const submitting = ref(false)
 const result = ref<SubmitResult | null>(null)
+const hasDraft = ref(false)
+const showRestoreModal = ref(false)
 
 function cssVar(name: string, fallback: string) {
   if (typeof window === 'undefined') return fallback
@@ -233,14 +293,18 @@ function cssVar(name: string, fallback: string) {
 let timerInterval: ReturnType<typeof setInterval>
 
 const hasCanvasExercises = computed(() => totalCount.value > 0)
+const isCanvasMode = computed(() => sheet.value?.test_style !== 'keyboard')
 
 const currentExercise = computed(() =>
   sheet.value?.exercises?.[currentIdx.value]?.exercise ?? null
 )
 
-const answeredCount = computed(() =>
-  Object.values(answers.value).filter((a) => a.answer).length
-)
+const answeredCount = computed(() => {
+  if (isCanvasMode.value) {
+    return Object.values(answers.value).filter((a) => a.answer).length
+  }
+  return Object.values(keyboardAnswers.value).filter((a) => a.trim()).length
+})
 
 const totalCount = computed(() => sheet.value?.exercises?.length ?? 0)
 
@@ -268,11 +332,17 @@ onMounted(async () => {
 
     for (const pse of sheet.value.exercises ?? []) {
       answers.value[pse.exercise.id] = { answer: '', timeStart: Date.now(), hints: 0 }
+      keyboardAnswers.value[pse.exercise.id] = ''
       timers.value[pse.exercise.id] = 0
     }
 
     startTimer()
     loadTopicProgress()
+
+    // Check for saved draft after canvases are initialized
+    setTimeout(() => {
+      checkForDraft()
+    }, 500)
   } finally {
     loading.value = false
   }
@@ -280,8 +350,11 @@ onMounted(async () => {
 
 onUnmounted(() => {
   clearInterval(timerInterval)
-  delete window.__practiqAssistantCapture
-  delete window.__practiqAssistantContext
+  if ((window as any).__practiqAssistantHookSource === 'practice') {
+    delete window.__practiqAssistantCapture
+    delete window.__practiqAssistantContext
+    delete (window as any).__practiqAssistantHookSource
+  }
 })
 
 function startTimer() {
@@ -293,7 +366,25 @@ function startTimer() {
 }
 
 function isAnswered(exerciseId: string) {
-  return !!answers.value[exerciseId]?.answer
+  if (isCanvasMode.value) {
+    return !!answers.value[exerciseId]?.answer
+  }
+  return !!(keyboardAnswers.value[exerciseId]?.trim())
+}
+
+function getPlaceholder(exerciseType: string) {
+  switch (exerciseType) {
+    case 'equation':
+      return 'Escribe la ecuacion o resultado...'
+    case 'multiple_choice':
+      return 'Escribe la opcion correcta (A, B, C, D)...'
+    default:
+      return 'Escribe tu respuesta aqui...'
+  }
+}
+
+function markKeyboardAnswered(exerciseId: string) {
+  // Just trigger reactivity - answers are stored in keyboardAnswers
 }
 
 // ── Canvas ────────────────────────────────────────────────────────────────────
@@ -425,13 +516,25 @@ function clearCanvas(id: string) {
 async function submitAnswers() {
   submitting.value = true
   try {
-    const attempts = Object.entries(answers.value).map(([exerciseId, data]) => ({
-      exercise_id: exerciseId,
-      answer_text: data.answer,
-      canvas_data: data.answer.startsWith('data:image/') ? buildCanvasDataForOCR(exerciseId) : '',
-      time_spent_seconds: timers.value[exerciseId] || 0,
-      hints_used: data.hints || 0
-    }))
+    const attempts = Object.entries(answers.value).map(([exerciseId, data]) => {
+      if (isCanvasMode.value) {
+        return {
+          exercise_id: exerciseId,
+          answer_text: data.answer,
+          canvas_data: data.answer.startsWith('data:image/') ? buildCanvasDataForOCR(exerciseId) : '',
+          time_spent_seconds: timers.value[exerciseId] || 0,
+          hints_used: data.hints || 0
+        }
+      } else {
+        return {
+          exercise_id: exerciseId,
+          answer_text: keyboardAnswers.value[exerciseId] || '',
+          canvas_data: '',
+          time_spent_seconds: timers.value[exerciseId] || 0,
+          hints_used: data.hints || 0
+        }
+      }
+    })
     const start = await practiceSheetService.submitAsync(sheetId, { attempts })
     const jobId = start.data.job_id
     let jobDone = false
@@ -455,6 +558,7 @@ async function submitAnswers() {
     showSubmitConfirm.value = false
     showResults.value = true
     loadTopicProgress()
+    clearDraft() // Clear draft on successful submit
   } catch (err) {
     console.error(err)
   } finally {
@@ -471,6 +575,117 @@ async function loadTopicProgress() {
   } catch {
     topicProgress.value = []
   }
+}
+
+// ── Draft Save/Restore ─────────────────────────────────────────────────────
+
+function getDraftKey(): string {
+  return `practiq-draft-${sheetId}`
+}
+
+function saveDraft() {
+  if (!sheet.value) return
+
+  const draftData: Record<string, { canvasData: string; keyboardAnswer: string; timestamp: number }> = {}
+
+  for (const pse of sheet.value.exercises || []) {
+    const exerciseId = pse.exercise.id
+    const canvas = canvasRefs[exerciseId]
+    draftData[exerciseId] = {
+      canvasData: canvas ? canvas.toDataURL('image/png') : '',
+      keyboardAnswer: keyboardAnswers.value[exerciseId] || '',
+      timestamp: Date.now()
+    }
+  }
+
+  localStorage.setItem(getDraftKey(), JSON.stringify({
+    sheetId,
+    data: draftData,
+    savedAt: Date.now()
+  }))
+
+  hasDraft.value = true
+}
+
+function checkForDraft() {
+  const key = getDraftKey()
+  const saved = localStorage.getItem(key)
+  if (saved) {
+    try {
+      const parsed = JSON.parse(saved)
+      if (parsed.sheetId === sheetId && parsed.data) {
+        // Check if draft is less than 24 hours old
+        const hoursSinceSave = (Date.now() - parsed.savedAt) / (1000 * 60 * 60)
+        if (hoursSinceSave < 24) {
+          hasDraft.value = true
+          showRestoreModal.value = true
+          return parsed
+        } else {
+          // Draft too old, remove it
+          localStorage.removeItem(key)
+        }
+      }
+    } catch {
+      localStorage.removeItem(key)
+    }
+  }
+  return null
+}
+
+function restoreDraft() {
+  const key = getDraftKey()
+  const saved = localStorage.getItem(key)
+  if (!saved) return
+
+  try {
+    const parsed = JSON.parse(saved)
+    const draftData = parsed.data
+
+    for (const exerciseId in draftData) {
+      const draft = draftData[exerciseId]
+
+      // Restore keyboard answers
+      if (draft.keyboardAnswer) {
+        keyboardAnswers.value[exerciseId] = draft.keyboardAnswer
+      }
+
+      // Restore canvas data
+      if (draft.canvasData && isCanvasMode.value) {
+        const canvas = canvasRefs[exerciseId]
+        if (canvas) {
+          const img = new Image()
+          img.onload = () => {
+            const ctx = canvas.getContext('2d')
+            if (ctx) {
+              ctx.clearRect(0, 0, canvas.width, canvas.height)
+              ctx.drawImage(img, 0, 0)
+              // Update answers record
+              answers.value[exerciseId] = {
+                ...answers.value[exerciseId],
+                answer: draft.canvasData
+              }
+            }
+          }
+          img.src = draft.canvasData
+        }
+      }
+    }
+
+    showRestoreModal.value = false
+  } catch (err) {
+    console.error('Failed to restore draft:', err)
+  }
+}
+
+function discardDraft() {
+  localStorage.removeItem(getDraftKey())
+  hasDraft.value = false
+  showRestoreModal.value = false
+}
+
+function clearDraft() {
+  localStorage.removeItem(getDraftKey())
+  hasDraft.value = false
 }
 
 function buildCanvasDataForOCR(exerciseId: string) {
@@ -538,6 +753,8 @@ function getAssistantExerciseIndex(exerciseId: string) {
   return sheet.value?.exercises.findIndex((pse) => pse.exercise.id === exerciseId) ?? -1
 }
 
+;(window as any).__practiqAssistantHookSource = 'practice'
+
 window.__practiqAssistantContext = () => {
   if (!sheet.value) return null
 
@@ -586,25 +803,17 @@ window.__practiqAssistantCapture = async () => {
   const exercise =
     exerciseIndex >= 0 ? sheet.value?.exercises?.[exerciseIndex]?.exercise : null
 
-  const studentDataUrl = buildCanvasDataForOCR(exerciseId)
+  const studentDataUrl = await pickBestStudentImage([
+    buildCanvasDataForOCR(exerciseId),
+    answers.value[exerciseId]?.answer
+  ])
   const teacherDataUrl = extractTeacherImageDataUrl(exercise)
-  let dataUrl = studentDataUrl
-
-  if (teacherDataUrl && studentDataUrl) {
-    try {
-      dataUrl = await composeTeacherAndStudentImage({
-        teacherDataUrl,
-        studentDataUrl,
-        teacherLabel: 'Consigna del docente',
-        studentLabel: 'Respuesta del alumno'
-      })
-    } catch (error) {
-      console.error('[practice-view] failed to compose teacher and student images', error)
-      dataUrl = teacherDataUrl || studentDataUrl
-    }
-  } else if (teacherDataUrl) {
-    dataUrl = teacherDataUrl
-  }
+  const dataUrl = await composeAssistantWorkImage({
+    teacherDataUrl,
+    studentDataUrl,
+    teacherLabel: 'Consigna del docente',
+    studentLabel: 'Respuesta del alumno'
+  })
 
   if (!dataUrl) return null
 
@@ -681,15 +890,48 @@ function scoreColor(score: number) {
 
 .practice-header-info { flex: 1; }
 
+.level-badges {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 6px;
+  flex-wrap: wrap;
+}
+
 .level-badge {
-  display: inline-block;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
   padding: 3px 12px;
   border-radius: var(--radius-2xl);
   background: var(--gradient-brand);
   color: var(--color-on-primary);
   font-size: 0.75rem;
   font-weight: 700;
-  margin-bottom: 6px;
+}
+
+.level-test-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 12px;
+  border-radius: var(--radius-2xl);
+  background: linear-gradient(135deg, var(--color-warning), var(--color-warning-strong));
+  color: var(--color-on-primary);
+  font-size: 0.75rem;
+  font-weight: 700;
+}
+
+.input-mode-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 12px;
+  border-radius: var(--radius-2xl);
+  background: rgba(var(--practiq-violet-rgb), 0.15);
+  color: var(--practiq-violet);
+  font-size: 0.75rem;
+  font-weight: 700;
 }
 
 .practice-title {
@@ -948,6 +1190,40 @@ function scoreColor(score: number) {
 }
 .ex-input:focus { border-color: var(--practiq-violet); }
 
+/* Keyboard input textarea */
+.keyboard-input-wrap {
+  width: 100%;
+}
+
+.ex-textarea {
+  width: 100%;
+  padding: 14px 16px 14px 62px;
+  border-radius: var(--radius-md);
+  border: 1.5px solid rgba(var(--practiq-violet-rgb), 0.15);
+  font-size: 1rem;
+  color: var(--text-primary);
+  outline: none;
+  transition: border-color 0.15s;
+  min-height: 120px;
+  background-color: var(--surface-bg-soft);
+  background-image:
+    linear-gradient(to right, rgba(var(--color-error-rgb), 0.25) 1.5px, transparent 1.5px),
+    repeating-linear-gradient(
+      to bottom,
+      transparent,
+      transparent 31px,
+      rgba(var(--practiq-violet-rgb), 0.1) 31px,
+      rgba(var(--practiq-violet-rgb), 0.1) 32px
+    );
+  background-size: 56px 32px;
+  background-position: 0 0;
+  line-height: 32px;
+  box-shadow: var(--shadow-card);
+  resize: vertical;
+  font-family: inherit;
+}
+.ex-textarea:focus { border-color: var(--practiq-violet); }
+
 /* Canvas */
 .canvas-wrap {
   display: flex;
@@ -1015,9 +1291,53 @@ function scoreColor(score: number) {
   gap: 14px;
 }
 
+.footer-left {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
 .footer-hint {
   font-size: 0.85rem;
   color: var(--text-secondary);
+}
+
+.draft-indicator {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 10px;
+  background: rgba(var(--color-success-rgb), 0.12);
+  color: var(--color-success-dark);
+  border-radius: var(--radius-pill);
+  font-size: 0.78rem;
+  font-weight: 600;
+}
+
+.footer-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.btn-draft {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 10px 18px;
+  border-radius: var(--radius-md);
+  border: 1.5px solid rgba(var(--practiq-violet-rgb), 0.2);
+  background: var(--surface-elevated-strong);
+  color: var(--practiq-violet);
+  font-weight: 600;
+  font-size: 0.9rem;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.btn-draft:hover {
+  background: var(--fill-primary-faint);
+  border-color: rgba(var(--practiq-violet-rgb), 0.35);
 }
 
 .btn-submit {

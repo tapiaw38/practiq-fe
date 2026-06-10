@@ -277,6 +277,9 @@ export interface NotebookSubmission {
   ai_is_correct?: boolean
   ai_feedback?: string
   ai_reviewed_at?: string
+  teacher_is_correct?: boolean
+  teacher_feedback?: string
+  teacher_reviewed_at?: string
 }
 
 export interface StudentAttempt {
@@ -312,5 +315,60 @@ export interface Notebook {
   description: string
   level: number
   pages: NotebookPage[]
+  created_at: string
+}
+
+// Course Progress types
+export interface CourseProgress {
+  id?: string
+  student_id: string
+  course_id: string
+  current_level: number
+  updated_at?: string
+}
+
+// Learning Strategy types
+export interface LearningStrategy {
+  id: string
+  name: string
+  code: string
+  description: string
+  status?: string
+  created_at: string
+}
+
+export interface CourseLearningStrategy {
+  id: string
+  course_id: string
+  strategy_id: string
+  is_default?: boolean
+  config?: string
+  created_at?: string
+  strategy_name?: string
+  strategy_code?: string
+  strategy_description?: string
+  strategy: LearningStrategy
+}
+
+// Extended Notebook Submission for teacher review
+export interface NotebookSubmissionFull {
+  id: string
+  page_id: string
+  student_id: string
+  student_name?: string
+  student_email?: string
+  notebook_id: string
+  notebook_title?: string
+  page_title?: string
+  page_number: number
+  canvas_data: string
+  answer_text: string
+  ai_recognized_text?: string
+  ai_is_correct?: boolean
+  ai_feedback?: string
+  ai_reviewed_at?: string
+  teacher_is_correct?: boolean
+  teacher_feedback?: string
+  teacher_reviewed_at?: string
   created_at: string
 }
