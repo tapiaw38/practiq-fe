@@ -745,13 +745,22 @@
     canvas.width = width * dpr;
     canvas.height = height * dpr;
     ctx.scale(dpr, dpr);
-    ctx.fillStyle = "#ffffff";
-    ctx.fillRect(0, 0, width, height);
+
+    // Only fill with white if no content to restore
+    if (!imageData) {
+      ctx.fillStyle = "#ffffff";
+      ctx.fillRect(0, 0, width, height);
+    }
+
     ctx.lineCap = "round";
     ctx.lineJoin = "round";
 
     // Restore canvas content if it existed
     if (imageData) {
+      // Fill with white first to clear any new space from resize
+      ctx.fillStyle = "#ffffff";
+      ctx.fillRect(0, 0, width, height);
+      // Then restore old content
       ctx.putImageData(imageData, 0, 0);
     }
 
