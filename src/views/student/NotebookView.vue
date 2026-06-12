@@ -557,7 +557,15 @@ const notebookAssistantContext = () => {
       content_type: currentPage.value.content_type,
       instructions: currentPage.value.instructions || '',
       teacher_content_text:
-        currentPage.value.content_type === 'text' ? currentPage.value.content_data : '',
+        currentPage.value.content_type === 'text'
+          ? currentPage.value.content_data
+          : currentPage.value.content_data
+            ? '[consigna manuscrita en imagen adjunta]'
+            : '',
+      teacher_content_source:
+        currentPage.value.content_type === 'canvas' && currentPage.value.content_data
+          ? 'teacher_image_attachment'
+          : 'text',
       has_teacher_image:
         currentPage.value.content_type === 'canvas' && !!currentPage.value.content_data,
       has_student_submission: !!currentPage.value.submission,
@@ -569,7 +577,16 @@ const notebookAssistantContext = () => {
       title: page.title,
       content_type: page.content_type,
       instructions: page.instructions || '',
-      teacher_content_text: page.content_type === 'text' ? page.content_data : '',
+      teacher_content_text:
+        page.content_type === 'text'
+          ? page.content_data
+          : page.content_data
+            ? '[consigna manuscrita en imagen adjunta]'
+            : '',
+      teacher_content_source:
+        page.content_type === 'canvas' && page.content_data
+          ? 'teacher_image_attachment'
+          : 'text',
       has_teacher_image: page.content_type === 'canvas' && !!page.content_data
     }))
   }
