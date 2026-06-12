@@ -546,10 +546,9 @@
 
   function buildContext(): string {
     const ctx = props.studentContext;
-    if (!ctx) return "";
     const lines: string[] = [];
-    if (ctx.studentName) lines.push(`Estudiante: ${ctx.studentName}`);
-    if (ctx.courses?.length) {
+    if (ctx?.studentName) lines.push(`Estudiante: ${ctx.studentName}`);
+    if (ctx?.courses?.length) {
       lines.push("Cursos:");
       ctx.courses.forEach((c) =>
         lines.push(
@@ -557,7 +556,7 @@
         ),
       );
     }
-    if (ctx.topicProgress?.length) {
+    if (ctx?.topicProgress?.length) {
       lines.push("Progreso:");
       ctx.topicProgress.forEach((p) =>
         lines.push(
@@ -565,7 +564,42 @@
         ),
       );
     }
+    const activityContext = getActivityContext()
+    if (activityContext) {
+      lines.push("Contexto de la actividad actual:")
+      lines.push(JSON.stringify(activityContext))
+    }
     return lines.join("\n");
+  }
+
+  function getActivityContext(): unknown {
+    try {
+      return window.__practiqAssistantContext?.() || null
+    } catch (error) {
+      console.warn("[assistant-modal] failed to read activity context", error)
+      return null
+    }
+  }
+
+  async function attachActivityCapture(fd: FormData): Promise<boolean> {
+    try {
+      const capture = await window.__practiqAssistantCapture?.()
+      if (!capture?.dataUrl) return false
+      fd.append(
+        "image_content",
+        dataUrlToBlob(capture.dataUrl),
+        capture.filename || "activity-work.jpg",
+      )
+      console.info("[assistant-modal] attached activity capture", {
+        filename: capture.filename,
+        contentType: capture.contentType,
+        dataUrlLength: capture.dataUrl.length,
+      })
+      return true
+    } catch (error) {
+      console.warn("[assistant-modal] failed to attach activity capture", error)
+      return false
+    }
   }
 
   // ── API ───────────────────────────────────────────────────────────────────────
@@ -653,7 +687,8 @@
       const fd = new FormData();
       fd.append("content", text);
       fd.append("context", buildContext());
-      const reply = await postFormData(fd);
+      const hasImage = await attachActivityCapture(fd);
+      const reply = await postFormData(fd, hasImage);
       if (reply) addMsg("assistant", reply, true);
     } catch {
       addMsg("assistant", "Ocurrió un error. Por favor intenta de nuevo.");
@@ -715,7 +750,8 @@
       fd.append("content", "");
       fd.append("voice_content", wavBlob, "audio.wav");
       fd.append("context", buildContext());
-      const reply = await postFormData(fd);
+      const hasImage = await attachActivityCapture(fd);
+      const reply = await postFormData(fd, hasImage);
       if (reply) addMsg("assistant", reply, true);
     } catch (error) {
       console.error("Error processing audio:", error);
