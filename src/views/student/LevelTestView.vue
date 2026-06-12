@@ -56,7 +56,12 @@
             <div class="ex-num">{{ idx + 1 }}</div>
             <div class="ex-body">
               <div
-                v-if="ex.exercise.type !== 'handwritten' || !extractTeacherImageDataUrl(ex.exercise)"
+                v-if="ex.exercise.type === 'equation'"
+                class="ex-question ex-question--math"
+                v-html="renderContent(ex.exercise.question)"
+              ></div>
+              <div
+                v-else-if="ex.exercise.type !== 'handwritten' || !extractTeacherImageDataUrl(ex.exercise)"
                 class="ex-question"
               >
                 {{ ex.exercise.question }}
@@ -335,6 +340,7 @@ import {
   pickBestStudentImage,
   summarizeExerciseMetadata
 } from '@/utils/assistantExerciseContext'
+import { renderContent } from '@/composables/useContentRenderer'
 
 const route = useRoute()
 const router = useRouter()
@@ -1033,6 +1039,13 @@ function closeSuccessAndGoHome() {
   font-weight: 600;
   color: var(--text-primary);
   line-height: 1.5;
+}
+
+.ex-question--math {
+  padding: 10px 12px;
+  border-radius: var(--radius-sm);
+  background: var(--surface-elevated-strong);
+  border: 1px solid rgba(var(--practiq-violet-rgb), 0.12);
 }
 
 .teacher-handwritten-image {

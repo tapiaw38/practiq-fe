@@ -89,7 +89,12 @@
                   </div>
 
                   <div
-                    v-if="pse.exercise.type !== 'handwritten' || !extractTeacherImageDataUrl(pse.exercise)"
+                    v-if="pse.exercise.type === 'equation'"
+                    class="ex-question ex-question--math"
+                    v-html="renderContent(pse.exercise.question)"
+                  ></div>
+                  <div
+                    v-else-if="pse.exercise.type !== 'handwritten' || !extractTeacherImageDataUrl(pse.exercise)"
                     class="ex-question"
                   >
                     {{ pse.exercise.question }}
@@ -288,6 +293,7 @@ import {
   pickBestStudentImage,
   summarizeExerciseMetadata
 } from '@/utils/assistantExerciseContext'
+import { renderContent } from '@/composables/useContentRenderer'
 
 const route = useRoute()
 const router = useRouter()
@@ -1212,6 +1218,13 @@ function scoreColor(score: number) {
   font-weight: 600;
   color: var(--text-primary);
   line-height: 1.5;
+}
+
+.ex-question--math {
+  padding: 10px 12px;
+  border-radius: var(--radius-md);
+  background: var(--surface-bg-soft);
+  border: 1px solid rgba(var(--practiq-violet-rgb), 0.12);
 }
 
 .teacher-handwritten-image {

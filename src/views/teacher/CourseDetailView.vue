@@ -340,6 +340,16 @@
             <h3 class="modal-title">Nuevo Ejercicio</h3>
             <form @submit.prevent="createExercise">
               <div class="form-group">
+                <label class="form-label">Tipo *</label>
+                <select v-model="newExercise.type" class="form-select" required>
+                  <option value="open_text">Texto abierto</option>
+                  <option value="equation">Ecuación</option>
+                  <option value="multiple_choice">Opción múltiple</option>
+                  <option value="canvas">Canvas/Dibujo</option>
+                  <option value="handwritten">Escrito a mano</option>
+                </select>
+              </div>
+              <div class="form-group">
                 <label class="form-label">Pregunta *</label>
                 <textarea
                   v-model="newExercise.question"
@@ -349,6 +359,10 @@
                   :required="newExercise.type !== 'handwritten'"
                   :rows="needsLargeQuestionInput(newExercise.type) ? 6 : 2"
                 ></textarea>
+                <div v-if="newExercise.type === 'equation' && newExercise.question.trim()" class="math-preview">
+                  <div class="math-preview-label">Vista previa</div>
+                  <div v-html="renderContent(newExercise.question)"></div>
+                </div>
               </div>
               <div v-if="newExercise.type === 'handwritten'" class="form-group">
                 <label class="form-label">Consigna manuscrita</label>
@@ -373,18 +387,11 @@
                 </div>
               </div>
               <div class="form-group">
-                <label class="form-label">Tipo *</label>
-                <select v-model="newExercise.type" class="form-select" required>
-                  <option value="open_text">Texto abierto</option>
-                  <option value="equation">Ecuación</option>
-                  <option value="multiple_choice">Opción múltiple</option>
-                  <option value="canvas">Canvas/Dibujo</option>
-                  <option value="handwritten">Escrito a mano</option>
-                </select>
-              </div>
-              <div class="form-group">
                 <label class="form-label">Respuesta correcta</label>
-                <input v-model="newExercise.correct_answer" class="form-input" placeholder="3/4" />
+                <input v-model="newExercise.correct_answer" class="form-input" :placeholder="answerPlaceholder(newExercise.type)" />
+                <div v-if="newExercise.type === 'equation'" class="field-hint">
+                  Usa LaTeX entre $...$ si necesitas fracciones, potencias o raíces.
+                </div>
               </div>
               <div v-if="newExercise.type === 'multiple_choice'" class="form-group">
                 <label class="form-label">Opciones</label>
@@ -602,6 +609,16 @@
             <h3 class="modal-title">Editar Ejercicio</h3>
             <form @submit.prevent="saveExerciseEdit">
               <div class="form-group">
+                <label class="form-label">Tipo *</label>
+                <select v-model="editExercise.type" class="form-select" required>
+                  <option value="open_text">Texto abierto</option>
+                  <option value="equation">Ecuación</option>
+                  <option value="multiple_choice">Opción múltiple</option>
+                  <option value="canvas">Canvas/Dibujo</option>
+                  <option value="handwritten">Escrito a mano</option>
+                </select>
+              </div>
+              <div class="form-group">
                 <label class="form-label">Pregunta *</label>
                 <textarea
                   v-model="editExercise.question"
@@ -611,6 +628,10 @@
                   :rows="needsLargeQuestionInput(editExercise.type) ? 6 : 2"
                   :required="editExercise.type !== 'handwritten'"
                 ></textarea>
+                <div v-if="editExercise.type === 'equation' && editExercise.question.trim()" class="math-preview">
+                  <div class="math-preview-label">Vista previa</div>
+                  <div v-html="renderContent(editExercise.question)"></div>
+                </div>
               </div>
               <div v-if="editExercise.type === 'handwritten'" class="form-group">
                 <label class="form-label">Consigna manuscrita</label>
@@ -635,18 +656,11 @@
                 </div>
               </div>
               <div class="form-group">
-                <label class="form-label">Tipo *</label>
-                <select v-model="editExercise.type" class="form-select" required>
-                  <option value="open_text">Texto abierto</option>
-                  <option value="equation">Ecuación</option>
-                  <option value="multiple_choice">Opción múltiple</option>
-                  <option value="canvas">Canvas/Dibujo</option>
-                  <option value="handwritten">Escrito a mano</option>
-                </select>
-              </div>
-              <div class="form-group">
                 <label class="form-label">Respuesta correcta</label>
-                <input v-model="editExercise.correct_answer" class="form-input" />
+                <input v-model="editExercise.correct_answer" class="form-input" :placeholder="answerPlaceholder(editExercise.type)" />
+                <div v-if="editExercise.type === 'equation'" class="field-hint">
+                  Usa LaTeX entre $...$ si necesitas fracciones, potencias o raíces.
+                </div>
               </div>
               <div v-if="editExercise.type === 'multiple_choice'" class="form-group">
                 <label class="form-label">Opciones</label>
@@ -726,6 +740,7 @@ import { notebookService } from '@/services/notebooks/notebookService'
 import { levelService } from '@/services/levels/levelService'
 import type { Course, Topic, Exercise, Material, PracticeSheet, Student, Notebook, CourseLevelsResponse } from '@/types'
 import { parseExerciseMetadata } from '@/utils/assistantExerciseContext'
+import { renderContent } from '@/composables/useContentRenderer'
 
 const route = useRoute()
 const router = useRouter()
@@ -1111,7 +1126,16 @@ function questionPlaceholder(type: Exercise['type']) {
   if (type === 'multiple_choice') {
     return '¿Cuánto es 12 + 5 + 8?'
   }
+  if (type === 'equation') {
+    return 'Resuelve: $\\frac{2x + 4}{3} = 10$'
+  }
   return '¿Cuánto es 1/2 + 1/4?'
+}
+
+function answerPlaceholder(type: Exercise['type']) {
+  if (type === 'equation') return 'x = 13 o $x = 13$'
+  if (type === 'multiple_choice') return 'Opción correcta'
+  return '3/4'
 }
 
 function getMetadataOptions(metadata?: string) {
@@ -1603,6 +1627,26 @@ async function deleteNotebook(id: string) {
 }
 .form-textarea--large {
   min-height: 180px;
+}
+.field-hint {
+  margin-top: 6px;
+  font-size: var(--text-sm);
+  color: var(--text-secondary);
+}
+.math-preview {
+  margin-top: 10px;
+  padding: 12px 14px;
+  border: 1px solid rgba(var(--practiq-violet-rgb), 0.16);
+  border-radius: var(--radius-md);
+  background: var(--surface-subtle);
+  color: var(--text-primary);
+}
+.math-preview-label {
+  margin-bottom: 6px;
+  font-size: var(--text-xs);
+  font-weight: 800;
+  text-transform: uppercase;
+  color: var(--text-secondary);
 }
 .teacher-canvas-wrap {
   display: grid;
