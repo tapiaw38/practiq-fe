@@ -382,6 +382,7 @@
   // Audio recording
   let mediaRecorder: MediaRecorder | null = null;
   let audioChunks: Blob[] = [];
+  let recordingStream: MediaStream | null = null;
 
   // ── Computed ─────────────────────────────────────────────────────────────────
 
@@ -667,7 +668,15 @@
   async function startRecording() {
     if (responding.value || isRecording.value) return;
     try {
+      if (!navigator.mediaDevices?.getUserMedia || typeof MediaRecorder === "undefined") {
+        addMsg(
+          "assistant",
+          "Tu navegador no soporta grabación de audio desde este modal.",
+        );
+        return;
+      }
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      recordingStream = stream;
       audioChunks = [];
       mediaRecorder = new MediaRecorder(stream);
       mediaRecorder.ondataavailable = (e) => {
@@ -689,28 +698,97 @@
     await new Promise<void>((resolve) => {
       mediaRecorder!.onstop = () => resolve();
       mediaRecorder!.stop();
-      mediaRecorder!.stream.getTracks().forEach((t) => t.stop());
+      stopRecordingStream();
     });
     if (audioChunks.length === 0) return;
-    const blob = new Blob(audioChunks, { type: "audio/webm" });
-    const localUrl = URL.createObjectURL(blob);
-    addMsg("user", "", false, { src: localUrl });
-    responding.value = true;
     try {
+      const webmBlob = new Blob(audioChunks, { type: "audio/webm" });
+      const wavBlob = await convertToWav(webmBlob);
+      if (wavBlob.size <= 44) {
+        addMsg("assistant", "No se detectó audio. Mantén presionado y vuelve a intentar.");
+        return;
+      }
+      const localUrl = URL.createObjectURL(wavBlob);
+      addMsg("user", "", false, { src: localUrl });
+      responding.value = true;
       const fd = new FormData();
       fd.append("content", "");
-      fd.append("voice_content", blob, "audio.wav");
+      fd.append("voice_content", wavBlob, "audio.wav");
       fd.append("context", buildContext());
       const reply = await postFormData(fd);
       if (reply) addMsg("assistant", reply, true);
-    } catch {
+    } catch (error) {
+      console.error("Error processing audio:", error);
       addMsg(
         "assistant",
         "Ocurrió un error procesando el audio. Por favor intenta de nuevo.",
       );
     } finally {
       responding.value = false;
+      mediaRecorder = null;
+      audioChunks = [];
     }
+  }
+
+  function stopRecordingStream() {
+    recordingStream?.getTracks().forEach((track) => track.stop());
+    recordingStream = null;
+  }
+
+  async function convertToWav(audioBlob: Blob): Promise<Blob> {
+    const AudioContextCtor = window.AudioContext || (window as any).webkitAudioContext;
+    const audioContext = new AudioContextCtor();
+    try {
+      const arrayBuffer = await audioBlob.arrayBuffer();
+      const audioBuffer = await audioContext.decodeAudioData(arrayBuffer);
+      return audioBufferToWav(audioBuffer);
+    } finally {
+      await audioContext.close().catch(() => undefined);
+    }
+  }
+
+  function audioBufferToWav(buffer: AudioBuffer): Blob {
+    const length = buffer.length;
+    const numberOfChannels = buffer.numberOfChannels;
+    const sampleRate = buffer.sampleRate;
+    const bytesPerSample = 2;
+    const blockAlign = numberOfChannels * bytesPerSample;
+    const byteRate = sampleRate * blockAlign;
+    const dataSize = length * blockAlign;
+    const bufferSize = 44 + dataSize;
+    const arrayBuffer = new ArrayBuffer(bufferSize);
+    const view = new DataView(arrayBuffer);
+
+    const writeString = (offset: number, value: string) => {
+      for (let i = 0; i < value.length; i++) {
+        view.setUint8(offset + i, value.charCodeAt(i));
+      }
+    };
+
+    writeString(0, "RIFF");
+    view.setUint32(4, bufferSize - 8, true);
+    writeString(8, "WAVE");
+    writeString(12, "fmt ");
+    view.setUint32(16, 16, true);
+    view.setUint16(20, 1, true);
+    view.setUint16(22, numberOfChannels, true);
+    view.setUint32(24, sampleRate, true);
+    view.setUint32(28, byteRate, true);
+    view.setUint16(32, blockAlign, true);
+    view.setUint16(34, 16, true);
+    writeString(36, "data");
+    view.setUint32(40, dataSize, true);
+
+    let offset = 44;
+    for (let i = 0; i < length; i++) {
+      for (let channel = 0; channel < numberOfChannels; channel++) {
+        const sample = Math.max(-1, Math.min(1, buffer.getChannelData(channel)[i]));
+        view.setInt16(offset, sample < 0 ? sample * 0x8000 : sample * 0x7fff, true);
+        offset += 2;
+      }
+    }
+
+    return new Blob([arrayBuffer], { type: "audio/wav" });
   }
 
   // ── Pizarrón ─────────────────────────────────────────────────────────────────

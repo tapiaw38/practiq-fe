@@ -50,7 +50,7 @@
           <!-- Exercises + footer -->
           <main class="practice-area">
             <!-- Canvas toolbar (only in canvas mode) -->
-            <div v-if="isCanvasMode && hasCanvasExercises" class="draw-tools-bar">
+            <div v-if="hasCanvasExercises" class="draw-tools-bar">
               <button class="tool-btn" type="button" aria-label="Usar lápiz" :class="{ 'tool-btn--active': tool === 'pen' }" @click="tool = 'pen'" title="Lápiz">
                 <i class="pi pi-pencil"></i>
               </button>
@@ -91,13 +91,37 @@
                   <div class="ex-question">{{ pse.exercise.question }}</div>
 
                   <!-- Keyboard mode input -->
-                  <div v-if="!isCanvasMode" class="keyboard-input-wrap">
+                  <div v-if="pse.exercise.type === 'multiple_choice'" class="choice-options">
+                    <label
+                      v-for="option in exerciseOptions(pse.exercise.metadata)"
+                      :key="option"
+                      class="choice-option"
+                      :class="{ 'choice-option--selected': keyboardAnswers[pse.exercise.id] === option }"
+                    >
+                      <input
+                        v-model="keyboardAnswers[pse.exercise.id]"
+                        type="radio"
+                        :name="`exercise-${pse.exercise.id}`"
+                        :value="option"
+                      />
+                      <span>{{ option }}</span>
+                    </label>
+                    <textarea
+                      v-if="exerciseOptions(pse.exercise.metadata).length === 0"
+                      v-model="keyboardAnswers[pse.exercise.id]"
+                      class="ex-textarea"
+                      :placeholder="getPlaceholder(pse.exercise.type)"
+                      rows="4"
+                    ></textarea>
+                  </div>
+
+                  <!-- Keyboard mode input -->
+                  <div v-else-if="!exerciseUsesCanvas(pse.exercise.type)" class="keyboard-input-wrap">
                     <textarea
                       v-model="keyboardAnswers[pse.exercise.id]"
                       class="ex-textarea"
                       :placeholder="getPlaceholder(pse.exercise.type)"
                       rows="4"
-                      @input="markKeyboardAnswered(pse.exercise.id)"
                     ></textarea>
                   </div>
 
@@ -249,6 +273,7 @@ import type { PracticeSheet, SubmitResult, TopicProgress } from '@/types'
 import {
   composeAssistantWorkImage,
   extractTeacherImageDataUrl,
+  parseExerciseMetadata,
   pickBestStudentImage,
   summarizeExerciseMetadata
 } from '@/utils/assistantExerciseContext'
@@ -298,7 +323,9 @@ function cssVar(name: string, fallback: string, depth = 0): string {
 
 let timerInterval: ReturnType<typeof setInterval>
 
-const hasCanvasExercises = computed(() => totalCount.value > 0)
+const hasCanvasExercises = computed(() =>
+  !!sheet.value?.exercises?.some((pse) => exerciseUsesCanvas(pse.exercise.type))
+)
 const isCanvasMode = computed(() => sheet.value?.test_style !== 'keyboard')
 
 const currentExercise = computed(() =>
@@ -306,10 +333,7 @@ const currentExercise = computed(() =>
 )
 
 const answeredCount = computed(() => {
-  if (isCanvasMode.value) {
-    return Object.values(answers.value).filter((a) => a.answer).length
-  }
-  return Object.values(keyboardAnswers.value).filter((a) => a.trim()).length
+  return sheet.value?.exercises?.filter((pse) => isAnswered(pse.exercise.id)).length ?? 0
 })
 
 const totalCount = computed(() => sheet.value?.exercises?.length ?? 0)
@@ -372,10 +396,20 @@ function startTimer() {
 }
 
 function isAnswered(exerciseId: string) {
-  if (isCanvasMode.value) {
+  const exercise = sheet.value?.exercises?.find((pse) => pse.exercise.id === exerciseId)?.exercise
+  if (exercise && exerciseUsesCanvas(exercise.type)) {
     return !!answers.value[exerciseId]?.answer
   }
   return !!(keyboardAnswers.value[exerciseId]?.trim())
+}
+
+function exerciseUsesCanvas(exerciseType: string) {
+  return isCanvasMode.value || exerciseType === 'handwritten' || exerciseType === 'canvas'
+}
+
+function exerciseOptions(metadata?: string) {
+  const options = parseExerciseMetadata(metadata)?.options
+  return Array.isArray(options) ? options.map((option) => String(option)).filter(Boolean) : []
 }
 
 function getPlaceholder(exerciseType: string) {
@@ -387,10 +421,6 @@ function getPlaceholder(exerciseType: string) {
     default:
       return 'Escribe tu respuesta aqui...'
   }
-}
-
-function markKeyboardAnswered(exerciseId: string) {
-  // Just trigger reactivity - answers are stored in keyboardAnswers
 }
 
 // ── Canvas ────────────────────────────────────────────────────────────────────
@@ -522,14 +552,16 @@ function clearCanvas(id: string) {
 async function submitAnswers() {
   submitting.value = true
   try {
-    const attempts = Object.entries(answers.value).map(([exerciseId, data]) => {
-      if (isCanvasMode.value) {
+    const attempts = sheet.value?.exercises.map((pse) => {
+      const exerciseId = pse.exercise.id
+      const data = answers.value[exerciseId]
+      if (exerciseUsesCanvas(pse.exercise.type)) {
         return {
           exercise_id: exerciseId,
-          answer_text: data.answer,
-          canvas_data: data.answer.startsWith('data:image/') ? buildCanvasDataForOCR(exerciseId) : '',
+          answer_text: data?.answer || '',
+          canvas_data: data?.answer?.startsWith('data:image/') ? buildCanvasDataForOCR(exerciseId) : '',
           time_spent_seconds: timers.value[exerciseId] || 0,
-          hints_used: data.hints || 0
+          hints_used: data?.hints || 0
         }
       } else {
         return {
@@ -537,10 +569,10 @@ async function submitAnswers() {
           answer_text: keyboardAnswers.value[exerciseId] || '',
           canvas_data: '',
           time_spent_seconds: timers.value[exerciseId] || 0,
-          hints_used: data.hints || 0
+          hints_used: data?.hints || 0
         }
       }
-    })
+    }) ?? []
     const start = await practiceSheetService.submitAsync(sheetId, { attempts })
     const jobId = start.data.job_id
     let jobDone = false
@@ -656,7 +688,8 @@ function restoreDraft() {
       }
 
       // Restore canvas data
-      if (draft.canvasData && isCanvasMode.value) {
+      const exercise = sheet.value?.exercises.find((pse) => pse.exercise.id === exerciseId)?.exercise
+      if (draft.canvasData && exercise && exerciseUsesCanvas(exercise.type)) {
         const canvas = canvasRefs[exerciseId]
         if (canvas) {
           const img = new Image()
@@ -1229,6 +1262,38 @@ function scoreColor(score: number) {
   font-family: inherit;
 }
 .ex-textarea:focus { border-color: var(--practiq-violet); }
+
+.choice-options {
+  display: grid;
+  gap: 10px;
+}
+
+.choice-option {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 14px;
+  border: 1.5px solid rgba(var(--practiq-violet-rgb), 0.14);
+  border-radius: var(--radius-md);
+  background: var(--surface-bg-soft);
+  color: var(--text-primary);
+  font-size: 1rem;
+  cursor: pointer;
+  transition: border-color 0.15s, background 0.15s;
+}
+
+.choice-option:hover,
+.choice-option--selected {
+  border-color: rgba(var(--practiq-violet-rgb), 0.36);
+  background: var(--fill-primary-faint);
+}
+
+.choice-option input {
+  width: 18px;
+  height: 18px;
+  accent-color: var(--practiq-violet);
+  flex: 0 0 auto;
+}
 
 /* Canvas */
 .canvas-wrap {

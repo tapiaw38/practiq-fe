@@ -341,7 +341,14 @@
             <form @submit.prevent="createExercise">
               <div class="form-group">
                 <label class="form-label">Pregunta *</label>
-                <textarea v-model="newExercise.question" class="form-textarea" placeholder="¿Cuánto es 1/2 + 1/4?" required rows="2"></textarea>
+                <textarea
+                  v-model="newExercise.question"
+                  class="form-textarea"
+                  :class="{ 'form-textarea--large': needsLargeQuestionInput(newExercise.type) }"
+                  :placeholder="questionPlaceholder(newExercise.type)"
+                  required
+                  :rows="needsLargeQuestionInput(newExercise.type) ? 6 : 2"
+                ></textarea>
               </div>
               <div class="form-group">
                 <label class="form-label">Tipo *</label>
@@ -356,6 +363,18 @@
               <div class="form-group">
                 <label class="form-label">Respuesta correcta</label>
                 <input v-model="newExercise.correct_answer" class="form-input" placeholder="3/4" />
+              </div>
+              <div v-if="newExercise.type === 'multiple_choice'" class="form-group">
+                <label class="form-label">Opciones</label>
+                <div class="options-editor">
+                  <input
+                    v-for="(_, idx) in newExercise.options"
+                    :key="idx"
+                    v-model="newExercise.options[idx]"
+                    class="form-input"
+                    :placeholder="`Opción ${idx + 1}`"
+                  />
+                </div>
               </div>
               <div class="form-group">
                 <label class="form-label">Explicación</label>
@@ -562,7 +581,14 @@
             <form @submit.prevent="saveExerciseEdit">
               <div class="form-group">
                 <label class="form-label">Pregunta *</label>
-                <textarea v-model="editExercise.question" class="form-textarea" rows="2" required></textarea>
+                <textarea
+                  v-model="editExercise.question"
+                  class="form-textarea"
+                  :class="{ 'form-textarea--large': needsLargeQuestionInput(editExercise.type) }"
+                  :placeholder="questionPlaceholder(editExercise.type)"
+                  :rows="needsLargeQuestionInput(editExercise.type) ? 6 : 2"
+                  required
+                ></textarea>
               </div>
               <div class="form-group">
                 <label class="form-label">Tipo *</label>
@@ -577,6 +603,18 @@
               <div class="form-group">
                 <label class="form-label">Respuesta correcta</label>
                 <input v-model="editExercise.correct_answer" class="form-input" />
+              </div>
+              <div v-if="editExercise.type === 'multiple_choice'" class="form-group">
+                <label class="form-label">Opciones</label>
+                <div class="options-editor">
+                  <input
+                    v-for="(_, idx) in editExercise.options"
+                    :key="idx"
+                    v-model="editExercise.options[idx]"
+                    class="form-input"
+                    :placeholder="`Opción ${idx + 1}`"
+                  />
+                </div>
               </div>
               <div class="form-group">
                 <label class="form-label">Explicación</label>
@@ -643,6 +681,7 @@ import { practiceSheetService } from '@/services/practiceSheets/practiceSheetSer
 import { notebookService } from '@/services/notebooks/notebookService'
 import { levelService } from '@/services/levels/levelService'
 import type { Course, Topic, Exercise, Material, PracticeSheet, Student, Notebook, CourseLevelsResponse } from '@/types'
+import { parseExerciseMetadata } from '@/utils/assistantExerciseContext'
 
 const route = useRoute()
 const router = useRouter()
@@ -695,10 +734,26 @@ const editNotebook = reactive({ title: '', description: '' })
 
 // Edit exercise state
 const editingExerciseId = ref<string | null>(null)
-const editExercise = reactive({ question: '', type: 'open_text' as Exercise['type'], correct_answer: '', explanation: '', difficulty: 1 })
+const editExercise = reactive({
+  question: '',
+  type: 'open_text' as Exercise['type'],
+  correct_answer: '',
+  explanation: '',
+  difficulty: 1,
+  metadata: '{}',
+  options: ['', '', '', '']
+})
 
 const newTopic = reactive({ title: '', description: '', order_index: 0 })
-const newExercise = reactive({ question: '', type: 'open_text' as Exercise['type'], correct_answer: '', explanation: '', difficulty: 1 })
+const newExercise = reactive({
+  question: '',
+  type: 'open_text' as Exercise['type'],
+  correct_answer: '',
+  explanation: '',
+  difficulty: 1,
+  metadata: '{}',
+  options: ['', '', '', '']
+})
 const newMaterial = reactive({ title: '', type: 'text' as Material['type'], extracted_text: '' })
 const newSheet = reactive({ title: '', topic_id: '', level: 1, sheet_type: 'practice', test_style: 'keyboard', exercise_ids: [] as string[] })
 const newNotebook = reactive({ title: '', description: '', level: 1 })
@@ -780,10 +835,11 @@ async function createTopic() {
 }
 
 async function createExercise() {
-  await exerciseService.create(selectedTopicId.value, newExercise)
+  await exerciseService.create(selectedTopicId.value, buildExercisePayload(newExercise))
   showExerciseModal.value = false
   const res = await exerciseService.list(selectedTopicId.value)
   exercises.value = res.data || []
+  resetExerciseForm(newExercise)
 }
 
 async function createMaterial() {
@@ -954,17 +1010,77 @@ function openEditExercise(ex: Exercise) {
   editExercise.correct_answer = ex.correct_answer || ''
   editExercise.explanation = ex.explanation || ''
   editExercise.difficulty = ex.difficulty ?? 1
+  editExercise.metadata = ex.metadata || '{}'
+  setExerciseOptions(editExercise, getMetadataOptions(ex.metadata))
   showEditExerciseModal.value = true
 }
 
 async function saveExerciseEdit() {
   if (!editingExerciseId.value) return
-  await exerciseService.update(editingExerciseId.value, { ...editExercise })
+  await exerciseService.update(editingExerciseId.value, buildExercisePayload(editExercise))
   showEditExerciseModal.value = false
   if (selectedTopicId.value) {
     const res = await exerciseService.list(selectedTopicId.value)
     exercises.value = res.data || []
   }
+}
+
+function needsLargeQuestionInput(type: Exercise['type']) {
+  return type === 'handwritten' || type === 'canvas'
+}
+
+function questionPlaceholder(type: Exercise['type']) {
+  if (type === 'handwritten' || type === 'canvas') {
+    return 'Escribe la consigna completa que verá el alumno...'
+  }
+  if (type === 'multiple_choice') {
+    return '¿Cuánto es 12 + 5 + 8?'
+  }
+  return '¿Cuánto es 1/2 + 1/4?'
+}
+
+function getMetadataOptions(metadata?: string) {
+  const parsed = parseExerciseMetadata(metadata)
+  const value = parsed?.options
+  return Array.isArray(value) ? value.map((option) => String(option)) : []
+}
+
+function setExerciseOptions(form: typeof newExercise | typeof editExercise, options: string[]) {
+  const next = [...options]
+  while (next.length < 4) next.push('')
+  form.options.splice(0, form.options.length, ...next.slice(0, 8))
+}
+
+function buildExerciseMetadata(form: typeof newExercise | typeof editExercise) {
+  const parsed = parseExerciseMetadata(form.metadata) || {}
+  if (form.type === 'multiple_choice') {
+    const options = form.options.map((option) => option.trim()).filter(Boolean)
+    return JSON.stringify({ ...parsed, options })
+  }
+  const rest = { ...parsed }
+  delete rest.options
+  return JSON.stringify(rest)
+}
+
+function buildExercisePayload(form: typeof newExercise | typeof editExercise): Partial<Exercise> {
+  return {
+    question: form.question,
+    type: form.type,
+    correct_answer: form.correct_answer,
+    explanation: form.explanation,
+    difficulty: form.difficulty,
+    metadata: buildExerciseMetadata(form)
+  }
+}
+
+function resetExerciseForm(form: typeof newExercise) {
+  form.question = ''
+  form.type = 'open_text'
+  form.correct_answer = ''
+  form.explanation = ''
+  form.difficulty = 1
+  form.metadata = '{}'
+  setExerciseOptions(form, [])
 }
 
 function openEditNotebook(nb: Notebook) {
@@ -1289,6 +1405,13 @@ async function deleteNotebook(id: string) {
 
 .exercise-checkbox:hover {
   background: var(--surface-hover);
+}
+.options-editor {
+  display: grid;
+  gap: 8px;
+}
+.form-textarea--large {
+  min-height: 180px;
 }
 .modal-actions { display: flex; gap: 12px; justify-content: flex-end; margin-top: 24px; }
 .item-actions { display: flex; gap: 4px; align-items: center; flex-shrink: 0; }
