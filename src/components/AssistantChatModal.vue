@@ -735,16 +735,25 @@
     const canvas = canvasEl.value;
     if (!canvas) return;
 
+    const ctx = canvas.getContext("2d")!;
     const dpr = window.devicePixelRatio || 1;
     const { width, height } = canvas.getBoundingClientRect();
+
+    // Save existing canvas content if resizing
+    const imageData = (canvas.width > 0 && canvas.height > 0) ? ctx.getImageData(0, 0, canvas.width, canvas.height) : null;
+
     canvas.width = width * dpr;
     canvas.height = height * dpr;
-    const ctx = canvas.getContext("2d")!;
     ctx.scale(dpr, dpr);
     ctx.fillStyle = "#ffffff";
     ctx.fillRect(0, 0, width, height);
     ctx.lineCap = "round";
     ctx.lineJoin = "round";
+
+    // Restore canvas content if it existed
+    if (imageData) {
+      ctx.putImageData(imageData, 0, 0);
+    }
 
     if (!canvasResizeObserver) {
       canvasResizeObserver = new ResizeObserver(() => {
