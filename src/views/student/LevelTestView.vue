@@ -334,9 +334,15 @@ const penCursor = `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/
 const eraserCursor = `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='20' height='20' viewBox='0 0 20 20'%3E%3Ccircle cx='10' cy='10' r='8' fill='none' stroke='%23666' stroke-width='1.5'/%3E%3C/svg%3E") 10 10, cell`
 const canvasCursor = computed(() => tool.value === 'eraser' ? eraserCursor : penCursor)
 
-function cssVar(name: string, fallback: string) {
+function cssVar(name: string, fallback: string, depth = 0): string {
   if (typeof window === 'undefined') return fallback
-  return getComputedStyle(document.documentElement).getPropertyValue(name).trim() || fallback
+  const value = getComputedStyle(document.documentElement).getPropertyValue(name).trim()
+  if (!value) return fallback
+  const varMatch = value.match(/^var\((--[^,\s)]+)(?:,\s*(.+))?\)$/)
+  if (varMatch && depth < 4) {
+    return cssVar(varMatch[1], varMatch[2]?.trim() || fallback, depth + 1)
+  }
+  return value
 }
 
 // Timer — 30 min

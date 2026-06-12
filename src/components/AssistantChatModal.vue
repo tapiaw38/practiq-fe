@@ -474,10 +474,16 @@
       Math.min(inputEl.value.scrollHeight, 140) + "px";
   }
 
-  function cssVar(name: string, fallback: string, el?: Element | null) {
+  function cssVar(name: string, fallback: string, el?: Element | null, depth = 0) {
     if (typeof window === "undefined") return fallback;
     const target = el ?? canvasEl.value ?? document.documentElement;
-    return getComputedStyle(target).getPropertyValue(name).trim() || fallback;
+    const value = getComputedStyle(target).getPropertyValue(name).trim();
+    if (!value) return fallback;
+    const varMatch = value.match(/^var\((--[^,\s)]+)(?:,\s*(.+))?\)$/);
+    if (varMatch && depth < 4) {
+      return cssVar(varMatch[1], varMatch[2]?.trim() || fallback, target, depth + 1);
+    }
+    return value;
   }
 
   function getCanvasDebugStats(canvas: HTMLCanvasElement) {

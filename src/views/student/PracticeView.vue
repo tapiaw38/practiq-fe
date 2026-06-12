@@ -285,9 +285,15 @@ const result = ref<SubmitResult | null>(null)
 const hasDraft = ref(false)
 const showRestoreModal = ref(false)
 
-function cssVar(name: string, fallback: string) {
+function cssVar(name: string, fallback: string, depth = 0): string {
   if (typeof window === 'undefined') return fallback
-  return getComputedStyle(document.documentElement).getPropertyValue(name).trim() || fallback
+  const value = getComputedStyle(document.documentElement).getPropertyValue(name).trim()
+  if (!value) return fallback
+  const varMatch = value.match(/^var\((--[^,\s)]+)(?:,\s*(.+))?\)$/)
+  if (varMatch && depth < 4) {
+    return cssVar(varMatch[1], varMatch[2]?.trim() || fallback, depth + 1)
+  }
+  return value
 }
 
 let timerInterval: ReturnType<typeof setInterval>
