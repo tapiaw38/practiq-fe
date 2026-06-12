@@ -88,7 +88,18 @@
                     </span>
                   </div>
 
-                  <div class="ex-question">{{ pse.exercise.question }}</div>
+                  <div
+                    v-if="pse.exercise.type !== 'handwritten' || !extractTeacherImageDataUrl(pse.exercise)"
+                    class="ex-question"
+                  >
+                    {{ pse.exercise.question }}
+                  </div>
+                  <img
+                    v-if="extractTeacherImageDataUrl(pse.exercise)"
+                    :src="extractTeacherImageDataUrl(pse.exercise)"
+                    class="teacher-handwritten-image"
+                    alt="Consigna manuscrita del profesor"
+                  />
 
                   <!-- Keyboard mode input -->
                   <div v-if="pse.exercise.type === 'multiple_choice'" class="choice-options">
@@ -1201,6 +1212,16 @@ function scoreColor(score: number) {
   font-weight: 600;
   color: var(--text-primary);
   line-height: 1.5;
+}
+
+.teacher-handwritten-image {
+  width: 100%;
+  max-height: 280px;
+  object-fit: contain;
+  border: 1.5px solid rgba(var(--practiq-violet-rgb), 0.15);
+  border-radius: var(--radius-md);
+  background: #ffffff;
+  box-shadow: var(--shadow-card);
 }
 
 .ex-input {

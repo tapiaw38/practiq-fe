@@ -29,7 +29,7 @@
         <div class="test-progress-label">{{ answeredCount }} / {{ exercises.length }} respondidas</div>
 
         <!-- Canvas toolbar (only in canvas mode) -->
-        <div v-if="isCanvas" class="draw-tools-bar">
+        <div v-if="hasCanvasExercises" class="draw-tools-bar">
           <button class="tool-btn" type="button" aria-label="Usar lápiz" :class="{ 'tool-btn--active': tool === 'pen' }" @click="tool = 'pen'" title="Lápiz">
             <i class="pi pi-pencil"></i>
           </button>
@@ -55,11 +55,47 @@
           >
             <div class="ex-num">{{ idx + 1 }}</div>
             <div class="ex-body">
-              <div class="ex-question">{{ ex.exercise.question }}</div>
+              <div
+                v-if="ex.exercise.type !== 'handwritten' || !extractTeacherImageDataUrl(ex.exercise)"
+                class="ex-question"
+              >
+                {{ ex.exercise.question }}
+              </div>
+              <img
+                v-if="extractTeacherImageDataUrl(ex.exercise)"
+                :src="extractTeacherImageDataUrl(ex.exercise)"
+                class="teacher-handwritten-image"
+                alt="Consigna manuscrita del profesor"
+              />
+
+              <!-- Multiple choice -->
+              <div v-if="ex.exercise.type === 'multiple_choice'" class="choice-options">
+                <label
+                  v-for="option in exerciseOptions(ex.exercise.metadata)"
+                  :key="option"
+                  class="choice-option"
+                  :class="{ 'choice-option--selected': answers[ex.exercise.id] === option }"
+                >
+                  <input
+                    v-model="answers[ex.exercise.id]"
+                    type="radio"
+                    :name="`level-test-exercise-${ex.exercise.id}`"
+                    :value="option"
+                  />
+                  <span>{{ option }}</span>
+                </label>
+                <input
+                  v-if="exerciseOptions(ex.exercise.metadata).length === 0"
+                  v-model="answers[ex.exercise.id]"
+                  class="ex-input"
+                  placeholder="Escribe la opción correcta..."
+                  @keydown.enter="focusNext(idx)"
+                />
+              </div>
 
               <!-- Keyboard mode -->
               <input
-                v-if="!isCanvas"
+                v-else-if="!exerciseUsesCanvas(ex.exercise.type)"
                 v-model="answers[ex.exercise.id]"
                 class="ex-input"
                 :placeholder="ex.exercise.type === 'equation' ? 'Respuesta...' : 'Escribe tu respuesta...'"
@@ -295,6 +331,7 @@ import type { PracticeSheet, PracticeSheetExercise, SubmitResult } from '@/types
 import {
   composeAssistantWorkImage,
   extractTeacherImageDataUrl,
+  parseExerciseMetadata,
   pickBestStudentImage,
   summarizeExerciseMetadata
 } from '@/utils/assistantExerciseContext'
@@ -373,10 +410,23 @@ function startTimer() {
 
 const exercises = computed<PracticeSheetExercise[]>(() => sheet.value?.exercises || [])
 const isCanvas = computed(() => sheet.value?.test_style === 'canvas')
+const hasCanvasExercises = computed(() =>
+  exercises.value.some(ex => exerciseUsesCanvas(ex.exercise.type))
+)
 
 function isAnswered(exerciseId: string) {
-  if (isCanvas.value) return !!canvasData.value[exerciseId]
+  const exercise = exercises.value.find(ex => ex.exercise.id === exerciseId)?.exercise
+  if (exercise && exerciseUsesCanvas(exercise.type)) return !!canvasData.value[exerciseId]
   return (answers.value[exerciseId] || '').trim() !== ''
+}
+
+function exerciseUsesCanvas(exerciseType: string) {
+  return isCanvas.value || exerciseType === 'handwritten' || exerciseType === 'canvas'
+}
+
+function exerciseOptions(metadata?: string) {
+  const options = parseExerciseMetadata(metadata)?.options
+  return Array.isArray(options) ? options.map(option => String(option)).filter(Boolean) : []
 }
 
 const answeredCount = computed(() => exercises.value.filter(ex => isAnswered(ex.exercise.id)).length)
@@ -569,8 +619,8 @@ async function submit() {
 
   const attempts = exercises.value.map(ex => ({
     exercise_id: ex.exercise.id,
-    answer_text: isCanvas.value ? '' : (answers.value[ex.exercise.id] || ''),
-    canvas_data: isCanvas.value ? buildCanvasDataForOCR(ex.exercise.id) : '',
+    answer_text: exerciseUsesCanvas(ex.exercise.type) ? '' : (answers.value[ex.exercise.id] || ''),
+    canvas_data: exerciseUsesCanvas(ex.exercise.type) ? buildCanvasDataForOCR(ex.exercise.id) : '',
     time_spent_seconds: perExerciseSeconds,
     hints_used: 0
   }))
@@ -688,7 +738,7 @@ window.__practiqAssistantContext = () => {
     sheet_id: sheet.value.id,
     sheet_title: sheet.value.title,
     level: sheet.value.level,
-    response_mode: isCanvas.value ? 'canvas' : 'keyboard',
+    response_mode: hasCanvasExercises.value ? 'mixed' : 'keyboard',
     exercise_count: exercises.value.length,
     active_exercise: activeExercise
       ? {
@@ -709,22 +759,19 @@ window.__practiqAssistantContext = () => {
       question: item.exercise.question,
       has_teacher_image: !!extractTeacherImageDataUrl(item.exercise)
     })),
-    answered_exercise_ids: isCanvas.value
-      ? Object.keys(canvasData.value)
-      : Object.entries(answers.value)
-          .filter(([, answer]) => answer.trim() !== '')
-          .map(([exerciseId]) => exerciseId)
+    answered_exercise_ids: exercises.value
+      .filter(item => isAnswered(item.exercise.id))
+      .map(item => item.exercise.id)
   }
 }
 
 window.__practiqAssistantCapture = async () => {
-  if (!isCanvas.value) return null
-
   const exerciseId = getAssistantExerciseId()
   if (!exerciseId) return null
   const exerciseIndex = getAssistantExerciseIndex(exerciseId)
   const exercise =
     exerciseIndex >= 0 ? exercises.value[exerciseIndex]?.exercise : null
+  if (!exercise || !exerciseUsesCanvas(exercise.type)) return null
 
   const studentDataUrl = await pickBestStudentImage([
     buildCanvasDataForOCR(exerciseId),
@@ -988,6 +1035,16 @@ function closeSuccessAndGoHome() {
   line-height: 1.5;
 }
 
+.teacher-handwritten-image {
+  width: 100%;
+  max-height: 260px;
+  object-fit: contain;
+  border: 1.5px solid rgba(var(--practiq-violet-rgb), 0.15);
+  border-radius: var(--radius-sm);
+  background: #ffffff;
+  box-shadow: var(--shadow-card);
+}
+
 .ex-input {
   padding: 10px 14px;
   border-radius: var(--radius-sm);
@@ -999,6 +1056,37 @@ function closeSuccessAndGoHome() {
   transition: border-color 0.15s;
 }
 .ex-input:focus { border-color: var(--practiq-violet); }
+
+.choice-options {
+  display: grid;
+  gap: 10px;
+}
+
+.choice-option {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  border: 1.5px solid rgba(var(--practiq-violet-rgb), 0.14);
+  border-radius: var(--radius-sm);
+  background: var(--surface-elevated-strong);
+  color: var(--text-primary);
+  cursor: pointer;
+  transition: border-color 0.15s, background 0.15s;
+}
+
+.choice-option:hover,
+.choice-option--selected {
+  border-color: rgba(var(--practiq-violet-rgb), 0.36);
+  background: var(--fill-primary-faint);
+}
+
+.choice-option input {
+  width: 18px;
+  height: 18px;
+  accent-color: var(--practiq-violet);
+  flex: 0 0 auto;
+}
 
 /* Canvas */
 .canvas-wrap {

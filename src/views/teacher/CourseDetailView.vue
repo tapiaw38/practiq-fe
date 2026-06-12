@@ -346,9 +346,31 @@
                   class="form-textarea"
                   :class="{ 'form-textarea--large': needsLargeQuestionInput(newExercise.type) }"
                   :placeholder="questionPlaceholder(newExercise.type)"
-                  required
+                  :required="newExercise.type !== 'handwritten'"
                   :rows="needsLargeQuestionInput(newExercise.type) ? 6 : 2"
                 ></textarea>
+              </div>
+              <div v-if="newExercise.type === 'handwritten'" class="form-group">
+                <label class="form-label">Consigna manuscrita</label>
+                <div class="teacher-canvas-wrap">
+                  <div class="teacher-canvas-toolbar">
+                    <span>Escribe aquí el ejercicio que verá el alumno</span>
+                    <button type="button" class="btn btn-ghost btn-sm" @click="clearTeacherCanvas('new')">
+                      <i class="pi pi-trash"></i> Limpiar
+                    </button>
+                  </div>
+                  <canvas
+                    :ref="el => setTeacherCanvasRef('new', el as HTMLCanvasElement | null)"
+                    class="teacher-canvas"
+                    @mousedown="startTeacherDraw($event, 'new')"
+                    @mousemove="drawTeacherCanvas($event, 'new')"
+                    @mouseup="stopTeacherDraw('new')"
+                    @mouseleave="stopTeacherDraw('new')"
+                    @touchstart.prevent="startTeacherDrawTouch($event, 'new')"
+                    @touchmove.prevent="drawTeacherCanvasTouch($event, 'new')"
+                    @touchend="stopTeacherDraw('new')"
+                  ></canvas>
+                </div>
               </div>
               <div class="form-group">
                 <label class="form-label">Tipo *</label>
@@ -587,8 +609,30 @@
                   :class="{ 'form-textarea--large': needsLargeQuestionInput(editExercise.type) }"
                   :placeholder="questionPlaceholder(editExercise.type)"
                   :rows="needsLargeQuestionInput(editExercise.type) ? 6 : 2"
-                  required
+                  :required="editExercise.type !== 'handwritten'"
                 ></textarea>
+              </div>
+              <div v-if="editExercise.type === 'handwritten'" class="form-group">
+                <label class="form-label">Consigna manuscrita</label>
+                <div class="teacher-canvas-wrap">
+                  <div class="teacher-canvas-toolbar">
+                    <span>Escribe aquí el ejercicio que verá el alumno</span>
+                    <button type="button" class="btn btn-ghost btn-sm" @click="clearTeacherCanvas('edit')">
+                      <i class="pi pi-trash"></i> Limpiar
+                    </button>
+                  </div>
+                  <canvas
+                    :ref="el => setTeacherCanvasRef('edit', el as HTMLCanvasElement | null)"
+                    class="teacher-canvas"
+                    @mousedown="startTeacherDraw($event, 'edit')"
+                    @mousemove="drawTeacherCanvas($event, 'edit')"
+                    @mouseup="stopTeacherDraw('edit')"
+                    @mouseleave="stopTeacherDraw('edit')"
+                    @touchstart.prevent="startTeacherDrawTouch($event, 'edit')"
+                    @touchmove.prevent="drawTeacherCanvasTouch($event, 'edit')"
+                    @touchend="stopTeacherDraw('edit')"
+                  ></canvas>
+                </div>
               </div>
               <div class="form-group">
                 <label class="form-label">Tipo *</label>
@@ -668,7 +712,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref, reactive, onMounted, watch } from 'vue'
+import { computed, ref, reactive, onMounted, watch, nextTick } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import TeacherLayout from '@/layouts/TeacherLayout.vue'
 import ConfirmModal from '@/components/ConfirmModal.vue'
@@ -741,6 +785,7 @@ const editExercise = reactive({
   explanation: '',
   difficulty: 1,
   metadata: '{}',
+  teacher_image: '',
   options: ['', '', '', '']
 })
 
@@ -752,6 +797,7 @@ const newExercise = reactive({
   explanation: '',
   difficulty: 1,
   metadata: '{}',
+  teacher_image: '',
   options: ['', '', '', '']
 })
 const newMaterial = reactive({ title: '', type: 'text' as Material['type'], extracted_text: '' })
@@ -781,6 +827,14 @@ const teacherLevels = computed(() => {
     }
   })
 })
+
+type TeacherCanvasKind = 'new' | 'edit'
+const teacherCanvasRefs: Record<TeacherCanvasKind, HTMLCanvasElement | null> = { new: null, edit: null }
+const teacherDrawing: Record<TeacherCanvasKind, boolean> = { new: false, edit: false }
+const teacherLastPos: Record<TeacherCanvasKind, { x: number; y: number }> = {
+  new: { x: 0, y: 0 },
+  edit: { x: 0, y: 0 }
+}
 
 onMounted(async () => {
   const [courseRes, topicsRes, materialsRes, studentsRes, sheetsRes, notebooksRes, levelsRes] = await Promise.allSettled([
@@ -817,6 +871,20 @@ watch(() => editSheet.topic_id, async (id) => {
   await loadEditSheetExercises(id)
 })
 
+watch(() => newExercise.type, async (type) => {
+  if (type === 'handwritten' && showExerciseModal.value) {
+    await nextTick()
+    initTeacherCanvas('new', newExercise.teacher_image)
+  }
+})
+
+watch(() => editExercise.type, async (type) => {
+  if (type === 'handwritten' && showEditExerciseModal.value) {
+    await nextTick()
+    initTeacherCanvas('edit', editExercise.teacher_image)
+  }
+})
+
 async function loadSheetExercises(topicId: string) {
   newSheet.exercise_ids = []
   if (!topicId) { sheetExercises.value = []; return }
@@ -835,7 +903,7 @@ async function createTopic() {
 }
 
 async function createExercise() {
-  await exerciseService.create(selectedTopicId.value, buildExercisePayload(newExercise))
+  await exerciseService.create(selectedTopicId.value, buildExercisePayload(newExercise, 'new'))
   showExerciseModal.value = false
   const res = await exerciseService.list(selectedTopicId.value)
   exercises.value = res.data || []
@@ -1011,13 +1079,17 @@ function openEditExercise(ex: Exercise) {
   editExercise.explanation = ex.explanation || ''
   editExercise.difficulty = ex.difficulty ?? 1
   editExercise.metadata = ex.metadata || '{}'
+  editExercise.teacher_image = getMetadataTeacherImage(ex.metadata)
   setExerciseOptions(editExercise, getMetadataOptions(ex.metadata))
   showEditExerciseModal.value = true
+  if (editExercise.type === 'handwritten') {
+    nextTick(() => initTeacherCanvas('edit', editExercise.teacher_image))
+  }
 }
 
 async function saveExerciseEdit() {
   if (!editingExerciseId.value) return
-  await exerciseService.update(editingExerciseId.value, buildExercisePayload(editExercise))
+  await exerciseService.update(editingExerciseId.value, buildExercisePayload(editExercise, 'edit'))
   showEditExerciseModal.value = false
   if (selectedTopicId.value) {
     const res = await exerciseService.list(selectedTopicId.value)
@@ -1030,7 +1102,10 @@ function needsLargeQuestionInput(type: Exercise['type']) {
 }
 
 function questionPlaceholder(type: Exercise['type']) {
-  if (type === 'handwritten' || type === 'canvas') {
+  if (type === 'handwritten') {
+    return 'Texto de respaldo opcional para buscar/listar el ejercicio'
+  }
+  if (type === 'canvas') {
     return 'Escribe la consigna completa que verá el alumno...'
   }
   if (type === 'multiple_choice') {
@@ -1045,13 +1120,19 @@ function getMetadataOptions(metadata?: string) {
   return Array.isArray(value) ? value.map((option) => String(option)) : []
 }
 
+function getMetadataTeacherImage(metadata?: string) {
+  const parsed = parseExerciseMetadata(metadata)
+  const value = parsed?.teacher_image || parsed?.teacherImage || parsed?.image_data || parsed?.imageData
+  return typeof value === 'string' && value.startsWith('data:image/') ? value : ''
+}
+
 function setExerciseOptions(form: typeof newExercise | typeof editExercise, options: string[]) {
   const next = [...options]
   while (next.length < 4) next.push('')
   form.options.splice(0, form.options.length, ...next.slice(0, 8))
 }
 
-function buildExerciseMetadata(form: typeof newExercise | typeof editExercise) {
+function buildExerciseMetadata(form: typeof newExercise | typeof editExercise, canvasKind?: TeacherCanvasKind) {
   const parsed = parseExerciseMetadata(form.metadata) || {}
   if (form.type === 'multiple_choice') {
     const options = form.options.map((option) => option.trim()).filter(Boolean)
@@ -1059,17 +1140,23 @@ function buildExerciseMetadata(form: typeof newExercise | typeof editExercise) {
   }
   const rest = { ...parsed }
   delete rest.options
+  if (form.type === 'handwritten') {
+    const canvasImage = canvasKind ? captureTeacherCanvas(canvasKind) : ''
+    rest.teacher_image = canvasImage || form.teacher_image
+  } else {
+    delete rest.teacher_image
+  }
   return JSON.stringify(rest)
 }
 
-function buildExercisePayload(form: typeof newExercise | typeof editExercise): Partial<Exercise> {
+function buildExercisePayload(form: typeof newExercise | typeof editExercise, canvasKind?: TeacherCanvasKind): Partial<Exercise> {
   return {
-    question: form.question,
+    question: form.question.trim() || (form.type === 'handwritten' ? 'Ejercicio manuscrito' : form.question),
     type: form.type,
     correct_answer: form.correct_answer,
     explanation: form.explanation,
     difficulty: form.difficulty,
-    metadata: buildExerciseMetadata(form)
+    metadata: buildExerciseMetadata(form, canvasKind)
   }
 }
 
@@ -1080,7 +1167,111 @@ function resetExerciseForm(form: typeof newExercise) {
   form.explanation = ''
   form.difficulty = 1
   form.metadata = '{}'
+  form.teacher_image = ''
   setExerciseOptions(form, [])
+  clearTeacherCanvas('new')
+}
+
+function setTeacherCanvasRef(kind: TeacherCanvasKind, el: HTMLCanvasElement | null) {
+  if (teacherCanvasRefs[kind] === el) return
+  teacherCanvasRefs[kind] = el
+  if (el) {
+    const form = kind === 'new' ? newExercise : editExercise
+    nextTick(() => initTeacherCanvas(kind, form.teacher_image))
+  }
+}
+
+function initTeacherCanvas(kind: TeacherCanvasKind, imageData = '') {
+  const canvas = teacherCanvasRefs[kind]
+  if (!canvas) return
+  const width = canvas.offsetWidth || 720
+  const height = canvas.offsetHeight || 240
+  canvas.width = width
+  canvas.height = height
+  const ctx = canvas.getContext('2d')
+  if (!ctx) return
+  drawTeacherCanvasBackground(ctx, width, height)
+  if (imageData) {
+    const img = new Image()
+    img.onload = () => ctx.drawImage(img, 0, 0, width, height)
+    img.src = imageData
+  }
+}
+
+function drawTeacherCanvasBackground(ctx: CanvasRenderingContext2D, width: number, height: number) {
+  ctx.fillStyle = '#ffffff'
+  ctx.fillRect(0, 0, width, height)
+  ctx.strokeStyle = 'rgba(124, 58, 237, 0.12)'
+  ctx.lineWidth = 1
+  for (let y = 34; y < height; y += 34) {
+    ctx.beginPath()
+    ctx.moveTo(0, y)
+    ctx.lineTo(width, y)
+    ctx.stroke()
+  }
+}
+
+function getTeacherCanvasPos(e: MouseEvent, kind: TeacherCanvasKind) {
+  const canvas = teacherCanvasRefs[kind]
+  if (!canvas) return { x: 0, y: 0 }
+  const rect = canvas.getBoundingClientRect()
+  return {
+    x: (e.clientX - rect.left) * (canvas.width / rect.width),
+    y: (e.clientY - rect.top) * (canvas.height / rect.height)
+  }
+}
+
+function startTeacherDraw(e: MouseEvent, kind: TeacherCanvasKind) {
+  const canvas = teacherCanvasRefs[kind]
+  const ctx = canvas?.getContext('2d')
+  if (!canvas || !ctx) return
+  teacherDrawing[kind] = true
+  teacherLastPos[kind] = getTeacherCanvasPos(e, kind)
+  ctx.beginPath()
+  ctx.moveTo(teacherLastPos[kind].x, teacherLastPos[kind].y)
+}
+
+function drawTeacherCanvas(e: MouseEvent, kind: TeacherCanvasKind) {
+  if (!teacherDrawing[kind]) return
+  const canvas = teacherCanvasRefs[kind]
+  const ctx = canvas?.getContext('2d')
+  if (!canvas || !ctx) return
+  const pos = getTeacherCanvasPos(e, kind)
+  ctx.strokeStyle = '#111827'
+  ctx.lineWidth = 3
+  ctx.lineCap = 'round'
+  ctx.lineJoin = 'round'
+  ctx.lineTo(pos.x, pos.y)
+  ctx.stroke()
+  teacherLastPos[kind] = pos
+}
+
+function stopTeacherDraw(kind: TeacherCanvasKind) {
+  teacherDrawing[kind] = false
+  const form = kind === 'new' ? newExercise : editExercise
+  form.teacher_image = captureTeacherCanvas(kind)
+}
+
+function startTeacherDrawTouch(e: TouchEvent, kind: TeacherCanvasKind) {
+  const touch = e.touches[0]
+  if (!touch) return
+  startTeacherDraw({ clientX: touch.clientX, clientY: touch.clientY } as MouseEvent, kind)
+}
+
+function drawTeacherCanvasTouch(e: TouchEvent, kind: TeacherCanvasKind) {
+  const touch = e.touches[0]
+  if (!touch) return
+  drawTeacherCanvas({ clientX: touch.clientX, clientY: touch.clientY } as MouseEvent, kind)
+}
+
+function clearTeacherCanvas(kind: TeacherCanvasKind) {
+  initTeacherCanvas(kind)
+  const form = kind === 'new' ? newExercise : editExercise
+  form.teacher_image = ''
+}
+
+function captureTeacherCanvas(kind: TeacherCanvasKind) {
+  return teacherCanvasRefs[kind]?.toDataURL('image/png') || ''
 }
 
 function openEditNotebook(nb: Notebook) {
@@ -1412,6 +1603,29 @@ async function deleteNotebook(id: string) {
 }
 .form-textarea--large {
   min-height: 180px;
+}
+.teacher-canvas-wrap {
+  display: grid;
+  gap: 8px;
+}
+.teacher-canvas-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  color: var(--text-secondary);
+  font-size: var(--text-sm);
+}
+.teacher-canvas {
+  width: 100%;
+  height: 240px;
+  display: block;
+  border: 1.5px solid rgba(var(--practiq-violet-rgb), 0.18);
+  border-radius: var(--radius-lg);
+  background: #ffffff;
+  cursor: crosshair;
+  touch-action: none;
+  box-shadow: var(--shadow-card);
 }
 .modal-actions { display: flex; gap: 12px; justify-content: flex-end; margin-top: 24px; }
 .item-actions { display: flex; gap: 4px; align-items: center; flex-shrink: 0; }
