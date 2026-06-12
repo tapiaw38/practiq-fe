@@ -701,7 +701,7 @@
       fd.append("content", prompt);
       fd.append("context", buildContext());
       fd.append("image_content", blob, "student_canvas.png");
-      const reply = await postFormData(fd, false);
+      const reply = await postFormData(fd, true);
       if (reply) feedbackHtml.value = reply;
       pizState.value = "feedback";
     } catch {
