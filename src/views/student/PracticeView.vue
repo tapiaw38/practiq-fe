@@ -73,6 +73,9 @@
                 :key="pse.id"
                 class="ex-card"
                 :class="{ 'ex-card--answered': isAnswered(pse.exercise.id) }"
+                @click="setActiveExercise(pse.exercise.id, idx)"
+                @focusin="setActiveExercise(pse.exercise.id, idx)"
+                @mouseenter="setActiveExercise(pse.exercise.id, idx)"
               >
                 <div class="ex-num" :class="{ 'ex-num--done': isAnswered(pse.exercise.id) }">
                   {{ idx + 1 }}
@@ -418,6 +421,13 @@ function isAnswered(exerciseId: string) {
     return !!answers.value[exerciseId]?.answer
   }
   return !!(keyboardAnswers.value[exerciseId]?.trim())
+}
+
+function setActiveExercise(exerciseId: string, idx: number) {
+  currentIdx.value = idx
+  if (exerciseUsesCanvas(sheet.value?.exercises?.[idx]?.exercise.type || '')) {
+    activeCanvasId.value = exerciseId
+  }
 }
 
 function exerciseUsesCanvas(exerciseType: string) {
@@ -793,7 +803,7 @@ function buildCanvasDataForOCR(exerciseId: string) {
 }
 
 function getAssistantExerciseId() {
-  if (activeCanvasId.value && answers.value[activeCanvasId.value]?.answer) {
+  if (activeCanvasId.value) {
     return activeCanvasId.value
   }
 
@@ -818,6 +828,7 @@ window.__practiqAssistantContext = () => {
   const activeExerciseIndex = getAssistantExerciseIndex(activeExerciseId)
   const activeExercise =
     activeExerciseIndex >= 0 ? sheet.value.exercises[activeExerciseIndex]?.exercise : null
+  const activeTeacherImage = extractTeacherImageDataUrl(activeExercise)
 
   return {
     current_view: 'student_practice',
@@ -833,8 +844,15 @@ window.__practiqAssistantContext = () => {
           number: activeExerciseIndex + 1,
           type: activeExercise.type,
           difficulty: activeExercise.difficulty,
-          question: activeExercise.question,
-          has_teacher_image: !!extractTeacherImageDataUrl(activeExercise),
+          question:
+            activeExercise.type === 'handwritten' && activeTeacherImage
+              ? '[consigna manuscrita en imagen adjunta]'
+              : activeExercise.question,
+          has_teacher_image: !!activeTeacherImage,
+          question_source:
+            activeExercise.type === 'handwritten' && activeTeacherImage
+              ? 'teacher_image_attachment'
+              : 'text',
           metadata_summary: JSON.stringify(summarizeExerciseMetadata(activeExercise) || {})
         }
       : null,
@@ -843,8 +861,15 @@ window.__practiqAssistantContext = () => {
       number: idx + 1,
       type: pse.exercise.type,
       difficulty: pse.exercise.difficulty,
-      question: pse.exercise.question,
-      has_teacher_image: !!extractTeacherImageDataUrl(pse.exercise)
+      question:
+        pse.exercise.type === 'handwritten' && extractTeacherImageDataUrl(pse.exercise)
+          ? '[consigna manuscrita en imagen adjunta]'
+          : pse.exercise.question,
+      has_teacher_image: !!extractTeacherImageDataUrl(pse.exercise),
+      question_source:
+        pse.exercise.type === 'handwritten' && extractTeacherImageDataUrl(pse.exercise)
+          ? 'teacher_image_attachment'
+          : 'text'
     })),
     answered_exercise_ids: Object.entries(answers.value)
       .filter(([, data]) => !!data.answer)
@@ -876,7 +901,7 @@ window.__practiqAssistantCapture = async () => {
   return {
     dataUrl,
     filename: `practice-${exerciseId}.jpg`,
-    contentType: 'image/jpeg'
+    contentType: dataUrl.startsWith('data:image/png') ? 'image/png' : 'image/jpeg'
   }
 }
 

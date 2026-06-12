@@ -52,6 +52,9 @@
             :key="ex.id"
             class="ex-card"
             :class="{ 'ex-card--answered': isAnswered(ex.exercise.id) }"
+            @click="setActiveExercise(ex.exercise.id)"
+            @focusin="setActiveExercise(ex.exercise.id)"
+            @mouseenter="setActiveExercise(ex.exercise.id)"
           >
             <div class="ex-num">{{ idx + 1 }}</div>
             <div class="ex-body">
@@ -426,6 +429,10 @@ function isAnswered(exerciseId: string) {
   return (answers.value[exerciseId] || '').trim() !== ''
 }
 
+function setActiveExercise(exerciseId: string) {
+  activeId.value = exerciseId
+}
+
 function exerciseUsesCanvas(exerciseType: string) {
   return isCanvas.value || exerciseType === 'handwritten' || exerciseType === 'canvas'
 }
@@ -714,7 +721,7 @@ function buildCanvasDataForOCR(exerciseId: string) {
 }
 
 function getAssistantExerciseId() {
-  if (activeId.value && canvasData.value[activeId.value]) {
+  if (activeId.value) {
     return activeId.value
   }
 
@@ -737,6 +744,7 @@ window.__practiqAssistantContext = () => {
   const activeExerciseIndex = getAssistantExerciseIndex(activeExerciseId)
   const activeExercise =
     activeExerciseIndex >= 0 ? exercises.value[activeExerciseIndex]?.exercise : null
+  const activeTeacherImage = extractTeacherImageDataUrl(activeExercise)
 
   return {
     current_view: 'student_level_test',
@@ -752,8 +760,15 @@ window.__practiqAssistantContext = () => {
           number: activeExerciseIndex + 1,
           type: activeExercise.type,
           difficulty: activeExercise.difficulty,
-          question: activeExercise.question,
-          has_teacher_image: !!extractTeacherImageDataUrl(activeExercise),
+          question:
+            activeExercise.type === 'handwritten' && activeTeacherImage
+              ? '[consigna manuscrita en imagen adjunta]'
+              : activeExercise.question,
+          has_teacher_image: !!activeTeacherImage,
+          question_source:
+            activeExercise.type === 'handwritten' && activeTeacherImage
+              ? 'teacher_image_attachment'
+              : 'text',
           metadata_summary: JSON.stringify(summarizeExerciseMetadata(activeExercise) || {})
         }
       : null,
@@ -762,8 +777,15 @@ window.__practiqAssistantContext = () => {
       number: idx + 1,
       type: item.exercise.type,
       difficulty: item.exercise.difficulty,
-      question: item.exercise.question,
-      has_teacher_image: !!extractTeacherImageDataUrl(item.exercise)
+      question:
+        item.exercise.type === 'handwritten' && extractTeacherImageDataUrl(item.exercise)
+          ? '[consigna manuscrita en imagen adjunta]'
+          : item.exercise.question,
+      has_teacher_image: !!extractTeacherImageDataUrl(item.exercise),
+      question_source:
+        item.exercise.type === 'handwritten' && extractTeacherImageDataUrl(item.exercise)
+          ? 'teacher_image_attachment'
+          : 'text'
     })),
     answered_exercise_ids: exercises.value
       .filter(item => isAnswered(item.exercise.id))
@@ -796,7 +818,7 @@ window.__practiqAssistantCapture = async () => {
   return {
     dataUrl,
     filename: `level-test-${exerciseId}.jpg`,
-    contentType: 'image/jpeg'
+    contentType: dataUrl.startsWith('data:image/png') ? 'image/png' : 'image/jpeg'
   }
 }
 
