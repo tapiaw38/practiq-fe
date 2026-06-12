@@ -602,6 +602,31 @@
     }
   }
 
+  function buildInstructionWrappedContent(message: string, hasImageAttachment: boolean): string {
+    const trimmedMessage = message.trim()
+    return [
+      "POLITICA OBLIGATORIA:",
+      "No des respuestas finales ni resuelvas completamente ejercicios evaluables.",
+      "Da solo pistas, explicaciones breves, preguntas guia o el siguiente paso.",
+      "Si existe contexto estructurado de Practiq, usalo para ubicar curso, hoja y numero de ejercicio.",
+      hasImageAttachment
+        ? [
+            "Hay una imagen adjunta de la actividad actual.",
+            "Si la imagen tiene secciones rotuladas, lee directamente cada seccion.",
+            "La seccion 'Consigna del docente' puede contener el enunciado manuscrito; usala como fuente principal del ejercicio.",
+            "La seccion 'Respuesta del alumno' contiene el trabajo manuscrito del alumno.",
+            "Si el contexto textual trae una pregunta generica como 'Suma correctamente' o similar, NO infieras otros numeros desde ejercicios anteriores: lee la consigna manuscrita en la imagen.",
+            "Si no puedes leer la consigna o la respuesta con claridad, dilo y pide una imagen mas clara."
+          ].join("\n")
+        : "Si el alumno menciona trabajo manuscrito pero no hay imagen legible, pide que lo describa.",
+      "Si detectas la respuesta del alumno en la imagen, confirma que escribio y guia con una pista sin revelar la solucion final.",
+      "",
+      `Mensaje del alumno: ${trimmedMessage || "[sin texto, usa contexto e imagen adjunta]"}`,
+      "",
+      "Responde en espanol."
+    ].join("\n")
+  }
+
   // ── API ───────────────────────────────────────────────────────────────────────
 
   async function createConversation(title: string) {
@@ -627,6 +652,13 @@
     }
     const imgParam = imageProcessor ? "activate" : "deactivate";
     const url = `${API_BASE}/conversation/${conversationId}/message?has_image_processor=${imgParam}&has_text_to_voice=deactivate`;
+    fd.set(
+      "content",
+      buildInstructionWrappedContent(
+        ((fd.get("content") as string) || "").trim(),
+        fd.has("image_content"),
+      ),
+    );
     const res = await fetch(url, {
       method: "POST",
       headers: authHeaders(),

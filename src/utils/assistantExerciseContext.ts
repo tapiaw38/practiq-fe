@@ -105,17 +105,26 @@ export async function composeTeacherAndStudentImage(params: {
     loadImageFromDataUrl(studentDataUrl)
   ])
 
-  const width = Math.max(teacherImg.width, studentImg.width, 900)
+  const sourceTeacherWidth = teacherImg.naturalWidth || teacherImg.width
+  const sourceTeacherHeight = teacherImg.naturalHeight || teacherImg.height
+  const sourceStudentWidth = studentImg.naturalWidth || studentImg.width
+  const sourceStudentHeight = studentImg.naturalHeight || studentImg.height
+  const width = Math.max(sourceTeacherWidth, sourceStudentWidth, 1100)
   const labelHeight = 42
   const gap = 18
   const padding = 20
+  const contentWidth = width - padding * 2
+  const teacherScale = contentWidth / sourceTeacherWidth
+  const studentScale = contentWidth / sourceStudentWidth
+  const teacherHeight = Math.round(sourceTeacherHeight * teacherScale)
+  const studentHeight = Math.round(sourceStudentHeight * studentScale)
   const height =
     padding +
     labelHeight +
-    teacherImg.height +
+    teacherHeight +
     gap +
     labelHeight +
-    studentImg.height +
+    studentHeight +
     padding
 
   const canvas = document.createElement('canvas')
@@ -130,15 +139,15 @@ export async function composeTeacherAndStudentImage(params: {
   ctx.fillStyle = '#123c52'
   ctx.font = 'bold 24px sans-serif'
   ctx.fillText(params.teacherLabel || 'Consigna del docente', padding, padding + 26)
-  ctx.drawImage(teacherImg, 0, padding + labelHeight, teacherImg.width, teacherImg.height)
+  ctx.drawImage(teacherImg, padding, padding + labelHeight, contentWidth, teacherHeight)
 
-  const studentTop = padding + labelHeight + teacherImg.height + gap
+  const studentTop = padding + labelHeight + teacherHeight + gap
   ctx.fillStyle = '#123c52'
   ctx.font = 'bold 24px sans-serif'
   ctx.fillText(params.studentLabel || 'Respuesta del alumno', padding, studentTop + 26)
-  ctx.drawImage(studentImg, 0, studentTop + labelHeight, studentImg.width, studentImg.height)
+  ctx.drawImage(studentImg, padding, studentTop + labelHeight, contentWidth, studentHeight)
 
-  return canvas.toDataURL('image/jpeg', 0.92)
+  return canvas.toDataURL('image/png')
 }
 
 export async function dataUrlHasUserInk(dataUrl: string): Promise<boolean> {
