@@ -480,6 +480,63 @@
     return getComputedStyle(target).getPropertyValue(name).trim() || fallback;
   }
 
+  function getCanvasDebugStats(canvas: HTMLCanvasElement) {
+    const ctx = canvas.getContext("2d");
+    if (!ctx || canvas.width <= 0 || canvas.height <= 0) {
+      return {
+        width: canvas.width,
+        height: canvas.height,
+        inkPixels: 0,
+        sampledPixels: 0,
+        inkRatio: 0,
+      };
+    }
+
+    const maxSide = 320;
+    const scale = Math.min(1, maxSide / Math.max(canvas.width, canvas.height));
+    const sampleW = Math.max(1, Math.floor(canvas.width * scale));
+    const sampleH = Math.max(1, Math.floor(canvas.height * scale));
+    const sample = document.createElement("canvas");
+    sample.width = sampleW;
+    sample.height = sampleH;
+    const sampleCtx = sample.getContext("2d");
+    if (!sampleCtx) {
+      return {
+        width: canvas.width,
+        height: canvas.height,
+        inkPixels: 0,
+        sampledPixels: 0,
+        inkRatio: 0,
+      };
+    }
+
+    sampleCtx.drawImage(canvas, 0, 0, sampleW, sampleH);
+    const pixels = sampleCtx.getImageData(0, 0, sampleW, sampleH).data;
+    let inkPixels = 0;
+    for (let i = 0; i < pixels.length; i += 4) {
+      const alpha = pixels[i + 3];
+      if (alpha < 20) continue;
+      const r = pixels[i];
+      const g = pixels[i + 1];
+      const b = pixels[i + 2];
+      const max = Math.max(r, g, b);
+      const min = Math.min(r, g, b);
+      const gray = 0.299 * r + 0.587 * g + 0.114 * b;
+      if (gray < 210 || max - min > 25) inkPixels++;
+    }
+
+    const sampledPixels = sampleW * sampleH;
+    return {
+      width: canvas.width,
+      height: canvas.height,
+      cssWidth: Math.round(canvas.getBoundingClientRect().width),
+      cssHeight: Math.round(canvas.getBoundingClientRect().height),
+      inkPixels,
+      sampledPixels,
+      inkRatio: sampledPixels ? Number((inkPixels / sampledPixels).toFixed(4)) : 0,
+    };
+  }
+
   function buildContext(): string {
     const ctx = props.studentContext;
     if (!ctx) return "";
@@ -694,6 +751,12 @@
       await ensureCanvasReady();
       const dataUrl = canvasEl.value.toDataURL("image/png");
       const blob = dataUrlToBlob(dataUrl);
+      console.info("[assistant-modal] canvas capture", {
+        ...getCanvasDebugStats(canvasEl.value),
+        dataUrlLength: dataUrl.length,
+        blobSize: blob.size,
+        blobType: blob.type,
+      });
       const prompt = [
         "MODO PIZARRÓN - EVALUACIÓN DE RESPUESTA:",
         "El alumno ha resuelto el ejercicio anterior en su lienzo. Analiza la imagen adjunta y:",
