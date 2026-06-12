@@ -377,6 +377,7 @@
   let lastX = 0;
   let lastY = 0;
   let canvasResizeObserver: ResizeObserver | null = null;
+  let canvasInitialized = false;
 
   // Audio recording
   let mediaRecorder: MediaRecorder | null = null;
@@ -471,6 +472,12 @@
     inputEl.value.style.height = "auto";
     inputEl.value.style.height =
       Math.min(inputEl.value.scrollHeight, 140) + "px";
+  }
+
+  function cssVar(name: string, fallback: string, el?: Element | null) {
+    if (typeof window === "undefined") return fallback;
+    const target = el ?? canvasEl.value ?? document.documentElement;
+    return getComputedStyle(target).getPropertyValue(name).trim() || fallback;
   }
 
   function buildContext(): string {
@@ -671,7 +678,7 @@
       if (reply) {
         exerciseHtml.value = reply;
         pizState.value = "drawing";
-        nextTick(initCanvas);
+        nextTick(scheduleCanvasInit);
       } else {
         pizState.value = "idle";
       }
@@ -684,6 +691,7 @@
     if (!canvasEl.value || pizState.value === "evaluating") return;
     pizState.value = "evaluating";
     try {
+      await ensureCanvasReady();
       const dataUrl = canvasEl.value.toDataURL("image/png");
       const blob = dataUrlToBlob(dataUrl);
       const prompt = [
@@ -721,6 +729,7 @@
       const ctx = canvasEl.value.getContext("2d");
       if (ctx) ctx.clearRect(0, 0, canvasEl.value.width, canvasEl.value.height);
     }
+    canvasInitialized = false;
   }
 
   function setMode(m: Mode) {
@@ -735,41 +744,57 @@
     const canvas = canvasEl.value;
     if (!canvas) return;
 
-    const ctx = canvas.getContext("2d")!;
     const dpr = window.devicePixelRatio || 1;
     const { width, height } = canvas.getBoundingClientRect();
+    if (width <= 0 || height <= 0) return;
 
-    // Save existing canvas content if resizing
-    const imageData = (canvas.width > 0 && canvas.height > 0) ? ctx.getImageData(0, 0, canvas.width, canvas.height) : null;
+    const previous =
+      canvasInitialized && canvas.width > 0 && canvas.height > 0
+        ? canvas.toDataURL("image/png")
+        : "";
 
     canvas.width = width * dpr;
     canvas.height = height * dpr;
+    const ctx = canvas.getContext("2d")!;
     ctx.scale(dpr, dpr);
 
-    // Only fill with white if no content to restore
-    if (!imageData) {
-      ctx.fillStyle = "#ffffff";
-      ctx.fillRect(0, 0, width, height);
-    }
+    ctx.globalCompositeOperation = "source-over";
+    ctx.fillStyle = cssVar("--acm-canvas-bg", "Canvas", canvas);
+    ctx.fillRect(0, 0, width, height);
 
     ctx.lineCap = "round";
     ctx.lineJoin = "round";
+    canvasInitialized = true;
 
-    // Restore canvas content if it existed
-    if (imageData) {
-      // Fill with white first to clear any new space from resize
-      ctx.fillStyle = "#ffffff";
-      ctx.fillRect(0, 0, width, height);
-      // Then restore old content
-      ctx.putImageData(imageData, 0, 0);
+    if (previous) {
+      const img = new Image();
+      img.onload = () => {
+        ctx.drawImage(img, 0, 0, width, height);
+      };
+      img.src = previous;
     }
 
     if (!canvasResizeObserver) {
       canvasResizeObserver = new ResizeObserver(() => {
-        initCanvas();
+        scheduleCanvasInit();
       });
       canvasResizeObserver.observe(canvas);
     }
+  }
+
+  function scheduleCanvasInit() {
+    requestAnimationFrame(() => {
+      requestAnimationFrame(initCanvas);
+    });
+  }
+
+  async function ensureCanvasReady() {
+    if (!canvasEl.value) return;
+    const rect = canvasEl.value.getBoundingClientRect();
+    if (canvasInitialized && rect.width > 0 && rect.height > 0) return;
+    await nextTick();
+    await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
+    initCanvas();
   }
 
   function getPos(
@@ -790,7 +815,7 @@
       ctx.lineWidth = 24;
     } else {
       ctx.globalCompositeOperation = "source-over";
-      ctx.strokeStyle = "#1e293b";
+      ctx.strokeStyle = cssVar("--acm-canvas-ink", "CanvasText");
       ctx.lineWidth = 2.5;
     }
   }
@@ -849,7 +874,7 @@
     const ctx = getCtx();
     if (!ctx) return;
     ctx.globalCompositeOperation = "source-over";
-    ctx.fillStyle = "#ffffff";
+    ctx.fillStyle = cssVar("--acm-canvas-bg", "Canvas", canvas);
     ctx.fillRect(
       0,
       0,
@@ -911,6 +936,8 @@
   }
 
   .acm-modal {
+    --acm-canvas-bg: var(--surface-card);
+    --acm-canvas-ink: var(--text-primary);
     background: var(--surface-card);
     border-radius: var(--radius-xl);
     box-shadow: var(--shadow-lg);
