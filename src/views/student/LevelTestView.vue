@@ -17,9 +17,21 @@
         </div>
       </header>
 
-      <div v-if="loading" class="test-loading">
-        <i class="pi pi-spin pi-spinner"></i> Cargando prueba...
-      </div>
+      <!-- Loading Skeleton -->
+      <template v-if="loading">
+        <div class="test-progress-bar"><div class="test-progress-fill" style="width: 0%"></div></div>
+        <Skeleton width="120px" height="14px" class="progress-skel" />
+        <div class="exercises-list">
+          <div v-for="n in 3" :key="n" class="ex-card ex-card--skeleton">
+            <Skeleton variant="avatar" size="32px" :rounded="false" class="ex-num-skel" />
+            <div class="ex-body">
+              <Skeleton width="100%" height="18px" />
+              <Skeleton width="80%" height="16px" />
+              <Skeleton width="100%" height="180px" class="canvas-skel" />
+            </div>
+          </div>
+        </div>
+      </template>
 
       <template v-else-if="sheet && !submitted">
         <!-- Progress bar -->
@@ -331,6 +343,7 @@
 import { ref, computed, onMounted, onUnmounted, nextTick } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import StudentLayout from '@/layouts/StudentLayout.vue'
+import Skeleton from '@/components/ui/Skeleton.vue'
 import ConfirmModal from '@/components/ConfirmModal.vue'
 import { useConfirm } from '@/composables/useConfirm'
 import { practiceSheetService } from '@/services/practiceSheets/practiceSheetService'
@@ -1205,12 +1218,11 @@ function closeSuccessAndGoHome() {
 .btn-submit:hover:not(:disabled) { opacity: 0.9; }
 .btn-submit:disabled { opacity: 0.6; cursor: not-allowed; }
 
-/* Loading */
-.test-loading {
-  text-align: center;
-  padding: 80px;
-  color: var(--text-secondary);
-}
+/* Skeleton styles */
+.progress-skel { margin-left: auto; }
+.ex-card--skeleton { pointer-events: none; }
+.ex-num-skel { border-radius: var(--radius-sm); }
+.canvas-skel { border-radius: var(--radius-md); margin-top: 8px; }
 
 /* Results */
 .results-panel {

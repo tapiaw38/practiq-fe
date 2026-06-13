@@ -15,10 +15,34 @@
         </div>
       </div>
 
-      <!-- Loading -->
-      <div v-if="loading" class="loading-state">
-        <div class="spinner spinner-violet"></div>
-      </div>
+      <!-- Loading skeleton -->
+      <template v-if="loading">
+        <section class="content-section">
+          <div class="section-header">
+            <div>
+              <Skeleton width="180px" height="24px" style="margin-bottom: 8px" />
+              <Skeleton width="320px" height="14px" />
+            </div>
+          </div>
+          <div class="strategies-grid">
+            <div v-for="i in 3" :key="i" class="strategy-card strategy-card--skeleton">
+              <div class="strategy-header">
+                <Skeleton width="140px" height="20px" />
+                <div style="display: flex; gap: 6px">
+                  <Skeleton variant="circle" size="28px" />
+                  <Skeleton variant="circle" size="28px" />
+                </div>
+              </div>
+              <Skeleton width="100%" height="14px" style="margin: 12px 0" />
+              <Skeleton width="80%" height="14px" />
+              <div style="display: flex; gap: 8px; margin-top: 16px">
+                <Skeleton width="80px" height="24px" rounded />
+                <Skeleton width="100px" height="24px" rounded />
+              </div>
+            </div>
+          </div>
+        </section>
+      </template>
 
       <template v-else>
         <!-- Strategies Section -->
@@ -226,6 +250,7 @@
 <script setup lang="ts">
 import { ref, reactive, computed, onMounted } from 'vue'
 import TeacherLayout from '@/layouts/TeacherLayout.vue'
+import Skeleton from '@/components/ui/Skeleton.vue'
 import { strategyService } from '@/services/strategy/strategyService'
 import { courseService } from '@/services/courses/courseService'
 import { useAuthStore } from '@/stores/authStore'

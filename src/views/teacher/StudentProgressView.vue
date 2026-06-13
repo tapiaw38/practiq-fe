@@ -17,10 +17,53 @@
         </button>
       </div>
 
-      <!-- Loading global -->
-      <div v-if="loadingAll" class="loading-center">
-        <div class="spinner spinner-violet"></div>
-      </div>
+      <!-- Loading skeletons -->
+      <template v-if="loadingAll">
+        <!-- Summary skeleton -->
+        <div class="summary-row">
+          <div v-for="i in 4" :key="i" class="summary-card summary-card--skeleton">
+            <Skeleton variant="circle" size="34px" />
+            <div>
+              <Skeleton width="50px" height="22px" style="margin-bottom: 4px" />
+              <Skeleton width="100px" height="14px" />
+            </div>
+          </div>
+        </div>
+
+        <!-- Tabs skeleton -->
+        <div class="tab-bar">
+          <div v-for="i in 4" :key="i" class="tab-btn tab-btn--skeleton">
+            <Skeleton variant="circle" size="28px" />
+            <Skeleton width="80px" height="14px" />
+            <Skeleton width="24px" height="24px" rounded />
+          </div>
+        </div>
+
+        <!-- Progress grid skeleton -->
+        <div class="tab-content">
+          <div class="tab-section-head">
+            <div>
+              <Skeleton width="80px" height="12px" style="margin-bottom: 6px" />
+              <Skeleton width="160px" height="24px" />
+            </div>
+            <Skeleton width="100px" height="30px" rounded />
+          </div>
+          <div class="progress-grid">
+            <div v-for="i in 6" :key="i" class="progress-card progress-card--skeleton">
+              <div class="progress-card__top">
+                <Skeleton width="65%" height="16px" />
+                <Skeleton width="45px" height="24px" rounded />
+              </div>
+              <Skeleton width="100%" height="6px" rounded style="margin: 8px 0" />
+              <div class="progress-meta">
+                <Skeleton width="80px" height="12px" />
+                <Skeleton width="60px" height="12px" />
+                <Skeleton width="70px" height="12px" />
+              </div>
+            </div>
+          </div>
+        </div>
+      </template>
 
       <template v-else>
         <!-- Summary cards -->
@@ -524,6 +567,7 @@
 import { ref, computed, onMounted, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import TeacherLayout from '@/layouts/TeacherLayout.vue'
+import Skeleton from '@/components/ui/Skeleton.vue'
 import { progressService } from '@/services/progress/progressService'
 import { practiceSheetService } from '@/services/practiceSheets/practiceSheetService'
 import { notebookService } from '@/services/notebooks/notebookService'
@@ -1821,6 +1865,22 @@ function formatAIFeedback(value?: string) {
 .spinner-white {
   border-color: rgba(255,255,255,0.3);
   border-top-color: white;
+}
+
+/* Skeleton states */
+.summary-card--skeleton {
+  pointer-events: none;
+}
+
+.tab-btn--skeleton {
+  pointer-events: none;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+}
+
+.progress-card--skeleton {
+  pointer-events: none;
 }
 
 /* Responsive */

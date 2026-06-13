@@ -1,9 +1,89 @@
 <template>
   <StudentLayout>
     <div class="student-home">
-      <div v-if="loading" class="loading-state">
-        <div class="spinner spinner-violet"></div>
-      </div>
+      <!-- Loading skeletons -->
+      <template v-if="loading">
+        <!-- Welcome skeleton -->
+        <section class="welcome-banner welcome-banner--skeleton">
+          <div class="welcome-copy">
+            <Skeleton width="120px" height="14px" style="margin-bottom: 8px" />
+            <Skeleton width="200px" height="32px" style="margin-bottom: 12px" />
+            <Skeleton width="90%" height="16px" />
+          </div>
+          <div class="welcome-topic-card">
+            <div class="topic-card__top">
+              <div>
+                <Skeleton width="80px" height="12px" style="margin-bottom: 6px" />
+                <Skeleton width="140px" height="20px" />
+              </div>
+              <Skeleton width="60px" height="24px" rounded />
+            </div>
+            <Skeleton width="100%" height="8px" rounded style="margin: 12px 0" />
+            <div style="display: flex; justify-content: space-between">
+              <Skeleton width="100px" height="12px" />
+              <Skeleton width="120px" height="12px" />
+            </div>
+          </div>
+          <div class="welcome-actions">
+            <Skeleton variant="button" width="160px" height="44px" />
+            <Skeleton variant="button" width="180px" height="44px" />
+          </div>
+        </section>
+
+        <!-- Metrics skeleton -->
+        <section class="metrics-row">
+          <div v-for="i in 3" :key="i" class="metric-card metric-card--skeleton">
+            <Skeleton variant="circle" size="40px" />
+            <div>
+              <Skeleton width="50px" height="24px" style="margin-bottom: 4px" />
+              <Skeleton width="60px" height="14px" />
+            </div>
+          </div>
+        </section>
+
+        <!-- Progress skeleton -->
+        <section class="mastery-section">
+          <div class="section-head">
+            <div>
+              <Skeleton width="100px" height="12px" style="margin-bottom: 6px" />
+              <Skeleton width="180px" height="24px" />
+            </div>
+          </div>
+          <div class="mastery-grid">
+            <div v-for="i in 3" :key="i" class="mastery-card mastery-card--skeleton">
+              <div class="mastery-card__top">
+                <Skeleton width="70%" height="16px" />
+                <Skeleton width="60px" height="20px" rounded />
+              </div>
+              <Skeleton width="100%" height="8px" rounded style="margin: 10px 0" />
+              <div style="display: flex; justify-content: space-between">
+                <Skeleton width="80px" height="12px" />
+                <Skeleton width="90px" height="12px" />
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- Courses skeleton -->
+        <section class="courses-section">
+          <div class="section-head">
+            <div>
+              <Skeleton width="80px" height="12px" style="margin-bottom: 6px" />
+              <Skeleton width="140px" height="24px" />
+            </div>
+          </div>
+          <div class="courses-list">
+            <div v-for="i in 2" :key="i" class="course-row course-row--skeleton">
+              <Skeleton variant="circle" size="48px" />
+              <div style="flex: 1">
+                <Skeleton width="60%" height="18px" style="margin-bottom: 6px" />
+                <Skeleton width="40%" height="14px" />
+              </div>
+              <Skeleton width="80px" height="32px" rounded />
+            </div>
+          </div>
+        </section>
+      </template>
 
       <template v-else>
         <!-- Welcome banner -->
@@ -204,6 +284,7 @@ import { useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/authStore'
 import StudentLayout from '@/layouts/StudentLayout.vue'
 import AssistantChatModal from '@/components/AssistantChatModal.vue'
+import Skeleton from '@/components/ui/Skeleton.vue'
 import { courseService } from '@/services/courses/courseService'
 import { practiceSheetService } from '@/services/practiceSheets/practiceSheetService'
 import { notebookService } from '@/services/notebooks/notebookService'
@@ -937,5 +1018,29 @@ function topicsNeedingReview(courseId: string): typeof progress.value {
   .metric-card--goal { grid-column: auto; }
   .mastery-grid, .courses-grid { grid-template-columns: 1fr; }
   .section-title { font-size: 18px; }
+}
+
+/* Skeleton states */
+.welcome-banner--skeleton {
+  pointer-events: none;
+}
+
+.metric-card--skeleton {
+  pointer-events: none;
+}
+
+.mastery-card--skeleton {
+  pointer-events: none;
+}
+
+.course-row--skeleton {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 14px 16px;
+  background: var(--surface-elevated);
+  border: 1px solid var(--surface-elevated-strong);
+  border-radius: var(--radius-xl);
+  pointer-events: none;
 }
 </style>

@@ -15,9 +15,32 @@
         </button>
       </header>
 
-      <div v-if="loading" class="editor-loading">
-        <i class="pi pi-spin pi-spinner"></i> Cargando...
-      </div>
+      <!-- Loading Skeleton -->
+      <template v-if="loading">
+        <div class="editor-body">
+          <aside class="pages-sidebar pages-sidebar--skeleton">
+            <div class="sidebar-title">Páginas</div>
+            <div v-for="n in 3" :key="n" class="sidebar-item">
+              <Skeleton variant="avatar" size="28px" :rounded="false" class="sidebar-num-skel" />
+              <div class="sidebar-info">
+                <Skeleton width="100px" height="14px" />
+                <Skeleton width="60px" height="12px" class="mt-4" />
+              </div>
+            </div>
+          </aside>
+          <div class="editor-main">
+            <div class="page-meta-bar">
+              <Skeleton width="200px" height="40px" />
+              <Skeleton width="140px" height="40px" />
+            </div>
+            <Skeleton width="100%" height="400px" class="canvas-skel" />
+            <div class="instructions-row">
+              <Skeleton width="180px" height="14px" />
+              <Skeleton width="100%" height="40px" />
+            </div>
+          </div>
+        </div>
+      </template>
 
       <div v-else class="editor-body">
         <!-- Page list sidebar -->
@@ -175,6 +198,7 @@
 import { ref, computed, watch, nextTick, onMounted, reactive } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import TeacherLayout from '@/layouts/TeacherLayout.vue'
+import Skeleton from '@/components/ui/Skeleton.vue'
 import { notebookService } from '@/services/notebooks/notebookService'
 import type { Notebook, NotebookPage } from '@/types'
 
@@ -425,11 +449,11 @@ function clearCanvas() {
 .editor-title { font-size: 1.35rem; font-weight: 700; color: var(--text-primary); margin: 0; }
 .editor-desc { font-size: 0.85rem; color: var(--text-secondary); }
 
-.editor-loading {
-  text-align: center;
-  padding: 60px;
-  color: var(--text-secondary);
-}
+/* Skeleton styles */
+.pages-sidebar--skeleton { pointer-events: none; }
+.sidebar-num-skel { border-radius: var(--radius-sm); }
+.canvas-skel { border-radius: var(--radius-md); }
+.mt-4 { margin-top: 4px; }
 
 .editor-body {
   display: grid;

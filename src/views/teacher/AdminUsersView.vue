@@ -57,8 +57,40 @@
           </div>
         </section>
 
-        <div v-if="loading" class="loading-card">
-          <div class="spinner spinner-violet"></div>
+        <div v-if="loading" class="skeleton-tables">
+          <div class="panel-card">
+            <div class="panel-head">
+              <div>
+                <Skeleton width="80px" height="12px" style="margin-bottom: 6px" />
+                <Skeleton width="140px" height="24px" />
+              </div>
+            </div>
+            <div class="skeleton-table">
+              <div v-for="i in 4" :key="i" class="skeleton-row">
+                <Skeleton width="120px" height="16px" />
+                <Skeleton width="180px" height="14px" />
+                <Skeleton width="80px" height="22px" rounded />
+                <Skeleton width="30px" height="16px" />
+                <Skeleton width="60px" height="22px" rounded />
+              </div>
+            </div>
+          </div>
+          <div class="panel-card">
+            <div class="panel-head">
+              <div>
+                <Skeleton width="70px" height="12px" style="margin-bottom: 6px" />
+                <Skeleton width="160px" height="24px" />
+              </div>
+            </div>
+            <div class="skeleton-table">
+              <div v-for="i in 5" :key="i" class="skeleton-row">
+                <Skeleton width="140px" height="16px" />
+                <Skeleton width="200px" height="14px" />
+                <Skeleton width="100px" height="22px" rounded />
+                <Skeleton width="60px" height="22px" rounded />
+              </div>
+            </div>
+          </div>
         </div>
 
         <div v-else-if="errorMessage" class="error-card">
@@ -290,6 +322,7 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
 import TeacherLayout from '@/layouts/TeacherLayout.vue'
+import Skeleton from '@/components/ui/Skeleton.vue'
 import { authAdminService } from '@/services/auth/authAdminService'
 import { assignmentService } from '@/services/assignments/assignmentService'
 import { gradeService } from '@/services/grades/gradeService'
@@ -905,5 +938,28 @@ async function toggleBlocked(item: UserRow) {
     flex-direction: column;
     align-items: stretch;
   }
+}
+
+/* Skeleton styles */
+.skeleton-tables {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.skeleton-table {
+  padding: 0 16px 16px;
+}
+
+.skeleton-row {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 12px 0;
+  border-bottom: 1px solid rgba(var(--surface-border-rgb), 0.1);
+}
+
+.skeleton-row:last-child {
+  border-bottom: none;
 }
 </style>

@@ -15,10 +15,38 @@
         </button>
       </header>
 
-      <!-- Loading -->
-      <div v-if="loading" class="ac-loading">
-        <div class="spinner"></div>
-        <span>Cargando...</span>
+      <!-- Loading skeleton -->
+      <div v-if="loading" class="ac-layout ac-layout--skeleton">
+        <aside class="grade-sidebar">
+          <div class="sidebar-header">
+            <Skeleton width="60px" height="14px" />
+            <Skeleton width="70px" height="32px" rounded />
+          </div>
+          <div class="grade-nav">
+            <div v-for="i in 4" :key="i" class="grade-nav-item grade-nav-item--skeleton">
+              <Skeleton width="75%" height="16px" />
+            </div>
+          </div>
+        </aside>
+        <main class="ac-main">
+          <div class="main-header">
+            <div>
+              <Skeleton width="100px" height="14px" style="margin-bottom: 6px" />
+              <Skeleton width="180px" height="28px" />
+            </div>
+          </div>
+          <div class="courses-grid">
+            <div v-for="i in 3" :key="i" class="course-tile course-tile--skeleton">
+              <div class="course-tile__top">
+                <Skeleton width="70px" height="20px" rounded />
+                <Skeleton width="24px" height="24px" variant="circle" />
+              </div>
+              <Skeleton width="85%" height="18px" style="margin: 12px 0 8px" />
+              <Skeleton width="100%" height="14px" />
+              <Skeleton width="65%" height="14px" style="margin-top: 4px" />
+            </div>
+          </div>
+        </main>
       </div>
 
       <!-- Onboarding — sin grados -->
@@ -323,6 +351,7 @@
 import { computed, onMounted, reactive, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import TeacherLayout from '@/layouts/TeacherLayout.vue'
+import Skeleton from '@/components/ui/Skeleton.vue'
 import ConfirmModal from '@/components/ConfirmModal.vue'
 import { useConfirm } from '@/composables/useConfirm'
 import { courseService } from '@/services/courses/courseService'

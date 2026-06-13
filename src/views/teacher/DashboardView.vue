@@ -28,8 +28,19 @@
         </div>
       </div>
 
+      <!-- Stats strip skeleton -->
+      <div v-if="loading" class="stats-strip stats-strip--skeleton">
+        <div class="stat-item" v-for="i in 4" :key="i">
+          <Skeleton variant="circle" size="34px" />
+          <div>
+            <Skeleton width="40px" height="20px" style="margin-bottom: 4px" />
+            <Skeleton width="60px" height="12px" />
+          </div>
+        </div>
+      </div>
+
       <!-- Stats strip -->
-      <div class="stats-strip" v-if="!loading">
+      <div class="stats-strip" v-else>
         <div class="stat-item">
           <i class="pi pi-book stat-item__icon stat-item__icon--violet"></i>
           <span class="stat-item__val">{{ courses.length }}</span>
@@ -55,10 +66,49 @@
         </div>
       </div>
 
-      <!-- Loading -->
-      <div v-if="loading" class="loading-state">
-        <div class="spinner spinner-violet"></div>
-      </div>
+      <!-- Loading skeletons -->
+      <template v-if="loading">
+        <section class="content-section">
+          <div class="section-header">
+            <div>
+              <Skeleton width="120px" height="24px" style="margin-bottom: 8px" />
+              <Skeleton width="280px" height="14px" />
+            </div>
+          </div>
+          <div class="courses-grid">
+            <div v-for="i in 3" :key="i" class="course-card course-card--skeleton">
+              <div class="course-card__stripe course-card__stripe--skeleton"></div>
+              <div class="course-card__body">
+                <Skeleton variant="badge" width="70px" />
+                <Skeleton width="85%" height="18px" style="margin-top: 14px" />
+                <Skeleton width="65%" height="14px" style="margin-top: 8px" />
+                <div class="course-card__footer">
+                  <Skeleton width="100px" height="12px" />
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section class="content-section">
+          <div class="section-header">
+            <div>
+              <Skeleton width="180px" height="24px" style="margin-bottom: 8px" />
+              <Skeleton width="260px" height="14px" />
+            </div>
+          </div>
+          <div class="student-grid">
+            <div v-for="i in 4" :key="i" class="student-card student-card--skeleton">
+              <Skeleton variant="avatar" size="48px" />
+              <div class="student-card__info">
+                <Skeleton width="75%" height="16px" />
+                <Skeleton width="90%" height="12px" style="margin-top: 6px" />
+                <Skeleton variant="badge" width="55px" style="margin-top: 8px" />
+              </div>
+            </div>
+          </div>
+        </section>
+      </template>
 
       <template v-else>
         <!-- Courses section -->
@@ -234,6 +284,7 @@ import { ref, reactive, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/authStore'
 import TeacherLayout from '@/layouts/TeacherLayout.vue'
+import Skeleton from '@/components/ui/Skeleton.vue'
 import { assignmentService } from '@/services/assignments/assignmentService'
 import { courseService } from '@/services/courses/courseService'
 import { gradeService } from '@/services/grades/gradeService'
@@ -924,5 +975,36 @@ function stripeClass(subject?: string) {
 @media (max-width: 600px) {
   .courses-grid { grid-template-columns: 1fr; }
   .student-grid { grid-template-columns: 1fr; }
+}
+
+/* Skeleton states */
+.stats-strip--skeleton .stat-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.course-card--skeleton {
+  pointer-events: none;
+}
+
+.course-card__stripe--skeleton {
+  background: linear-gradient(
+    90deg,
+    rgba(var(--surface-border-rgb), 0.15) 0%,
+    rgba(var(--surface-border-rgb), 0.25) 50%,
+    rgba(var(--surface-border-rgb), 0.15) 100%
+  );
+  background-size: 200% 100%;
+  animation: skeleton-shimmer 1.5s ease-in-out infinite;
+}
+
+.student-card--skeleton {
+  pointer-events: none;
+}
+
+@keyframes skeleton-shimmer {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
 }
 </style>

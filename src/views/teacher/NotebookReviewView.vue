@@ -54,10 +54,33 @@
         Selecciona un curso para ver entregas. Esto evita cargar entregas de todos los alumnos.
       </div>
 
-      <!-- Loading -->
-      <div v-if="loading" class="loading-state">
-        <div class="spinner spinner-violet"></div>
-      </div>
+      <!-- Loading Skeleton -->
+      <template v-if="loading">
+        <div class="submissions-grid">
+          <article v-for="n in 4" :key="n" class="submission-card submission-card--skeleton">
+            <div class="submission-header">
+              <div class="student-info">
+                <Skeleton variant="avatar" size="42px" />
+                <div class="student-details">
+                  <Skeleton width="120px" height="16px" />
+                  <Skeleton width="160px" height="14px" class="mt-4" />
+                </div>
+              </div>
+              <Skeleton variant="badge" width="80px" />
+            </div>
+            <div class="submission-meta">
+              <Skeleton width="100px" height="14px" />
+              <Skeleton width="80px" height="14px" />
+              <Skeleton width="120px" height="14px" />
+            </div>
+            <Skeleton width="100%" height="180px" class="preview-skel" />
+            <div class="submission-actions">
+              <Skeleton width="100px" height="36px" />
+              <Skeleton width="140px" height="36px" />
+            </div>
+          </article>
+        </div>
+      </template>
 
       <!-- Empty State -->
       <div v-else-if="filteredSubmissions.length === 0" class="empty-state">
@@ -275,6 +298,7 @@
 <script setup lang="ts">
 import { ref, reactive, computed, onMounted } from 'vue'
 import TeacherLayout from '@/layouts/TeacherLayout.vue'
+import Skeleton from '@/components/ui/Skeleton.vue'
 import { notebookService } from '@/services/notebooks/notebookService'
 import { courseService } from '@/services/courses/courseService'
 import type { NotebookSubmissionFull, Course, Student } from '@/types'
@@ -566,12 +590,10 @@ async function saveManualReview() {
   color: var(--practiq-violet);
 }
 
-/* Loading & Empty */
-.loading-state {
-  display: flex;
-  justify-content: center;
-  padding: 80px;
-}
+/* Skeleton styles */
+.submission-card--skeleton { pointer-events: none; }
+.preview-skel { border-radius: var(--radius-lg); }
+.mt-4 { margin-top: 4px; }
 
 .empty-state {
   text-align: center;

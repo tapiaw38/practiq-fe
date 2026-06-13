@@ -10,16 +10,44 @@
           <div class="header-kicker">Mis niveles</div>
           <h1 class="header-title">{{ courseTitle }}</h1>
         </div>
-        <div v-if="!loading" class="current-level-badge">
+        <div v-if="loading" class="current-level-badge-skeleton">
+          <Skeleton width="60px" height="10px" />
+          <Skeleton width="40px" height="32px" class="mt-4" />
+        </div>
+        <div v-else class="current-level-badge">
           <span class="cl-label">Nivel actual</span>
           <span class="cl-value">{{ data?.current_level }}</span>
         </div>
       </header>
 
-      <!-- Loading -->
-      <div v-if="loading" class="lv-loading">
-        <i class="pi pi-spin pi-spinner"></i> Cargando niveles...
-      </div>
+      <!-- Loading Skeleton -->
+      <template v-if="loading">
+        <div class="levels-list">
+          <div v-for="n in 3" :key="n" class="level-card level-card--skeleton">
+            <div class="lc-header">
+              <Skeleton variant="avatar" size="44px" :rounded="false" class="lc-num-skeleton" />
+              <div class="lc-meta">
+                <Skeleton width="80px" height="16px" />
+                <Skeleton width="70px" height="20px" class="mt-4" />
+              </div>
+            </div>
+            <div class="lc-body">
+              <div class="lc-section">
+                <Skeleton width="80px" height="12px" />
+                <div class="lc-items">
+                  <div v-for="i in 2" :key="i" class="lc-item-skeleton">
+                    <div class="lc-item-info">
+                      <Skeleton width="140px" height="14px" />
+                      <Skeleton width="80px" height="12px" class="mt-4" />
+                    </div>
+                    <Skeleton width="16px" height="16px" />
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </template>
 
       <!-- Levels list -->
       <div v-else-if="data" class="levels-list">
@@ -139,6 +167,7 @@
 import { ref, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import StudentLayout from '@/layouts/StudentLayout.vue'
+import Skeleton from '@/components/ui/Skeleton.vue'
 import { levelService } from '@/services/levels/levelService'
 import { courseService } from '@/services/courses/courseService'
 import type { CourseLevelsResponse, LevelSheetSummary } from '@/types'
@@ -235,11 +264,26 @@ function goLevelTest(sheet: LevelSheetSummary) {
 .cl-label { font-size: 10px; font-weight: 600; opacity: 0.85; text-transform: uppercase; letter-spacing: 0.06em; }
 .cl-value { font-size: 1.8rem; font-weight: 800; line-height: 1; }
 
-.lv-loading {
-  text-align: center;
-  padding: 60px;
-  color: var(--text-secondary);
+/* Skeleton styles */
+.current-level-badge-skeleton {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 10px 20px;
+  background: rgba(139, 92, 246, 0.1);
+  border-radius: var(--radius-xl);
+  flex-shrink: 0;
 }
+.level-card--skeleton .lc-num-skeleton { border-radius: var(--radius-lg); }
+.lc-item-skeleton {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 14px;
+  background: rgba(248,250,252,0.8);
+  border-radius: var(--radius-md);
+}
+.mt-4 { margin-top: 4px; }
 
 /* Levels list */
 .levels-list {

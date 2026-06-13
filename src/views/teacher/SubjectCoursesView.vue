@@ -38,8 +38,22 @@
         </div>
       </div>
 
-      <div v-if="loading" class="loading-state">
-        <div class="spinner spinner-violet"></div>
+      <div v-if="loading" class="courses-grid">
+        <div v-for="i in 4" :key="i" class="course-card course-card--skeleton">
+          <div class="course-card__accent course-card__accent--skeleton"></div>
+          <div class="course-card__body">
+            <div class="course-card__top">
+              <Skeleton width="80px" height="22px" rounded />
+              <Skeleton width="50px" height="20px" rounded />
+            </div>
+            <Skeleton width="85%" height="18px" style="margin: 14px 0 8px" />
+            <Skeleton width="100%" height="14px" />
+            <div class="course-card__footer" style="margin-top: 16px">
+              <Skeleton width="100px" height="12px" />
+              <Skeleton width="60px" height="32px" rounded />
+            </div>
+          </div>
+        </div>
       </div>
 
       <div v-else-if="filteredCourses.length === 0" class="empty-state">
@@ -137,6 +151,7 @@
 import { computed, onMounted, reactive, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import TeacherLayout from '@/layouts/TeacherLayout.vue'
+import Skeleton from '@/components/ui/Skeleton.vue'
 import { courseService } from '@/services/courses/courseService'
 import { gradeService } from '@/services/grades/gradeService'
 import { subjectService } from '@/services/subjects/subjectService'

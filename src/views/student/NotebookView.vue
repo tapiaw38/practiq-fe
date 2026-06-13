@@ -15,9 +15,33 @@
         </div>
       </header>
 
-      <div v-if="loading" class="nb-loading">
-        <i class="pi pi-spin pi-spinner"></i> Cargando cuaderno...
-      </div>
+      <!-- Loading Skeleton -->
+      <template v-if="loading">
+        <nav class="page-tabs">
+          <Skeleton v-for="n in 4" :key="n" width="40px" height="40px" />
+        </nav>
+        <div class="notebook-page notebook-page--skeleton">
+          <section class="page-content">
+            <div class="page-header-row">
+              <Skeleton width="200px" height="20px" />
+              <Skeleton variant="badge" width="80px" />
+            </div>
+            <Skeleton width="100%" height="180px" />
+            <div class="page-instructions-skel">
+              <Skeleton width="100%" height="40px" />
+            </div>
+          </section>
+          <section class="answer-section">
+            <div class="answer-header">
+              <Skeleton width="100px" height="14px" />
+              <div class="draw-tools">
+                <Skeleton v-for="n in 4" :key="n" width="34px" height="34px" />
+              </div>
+            </div>
+            <Skeleton width="100%" height="280px" class="canvas-skel" />
+          </section>
+        </div>
+      </template>
 
       <div v-else-if="pages.length === 0" class="nb-empty">
         <div class="empty-icon">📓</div>
@@ -169,6 +193,7 @@ import { ref, computed, watch, nextTick, onMounted, onUnmounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/authStore'
 import StudentLayout from '@/layouts/StudentLayout.vue'
+import Skeleton from '@/components/ui/Skeleton.vue'
 import { notebookService } from '@/services/notebooks/notebookService'
 import type { Notebook, NotebookPage } from '@/types'
 import { composeAssistantWorkImage, pickBestStudentImage } from '@/utils/assistantExerciseContext'
@@ -693,7 +718,12 @@ function goToPage(idx: number) {
 .nb-desc { font-size: 0.85rem; color: var(--text-secondary); }
 .nb-page-indicator { font-size: 0.82rem; color: var(--text-secondary); white-space: nowrap; }
 
-.nb-loading, .nb-empty {
+/* Skeleton styles */
+.notebook-page--skeleton { pointer-events: none; }
+.page-instructions-skel { margin-top: 14px; }
+.canvas-skel { border-radius: var(--radius-md); }
+
+.nb-empty {
   text-align: center;
   padding: 64px 24px;
   color: var(--text-secondary);
