@@ -301,6 +301,7 @@ const courseSheets = ref<Record<string, PracticeSheet[]>>({})
 const courseNotebooks = ref<Record<string, Notebook[]>>({})
 const courseCurrentLevel = ref<Record<string, number>>({})
 const dismissedReviewCards = ref<Record<string, boolean>>(loadDismissedReviewCards())
+const lastPracticedSheetId = ref<string>('')
 const loading = ref(true)
 const showAssistant = ref(false)
 
@@ -369,10 +370,21 @@ const assistantContext = computed(() => ({
   })),
 }))
 const featuredSheetId = computed(() => {
-  for (const course of courses.value) {
-    const firstSheet = courseSheets.value[course.id]?.[0]
-    if (firstSheet) return firstSheet.id
+  // 1. If we have a last practiced sheet ID from backend, verify it exists and use it
+  if (lastPracticedSheetId.value) {
+    for (const course of courses.value) {
+      const sheets = courseSheets.value[course.id] || []
+      const found = sheets.find(s => s.id === lastPracticedSheetId.value)
+      if (found) return found.id
+    }
   }
+
+  // 2. Fallback: find first practice sheet (not level test) in first course
+  for (const course of courses.value) {
+    const sheets = (courseSheets.value[course.id] || []).filter(s => s.sheet_type !== 'level_test')
+    if (sheets.length > 0) return sheets[0].id
+  }
+
   return ''
 })
 
@@ -415,6 +427,7 @@ onMounted(async () => {
 
     if (progressRes.status === 'fulfilled') {
       progress.value = progressRes.value.data || []
+      lastPracticedSheetId.value = progressRes.value.last_practiced_sheet_id || ''
     }
   } finally {
     loading.value = false

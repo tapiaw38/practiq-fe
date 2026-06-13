@@ -178,6 +178,11 @@ export interface TopicProgress {
   last_practiced_at: string
 }
 
+export interface ProgressResponse {
+  data: TopicProgress[]
+  last_practiced_sheet_id?: string
+}
+
 export interface AIConversation {
   id: string
   student_id: string
