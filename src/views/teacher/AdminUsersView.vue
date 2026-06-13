@@ -307,8 +307,16 @@
                   class="form-input"
                   placeholder="Assistant API Key"
                 />
-                <button class="btn btn-primary btn-sm modal-save" type="button" @click="saveAssistantConfig(currentEditingStudentId)">
-                  Guardar asistente
+                <button
+                  class="btn btn-sm modal-save"
+                  :class="assistantSaveSuccess ? 'btn-success' : 'btn-primary'"
+                  type="button"
+                  :disabled="savingAssistant"
+                  @click="saveAssistantConfig(currentEditingStudentId)"
+                >
+                  <i v-if="savingAssistant" class="pi pi-spin pi-spinner"></i>
+                  <i v-else-if="assistantSaveSuccess" class="pi pi-check"></i>
+                  {{ savingAssistant ? 'Guardando...' : assistantSaveSuccess ? 'Guardado' : 'Guardar asistente' }}
                 </button>
               </div>
             </div>
@@ -346,6 +354,8 @@ const userGrades = ref<Record<string, Grade[]>>({})
 const teacherSelection = ref<Record<string, string>>({})
 const gradeSelection = ref<Record<string, string>>({})
 const assistantForms = ref<Record<string, { assistant_base_url: string; assistant_api_key: string }>>({})
+const savingAssistant = ref(false)
+const assistantSaveSuccess = ref(false)
 const searchTerm = ref('')
 const statusFilter = ref<'all' | 'active' | 'blocked' | 'pending'>('all')
 const editingStudent = ref<UserRow | null>(null)
@@ -495,6 +505,9 @@ function closeStudentEditor() {
 }
 
 async function saveAssistantConfig(userId: string) {
+  if (savingAssistant.value) return
+  savingAssistant.value = true
+  assistantSaveSuccess.value = false
   try {
     const form = assistantForms.value[userId]
     const res = await profileService.updateAssistantConfigById(userId, form)
@@ -502,9 +515,13 @@ async function saveAssistantConfig(userId: string) {
     if (editingStudent.value && practiqUserId(editingStudent.value.user) === userId) {
       editingStudent.value = { ...editingStudent.value, profile: res.data }
     }
+    assistantSaveSuccess.value = true
+    setTimeout(() => { assistantSaveSuccess.value = false }, 3000)
   } catch (error) {
     console.error(error)
     errorMessage.value = 'No se pudo guardar la configuración del asistente.'
+  } finally {
+    savingAssistant.value = false
   }
 }
 
@@ -784,6 +801,7 @@ async function toggleBlocked(item: UserRow) {
   padding: 8px 10px; font: inherit; font-size: var(--text-base); color: var(--text-heading);
 }
 .btn-danger { background: var(--color-error); color: var(--color-on-primary); border: none; }
+.btn-success { background: var(--color-success); color: var(--color-on-primary); border: none; }
 .status-pill {
   display: inline-flex; align-items: center; padding: 3px 10px; border-radius: var(--radius-pill); font-size: var(--text-xs); font-weight: 700;
 }
