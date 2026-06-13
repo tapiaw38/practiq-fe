@@ -39,6 +39,24 @@ export class ProgressService {
     const { data } = await practiqApi.get(`/students/${studentId}/progress`)
     return data
   }
+
+  async downloadStudentReportPDF(
+    studentId: string,
+    options?: { from?: string; to?: string; courseId?: string }
+  ): Promise<Blob> {
+    const params = new URLSearchParams()
+    if (options?.from) params.append('from', options.from)
+    if (options?.to) params.append('to', options.to)
+    if (options?.courseId) params.append('course_id', options.courseId)
+
+    const queryString = params.toString()
+    const url = `/teachers/me/students/${studentId}/report.pdf${queryString ? `?${queryString}` : ''}`
+
+    const response = await practiqApi.get(url, {
+      responseType: 'blob'
+    })
+    return response.data
+  }
 }
 
 export const progressService = new ProgressService()

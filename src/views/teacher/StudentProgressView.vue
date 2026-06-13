@@ -12,6 +12,9 @@
           <h1 class="sp-title">{{ studentName }}</h1>
           <p class="sp-subtitle">{{ studentEmail }}</p>
         </div>
+        <button class="btn btn-primary download-pdf-btn" @click="showPdfModal = true">
+          <i class="pi pi-file-pdf"></i> Descargar PDF
+        </button>
       </div>
 
       <!-- Loading global -->
@@ -425,6 +428,59 @@
           </Transition>
         </div>
       </template>
+      <!-- PDF Download Modal -->
+      <Transition name="fade">
+        <div v-if="showPdfModal" class="pdf-modal-overlay" @click.self="showPdfModal = false">
+          <div class="pdf-modal-card">
+            <div class="pdf-modal-head">
+              <h3>Descargar Reporte PDF</h3>
+              <button class="icon-btn" @click="showPdfModal = false">
+                <i class="pi pi-times"></i>
+              </button>
+            </div>
+            <div class="pdf-modal-body">
+              <div class="form-group">
+                <label class="form-label">Periodo</label>
+                <div class="date-range-row">
+                  <input
+                    type="date"
+                    v-model="pdfFrom"
+                    class="form-input"
+                    placeholder="Desde"
+                  />
+                  <span class="date-separator">-</span>
+                  <input
+                    type="date"
+                    v-model="pdfTo"
+                    class="form-input"
+                    placeholder="Hasta"
+                  />
+                </div>
+                <p class="form-hint">Dejar vacio para incluir todo el historial</p>
+              </div>
+              <div class="form-group">
+                <label class="form-label">Curso (opcional)</label>
+                <select v-model="pdfCourseId" class="form-select">
+                  <option value="">Todos los cursos</option>
+                  <option v-for="c in courses" :key="c.id" :value="c.id">{{ c.title }}</option>
+                </select>
+              </div>
+            </div>
+            <div class="pdf-modal-footer">
+              <button class="btn btn-secondary" @click="showPdfModal = false">Cancelar</button>
+              <button
+                class="btn btn-primary"
+                @click="downloadPdf"
+                :disabled="downloadingPdf"
+              >
+                <span v-if="downloadingPdf" class="spinner spinner-sm spinner-white"></span>
+                <template v-else><i class="pi pi-download"></i> Descargar</template>
+              </button>
+            </div>
+          </div>
+        </div>
+      </Transition>
+
       <div v-if="attemptImageModalSrc" class="image-modal-overlay" @click.self="closeAttemptImage">
         <div class="image-modal-card">
           <div class="image-modal-head">
@@ -514,6 +570,13 @@ const attemptImageOffsetY = ref(0)
 const attemptImageDragging = ref(false)
 const attemptImageDragStartX = ref(0)
 const attemptImageDragStartY = ref(0)
+
+// PDF download modal
+const showPdfModal = ref(false)
+const pdfFrom = ref('')
+const pdfTo = ref('')
+const pdfCourseId = ref('')
+const downloadingPdf = ref(false)
 
 // Notebooks tab
 const selectedCourseIdNB = ref('')
@@ -778,6 +841,34 @@ function onAttemptImagePointerUp(event: PointerEvent) {
   attemptImageDragging.value = false
 }
 
+async function downloadPdf() {
+  downloadingPdf.value = true
+  try {
+    const blob = await progressService.downloadStudentReportPDF(studentId, {
+      from: pdfFrom.value || undefined,
+      to: pdfTo.value || undefined,
+      courseId: pdfCourseId.value || undefined
+    })
+
+    // Create download link
+    const url = window.URL.createObjectURL(blob)
+    const link = document.createElement('a')
+    link.href = url
+    link.download = `reporte_progreso_${studentId.slice(0, 8)}_${new Date().toISOString().slice(0, 10)}.pdf`
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
+    window.URL.revokeObjectURL(url)
+
+    showPdfModal.value = false
+  } catch (e) {
+    console.error('Error downloading PDF:', e)
+    alert('Error al descargar el reporte. Por favor intente de nuevo.')
+  } finally {
+    downloadingPdf.value = false
+  }
+}
+
 // --- helpers ---
 function masteryClass(score: number) {
   if (score >= 80) return 'mastery--high'
@@ -837,6 +928,16 @@ function formatAIFeedback(value?: string) {
 .sp-header > * {
   position: relative;
   z-index: 1;
+}
+
+.download-pdf-btn {
+  margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 16px;
+  font-size: var(--text-sm);
+  white-space: nowrap;
 }
 
 .back-btn {
@@ -1608,6 +1709,119 @@ function formatAIFeedback(value?: string) {
 .slide-up-enter-active, .slide-up-leave-active { transition: all 0.25s ease; }
 .slide-up-enter-from { opacity: 0; transform: translateY(16px); }
 .slide-up-leave-to   { opacity: 0; transform: translateY(8px); }
+
+/* Fade transition */
+.fade-enter-active, .fade-leave-active { transition: opacity 0.2s ease; }
+.fade-enter-from, .fade-leave-to { opacity: 0; }
+
+/* PDF Modal */
+.pdf-modal-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1200;
+  background: var(--surface-scrim);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+}
+
+.pdf-modal-card {
+  width: min(440px, 100%);
+  background: var(--surface-card);
+  border-radius: var(--radius-xl);
+  border: 1px solid rgba(var(--surface-border-rgb), 0.3);
+  box-shadow: var(--shadow-card-lg);
+  overflow: hidden;
+}
+
+.pdf-modal-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 20px;
+  border-bottom: 1px solid rgba(var(--surface-border-rgb), 0.2);
+}
+
+.pdf-modal-head h3 {
+  margin: 0;
+  font-size: var(--text-lg);
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.pdf-modal-body {
+  padding: 20px;
+}
+
+.form-group {
+  margin-bottom: 16px;
+}
+
+.form-group:last-child {
+  margin-bottom: 0;
+}
+
+.form-label {
+  display: block;
+  font-size: var(--text-sm);
+  font-weight: 600;
+  color: var(--text-secondary);
+  margin-bottom: 6px;
+}
+
+.form-input {
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid rgba(var(--surface-border-rgb), 0.3);
+  border-radius: var(--radius-md);
+  background: var(--surface-bg);
+  font-size: var(--text-base);
+  color: var(--text-primary);
+  transition: var(--transition-fast);
+}
+
+.form-input:focus {
+  outline: none;
+  border-color: var(--practiq-violet);
+  box-shadow: 0 0 0 3px var(--fill-primary-faint);
+}
+
+.date-range-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.date-range-row .form-input {
+  flex: 1;
+}
+
+.date-separator {
+  color: var(--text-muted);
+  font-weight: 600;
+}
+
+.form-hint {
+  margin: 6px 0 0;
+  font-size: var(--text-xs);
+  color: var(--text-muted);
+}
+
+.pdf-modal-footer {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+  padding: 16px 20px;
+  border-top: 1px solid rgba(var(--surface-border-rgb), 0.15);
+  background: var(--surface-subtle);
+}
+
+.spinner-white {
+  border-color: rgba(255,255,255,0.3);
+  border-top-color: white;
+}
 
 /* Responsive */
 /* Tablet landscape */
