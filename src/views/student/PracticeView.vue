@@ -150,7 +150,16 @@
                     ></textarea>
                   </div>
 
-                  <!-- Keyboard mode input -->
+                  <!-- Equation answer mode -->
+                  <div v-else-if="pse.exercise.type === 'equation'" class="equation-answer-wrap">
+                    <MathFieldEditor
+                      v-model="keyboardAnswers[pse.exercise.id]"
+                      :show-latex-toggle="false"
+                      virtual-keyboard-mode="onfocus"
+                    />
+                  </div>
+
+                  <!-- Keyboard mode input (text/open_text) -->
                   <div v-else-if="!exerciseUsesCanvas(pse.exercise.type)" class="keyboard-input-wrap">
                     <textarea
                       v-model="keyboardAnswers[pse.exercise.id]"
@@ -314,6 +323,7 @@ import {
   summarizeExerciseMetadata
 } from '@/utils/assistantExerciseContext'
 import { renderContent, renderEquation } from '@/composables/useContentRenderer'
+import MathFieldEditor from '@/components/MathFieldEditor.vue'
 
 const route = useRoute()
 const router = useRouter()
@@ -1303,6 +1313,23 @@ function scoreColor(score: number) {
   box-shadow: var(--shadow-card);
 }
 .ex-input:focus { border-color: var(--practiq-violet); }
+
+/* Equation answer input */
+.equation-answer-wrap {
+  width: 100%;
+}
+.equation-answer-wrap :deep(.math-field-editor) {
+  min-height: 48px;
+  padding: 10px 14px;
+  font-size: 1.1rem;
+  border-radius: var(--radius-md);
+  border: 1.5px solid rgba(var(--practiq-violet-rgb), 0.15);
+  background: var(--surface-card);
+}
+.equation-answer-wrap :deep(.math-field-editor:focus-within) {
+  border-color: var(--practiq-violet);
+  box-shadow: 0 0 0 3px rgba(124, 58, 237, 0.12);
+}
 
 /* Keyboard input textarea */
 .keyboard-input-wrap {

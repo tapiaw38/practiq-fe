@@ -113,12 +113,21 @@
                 />
               </div>
 
-              <!-- Keyboard mode -->
+              <!-- Equation answer mode -->
+              <div v-else-if="ex.exercise.type === 'equation'" class="equation-answer-wrap">
+                <MathFieldEditor
+                  v-model="answers[ex.exercise.id]"
+                  :show-latex-toggle="false"
+                  virtual-keyboard-mode="onfocus"
+                />
+              </div>
+
+              <!-- Keyboard mode (text/open_text/multiple_choice) -->
               <input
                 v-else-if="!exerciseUsesCanvas(ex.exercise.type)"
                 v-model="answers[ex.exercise.id]"
                 class="ex-input"
-                :placeholder="ex.exercise.type === 'equation' ? 'Respuesta...' : 'Escribe tu respuesta...'"
+                placeholder="Escribe tu respuesta..."
                 @keydown.enter="focusNext(idx)"
               />
 
@@ -357,6 +366,7 @@ import {
   summarizeExerciseMetadata
 } from '@/utils/assistantExerciseContext'
 import { renderContent, renderEquation } from '@/composables/useContentRenderer'
+import MathFieldEditor from '@/components/MathFieldEditor.vue'
 
 const route = useRoute()
 const router = useRouter()
@@ -1104,6 +1114,22 @@ function closeSuccessAndGoHome() {
   transition: border-color 0.15s;
 }
 .ex-input:focus { border-color: var(--practiq-violet); }
+
+.equation-answer-wrap {
+  width: 100%;
+}
+.equation-answer-wrap :deep(.math-field-editor) {
+  min-height: 44px;
+  padding: 8px 12px;
+  font-size: 1.1rem;
+  border-radius: var(--radius-sm);
+  border: 1.5px solid rgba(var(--practiq-violet-rgb), 0.15);
+  background: var(--surface-elevated-strong);
+}
+.equation-answer-wrap :deep(.math-field-editor:focus-within) {
+  border-color: var(--practiq-violet);
+  box-shadow: 0 0 0 3px rgba(124, 58, 237, 0.12);
+}
 
 .choice-options {
   display: grid;
