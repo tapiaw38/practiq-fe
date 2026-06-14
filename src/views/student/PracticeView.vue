@@ -110,7 +110,7 @@
                   <div
                     v-if="pse.exercise.type === 'equation'"
                     class="ex-question ex-question--math"
-                    v-html="renderContent(pse.exercise.question)"
+                    v-html="renderEquation(pse.exercise.question)"
                   ></div>
                   <div
                     v-else-if="pse.exercise.type !== 'handwritten' || !extractTeacherImageDataUrl(pse.exercise)"
@@ -313,7 +313,7 @@ import {
   pickBestStudentImage,
   summarizeExerciseMetadata
 } from '@/utils/assistantExerciseContext'
-import { renderContent } from '@/composables/useContentRenderer'
+import { renderContent, renderEquation } from '@/composables/useContentRenderer'
 
 const route = useRoute()
 const router = useRouter()

@@ -49,3 +49,18 @@ export function renderContent(text: string): string {
   // 6. Markdown → HTML
   return marked.parse(s) as string
 }
+
+/**
+ * Renders pure LaTeX for equation exercises.
+ * Wraps in $$ delimiters if not already present, then renders.
+ */
+export function renderEquation(latex: string): string {
+  if (!latex?.trim()) return ''
+  const trimmed = latex.trim()
+  // If already has delimiters, use as-is
+  if (trimmed.startsWith('$') || trimmed.startsWith('\\[')) {
+    return renderContent(trimmed)
+  }
+  // Wrap in display math delimiters
+  return renderContent(`$$${trimmed}$$`)
+}

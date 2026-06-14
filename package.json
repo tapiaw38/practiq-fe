@@ -13,6 +13,7 @@
     "axios": "^1.7.9",
     "katex": "^0.17.0",
     "marked": "^18.0.4",
+    "mathlive": "^0.110.0",
     "pinia": "^2.3.1",
     "practiq-assistant-package": "^0.5.7",
     "primeicons": "^7.0.0",

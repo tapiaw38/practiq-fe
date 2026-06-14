@@ -167,8 +167,17 @@
             <div class="item-info">
               <div class="difficulty-badge" :style="{ background: diffColor(ex.difficulty) }">{{ ex.difficulty }}</div>
               <div>
-                <div class="item-title">{{ ex.question }}</div>
-                <div class="item-subtitle">{{ ex.type }} · Respuesta: {{ ex.correct_answer || 'N/A' }}</div>
+                <div v-if="ex.type === 'equation'" class="item-title item-title--math" v-html="renderEquation(ex.question)"></div>
+                <div v-else class="item-title">{{ ex.question }}</div>
+                <div class="item-subtitle">
+                  {{ ex.type }}
+                  <template v-if="ex.type === 'equation'">
+                    · Respuesta: <span class="answer-math" v-html="renderEquation(ex.correct_answer || 'N/A')"></span>
+                  </template>
+                  <template v-else>
+                    · Respuesta: {{ ex.correct_answer || 'N/A' }}
+                  </template>
+                </div>
               </div>
             </div>
             <div class="item-actions">
@@ -351,7 +360,17 @@
               </div>
               <div class="form-group">
                 <label class="form-label">Pregunta *</label>
+                <template v-if="newExercise.type === 'equation'">
+                  <div class="equation-editor-wrap">
+                    <div class="equation-editor-label">Editor de ecuación</div>
+                    <MathFieldEditor v-model="newExercise.question" />
+                  </div>
+                  <div class="field-hint">
+                    Usa el teclado virtual o escribe LaTeX directamente. Ejemplo: \frac{2x+4}{3}=10
+                  </div>
+                </template>
                 <textarea
+                  v-else
                   v-model="newExercise.question"
                   class="form-textarea"
                   :class="{ 'form-textarea--large': needsLargeQuestionInput(newExercise.type) }"
@@ -359,10 +378,6 @@
                   :required="newExercise.type !== 'handwritten'"
                   :rows="needsLargeQuestionInput(newExercise.type) ? 6 : 2"
                 ></textarea>
-                <div v-if="newExercise.type === 'equation' && newExercise.question.trim()" class="math-preview">
-                  <div class="math-preview-label">Vista previa</div>
-                  <div v-html="renderContent(newExercise.question)"></div>
-                </div>
               </div>
               <div v-if="newExercise.type === 'handwritten'" class="form-group">
                 <label class="form-label">Consigna manuscrita</label>
@@ -388,10 +403,22 @@
               </div>
               <div class="form-group">
                 <label class="form-label">Respuesta correcta</label>
-                <input v-model="newExercise.correct_answer" class="form-input" :placeholder="answerPlaceholder(newExercise.type)" />
-                <div v-if="newExercise.type === 'equation'" class="field-hint">
-                  Usa LaTeX entre $...$ si necesitas fracciones, potencias o raíces.
-                </div>
+                <template v-if="newExercise.type === 'equation'">
+                  <MathFieldEditor
+                    v-model="newExercise.correct_answer"
+                    :show-latex-toggle="false"
+                    virtual-keyboard-mode="manual"
+                  />
+                  <div class="field-hint">
+                    Escribe la respuesta esperada. Ejemplo: x=13
+                  </div>
+                </template>
+                <input
+                  v-else
+                  v-model="newExercise.correct_answer"
+                  class="form-input"
+                  :placeholder="answerPlaceholder(newExercise.type)"
+                />
               </div>
               <div v-if="newExercise.type === 'multiple_choice'" class="form-group">
                 <label class="form-label">Opciones</label>
@@ -620,7 +647,17 @@
               </div>
               <div class="form-group">
                 <label class="form-label">Pregunta *</label>
+                <template v-if="editExercise.type === 'equation'">
+                  <div class="equation-editor-wrap">
+                    <div class="equation-editor-label">Editor de ecuación</div>
+                    <MathFieldEditor v-model="editExercise.question" />
+                  </div>
+                  <div class="field-hint">
+                    Usa el teclado virtual o escribe LaTeX directamente. Ejemplo: \frac{2x+4}{3}=10
+                  </div>
+                </template>
                 <textarea
+                  v-else
                   v-model="editExercise.question"
                   class="form-textarea"
                   :class="{ 'form-textarea--large': needsLargeQuestionInput(editExercise.type) }"
@@ -628,10 +665,6 @@
                   :rows="needsLargeQuestionInput(editExercise.type) ? 6 : 2"
                   :required="editExercise.type !== 'handwritten'"
                 ></textarea>
-                <div v-if="editExercise.type === 'equation' && editExercise.question.trim()" class="math-preview">
-                  <div class="math-preview-label">Vista previa</div>
-                  <div v-html="renderContent(editExercise.question)"></div>
-                </div>
               </div>
               <div v-if="editExercise.type === 'handwritten'" class="form-group">
                 <label class="form-label">Consigna manuscrita</label>
@@ -657,10 +690,22 @@
               </div>
               <div class="form-group">
                 <label class="form-label">Respuesta correcta</label>
-                <input v-model="editExercise.correct_answer" class="form-input" :placeholder="answerPlaceholder(editExercise.type)" />
-                <div v-if="editExercise.type === 'equation'" class="field-hint">
-                  Usa LaTeX entre $...$ si necesitas fracciones, potencias o raíces.
-                </div>
+                <template v-if="editExercise.type === 'equation'">
+                  <MathFieldEditor
+                    v-model="editExercise.correct_answer"
+                    :show-latex-toggle="false"
+                    virtual-keyboard-mode="manual"
+                  />
+                  <div class="field-hint">
+                    Escribe la respuesta esperada. Ejemplo: x=13
+                  </div>
+                </template>
+                <input
+                  v-else
+                  v-model="editExercise.correct_answer"
+                  class="form-input"
+                  :placeholder="answerPlaceholder(editExercise.type)"
+                />
               </div>
               <div v-if="editExercise.type === 'multiple_choice'" class="form-group">
                 <label class="form-label">Opciones</label>
@@ -730,6 +775,7 @@ import { computed, ref, reactive, onMounted, watch, nextTick } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import TeacherLayout from '@/layouts/TeacherLayout.vue'
 import ConfirmModal from '@/components/ConfirmModal.vue'
+import MathFieldEditor from '@/components/MathFieldEditor.vue'
 import { useConfirm } from '@/composables/useConfirm'
 import { courseService } from '@/services/courses/courseService'
 import { topicService } from '@/services/topics/topicService'
@@ -740,7 +786,7 @@ import { notebookService } from '@/services/notebooks/notebookService'
 import { levelService } from '@/services/levels/levelService'
 import type { Course, Topic, Exercise, Material, PracticeSheet, Student, Notebook, CourseLevelsResponse } from '@/types'
 import { parseExerciseMetadata } from '@/utils/assistantExerciseContext'
-import { renderContent } from '@/composables/useContentRenderer'
+import { renderContent, renderEquation } from '@/composables/useContentRenderer'
 
 const route = useRoute()
 const router = useRouter()
@@ -1545,7 +1591,19 @@ async function deleteNotebook(id: string) {
 }
 .item-title { font-size: var(--text-md); font-weight: 600; color: var(--text-primary); }
 .item-title--with-badge { display: inline-flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.item-title--math {
+  font-size: var(--text-md);
+  font-weight: 600;
+  color: var(--text-primary);
+  padding: 4px 8px;
+  background: var(--surface-subtle);
+  border-radius: var(--radius-sm);
+  border-left: 3px solid var(--practiq-violet);
+}
+.item-title--math :deep(.katex) { font-size: 1.1em; }
 .item-subtitle { font-size: var(--text-sm); color: var(--text-secondary); margin-top: 2px; }
+.answer-math { display: inline; }
+.answer-math :deep(.katex) { font-size: 0.95em; }
 .sheet-type-pill {
   display: inline-flex;
   align-items: center;
@@ -1647,6 +1705,17 @@ async function deleteNotebook(id: string) {
   font-weight: 800;
   text-transform: uppercase;
   color: var(--text-secondary);
+}
+.equation-editor-wrap {
+  display: grid;
+  gap: 6px;
+}
+.equation-editor-label {
+  font-size: var(--text-xs);
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--practiq-violet);
 }
 .teacher-canvas-wrap {
   display: grid;

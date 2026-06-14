@@ -77,14 +77,16 @@
               <img :src="currentPage.content_data" alt="Contenido del docente" class="teacher-image" />
             </div>
 
-            <!-- Teacher wrote text -->
-            <div v-else-if="currentPage.content_type === 'text' && currentPage.content_data" class="teacher-text">
-              {{ currentPage.content_data }}
-            </div>
+            <!-- Teacher wrote text (with math support) -->
+            <div
+              v-else-if="currentPage.content_type === 'text' && currentPage.content_data"
+              class="teacher-text teacher-text--rendered"
+              v-html="renderContent(currentPage.content_data)"
+            ></div>
 
             <div v-if="currentPage.instructions" class="page-instructions">
               <i class="pi pi-info-circle"></i>
-              {{ currentPage.instructions }}
+              <span v-html="renderContent(currentPage.instructions)"></span>
             </div>
           </section>
 
@@ -197,6 +199,7 @@ import Skeleton from '@/components/ui/Skeleton.vue'
 import { notebookService } from '@/services/notebooks/notebookService'
 import type { Notebook, NotebookPage } from '@/types'
 import { composeAssistantWorkImage, pickBestStudentImage } from '@/utils/assistantExerciseContext'
+import { renderContent } from '@/composables/useContentRenderer'
 
 const route = useRoute()
 const router = useRouter()
