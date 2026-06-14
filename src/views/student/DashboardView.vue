@@ -10,21 +10,21 @@
             <Skeleton width="200px" height="32px" style="margin-bottom: 12px" />
             <Skeleton width="90%" height="16px" />
           </div>
-          <div class="welcome-topic-card">
-            <div class="topic-card__top">
-              <div>
-                <Skeleton width="80px" height="12px" style="margin-bottom: 6px" />
+          <div class="welcome-topic-card" style="display: flex; flex-direction: column; gap: 12px">
+            <div class="topic-card__top" style="display: flex; justify-content: space-between; align-items: flex-start">
+              <div style="display: flex; flex-direction: column; gap: 6px">
+                <Skeleton width="80px" height="12px" />
                 <Skeleton width="140px" height="20px" />
               </div>
               <Skeleton width="60px" height="24px" rounded />
             </div>
-            <Skeleton width="100%" height="8px" rounded style="margin: 12px 0" />
+            <Skeleton width="100%" height="8px" rounded />
             <div style="display: flex; justify-content: space-between">
               <Skeleton width="100px" height="12px" />
               <Skeleton width="120px" height="12px" />
             </div>
           </div>
-          <div class="welcome-actions">
+          <div class="welcome-actions" style="display: flex; gap: 12px">
             <Skeleton variant="button" width="160px" height="44px" />
             <Skeleton variant="button" width="180px" height="44px" />
           </div>
@@ -32,10 +32,10 @@
 
         <!-- Metrics skeleton -->
         <section class="metrics-row">
-          <div v-for="i in 3" :key="i" class="metric-card metric-card--skeleton">
+          <div v-for="i in 3" :key="i" class="metric-card metric-card--skeleton" style="display: flex; align-items: center; gap: 14px">
             <Skeleton variant="circle" size="40px" />
-            <div>
-              <Skeleton width="50px" height="24px" style="margin-bottom: 4px" />
+            <div style="display: flex; flex-direction: column; gap: 6px">
+              <Skeleton width="50px" height="24px" />
               <Skeleton width="60px" height="14px" />
             </div>
           </div>
@@ -50,13 +50,13 @@
             </div>
           </div>
           <div class="mastery-grid">
-            <div v-for="i in 3" :key="i" class="mastery-card mastery-card--skeleton">
-              <div class="mastery-card__top">
+            <div v-for="i in 3" :key="i" class="mastery-card mastery-card--skeleton" style="display: flex; flex-direction: column; gap: 12px">
+              <div class="mastery-card__top" style="display: flex; justify-content: space-between; align-items: center">
                 <Skeleton width="70%" height="16px" />
                 <Skeleton width="60px" height="20px" rounded />
               </div>
-              <Skeleton width="100%" height="8px" rounded style="margin: 10px 0" />
-              <div style="display: flex; justify-content: space-between">
+              <Skeleton width="100%" height="8px" rounded />
+              <div style="display: flex; justify-content: space-between; gap: 12px">
                 <Skeleton width="80px" height="12px" />
                 <Skeleton width="90px" height="12px" />
               </div>
@@ -73,10 +73,10 @@
             </div>
           </div>
           <div class="courses-list">
-            <div v-for="i in 2" :key="i" class="course-row course-row--skeleton">
+            <div v-for="i in 2" :key="i" class="course-row course-row--skeleton" style="display: flex; align-items: center; gap: 16px">
               <Skeleton variant="circle" size="48px" />
-              <div style="flex: 1">
-                <Skeleton width="60%" height="18px" style="margin-bottom: 6px" />
+              <div style="flex: 1; display: flex; flex-direction: column; gap: 6px">
+                <Skeleton width="60%" height="18px" />
                 <Skeleton width="40%" height="14px" />
               </div>
               <Skeleton width="80px" height="32px" rounded />
