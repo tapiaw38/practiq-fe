@@ -24,7 +24,7 @@
         <div class="exercises-list">
           <div v-for="n in 3" :key="n" class="ex-card ex-card--skeleton">
             <Skeleton variant="avatar" size="32px" :rounded="false" class="ex-num-skel" />
-            <div class="ex-body">
+            <div class="ex-body ex-body--skeleton">
               <Skeleton width="100%" height="18px" />
               <Skeleton width="80%" height="16px" />
               <Skeleton width="100%" height="180px" class="canvas-skel" />
@@ -1078,6 +1078,7 @@ function closeSuccessAndGoHome() {
 }
 
 .ex-body { flex: 1; display: flex; flex-direction: column; gap: 10px; }
+.ex-body--skeleton { gap: 12px; }
 
 .ex-question {
   font-size: 1rem;

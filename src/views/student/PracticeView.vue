@@ -42,13 +42,13 @@
         <div class="exercises-list">
           <div v-for="n in 3" :key="n" class="ex-card ex-card--skeleton">
             <Skeleton variant="avatar" size="32px" :rounded="false" class="ex-num-skel" />
-            <div class="ex-body">
-              <div class="ex-meta">
+            <div class="ex-body ex-body--skeleton">
+              <div class="ex-meta" style="margin-bottom: 8px">
                 <Skeleton variant="badge" width="90px" />
                 <Skeleton width="50px" height="14px" />
               </div>
-              <Skeleton width="100%" height="18px" />
-              <Skeleton width="80%" height="16px" />
+              <Skeleton width="100%" height="18px" style="margin-bottom: 6px" />
+              <Skeleton width="80%" height="16px" style="margin-bottom: 12px" />
               <Skeleton width="100%" height="200px" class="canvas-skel" />
             </div>
           </div>
@@ -1235,6 +1235,9 @@ function scoreColor(score: number) {
   display: flex;
   flex-direction: column;
   gap: 10px;
+}
+.ex-body--skeleton {
+  gap: 0; /* Using individual margins for better control */
 }
 
 .ex-meta {

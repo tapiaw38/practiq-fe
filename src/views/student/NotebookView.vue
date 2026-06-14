@@ -21,20 +21,20 @@
           <Skeleton v-for="n in 4" :key="n" width="40px" height="40px" />
         </nav>
         <div class="notebook-page notebook-page--skeleton">
-          <section class="page-content">
+          <section class="page-content page-content--skeleton">
             <div class="page-header-row">
               <Skeleton width="200px" height="20px" />
               <Skeleton variant="badge" width="80px" />
             </div>
-            <Skeleton width="100%" height="180px" />
-            <div class="page-instructions-skel">
+            <Skeleton width="100%" height="180px" style="margin-top: 16px" />
+            <div class="page-instructions-skel" style="margin-top: 14px">
               <Skeleton width="100%" height="40px" />
             </div>
           </section>
-          <section class="answer-section">
-            <div class="answer-header">
+          <section class="answer-section answer-section--skeleton">
+            <div class="answer-header" style="margin-bottom: 12px">
               <Skeleton width="100px" height="14px" />
-              <div class="draw-tools">
+              <div class="draw-tools" style="gap: 8px">
                 <Skeleton v-for="n in 4" :key="n" width="34px" height="34px" />
               </div>
             </div>
