@@ -98,12 +98,12 @@
             </div>
           </div>
           <div class="student-grid">
-            <div v-for="i in 4" :key="i" class="student-card student-card--skeleton">
+            <div v-for="i in 4" :key="i" class="student-card student-card--skeleton" style="display: flex; gap: 14px; align-items: center">
               <Skeleton variant="avatar" size="48px" />
-              <div class="student-card__info">
+              <div class="student-card__info" style="display: flex; flex-direction: column; gap: 6px; flex: 1">
                 <Skeleton width="75%" height="16px" />
-                <Skeleton width="90%" height="12px" style="margin-top: 6px" />
-                <Skeleton variant="badge" width="55px" style="margin-top: 8px" />
+                <Skeleton width="90%" height="12px" />
+                <Skeleton variant="badge" width="55px" />
               </div>
             </div>
           </div>

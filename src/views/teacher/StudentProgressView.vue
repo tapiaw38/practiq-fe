@@ -32,7 +32,7 @@
 
         <!-- Tabs skeleton -->
         <div class="tab-bar">
-          <div v-for="i in 4" :key="i" class="tab-btn tab-btn--skeleton">
+          <div v-for="i in 4" :key="i" class="tab-btn tab-btn--skeleton" style="display: flex; align-items: center; gap: 10px">
             <Skeleton variant="circle" size="28px" />
             <Skeleton width="80px" height="14px" />
             <Skeleton width="24px" height="24px" rounded />
@@ -50,12 +50,12 @@
           </div>
           <div class="progress-grid">
             <div v-for="i in 6" :key="i" class="progress-card progress-card--skeleton">
-              <div class="progress-card__top">
+              <div class="progress-card__top" style="display: flex; justify-content: space-between; align-items: center">
                 <Skeleton width="65%" height="16px" />
                 <Skeleton width="45px" height="24px" rounded />
               </div>
-              <Skeleton width="100%" height="6px" rounded style="margin: 8px 0" />
-              <div class="progress-meta">
+              <Skeleton width="100%" height="6px" rounded style="margin: 12px 0" />
+              <div class="progress-meta" style="display: flex; gap: 12px">
                 <Skeleton width="80px" height="12px" />
                 <Skeleton width="60px" height="12px" />
                 <Skeleton width="70px" height="12px" />

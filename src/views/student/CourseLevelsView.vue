@@ -26,19 +26,19 @@
           <div v-for="n in 3" :key="n" class="level-card level-card--skeleton">
             <div class="lc-header">
               <Skeleton variant="avatar" size="44px" :rounded="false" class="lc-num-skeleton" />
-              <div class="lc-meta">
+              <div class="lc-meta" style="display: flex; flex-direction: column; gap: 8px">
                 <Skeleton width="80px" height="16px" />
-                <Skeleton width="70px" height="20px" class="mt-4" />
+                <Skeleton width="70px" height="20px" />
               </div>
             </div>
-            <div class="lc-body">
+            <div class="lc-body" style="margin-top: 16px">
               <div class="lc-section">
-                <Skeleton width="80px" height="12px" />
-                <div class="lc-items">
-                  <div v-for="i in 2" :key="i" class="lc-item-skeleton">
-                    <div class="lc-item-info">
+                <Skeleton width="80px" height="12px" style="margin-bottom: 10px" />
+                <div class="lc-items" style="display: flex; flex-direction: column; gap: 10px">
+                  <div v-for="i in 2" :key="i" class="lc-item-skeleton" style="display: flex; align-items: center; justify-content: space-between">
+                    <div class="lc-item-info" style="display: flex; flex-direction: column; gap: 6px">
                       <Skeleton width="140px" height="14px" />
-                      <Skeleton width="80px" height="12px" class="mt-4" />
+                      <Skeleton width="80px" height="12px" />
                     </div>
                     <Skeleton width="16px" height="16px" />
                   </div>

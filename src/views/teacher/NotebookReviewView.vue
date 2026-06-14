@@ -58,23 +58,23 @@
       <template v-if="loading">
         <div class="submissions-grid">
           <article v-for="n in 4" :key="n" class="submission-card submission-card--skeleton">
-            <div class="submission-header">
-              <div class="student-info">
+            <div class="submission-header" style="display: flex; justify-content: space-between; align-items: flex-start">
+              <div class="student-info" style="display: flex; gap: 12px; align-items: center">
                 <Skeleton variant="avatar" size="42px" />
-                <div class="student-details">
+                <div class="student-details" style="display: flex; flex-direction: column; gap: 6px">
                   <Skeleton width="120px" height="16px" />
-                  <Skeleton width="160px" height="14px" class="mt-4" />
+                  <Skeleton width="160px" height="14px" />
                 </div>
               </div>
               <Skeleton variant="badge" width="80px" />
             </div>
-            <div class="submission-meta">
+            <div class="submission-meta" style="display: flex; gap: 16px; margin-top: 14px">
               <Skeleton width="100px" height="14px" />
               <Skeleton width="80px" height="14px" />
               <Skeleton width="120px" height="14px" />
             </div>
-            <Skeleton width="100%" height="180px" class="preview-skel" />
-            <div class="submission-actions">
+            <Skeleton width="100%" height="180px" class="preview-skel" style="margin-top: 14px" />
+            <div class="submission-actions" style="display: flex; gap: 10px; margin-top: 14px">
               <Skeleton width="100px" height="36px" />
               <Skeleton width="140px" height="36px" />
             </div>
