@@ -6,13 +6,13 @@
         <!-- Welcome skeleton -->
         <section class="welcome-banner welcome-banner--skeleton">
           <div class="welcome-copy">
-            <Skeleton width="120px" height="14px" style="margin-bottom: 8px" />
-            <Skeleton width="200px" height="32px" style="margin-bottom: 12px" />
+            <Skeleton width="120px" height="14px" />
+            <Skeleton width="200px" height="32px" />
             <Skeleton width="90%" height="16px" />
           </div>
-          <div class="welcome-topic-card" style="display: flex; flex-direction: column; gap: 12px">
-            <div class="topic-card__top" style="display: flex; justify-content: space-between; align-items: flex-start">
-              <div style="display: flex; flex-direction: column; gap: 6px">
+          <div class="welcome-topic-card">
+            <div class="topic-card__top">
+              <div>
                 <Skeleton width="80px" height="12px" />
                 <Skeleton width="140px" height="20px" />
               </div>
@@ -24,7 +24,7 @@
               <Skeleton width="120px" height="12px" />
             </div>
           </div>
-          <div class="welcome-actions" style="display: flex; gap: 12px">
+          <div class="welcome-actions">
             <Skeleton variant="button" width="160px" height="44px" />
             <Skeleton variant="button" width="180px" height="44px" />
           </div>
@@ -32,9 +32,9 @@
 
         <!-- Metrics skeleton -->
         <section class="metrics-row">
-          <div v-for="i in 3" :key="i" class="metric-card metric-card--skeleton" style="display: flex; align-items: center; gap: 14px">
+          <div v-for="i in 3" :key="i" class="metric-card metric-card--skeleton">
             <Skeleton variant="circle" size="40px" />
-            <div style="display: flex; flex-direction: column; gap: 6px">
+            <div>
               <Skeleton width="50px" height="24px" />
               <Skeleton width="60px" height="14px" />
             </div>
@@ -45,18 +45,18 @@
         <section class="mastery-section">
           <div class="section-head">
             <div>
-              <Skeleton width="100px" height="12px" style="margin-bottom: 6px" />
+              <Skeleton width="100px" height="12px" />
               <Skeleton width="180px" height="24px" />
             </div>
           </div>
           <div class="mastery-grid">
-            <div v-for="i in 3" :key="i" class="mastery-card mastery-card--skeleton" style="display: flex; flex-direction: column; gap: 12px">
-              <div class="mastery-card__top" style="display: flex; justify-content: space-between; align-items: center">
+            <div v-for="i in 3" :key="i" class="mastery-card mastery-card--skeleton">
+              <div class="mastery-card__top">
                 <Skeleton width="70%" height="16px" />
                 <Skeleton width="60px" height="20px" rounded />
               </div>
               <Skeleton width="100%" height="8px" rounded />
-              <div style="display: flex; justify-content: space-between; gap: 12px">
+              <div style="display: flex; justify-content: space-between">
                 <Skeleton width="80px" height="12px" />
                 <Skeleton width="90px" height="12px" />
               </div>
@@ -68,14 +68,14 @@
         <section class="courses-section">
           <div class="section-head">
             <div>
-              <Skeleton width="80px" height="12px" style="margin-bottom: 6px" />
+              <Skeleton width="80px" height="12px" />
               <Skeleton width="140px" height="24px" />
             </div>
           </div>
           <div class="courses-list">
-            <div v-for="i in 2" :key="i" class="course-row course-row--skeleton" style="display: flex; align-items: center; gap: 16px">
+            <div v-for="i in 2" :key="i" class="course-row course-row--skeleton">
               <Skeleton variant="circle" size="48px" />
-              <div style="flex: 1; display: flex; flex-direction: column; gap: 6px">
+              <div class="course-row__info">
                 <Skeleton width="60%" height="18px" />
                 <Skeleton width="40%" height="14px" />
               </div>
@@ -1037,23 +1037,69 @@ function topicsNeedingReview(courseId: string): typeof progress.value {
 .welcome-banner--skeleton {
   pointer-events: none;
 }
+.welcome-banner--skeleton .welcome-copy {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.welcome-banner--skeleton .welcome-topic-card {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.welcome-banner--skeleton .topic-card__top {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+}
+.welcome-banner--skeleton .topic-card__top > div {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.welcome-banner--skeleton .welcome-actions {
+  display: flex;
+  gap: 14px;
+}
 
 .metric-card--skeleton {
   pointer-events: none;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+.metric-card--skeleton > div {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
 }
 
 .mastery-card--skeleton {
   pointer-events: none;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.mastery-card--skeleton .mastery-card__top {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
 }
 
 .course-row--skeleton {
   display: flex;
   align-items: center;
-  gap: 14px;
+  gap: 16px;
   padding: 14px 16px;
   background: var(--surface-elevated);
   border: 1px solid var(--surface-elevated-strong);
   border-radius: var(--radius-xl);
   pointer-events: none;
+}
+.course-row--skeleton .course-row__info {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
 }
 </style>

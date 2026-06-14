@@ -33,7 +33,7 @@
             </div>
             <div class="lc-body" style="margin-top: 16px">
               <div class="lc-section">
-                <Skeleton width="80px" height="12px" style="margin-bottom: 10px" />
+                <Skeleton width="80px" height="12px" />
                 <div class="lc-items" style="display: flex; flex-direction: column; gap: 10px">
                   <div v-for="i in 2" :key="i" class="lc-item-skeleton" style="display: flex; align-items: center; justify-content: space-between">
                     <div class="lc-item-info" style="display: flex; flex-direction: column; gap: 6px">

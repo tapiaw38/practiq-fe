@@ -24,7 +24,7 @@
           <div v-for="i in 4" :key="i" class="summary-card summary-card--skeleton">
             <Skeleton variant="circle" size="34px" />
             <div>
-              <Skeleton width="50px" height="22px" style="margin-bottom: 4px" />
+              <Skeleton width="50px" height="22px" />
               <Skeleton width="100px" height="14px" />
             </div>
           </div>
@@ -43,7 +43,7 @@
         <div class="tab-content">
           <div class="tab-section-head">
             <div>
-              <Skeleton width="80px" height="12px" style="margin-bottom: 6px" />
+              <Skeleton width="80px" height="12px" />
               <Skeleton width="160px" height="24px" />
             </div>
             <Skeleton width="100px" height="30px" rounded />

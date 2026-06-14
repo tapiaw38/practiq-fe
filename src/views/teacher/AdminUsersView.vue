@@ -61,7 +61,7 @@
           <div class="panel-card">
             <div class="panel-head">
               <div>
-                <Skeleton width="80px" height="12px" style="margin-bottom: 6px" />
+                <Skeleton width="80px" height="12px" />
                 <Skeleton width="140px" height="24px" />
               </div>
             </div>
@@ -78,7 +78,7 @@
           <div class="panel-card">
             <div class="panel-head">
               <div>
-                <Skeleton width="70px" height="12px" style="margin-bottom: 6px" />
+                <Skeleton width="70px" height="12px" />
                 <Skeleton width="160px" height="24px" />
               </div>
             </div>

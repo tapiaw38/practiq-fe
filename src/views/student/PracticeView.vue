@@ -47,8 +47,8 @@
                 <Skeleton variant="badge" width="90px" />
                 <Skeleton width="50px" height="14px" />
               </div>
-              <Skeleton width="100%" height="18px" style="margin-bottom: 6px" />
-              <Skeleton width="80%" height="16px" style="margin-bottom: 12px" />
+              <Skeleton width="100%" height="18px" />
+              <Skeleton width="80%" height="16px" />
               <Skeleton width="100%" height="200px" class="canvas-skel" />
             </div>
           </div>

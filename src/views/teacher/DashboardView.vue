@@ -33,7 +33,7 @@
         <div class="stat-item" v-for="i in 4" :key="i">
           <Skeleton variant="circle" size="34px" />
           <div>
-            <Skeleton width="40px" height="20px" style="margin-bottom: 4px" />
+            <Skeleton width="40px" height="20px" />
             <Skeleton width="60px" height="12px" />
           </div>
         </div>
@@ -71,7 +71,7 @@
         <section class="content-section">
           <div class="section-header">
             <div>
-              <Skeleton width="120px" height="24px" style="margin-bottom: 8px" />
+              <Skeleton width="120px" height="24px" />
               <Skeleton width="280px" height="14px" />
             </div>
           </div>
@@ -93,7 +93,7 @@
         <section class="content-section">
           <div class="section-header">
             <div>
-              <Skeleton width="180px" height="24px" style="margin-bottom: 8px" />
+              <Skeleton width="180px" height="24px" />
               <Skeleton width="260px" height="14px" />
             </div>
           </div>

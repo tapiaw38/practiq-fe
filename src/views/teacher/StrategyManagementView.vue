@@ -20,7 +20,7 @@
         <section class="content-section">
           <div class="section-header">
             <div>
-              <Skeleton width="180px" height="24px" style="margin-bottom: 8px" />
+              <Skeleton width="180px" height="24px" />
               <Skeleton width="320px" height="14px" />
             </div>
           </div>

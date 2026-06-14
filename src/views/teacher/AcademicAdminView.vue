@@ -31,7 +31,7 @@
         <main class="ac-main">
           <div class="main-header">
             <div>
-              <Skeleton width="100px" height="14px" style="margin-bottom: 6px" />
+              <Skeleton width="100px" height="14px" />
               <Skeleton width="180px" height="28px" />
             </div>
           </div>
