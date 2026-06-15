@@ -2326,8 +2326,8 @@
   }
 
   .spinner-white {
-    border-color: rgba(255, 255, 255, 0.3);
-    border-top-color: white;
+    border-color: rgba(var(--surface-card-rgb), 0.3);
+    border-top-color: var(--color-on-primary);
   }
 
   /* Skeleton states */

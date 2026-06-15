@@ -1685,7 +1685,7 @@
     display: block;
     border: 1.5px solid rgba(var(--practiq-violet-rgb), 0.18);
     border-radius: var(--radius-lg);
-    background: #ffffff;
+    background: var(--surface-card);
     cursor: crosshair;
     touch-action: none;
     box-shadow: var(--shadow-card);

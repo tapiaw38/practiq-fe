@@ -817,8 +817,8 @@
     width: 38px;
     height: 38px;
     border-radius: 50%;
-    border: 1.5px solid rgba(124, 58, 237, 0.2);
-    background: rgba(255, 255, 255, 0.8);
+    border: 1.5px solid rgba(var(--practiq-violet-rgb), 0.2);
+    background: rgba(var(--surface-card-rgb), 0.8);
     cursor: pointer;
     display: flex;
     align-items: center;
@@ -827,7 +827,7 @@
     transition: background 0.15s;
   }
   .btn-back:hover {
-    background: rgba(124, 58, 237, 0.06);
+    background: rgba(var(--practiq-violet-rgb), 0.06);
   }
 
   .nb-title-area {
@@ -884,8 +884,8 @@
     height: 40px;
     padding: 0 12px;
     border-radius: var(--radius-sm);
-    border: 1.5px solid rgba(124, 58, 237, 0.15);
-    background: rgba(255, 255, 255, 0.8);
+    border: 1.5px solid rgba(var(--practiq-violet-rgb), 0.15);
+    background: rgba(var(--surface-card-rgb), 0.8);
     cursor: pointer;
     font-weight: 600;
     font-size: 0.88rem;
@@ -897,24 +897,24 @@
   }
 
   .page-tab:hover {
-    border-color: rgba(124, 58, 237, 0.3);
+    border-color: rgba(var(--practiq-violet-rgb), 0.3);
     color: var(--practiq-violet);
   }
 
   .page-tab--active {
     background: var(--practiq-violet);
-    color: #fff;
+    color: var(--color-on-primary);
     border-color: var(--practiq-violet);
   }
 
   .page-tab--done {
-    border-color: rgba(16, 185, 129, 0.4);
+    border-color: rgba(var(--color-success-rgb), 0.4);
     color: var(--color-success-dark);
   }
   .page-tab--done.page-tab--active {
     background: var(--color-success-dark);
     border-color: var(--color-success-dark);
-    color: #fff;
+    color: var(--color-on-primary);
   }
 
   .tab-check {
@@ -923,11 +923,11 @@
 
   /* Notebook page card */
   .notebook-page {
-    background: rgba(255, 255, 255, 0.92);
+    background: rgba(var(--surface-card-rgb), 0.92);
     backdrop-filter: blur(12px);
     border-radius: var(--radius-2xl);
-    border: 1.5px solid rgba(124, 58, 237, 0.1);
-    box-shadow: 0 4px 24px rgba(124, 58, 237, 0.06);
+    border: 1.5px solid rgba(var(--practiq-violet-rgb), 0.1);
+    box-shadow: 0 4px 24px rgba(var(--practiq-violet-rgb), 0.06);
     overflow: hidden;
     display: flex;
     flex-direction: column;
@@ -936,7 +936,7 @@
   /* Teacher content */
   .page-content {
     padding: 24px 28px 20px;
-    border-bottom: 1.5px dashed rgba(124, 58, 237, 0.12);
+    border-bottom: 1.5px dashed rgba(var(--practiq-violet-rgb), 0.12);
   }
 
   .page-header-row {
@@ -957,7 +957,7 @@
     font-size: 0.75rem;
     padding: 4px 10px;
     border-radius: var(--radius-2xl);
-    background: rgba(124, 58, 237, 0.08);
+    background: rgba(var(--practiq-violet-rgb), 0.08);
     color: var(--practiq-violet);
     font-weight: 600;
   }
@@ -965,8 +965,8 @@
   .teacher-image-wrap {
     border-radius: var(--radius-md);
     overflow: hidden;
-    border: 1.5px solid rgba(124, 58, 237, 0.1);
-    background: #f8f7ff;
+    border: 1.5px solid rgba(var(--practiq-violet-rgb), 0.1);
+    background: var(--practiq-violet-bg);
   }
   .teacher-image {
     display: block;
@@ -984,7 +984,7 @@
   .page-instructions {
     margin-top: 14px;
     padding: 10px 14px;
-    background: rgba(245, 243, 255, 0.9);
+    background: rgba(var(--practiq-violet-rgb), 0.9);
     border-left: 3px solid var(--practiq-violet);
     border-radius: 0 8px 8px 0;
     font-size: 0.88rem;
@@ -1029,8 +1029,8 @@
     width: 34px;
     height: 34px;
     border-radius: var(--radius-sm);
-    border: 1.5px solid rgba(124, 58, 237, 0.15);
-    background: rgba(255, 255, 255, 0.8);
+    border: 1.5px solid rgba(var(--practiq-violet-rgb), 0.15);
+    background: rgba(var(--surface-card-rgb), 0.8);
     cursor: pointer;
     display: flex;
     align-items: center;
@@ -1045,7 +1045,7 @@
   }
   .tool-btn--active {
     background: var(--practiq-violet);
-    color: #fff;
+    color: var(--color-on-primary);
     border-color: var(--practiq-violet);
   }
 
@@ -1053,7 +1053,7 @@
     width: 34px;
     height: 34px;
     border-radius: var(--radius-sm);
-    border: 1.5px solid rgba(124, 58, 237, 0.15);
+    border: 1.5px solid rgba(var(--practiq-violet-rgb), 0.15);
     padding: 2px;
     cursor: pointer;
     background: none;
@@ -1068,10 +1068,10 @@
     width: 100%;
     height: 300px;
     border-radius: var(--radius-md);
-    border: 1.5px solid rgba(124, 58, 237, 0.15);
+    border: 1.5px solid rgba(var(--practiq-violet-rgb), 0.15);
     display: block;
     touch-action: none;
-    box-shadow: 0 2px 12px rgba(124, 58, 237, 0.06);
+    box-shadow: 0 2px 12px rgba(var(--practiq-violet-rgb), 0.06);
   }
 
   .answer-textarea {
@@ -1079,14 +1079,14 @@
     min-height: 280px;
     padding: 16px 16px 16px 72px;
     border-radius: var(--radius-md);
-    border: 1.5px solid rgba(124, 58, 237, 0.15);
+    border: 1.5px solid rgba(var(--practiq-violet-rgb), 0.15);
     font-size: 1rem;
     line-height: 2rem;
-    color: #1e1e2e;
-    background-color: #fafaf7;
+    color: var(--text-heading);
+    background-color: var(--surface-bg);
     background-image:
-      linear-gradient(rgba(124, 58, 237, 0.1) 1px, transparent 1px),
-      linear-gradient(90deg, rgba(239, 68, 68, 0.2) 1px, transparent 1px);
+      linear-gradient(rgba(var(--practiq-violet-rgb), 0.1) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(var(--color-error-rgb), 0.2) 1px, transparent 1px);
     background-size:
       100% 2rem,
       1px 100%;
@@ -1097,7 +1097,7 @@
     outline: none;
     box-sizing: border-box;
     font-family: "Segoe UI", sans-serif;
-    box-shadow: 0 2px 12px rgba(124, 58, 237, 0.06);
+    box-shadow: 0 2px 12px rgba(var(--practiq-violet-rgb), 0.06);
   }
   .answer-textarea:focus {
     border-color: var(--practiq-violet);
@@ -1109,8 +1109,8 @@
     align-items: center;
     justify-content: space-between;
     padding: 16px 28px;
-    border-top: 1.5px solid rgba(124, 58, 237, 0.08);
-    background: rgba(245, 243, 255, 0.5);
+    border-top: 1.5px solid rgba(var(--practiq-violet-rgb), 0.08);
+    background: rgba(var(--practiq-violet-rgb), 0.5);
     gap: 12px;
     flex-wrap: wrap;
   }
@@ -1128,36 +1128,36 @@
     margin-top: 8px;
     padding: 14px 16px;
     border-radius: var(--radius-lg);
-    background: #faf7ff;
-    border: 1.5px solid #e9ddff;
+    background: var(--practiq-violet-bg);
+    border: 1.5px solid var(--practiq-violet-200);
     transition: all 0.2s;
   }
 
   .ai-review-box--success {
     background: linear-gradient(
       135deg,
-      rgba(16, 185, 129, 0.06),
-      rgba(16, 185, 129, 0.02)
+      rgba(var(--color-success-rgb), 0.06),
+      rgba(var(--color-success-rgb), 0.02)
     );
-    border-color: rgba(16, 185, 129, 0.3);
+    border-color: rgba(var(--color-success-rgb), 0.3);
   }
 
   .ai-review-box--error {
     background: linear-gradient(
       135deg,
-      rgba(239, 68, 68, 0.06),
-      rgba(239, 68, 68, 0.02)
+      rgba(var(--color-error-rgb), 0.06),
+      rgba(var(--color-error-rgb), 0.02)
     );
-    border-color: rgba(239, 68, 68, 0.3);
+    border-color: rgba(var(--color-error-rgb), 0.3);
   }
 
   .ai-review-box--pending {
     background: linear-gradient(
       135deg,
-      rgba(245, 158, 11, 0.06),
-      rgba(245, 158, 11, 0.02)
+      rgba(var(--color-warning-rgb), 0.06),
+      rgba(var(--color-warning-rgb), 0.02)
     );
-    border-color: rgba(245, 158, 11, 0.3);
+    border-color: rgba(var(--color-warning-rgb), 0.3);
   }
 
   .ai-review-head {
@@ -1178,18 +1178,18 @@
   }
 
   .ai-review-box--success .ai-review-icon {
-    background: rgba(16, 185, 129, 0.15);
-    color: #059669;
+    background: rgba(var(--color-success-rgb), 0.15);
+    color: var(--color-success-dark);
   }
 
   .ai-review-box--error .ai-review-icon {
-    background: rgba(239, 68, 68, 0.15);
-    color: #dc2626;
+    background: rgba(var(--color-error-rgb), 0.15);
+    color: var(--color-error-dark);
   }
 
   .ai-review-box--pending .ai-review-icon {
-    background: rgba(245, 158, 11, 0.15);
-    color: #d97706;
+    background: rgba(var(--color-warning-rgb), 0.15);
+    color: var(--color-warning-strong);
   }
 
   .ai-review-status {
@@ -1209,17 +1209,17 @@
   }
 
   .ai-review-badge--ok {
-    background: #dcfce7;
-    color: #166534;
+    background: var(--color-success-bg);
+    color: var(--color-success-dark);
   }
 
   .ai-review-badge--fail {
-    background: #fee2e2;
-    color: #991b1b;
+    background: var(--color-error-bg);
+    color: var(--color-error-dark);
   }
 
   .ai-review-badge--warn {
-    background: #fef3c7;
+    background: var(--color-warning-bg);
     color: var(--color-warning-dark);
   }
 
@@ -1231,7 +1231,7 @@
   .ai-review-text {
     margin: 10px 0 0;
     font-size: var(--text-base);
-    color: #4b5563;
+    color: var(--text-secondary);
     line-height: 1.6;
     padding-left: 48px;
   }
@@ -1240,7 +1240,7 @@
   .teacher-review-section {
     margin-top: 14px;
     padding-top: 14px;
-    border-top: 1px dashed rgba(124, 58, 237, 0.2);
+    border-top: 1px dashed rgba(var(--practiq-violet-rgb), 0.2);
     padding-left: 48px;
   }
 
@@ -1262,13 +1262,13 @@
   }
 
   .teacher-badge--ok {
-    background: rgba(16, 185, 129, 0.15);
-    color: #059669;
+    background: rgba(var(--color-success-rgb), 0.15);
+    color: var(--color-success-dark);
   }
 
   .teacher-badge--fail {
-    background: rgba(239, 68, 68, 0.15);
-    color: #dc2626;
+    background: rgba(var(--color-error-rgb), 0.15);
+    color: var(--color-error-dark);
   }
 
   .teacher-review-text {
@@ -1288,8 +1288,8 @@
   .btn-nav {
     padding: 8px 16px;
     border-radius: var(--radius-sm);
-    border: 1.5px solid rgba(124, 58, 237, 0.2);
-    background: rgba(255, 255, 255, 0.8);
+    border: 1.5px solid rgba(var(--practiq-violet-rgb), 0.2);
+    background: rgba(var(--surface-card-rgb), 0.8);
     cursor: pointer;
     font-size: 0.88rem;
     color: var(--text-secondary);
@@ -1312,7 +1312,7 @@
     border-radius: var(--radius-sm);
     border: none;
     background: var(--practiq-violet);
-    color: #fff;
+    color: var(--color-on-primary);
     font-weight: 600;
     font-size: 0.9rem;
     cursor: pointer;

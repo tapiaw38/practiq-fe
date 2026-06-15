@@ -901,7 +901,7 @@
     width: 100%;
     height: 180px;
     object-fit: contain;
-    background: #fafaf7;
+    background: var(--surface-bg);
     display: block;
   }
 
@@ -982,7 +982,7 @@
 
   .preview-content {
     padding: 20px;
-    background: #fafaf7;
+    background: var(--surface-bg);
     border-radius: var(--radius-md);
   }
 

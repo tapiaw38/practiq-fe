@@ -105,13 +105,13 @@ const emit = defineEmits<StudentLevelsListEmits>()
 .lc-section-label--test { color: var(--color-warning-dark); }
 .lc-items { display: grid; gap: 8px; }
 .lc-item { width: 100%; justify-content: space-between; gap: 10px; border: 1.5px solid var(--surface-border); border-radius: var(--radius-lg); background: var(--surface-card); padding: 12px; cursor: pointer; color: inherit; transition: var(--transition-fast); }
-.lc-item--practice { border-color: rgba(16, 185, 129, 0.15); background: rgba(236, 253, 245, 0.5); }
-.lc-item--practice:hover { border-color: rgba(16, 185, 129, 0.3); background: rgba(236, 253, 245, 0.9); transform: translateX(2px); }
-.lc-item--notebook { border-color: rgba(var(--practiq-violet-rgb), 0.12); background: rgba(245, 243, 255, 0.5); }
-.lc-item--notebook:hover { border-color: rgba(var(--practiq-violet-rgb), 0.25); background: rgba(245, 243, 255, 0.9); transform: translateX(2px); }
-.lc-item--test { border-color: rgba(var(--color-warning-rgb), 0.2); background: rgba(255, 251, 235, 0.5); }
+.lc-item--practice { border-color: rgba(var(--color-success-rgb), 0.15); background: rgba(var(--color-success-rgb), 0.05); }
+.lc-item--practice:hover { border-color: rgba(var(--color-success-rgb), 0.3); background: rgba(var(--color-success-rgb), 0.1); transform: translateX(2px); }
+.lc-item--notebook { border-color: rgba(var(--practiq-violet-rgb), 0.12); background: rgba(var(--practiq-violet-rgb), 0.04); }
+.lc-item--notebook:hover { border-color: rgba(var(--practiq-violet-rgb), 0.25); background: rgba(var(--practiq-violet-rgb), 0.08); transform: translateX(2px); }
+.lc-item--test { border-color: rgba(var(--color-warning-rgb), 0.2); background: rgba(var(--color-warning-rgb), 0.05); }
 .lc-item--test-big { padding: 16px 18px; }
-.lc-item--test:hover { border-color: rgba(var(--color-warning-rgb), 0.4); background: rgba(255, 251, 235, 0.9); transform: translateX(2px); }
+.lc-item--test:hover { border-color: rgba(var(--color-warning-rgb), 0.4); background: rgba(var(--color-warning-rgb), 0.1); transform: translateX(2px); }
 .lc-item-info { display: grid; gap: 3px; text-align: left; }
 .lc-item-title { color: var(--text-primary); font-weight: 800; }
 .lc-item-meta, .lc-empty, .lc-locked-hint { color: var(--text-secondary); font-size: var(--text-sm); }

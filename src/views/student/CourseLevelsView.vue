@@ -146,18 +146,18 @@
     align-items: center;
     gap: 16px;
     padding: 20px 24px;
-    background: rgba(255, 255, 255, 0.92);
+    background: rgba(var(--surface-card-rgb), 0.92);
     border-radius: var(--radius-2xl);
-    border: 1.5px solid rgba(124, 58, 237, 0.1);
-    box-shadow: 0 4px 20px rgba(124, 58, 237, 0.06);
+    border: 1.5px solid rgba(var(--practiq-violet-rgb), 0.1);
+    box-shadow: 0 4px 20px rgba(var(--practiq-violet-rgb), 0.06);
   }
 
   .btn-back {
     width: 38px;
     height: 38px;
     border-radius: 50%;
-    border: 1.5px solid rgba(124, 58, 237, 0.2);
-    background: rgba(255, 255, 255, 0.8);
+    border: 1.5px solid rgba(var(--practiq-violet-rgb), 0.2);
+    background: rgba(var(--surface-card-rgb), 0.8);
     cursor: pointer;
     display: flex;
     align-items: center;
@@ -166,7 +166,7 @@
     transition: background 0.15s;
   }
   .btn-back:hover {
-    background: rgba(124, 58, 237, 0.06);
+    background: rgba(var(--practiq-violet-rgb), 0.06);
   }
 
   .header-info {
@@ -192,9 +192,9 @@
     flex-direction: column;
     align-items: center;
     padding: 10px 20px;
-    background: linear-gradient(135deg, #8b5cf6, #6366f1);
+    background: var(--gradient-brand);
     border-radius: var(--radius-xl);
-    color: #fff;
+    color: var(--color-on-primary);
     flex-shrink: 0;
   }
   .cl-label {
@@ -216,7 +216,7 @@
     flex-direction: column;
     align-items: center;
     padding: 10px 20px;
-    background: rgba(139, 92, 246, 0.1);
+    background: rgba(var(--practiq-violet-light-rgb), 0.1);
     border-radius: var(--radius-xl);
     flex-shrink: 0;
   }
@@ -228,7 +228,7 @@
     align-items: center;
     justify-content: space-between;
     padding: 12px 14px;
-    background: rgba(248, 250, 252, 0.8);
+    background: rgba(var(--surface-bg-rgb), 0.8);
     border-radius: var(--radius-md);
   }
   .mt-4 {
@@ -243,9 +243,9 @@
   }
 
   .level-card {
-    background: rgba(255, 255, 255, 0.9);
+    background: rgba(var(--surface-card-rgb), 0.9);
     border-radius: var(--radius-2xl);
-    border: 1.5px solid rgba(124, 58, 237, 0.08);
+    border: 1.5px solid rgba(var(--practiq-violet-rgb), 0.08);
     overflow: hidden;
     transition: box-shadow 0.15s;
   }
@@ -256,7 +256,7 @@
     align-items: center;
     gap: 14px;
     padding: 18px 20px;
-    border-bottom: 1.5px solid rgba(124, 58, 237, 0.06);
+    border-bottom: 1.5px solid rgba(var(--practiq-violet-rgb), 0.06);
   }
 
   .lc-meta {

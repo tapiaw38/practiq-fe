@@ -1536,7 +1536,7 @@
     object-fit: contain;
     border: 1.5px solid rgba(var(--practiq-violet-rgb), 0.15);
     border-radius: var(--radius-md);
-    background: #ffffff;
+    background: var(--surface-card);
     box-shadow: var(--shadow-card);
   }
 
@@ -1586,7 +1586,7 @@
   }
   .equation-answer-wrap :deep(.math-field-editor:focus-within) {
     border-color: var(--practiq-violet);
-    box-shadow: 0 0 0 3px rgba(124, 58, 237, 0.12);
+    box-shadow: 0 0 0 3px rgba(var(--practiq-violet-rgb), 0.12);
   }
 
   /* Keyboard input textarea */

@@ -89,13 +89,13 @@
     background: var(--surface-card, #fff);
     font-size: var(--text-lg, 18px);
     --caret-color: var(--practiq-violet, #7c3aed);
-    --selection-background-color: rgba(124, 58, 237, 0.2);
-    --contains-highlight-background-color: rgba(124, 58, 237, 0.08);
+    --selection-background-color: rgba(var(--practiq-violet-rgb), 0.2);
+    --contains-highlight-background-color: rgba(var(--practiq-violet-rgb), 0.08);
   }
 
   .math-field-editor:focus-within {
     border-color: var(--practiq-violet, #7c3aed);
-    box-shadow: 0 0 0 3px rgba(124, 58, 237, 0.15);
+    box-shadow: 0 0 0 3px rgba(var(--practiq-violet-rgb), 0.15);
     outline: none;
   }
 

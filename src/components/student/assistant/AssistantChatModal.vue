@@ -1122,7 +1122,7 @@
   .acm-overlay {
     position: fixed;
     inset: 0;
-    background: rgba(0, 0, 0, 0.5);
+    background: rgba(var(--text-primary-rgb), 0.5);
     backdrop-filter: blur(5px);
     z-index: 200;
     display: flex;
@@ -1221,19 +1221,19 @@
     width: 7px;
     height: 7px;
     border-radius: 50%;
-    background: #4ade80;
+    background: var(--color-success);
     flex-shrink: 0;
   }
 
   .acm-dot--busy {
-    background: #fbbf24;
+    background: var(--color-warning);
     animation: acm-pulse 1s infinite;
   }
 
   .acm-close {
-    background: rgba(255, 255, 255, 0.15);
+    background: rgba(var(--surface-card-rgb), 0.15);
     border: none;
-    color: #fff;
+    color: var(--color-on-primary);
     width: 34px;
     height: 34px;
     border-radius: 50%;
@@ -1245,7 +1245,7 @@
     transition: var(--transition-fast);
   }
   .acm-close:hover {
-    background: rgba(255, 255, 255, 0.3);
+    background: rgba(var(--surface-card-rgb), 0.3);
   }
 
   /* ── Messages (escrita/oral) ─────────────────────────────────────────────── */
@@ -1279,7 +1279,7 @@
 
   .acm-msg--user .acm-bubble {
     background: var(--practiq-violet);
-    color: #fff;
+    color: var(--color-on-primary);
     border-bottom-right-radius: var(--radius-xs);
   }
 
@@ -1296,7 +1296,7 @@
     gap: 10px;
     padding: 10px 14px;
     background: var(--practiq-violet);
-    color: #fff;
+    color: var(--color-on-primary);
     border-bottom-right-radius: var(--radius-xs);
   }
 
@@ -1476,7 +1476,7 @@
     flex: 1;
     display: block;
     cursor: crosshair;
-    background: #fff;
+    background: var(--surface-card);
     touch-action: none;
     width: 100%;
     height: 100%;
@@ -1591,7 +1591,7 @@
 
   .acm-mode-btn--active {
     background: var(--practiq-violet);
-    color: #fff;
+    color: var(--color-on-primary);
     border-color: var(--practiq-violet);
   }
 
@@ -1622,7 +1622,7 @@
 
   .acm-textarea:focus {
     border-color: var(--practiq-violet-light);
-    box-shadow: 0 0 0 3px rgba(139, 92, 246, 0.1);
+    box-shadow: 0 0 0 3px rgba(var(--practiq-violet-light-rgb), 0.1);
     background: var(--surface-card);
   }
 
@@ -1639,7 +1639,7 @@
     height: 42px;
     border-radius: 50%;
     background: var(--practiq-violet);
-    color: #fff;
+    color: var(--color-on-primary);
     border: none;
     cursor: pointer;
     flex-shrink: 0;
@@ -1676,7 +1676,7 @@
     height: 64px;
     border-radius: 50%;
     background: var(--practiq-violet);
-    color: #fff;
+    color: var(--color-on-primary);
     border: none;
     cursor: pointer;
     display: flex;
@@ -1697,7 +1697,7 @@
   .acm-mic-big--recording {
     background: var(--color-error) !important;
     animation: acm-pulse 0.7s infinite;
-    box-shadow: 0 0 0 8px rgba(239, 68, 68, 0.15);
+    box-shadow: 0 0 0 8px rgba(var(--color-error-rgb), 0.15);
   }
 
   .acm-mic-big:disabled {
@@ -1718,8 +1718,8 @@
     align-items: center;
     gap: 8px;
     padding: 7px 16px;
-    background: #fef2f2;
-    border-top: 1px solid #fecaca;
+    background: var(--color-error-bg);
+    border-top: 1px solid rgba(var(--color-error-rgb), 0.25);
     font-size: var(--text-sm);
     color: var(--color-error-dark);
   }
@@ -1867,7 +1867,7 @@
   }
 
   :deep(.acm-bubble--md code) {
-    background: rgba(124, 58, 237, 0.08);
+    background: rgba(var(--practiq-violet-rgb), 0.08);
     border-radius: 4px;
     padding: 1px 5px;
     font-family: "JetBrains Mono", "Fira Code", monospace;

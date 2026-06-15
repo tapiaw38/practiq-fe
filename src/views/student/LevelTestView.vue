@@ -1283,7 +1283,7 @@
     object-fit: contain;
     border: 1.5px solid rgba(var(--practiq-violet-rgb), 0.15);
     border-radius: var(--radius-sm);
-    background: #ffffff;
+    background: var(--surface-card);
     box-shadow: var(--shadow-card);
   }
 
@@ -1314,7 +1314,7 @@
   }
   .equation-answer-wrap :deep(.math-field-editor:focus-within) {
     border-color: var(--practiq-violet);
-    box-shadow: 0 0 0 3px rgba(124, 58, 237, 0.12);
+    box-shadow: 0 0 0 3px rgba(var(--practiq-violet-rgb), 0.12);
   }
 
   .choice-options {
@@ -1681,7 +1681,7 @@
     );
     color: white;
     border-radius: var(--radius-xl);
-    box-shadow: 0 8px 32px rgba(245, 158, 11, 0.3);
+    box-shadow: 0 8px 32px rgba(var(--color-warning-rgb), 0.3);
     font-size: var(--text-base);
     font-weight: 600;
     z-index: 10000;
@@ -1703,7 +1703,7 @@
     height: 28px;
     border-radius: 50%;
     border: none;
-    background: rgba(255, 255, 255, 0.2);
+    background: rgba(var(--surface-card-rgb), 0.2);
     color: white;
     cursor: pointer;
     display: grid;
@@ -1712,7 +1712,7 @@
   }
 
   .toast-close:hover {
-    background: rgba(255, 255, 255, 0.3);
+    background: rgba(var(--surface-card-rgb), 0.3);
   }
 
   /* Retry Warning */

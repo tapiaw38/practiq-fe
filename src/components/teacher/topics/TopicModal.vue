@@ -86,13 +86,9 @@
 
 <style scoped>
   .modal-overlay {
-    position: fixed;
-    inset: 0;
     z-index: 1000;
-    background: rgba(15, 23, 42, 0.46);
     display: grid;
     place-items: center;
-    padding: 20px;
   }
   .modal-box {
     width: min(560px, 100%);
@@ -101,37 +97,13 @@
     background: var(--surface-elevated);
     border: 1px solid var(--surface-elevated-strong);
     border-radius: var(--radius-2xl);
-    box-shadow: var(--shadow-strong);
+    box-shadow: var(--shadow-lg);
     padding: 22px;
   }
   .modal-title {
     margin: 0 0 18px;
-    color: var(--text-heading);
     font-size: 1.2rem;
     font-weight: 800;
-  }
-  .form-group {
-    display: grid;
-    gap: 7px;
-    margin-bottom: 14px;
-  }
-  .form-label {
-    font-size: var(--text-sm);
-    font-weight: 800;
-    color: var(--text-primary);
-  }
-  .form-input,
-  .form-textarea {
-    width: 100%;
-    border: 1px solid var(--surface-border);
-    border-radius: var(--radius-md);
-    background: var(--surface-card);
-    color: var(--text-primary);
-    padding: 10px 12px;
-    font: inherit;
-  }
-  .form-textarea {
-    resize: vertical;
   }
   .modal-actions {
     display: flex;

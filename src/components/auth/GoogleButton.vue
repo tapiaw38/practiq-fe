@@ -96,19 +96,19 @@
     gap: 12px;
     padding: 0 16px;
     border-radius: var(--radius-xl);
-    border: 1px solid rgba(148, 163, 184, 0.18);
-    background: rgba(255, 255, 255, 0.82);
-    color: #162033;
+    border: 1px solid rgba(var(--surface-border-rgb), 0.18);
+    background: rgba(var(--surface-card-rgb), 0.82);
+    color: var(--text-heading);
     font-weight: 600;
     cursor: pointer;
     transition: var(--transition);
-    box-shadow: 0 10px 24px rgba(93, 108, 146, 0.08);
+    box-shadow: var(--shadow-card);
   }
 
   .google-button:hover:not(:disabled) {
     transform: translateY(-1px);
-    border-color: rgba(124, 58, 237, 0.18);
-    box-shadow: 0 14px 30px rgba(93, 108, 146, 0.12);
+    border-color: rgba(var(--practiq-violet-rgb), 0.18);
+    box-shadow: var(--shadow-card-lg);
   }
 
   .google-button:disabled {
