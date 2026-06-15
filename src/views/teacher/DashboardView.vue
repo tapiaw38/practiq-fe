@@ -603,7 +603,7 @@
     max-width: 1180px;
   }
 
-  /* ── Page header ── */
+  /* Page header */
   .page-header {
     position: relative;
     display: flex;
@@ -700,7 +700,7 @@
     color: var(--text-primary);
   }
 
-  /* ── Stats strip ── */
+  /* Stats strip */
   .stats-strip {
     display: grid;
     grid-template-columns: repeat(4, minmax(0, 1fr));
@@ -760,7 +760,7 @@
     display: none;
   }
 
-  /* ── Content sections ── */
+  /* Content sections */
   .content-section {
     margin-bottom: 26px;
   }
@@ -805,7 +805,7 @@
     background: var(--fill-primary-faint);
   }
 
-  /* ── Courses grid ── */
+  /* Courses grid */
   .courses-grid {
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
@@ -976,7 +976,7 @@
     color: var(--practiq-violet);
   }
 
-  /* ── Students ── */
+  /* Students */
   .grade-pills {
     display: flex;
     gap: 8px;
@@ -1080,7 +1080,7 @@
     flex-shrink: 0;
   }
 
-  /* ── Empty & loading ── */
+  /* Empty & loading */
   .loading-state {
     display: flex;
     justify-content: center;
@@ -1120,7 +1120,7 @@
     margin-right: auto;
   }
 
-  /* ── Modal ── */
+  /* Modal */
   .modal-head {
     display: flex;
     align-items: center;
@@ -1184,7 +1184,7 @@
     margin-top: 24px;
   }
 
-  /* ── Responsive ── */
+  /* Responsive */
 
   /* Tablet landscape */
   @media (max-width: 1024px) {

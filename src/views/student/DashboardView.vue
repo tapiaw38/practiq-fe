@@ -531,7 +531,7 @@
     padding: 80px;
   }
 
-  /* ── Welcome banner ── */
+  /* Welcome banner */
   .welcome-banner {
     position: relative;
     z-index: 2;
@@ -544,7 +544,7 @@
     backdrop-filter: blur(18px);
   }
 
-  /* ── Dashboard mascot ── */
+  /* Dashboard mascot */
   .dashboard-mascot {
     position: absolute;
     bottom: 0;
@@ -657,7 +657,7 @@
     font-size: var(--text-md);
   }
 
-  /* ── Metrics row ── */
+  /* Metrics row */
   .metrics-row {
     display: grid;
     grid-template-columns: auto auto 1fr;
@@ -733,7 +733,7 @@
     color: var(--text-primary);
   }
 
-  /* ── Progress section ── */
+  /* Progress section */
   .mastery-section,
   .courses-section {
     margin-top: 8px;
@@ -808,7 +808,7 @@
     margin-top: 8px;
   }
 
-  /* ── Courses section ── */
+  /* Courses section */
   .empty-state {
     text-align: center;
     padding: 64px 20px;
@@ -832,7 +832,7 @@
     font-size: var(--text-md);
   }
 
-  /* ── Responsive ── */
+  /* Responsive */
 
   /* Tablet landscape */
   @media (max-width: 1024px) {

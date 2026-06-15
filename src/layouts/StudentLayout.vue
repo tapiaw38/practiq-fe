@@ -572,7 +572,7 @@ function logout() {
   text-overflow: ellipsis;
 }
 
-/* ── Level rows ── */
+/* Level rows */
 .nav-level-group {
   display: flex;
   flex-direction: column;
@@ -641,7 +641,7 @@ function logout() {
   flex-shrink: 0;
 }
 
-/* ── Level content items ── */
+/* Level content items */
 .nav-section-tag {
   font-size: 10px;
   font-weight: 700;

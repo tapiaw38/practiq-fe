@@ -204,7 +204,7 @@
     }
   }
 
-  // ── Canvas ────────────────────────────────────────────────────────────────────
+  // Canvas
 
   function setCanvasRef(id: string, el: HTMLCanvasElement | null) {
     if (!el) {
@@ -333,7 +333,7 @@
     answers.value[id].answer = "";
   }
 
-  // ── Submit ────────────────────────────────────────────────────────────────────
+  // Submit
 
   async function submitAnswers() {
     submitting.value = true;
@@ -404,7 +404,7 @@
     }
   }
 
-  // ── Draft Save/Restore ─────────────────────────────────────────────────────
+  // Draft Save/Restore
 
   function getDraftKey(): string {
     return `practiq-draft-${sheetId}`;
@@ -695,7 +695,7 @@
     showSubmitConfirm.value = false;
   }
 
-  // ── Helpers ───────────────────────────────────────────────────────────────────
+  // Helpers
 
   function diffColor(d: number) {
     if (d <= 3) return "var(--color-success)";

@@ -5,10 +5,9 @@
   import { authService } from "@/services/auth/authService";
   import { useProfile } from "@/composables/useProfile";
   import { useAuthStore } from "@/stores/authStore";
-  import type { LoginResponse, UserProfile } from "@/types";
+  import type { LoginResponse, UserProfile, ProfileType } from "@/types";
 
   type ViewMode = "login" | "register" | "forgot" | "complete";
-  type ProfileType = "teacher" | "student";
 
   const router = useRouter();
   const route = useRoute();
@@ -681,7 +680,7 @@
 </template>
 
 <style scoped>
-  /* ───────── PAGE GRID ───────── */
+  /* Page grid */
   .auth-page {
     height: 100dvh;
     display: grid;
@@ -690,7 +689,7 @@
     overflow: hidden;
   }
 
-  /* ───────── LEFT PANEL ───────── */
+  /* Left panel */
   .auth-left {
     position: relative;
     height: 100dvh;
@@ -844,7 +843,7 @@
     filter: drop-shadow(var(--shadow-illustration));
   }
 
-  /* ───────── RIGHT PANEL ───────── */
+  /* Right panel */
   .auth-right {
     height: 100dvh;
     min-height: 0;
@@ -922,7 +921,7 @@
     box-shadow: var(--shadow-sm);
   }
 
-  /* ───────── FORM ───────── */
+  /* Form */
   .auth-form {
     display: flex;
     flex-direction: column;
@@ -1183,7 +1182,7 @@
     color: var(--text-secondary);
   }
 
-  /* ───────── RESPONSIVE ───────── */
+  /* Responsive */
   @media (max-width: 1024px) {
     .auth-page {
       grid-template-columns: 1fr;

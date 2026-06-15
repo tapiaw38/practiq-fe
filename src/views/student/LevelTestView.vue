@@ -153,7 +153,7 @@
   );
   const formattedTime = computed(() => formatDuration(timeLeft.value));
 
-  // ── Canvas helpers ────────────────────────────────────────────────────────────
+  // Canvas helpers
 
   function setCanvasRef(id: string, el: HTMLCanvasElement | null) {
     if (!el) {
@@ -285,7 +285,7 @@
     canvasData.value = copy;
   }
 
-  // ── Lifecycle ────────────────────────────────────────────────────────────────
+  // Lifecycle
 
   onMounted(async () => {
     const id = route.params.id as string;

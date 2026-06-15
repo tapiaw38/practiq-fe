@@ -304,6 +304,7 @@
   import { useAuthStore } from "@/stores/authStore";
   import { renderContent } from "@/composables/useContentRenderer";
   import type { AssistantChatModalEmits, AssistantChatModalProps } from "./AssistantChatModal.types";
+  import type { AssistantMode, AssistantMessage, PizarronState } from "@/types";
 
   const props = defineProps<AssistantChatModalProps>();
   defineEmits<AssistantChatModalEmits>();
@@ -312,31 +313,12 @@
   const API_BASE = `${import.meta.env.VITE_PRACTIQ_API_URL || "http://localhost:8083"}/api/assistant-proxy`;
   const STORAGE_KEY = "ai-client-id";
 
-  // ── Types ────────────────────────────────────────────────────────────────────
+  // State
 
-  type Mode = "escrita" | "oral" | "pizarron";
-  type PizarronState =
-    | "idle"
-    | "generating"
-    | "drawing"
-    | "evaluating"
-    | "feedback";
-
-  interface Message {
-    id: number;
-    sender: "user" | "assistant";
-    content: string;
-    html: boolean;
-    isAudio?: boolean;
-    audioSrc?: string;
-  }
-
-  // ── State ────────────────────────────────────────────────────────────────────
-
-  const mode = ref<Mode>("escrita");
+  const mode = ref<AssistantMode>("escrita");
   const showModes = ref(false);
 
-  const messages = ref<Message[]>([]);
+  const messages = ref<AssistantMessage[]>([]);
   const draft = ref("");
   const responding = ref(false);
   const isRecording = ref(false);
@@ -365,12 +347,12 @@
   let audioChunks: Blob[] = [];
   let recordingStream: MediaStream | null = null;
 
-  // ── Computed ─────────────────────────────────────────────────────────────────
+  // Computed
 
   const modes = [
-    { value: "escrita" as Mode, label: "Escrita", icon: "✍️" },
-    { value: "oral" as Mode, label: "Oral", icon: "🎙️" },
-    { value: "pizarron" as Mode, label: "Pizarrón", icon: "🖊️" },
+    { value: "escrita" as AssistantMode, label: "Escrita", icon: "✍️" },
+    { value: "oral" as AssistantMode, label: "Oral", icon: "🎙️" },
+    { value: "pizarron" as AssistantMode, label: "Pizarrón", icon: "🖊️" },
   ];
 
   const modeLabel = computed(
@@ -399,7 +381,7 @@
       : "Escribe tu pregunta… (Enter para enviar)",
   );
 
-  // ── Helpers ──────────────────────────────────────────────────────────────────
+  // Helpers
 
   function authHeaders(contentType?: string): Record<string, string> {
     const h: Record<string, string> = {};
@@ -428,7 +410,7 @@
   }
 
   function addMsg(
-    sender: Message["sender"],
+    sender: AssistantMessage["sender"],
     content: string,
     html = false,
     audio?: { src: string },
@@ -608,7 +590,7 @@
     ].join("\n")
   }
 
-  // ── API ───────────────────────────────────────────────────────────────────────
+  // API
 
   async function createConversation(title: string) {
     const res = await fetch(`${API_BASE}/conversation/`, {
@@ -681,7 +663,7 @@
     }
   }
 
-  // ── Send: escrita ─────────────────────────────────────────────────────────────
+  // Send: escrita
 
   async function sendText() {
     const text = draft.value.trim();
@@ -711,7 +693,7 @@
     }
   }
 
-  // ── Send: oral ────────────────────────────────────────────────────────────────
+  // Send: oral
 
   async function startRecording() {
     if (responding.value || isRecording.value) return;
@@ -840,7 +822,7 @@
     return new Blob([arrayBuffer], { type: "audio/wav" });
   }
 
-  // ── Pizarrón ─────────────────────────────────────────────────────────────────
+  // Pizarrón
 
   async function generateExercise(topic: string) {
     pizarronTopic.value = topic;
@@ -928,13 +910,13 @@
     canvasInitialized = false;
   }
 
-  function setMode(m: Mode) {
+  function setMode(m: AssistantMode) {
     mode.value = m;
     showModes.value = false;
     if (m === "pizarron") resetPizarron();
   }
 
-  // ── Canvas drawing ────────────────────────────────────────────────────────────
+  // Canvas drawing
 
   function initCanvas() {
     const canvas = canvasEl.value;
@@ -1079,7 +1061,7 @@
     );
   }
 
-  // ── Init ──────────────────────────────────────────────────────────────────────
+  // Init
 
   let initialized = false;
 
@@ -1118,7 +1100,7 @@
 </script>
 
 <style scoped>
-  /* ── Overlay & Modal ─────────────────────────────────────────────────────── */
+  /* Overlay & Modal */
   .acm-overlay {
     position: fixed;
     inset: 0;
@@ -1162,7 +1144,7 @@
     transform: translateY(18px);
   }
 
-  /* ── Header ──────────────────────────────────────────────────────────────── */
+  /* Header */
   .acm-header {
     display: flex;
     align-items: center;
@@ -1248,7 +1230,7 @@
     background: rgba(var(--surface-card-rgb), 0.3);
   }
 
-  /* ── Messages (escrita/oral) ─────────────────────────────────────────────── */
+  /* Messages (escrita/oral) */
   .acm-messages {
     flex: 1;
     overflow-y: auto;
@@ -1348,7 +1330,7 @@
     font-size: 48px;
   }
 
-  /* ── PIZARRÓN: idle ──────────────────────────────────────────────────────── */
+  /* PIZARRÓN: idle */
   .acm-piz-idle {
     flex: 1;
     display: flex;
@@ -1388,7 +1370,7 @@
     color: var(--text-secondary);
   }
 
-  /* ── PIZARRÓN: split layout ──────────────────────────────────────────────── */
+  /* PIZARRÓN: split layout */
   .acm-piz-split {
     flex: 1;
     display: flex;
@@ -1491,7 +1473,7 @@
     justify-content: center;
   }
 
-  /* ── PIZARRÓN: feedback ──────────────────────────────────────────────────── */
+  /* PIZARRÓN: feedback */
   .acm-piz-feedback {
     flex: 1;
     display: flex;
@@ -1527,7 +1509,7 @@
     gap: 8px;
   }
 
-  /* ── Footer ──────────────────────────────────────────────────────────────── */
+  /* Footer */
   .acm-footer {
     flex-shrink: 0;
     border-top: 1px solid var(--surface-border);
@@ -1749,7 +1731,7 @@
     max-height: 80px;
   }
 
-  /* ── Animations ──────────────────────────────────────────────────────────── */
+  /* Animations */
   @keyframes acm-pulse {
     0%,
     100% {
@@ -1773,7 +1755,7 @@
     }
   }
 
-  /* ── Tablet portrait ────────────────────────────────────────────────────── */
+  /* Tablet portrait */
   @media (max-width: 768px) {
     .acm-modal {
       width: 96vw;
@@ -1795,7 +1777,7 @@
     .acm-messages { padding: 16px; }
   }
 
-  /* ── Mobile ──────────────────────────────────────────────────────────────── */
+  /* Mobile */
   @media (max-width: 600px) {
     .acm-overlay {
       padding: 0;
@@ -1820,7 +1802,7 @@
     }
   }
 
-  /* ── Markdown + Math typography (deep = pierce scoped into v-html) ────────── */
+  /* Markdown + Math typography */
   :deep(.acm-bubble--md) {
     line-height: 1.7;
     overflow-wrap: break-word;

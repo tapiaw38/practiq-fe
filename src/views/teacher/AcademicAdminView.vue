@@ -88,8 +88,6 @@
     }
   }
 
-  // ── Grados ───────────────────────────────────────────────────────────────────
-
   function openCreateGrade() {
     editingGrade.value = null;
     gradeForm.name = "";
@@ -143,8 +141,6 @@
       selectedGradeId.value = grades.value[0].id;
     }
   }
-
-  // ── Cursos ────────────────────────────────────────────────────────────────────
 
   function openCreateCourse() {
     editingCourse.value = null;
@@ -208,8 +204,6 @@
   function goToCourse(courseId: string) {
     router.push(`/teacher/courses/${courseId}`);
   }
-
-  // ── Materias ──────────────────────────────────────────────────────────────────
 
   async function createSubject() {
     saving.value = true;
@@ -780,7 +774,7 @@
 </template>
 
 <style scoped>
-  /* ── Root ─────────────────────────────────────────────────────────────────── */
+  /* Root */
   .ac-root {
     display: flex;
     flex-direction: column;
@@ -790,7 +784,7 @@
     gap: 18px;
   }
 
-  /* ── Top bar ──────────────────────────────────────────────────────────────── */
+  /* Top bar */
   .ac-topbar {
     position: relative;
     display: flex;
@@ -873,7 +867,7 @@
     place-items: center;
   }
 
-  /* ── Loading ──────────────────────────────────────────────────────────────── */
+  /* Loading */
   .ac-loading {
     flex: 1;
     display: flex;
@@ -885,7 +879,7 @@
     font-size: var(--text-md);
   }
 
-  /* ── Onboarding ───────────────────────────────────────────────────────────── */
+  /* Onboarding */
   .onboarding {
     flex: 1;
     display: flex;
@@ -992,7 +986,7 @@
     justify-content: center;
   }
 
-  /* ── Layout ───────────────────────────────────────────────────────────────── */
+  /* Layout */
   .ac-layout {
     flex: 1;
     display: grid;
@@ -1002,7 +996,7 @@
     gap: 18px;
   }
 
-  /* ── Sidebar ──────────────────────────────────────────────────────────────── */
+  /* Sidebar */
   .grade-sidebar {
     display: flex;
     flex-direction: column;
@@ -1121,7 +1115,7 @@
     color: var(--practiq-violet);
   }
 
-  /* ── Grade content ────────────────────────────────────────────────────────── */
+  /* Grade content */
   .grade-content {
     overflow-y: auto;
     display: flex;
@@ -1142,7 +1136,7 @@
     font-size: var(--text-md);
   }
 
-  /* ── Grade header ─────────────────────────────────────────────────────────── */
+  /* Grade header */
   .grade-header {
     display: flex;
     align-items: flex-start;
@@ -1174,7 +1168,7 @@
     padding-top: 2px;
   }
 
-  /* ── Courses area ─────────────────────────────────────────────────────────── */
+  /* Courses area */
   .courses-area {
     flex: 1;
     padding: 18px 20px 20px;
@@ -1207,7 +1201,7 @@
     margin: 0;
   }
 
-  /* ── Empty state ──────────────────────────────────────────────────────────── */
+  /* Empty state */
   .courses-empty {
     display: flex;
     flex-direction: column;
@@ -1242,7 +1236,7 @@
     font-weight: 400 !important;
   }
 
-  /* ── Courses grid ─────────────────────────────────────────────────────────── */
+  /* Courses grid */
   .courses-grid {
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
@@ -1362,7 +1356,7 @@
     transform: translateX(2px);
   }
 
-  /* ── Buttons ──────────────────────────────────────────────────────────────── */
+  /* Buttons */
   .btn-add-course {
     display: inline-flex;
     align-items: center;
@@ -1497,7 +1491,7 @@
     font-size: var(--text-xs);
   }
 
-  /* ── Modals ───────────────────────────────────────────────────────────────── */
+  /* Modals */
   .modal-backdrop {
     position: fixed;
     inset: 0;
@@ -1575,7 +1569,7 @@
     padding-top: 4px;
   }
 
-  /* ── Notice ───────────────────────────────────────────────────────────────── */
+  /* Notice */
   .notice {
     display: flex;
     gap: 12px;
@@ -1607,7 +1601,7 @@
     margin-top: 10px;
   }
 
-  /* ── Subject catalog ──────────────────────────────────────────────────────── */
+  /* Subject catalog */
   .subject-create-row {
     display: grid;
     grid-template-columns: 1fr 1fr auto;
@@ -1680,7 +1674,7 @@
     align-items: center;
   }
 
-  /* ── Forms ────────────────────────────────────────────────────────────────── */
+  /* Forms */
   .form-group {
     display: flex;
     flex-direction: column;
@@ -1732,7 +1726,7 @@
     resize: vertical;
   }
 
-  /* ── Responsive ───────────────────────────────────────────────────────────── */
+  /* Responsive */
   /* Tablet landscape */
   @media (max-width: 1024px) {
     .ac-layout {
