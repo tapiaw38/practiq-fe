@@ -64,3 +64,25 @@ export function renderEquation(latex: string): string {
   // Wrap in display math delimiters
   return renderContent(`$$${trimmed}$$`)
 }
+
+export function renderInlineEquation(latex: string): string {
+  if (!latex?.trim()) return ''
+  let math = latex.trim()
+  if (math.startsWith('$$') && math.endsWith('$$')) {
+    math = math.slice(2, -2).trim()
+  } else if (math.startsWith('$') && math.endsWith('$')) {
+    math = math.slice(1, -1).trim()
+  } else if (math.startsWith('\\[') && math.endsWith('\\]')) {
+    math = math.slice(2, -2).trim()
+  }
+
+  try {
+    return katex.renderToString(math, {
+      displayMode: false,
+      throwOnError: false,
+      output: 'html',
+    })
+  } catch {
+    return `<code>${latex}</code>`
+  }
+}

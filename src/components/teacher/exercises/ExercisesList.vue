@@ -1,5 +1,8 @@
 <script setup lang="ts">
-  import { renderEquation } from "@/composables/useContentRenderer";
+  import {
+    renderEquation,
+    renderInlineEquation,
+  } from "@/composables/useContentRenderer";
   import type {
     ExercisesListEmits,
     ExercisesListProps,
@@ -72,7 +75,7 @@
                 · Respuesta:
                 <span
                   class="answer-math"
-                  v-html="renderEquation(exercise.correct_answer || 'N/A')"
+                  v-html="renderInlineEquation(exercise.correct_answer || 'N/A')"
                 ></span>
               </template>
               <template v-else
@@ -160,13 +163,45 @@
     line-height: 1.3;
   }
   .item-title--math {
+    display: block;
+    max-width: min(100%, 720px);
     overflow-x: auto;
-    padding-block: 2px;
+    padding: 8px 10px;
+    border-radius: var(--radius-md);
+    background: var(--surface-subtle);
+    border-left: 3px solid var(--practiq-violet);
+  }
+  .item-title--math :deep(p) {
+    margin: 0;
+  }
+  .item-title--math :deep(.katex-display) {
+    margin: 0;
+    overflow-x: auto;
+    overflow-y: hidden;
+    padding: 2px 0;
+    text-align: left;
+  }
+  .item-title--math :deep(.katex) {
+    font-size: 1.08em;
   }
   .item-subtitle {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    flex-wrap: wrap;
     color: var(--text-secondary);
     font-size: var(--text-sm);
     margin-top: 3px;
+  }
+  .answer-math {
+    display: inline-flex;
+    align-items: center;
+    max-width: 100%;
+    overflow-x: auto;
+    vertical-align: middle;
+  }
+  .answer-math :deep(.katex) {
+    font-size: 1em;
   }
   .difficulty-badge {
     width: 32px;
