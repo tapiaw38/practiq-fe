@@ -4,17 +4,17 @@ import { definePreset } from '@primeuix/themes'
 const PractiqPreset = definePreset(Aura, {
   semantic: {
     primary: {
-      50: '#f5f3ff',
-      100: '#ede9fe',
-      200: '#ddd6fe',
-      300: '#c4b5fd',
-      400: '#a78bfa',
-      500: '#8b5cf6',
-      600: '#7c3aed',
-      700: '#6d28d9',
-      800: '#5b21b6',
-      900: '#4c1d95',
-      950: '#2e1065'
+      50: 'var(--practiq-violet-50)',
+      100: 'var(--practiq-violet-100)',
+      200: 'var(--practiq-violet-200)',
+      300: 'var(--practiq-violet-300)',
+      400: 'var(--practiq-violet-400)',
+      500: 'var(--practiq-violet-500)',
+      600: 'var(--practiq-violet-600)',
+      700: 'var(--practiq-violet-700)',
+      800: 'var(--practiq-violet-800)',
+      900: 'var(--practiq-violet-900)',
+      950: 'var(--practiq-violet-950)'
     }
   }
 })

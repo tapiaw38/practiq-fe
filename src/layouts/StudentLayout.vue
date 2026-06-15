@@ -1,3 +1,132 @@
+<script setup lang="ts">
+  import { computed, onMounted, onUnmounted, ref, reactive, watch } from "vue";
+  import { useRoute, useRouter } from "vue-router";
+  import { useAuthStore } from "@/stores/authStore";
+  import { useCourse } from "@/composables/useCourse";
+  import { useLevel } from "@/composables/useLevel";
+  import ChangePasswordModal from "@/components/auth/ChangePasswordModal.vue";
+  import SetPasswordModal from "@/components/auth/SetPasswordModal.vue";
+  import type { LevelData } from "@/types";
+
+  interface CourseNavItem {
+    id: string;
+    title: string;
+    currentLevel: number;
+    levels: LevelData[];
+    loading: boolean;
+  }
+
+  const route = useRoute();
+  const router = useRouter();
+  const authStore = useAuthStore();
+  const { loadCourses } = useCourse();
+  const { loadCourseLevels } = useLevel();
+  const profile = computed(() => authStore.profile);
+  const userInitial = computed(
+    () => profile.value?.name?.[0]?.toUpperCase() || "A",
+  );
+  const navOpen = ref(false);
+  const coursesOpen = ref(false);
+  const loadingCourses = ref(false);
+  const coursesData = ref<CourseNavItem[]>([]);
+  const openCourses = ref(new Set<string>());
+  const showChangePassword = ref(false);
+  const showSetPassword = ref(false);
+  const isGoogleUser = computed(() => authStore.authMethod === "google");
+  // openLevels[courseId] = Set of open level numbers
+  const openLevels = reactive<Record<string, Set<number>>>({});
+
+  function toggleCourse(id: string) {
+    const s = new Set(openCourses.value);
+    if (s.has(id)) {
+      s.delete(id);
+    } else {
+      s.add(id);
+      loadCourseNavLevels(id);
+    }
+    openCourses.value = s;
+  }
+
+  function toggleLevel(courseId: string, level: number) {
+    if (!openLevels[courseId]) openLevels[courseId] = new Set();
+    const s = new Set(openLevels[courseId]);
+    s.has(level) ? s.delete(level) : s.add(level);
+    openLevels[courseId] = s;
+  }
+
+  async function loadCourseNavLevels(courseId: string) {
+    const course = coursesData.value.find((c) => c.id === courseId);
+    if (!course || course.levels.length) return;
+    course.loading = true;
+    try {
+      const res = await loadCourseLevels(courseId);
+      course.currentLevel = res.current_level;
+      course.levels = res.levels;
+      // Auto-open current level
+      if (!openLevels[courseId]) openLevels[courseId] = new Set();
+      openLevels[courseId] = new Set([res.current_level]);
+    } finally {
+      course.loading = false;
+    }
+  }
+
+  watch(coursesOpen, async (open) => {
+    if (!open || coursesData.value.length) return;
+    loadingCourses.value = true;
+    try {
+      const courses = await loadCourses("student");
+      coursesData.value = (courses || []).map((c) => ({
+        id: c.id,
+        title: c.title,
+        currentLevel: 1,
+        levels: [],
+        loading: false,
+      }));
+    } finally {
+      loadingCourses.value = false;
+    }
+  });
+
+  function goPractice(id: string) {
+    navOpen.value = false;
+    router.push(`/student/practice/${id}`);
+  }
+
+  function goLevelTest(id: string) {
+    navOpen.value = false;
+    router.push(`/student/level-test/${id}`);
+  }
+
+  function goNotebook(id: string) {
+    navOpen.value = false;
+    router.push(`/student/notebook/${id}`);
+  }
+
+  function syncDesktopState() {
+    if (window.innerWidth > 920) navOpen.value = false;
+  }
+
+  watch(
+    () => route.fullPath,
+    () => {
+      navOpen.value = false;
+    },
+  );
+
+  onMounted(() => {
+    window.addEventListener("resize", syncDesktopState);
+  });
+  onUnmounted(() => {
+    window.removeEventListener("resize", syncDesktopState);
+  });
+
+  function logout() {
+    authStore.clearAuth();
+    localStorage.removeItem("practiq_profile");
+    router.push("/login");
+  }
+</script>
+
 <template>
   <div class="app-shell">
     <header class="mobile-topbar">
@@ -23,17 +152,29 @@
       </div>
 
       <nav class="sidebar-nav">
-        <RouterLink to="/student/dashboard" class="nav-item" active-class="nav-item-active" @click="navOpen = false">
-          <i class="pi pi-home"></i>
+        <div class="nav-section-label">Estudiante</div>
+        <RouterLink
+          to="/student/dashboard"
+          class="nav-item"
+          active-class="nav-item-active"
+          @click="navOpen = false"
+        >
+          <span class="nav-icon"><i class="pi pi-home"></i></span>
           <span>Inicio</span>
         </RouterLink>
 
-        <!-- Mis Cursos desplegable -->
+        <!-- Courses and levels -->
         <div class="nav-group">
-          <button class="nav-item nav-item-btn" @click="coursesOpen = !coursesOpen">
-            <i class="pi pi-book"></i>
+          <button
+            class="nav-item nav-item-btn"
+            @click="coursesOpen = !coursesOpen"
+          >
+            <span class="nav-icon"><i class="pi pi-book"></i></span>
             <span>Mis Cursos</span>
-            <i class="pi nav-chevron" :class="coursesOpen ? 'pi-chevron-down' : 'pi-chevron-right'"></i>
+            <i
+              class="pi nav-chevron"
+              :class="coursesOpen ? 'pi-chevron-down' : 'pi-chevron-right'"
+            ></i>
           </button>
 
           <div v-if="coursesOpen" class="nav-sub">
@@ -41,12 +182,23 @@
               <i class="pi pi-spin pi-spinner"></i>
             </div>
             <template v-else-if="coursesData.length">
-              <div v-for="c in coursesData" :key="c.id" class="nav-course-group">
+              <div
+                v-for="c in coursesData"
+                :key="c.id"
+                class="nav-course-group"
+              >
                 <!-- Course header -->
                 <button class="nav-course-toggle" @click="toggleCourse(c.id)">
                   <i class="pi pi-graduation-cap"></i>
                   <span class="nav-course-toggle-title">{{ c.title }}</span>
-                  <i class="pi nav-chevron" :class="openCourses.has(c.id) ? 'pi-chevron-down' : 'pi-chevron-right'"></i>
+                  <i
+                    class="pi nav-chevron"
+                    :class="
+                      openCourses.has(c.id)
+                        ? 'pi-chevron-down'
+                        : 'pi-chevron-right'
+                    "
+                  ></i>
                 </button>
 
                 <!-- Levels list -->
@@ -65,24 +217,42 @@
                         class="nav-level-row"
                         :class="{
                           'nav-level-row--current': lv.level === c.currentLevel,
-                          'nav-level-row--locked': !lv.unlocked
+                          'nav-level-row--locked': !lv.unlocked,
                         }"
                         @click="lv.unlocked && toggleLevel(c.id, lv.level)"
                         :disabled="!lv.unlocked"
                       >
-                        <span class="nav-level-badge" :class="{ 'nav-level-badge--locked': !lv.unlocked }">
+                        <span
+                          class="nav-level-badge"
+                          :class="{ 'nav-level-badge--locked': !lv.unlocked }"
+                        >
                           <i v-if="!lv.unlocked" class="pi pi-lock"></i>
                           <span v-else>{{ lv.level }}</span>
                         </span>
-                        <span class="nav-level-label">Nivel {{ lv.level }}</span>
-                        <span v-if="lv.level === c.currentLevel" class="nav-level-tag">En curso</span>
-                        <i v-if="lv.unlocked" class="pi nav-chevron"
-                          :class="openLevels[c.id]?.has(lv.level) ? 'pi-chevron-down' : 'pi-chevron-right'"></i>
+                        <span class="nav-level-label"
+                          >Nivel {{ lv.level }}</span
+                        >
+                        <span
+                          v-if="lv.level === c.currentLevel"
+                          class="nav-level-tag"
+                          >En curso</span
+                        >
+                        <i
+                          v-if="lv.unlocked"
+                          class="pi nav-chevron"
+                          :class="
+                            openLevels[c.id]?.has(lv.level)
+                              ? 'pi-chevron-down'
+                              : 'pi-chevron-right'
+                          "
+                        ></i>
                       </button>
 
                       <!-- Level content -->
-                      <template v-if="lv.unlocked && openLevels[c.id]?.has(lv.level)">
-                        <!-- Prácticas -->
+                      <template
+                        v-if="lv.unlocked && openLevels[c.id]?.has(lv.level)"
+                      >
+                        <!-- Practices -->
                         <template v-if="lv.practices?.length">
                           <div class="nav-section-tag">Prácticas</div>
                           <button
@@ -96,7 +266,7 @@
                           </button>
                         </template>
 
-                        <!-- Cuadernos -->
+                        <!-- Notebooks -->
                         <template v-if="lv.notebooks?.length">
                           <div class="nav-section-tag">Cuadernos</div>
                           <button
@@ -110,7 +280,7 @@
                           </button>
                         </template>
 
-                        <!-- Prueba de nivel -->
+                        <!-- Level test -->
                         <template v-if="lv.level_test">
                           <div class="nav-section-tag">Prueba de Nivel</div>
                           <button
@@ -122,7 +292,14 @@
                           </button>
                         </template>
 
-                        <div v-if="!lv.practices?.length && !lv.notebooks?.length && !lv.level_test" class="nav-sub-empty">
+                        <div
+                          v-if="
+                            !lv.practices?.length &&
+                            !lv.notebooks?.length &&
+                            !lv.level_test
+                          "
+                          class="nav-sub-empty"
+                        >
                           Sin contenido aún
                         </div>
                       </template>
@@ -140,7 +317,7 @@
         <div class="user-info">
           <div class="user-avatar">{{ userInitial }}</div>
           <div class="user-details">
-            <div class="user-name">{{ profile?.name || 'Alumno' }}</div>
+            <div class="user-name">{{ profile?.name || "Alumno" }}</div>
             <div class="user-role">Estudiante</div>
           </div>
         </div>
@@ -148,17 +325,27 @@
           <button
             class="icon-btn"
             type="button"
-            :title="isGoogleUser ? 'Establecer contraseña' : 'Cambiar contraseña'"
-            @click="isGoogleUser ? (showSetPassword = true) : (showChangePassword = true)"
+            :title="
+              isGoogleUser ? 'Establecer contraseña' : 'Cambiar contraseña'
+            "
+            @click="
+              isGoogleUser
+                ? (showSetPassword = true)
+                : (showChangePassword = true)
+            "
           >
             <i class="pi pi-lock"></i>
           </button>
-          <button class="icon-btn icon-btn--logout" type="button" title="Cerrar sesión" @click="logout">
+          <button
+            class="icon-btn icon-btn--logout"
+            type="button"
+            title="Cerrar sesión"
+            @click="logout"
+          >
             <i class="pi pi-sign-out"></i>
           </button>
         </div>
       </div>
-
     </aside>
 
     <main class="main-content">
@@ -172,638 +359,590 @@
   </Teleport>
 </template>
 
-<script setup lang="ts">
-import { computed, onMounted, onUnmounted, ref, reactive, watch } from 'vue'
-import { useRoute, useRouter } from 'vue-router'
-import { useAuthStore } from '@/stores/authStore'
-import { courseService } from '@/services/courses/courseService'
-import { levelService } from '@/services/levels/levelService'
-import ChangePasswordModal from '@/components/ChangePasswordModal.vue'
-import SetPasswordModal from '@/components/SetPasswordModal.vue'
-import type { LevelData } from '@/types'
-
-interface CourseNavItem {
-  id: string
-  title: string
-  currentLevel: number
-  levels: LevelData[]
-  loading: boolean
-}
-
-const route = useRoute()
-const router = useRouter()
-const authStore = useAuthStore()
-const profile = computed(() => authStore.profile)
-const userInitial = computed(() => profile.value?.name?.[0]?.toUpperCase() || 'A')
-const navOpen = ref(false)
-const coursesOpen = ref(false)
-const loadingCourses = ref(false)
-const coursesData = ref<CourseNavItem[]>([])
-const openCourses = ref(new Set<string>())
-const showChangePassword = ref(false)
-const showSetPassword = ref(false)
-const isGoogleUser = computed(() => authStore.authMethod === 'google')
-// openLevels[courseId] = Set of open level numbers
-const openLevels = reactive<Record<string, Set<number>>>({})
-
-function toggleCourse(id: string) {
-  const s = new Set(openCourses.value)
-  if (s.has(id)) {
-    s.delete(id)
-  } else {
-    s.add(id)
-    loadCourseLevels(id)
-  }
-  openCourses.value = s
-}
-
-function toggleLevel(courseId: string, level: number) {
-  if (!openLevels[courseId]) openLevels[courseId] = new Set()
-  const s = new Set(openLevels[courseId])
-  s.has(level) ? s.delete(level) : s.add(level)
-  openLevels[courseId] = s
-}
-
-async function loadCourseLevels(courseId: string) {
-  const course = coursesData.value.find(c => c.id === courseId)
-  if (!course || course.levels.length) return
-  course.loading = true
-  try {
-    const res = await levelService.getCourseLevels(courseId)
-    course.currentLevel = res.current_level
-    course.levels = res.levels
-    // Auto-open current level
-    if (!openLevels[courseId]) openLevels[courseId] = new Set()
-    openLevels[courseId] = new Set([res.current_level])
-  } finally {
-    course.loading = false
-  }
-}
-
-watch(coursesOpen, async (open) => {
-  if (!open || coursesData.value.length) return
-  loadingCourses.value = true
-  try {
-    const res = await courseService.list('student')
-    coursesData.value = (res.data || []).map(c => ({
-      id: c.id,
-      title: c.title,
-      currentLevel: 1,
-      levels: [],
-      loading: false
-    }))
-  } finally {
-    loadingCourses.value = false
-  }
-})
-
-function goPractice(id: string) {
-  navOpen.value = false
-  router.push(`/student/practice/${id}`)
-}
-
-function goLevelTest(id: string) {
-  navOpen.value = false
-  router.push(`/student/level-test/${id}`)
-}
-
-function goNotebook(id: string) {
-  navOpen.value = false
-  router.push(`/student/notebook/${id}`)
-}
-
-function syncDesktopState() {
-  if (window.innerWidth > 920) navOpen.value = false
-}
-
-watch(() => route.fullPath, () => { navOpen.value = false })
-
-onMounted(() => { window.addEventListener('resize', syncDesktopState) })
-onUnmounted(() => { window.removeEventListener('resize', syncDesktopState) })
-
-function logout() {
-  authStore.clearAuth()
-  localStorage.removeItem('practiq_profile')
-  router.push('/login')
-}
-</script>
-
 <style scoped>
-.app-shell {
-  min-height: 100vh;
-  display: flex;
-  background:
-    radial-gradient(circle at top left, rgba(124, 58, 237, 0.12), transparent 16%),
-    radial-gradient(circle at bottom right, rgba(96, 165, 250, 0.12), transparent 18%),
-    linear-gradient(180deg, #f8fbff 0%, #f7f8ff 42%, #f6f8fc 100%);
-}
-
-.mobile-topbar {
-  display: none;
-}
-
-.sidebar {
-  width: 280px;
-  flex-shrink: 0;
-  margin: 18px 0 18px 18px;
-  border-radius: 32px;
-  background: rgba(255, 255, 255, 0.78);
-  border: 1px solid rgba(255, 255, 255, 0.9);
-  box-shadow: 0 24px 52px rgba(93, 108, 146, 0.14);
-  backdrop-filter: blur(18px);
-  display: flex;
-  flex-direction: column;
-  padding: 12px 18px;
-  position: sticky;
-  top: 18px;
-  height: calc(100vh - 36px);
-  z-index: 25;
-}
-
-.sidebar-brand,
-.sidebar-brand-main,
-.user-info,
-.topbar-brand,
-.nav-item,
-.sidebar-footer {
-  display: flex;
-  align-items: center;
-}
-
-.sidebar-logo {
-  width: 120px;
-  display: block;
-}
-
-.topbar-logo {
-  width: 100px;
-  display: block;
-}
-
-.sidebar-brand {
-  justify-content: space-between;
-  align-items: center;
-  gap: 12px;
-}
-
-.sidebar-brand-main,
-.topbar-brand,
-.user-info,
-.nav-item {
-  gap: 12px;
-}
-
-.brand-icon {
-  width: 40px;
-  height: 40px;
-  border-radius: var(--radius-lg);
-  background: linear-gradient(135deg, #8b5cf6, #6366f1);
-  color: white;
-  display: grid;
-  place-items: center;
-  font-weight: 800;
-  box-shadow: 0 12px 22px rgba(99, 102, 241, 0.2);
-}
-
-.brand-icon--large {
-  width: 48px;
-  height: 48px;
-  border-radius: var(--radius-xl);
-  font-size: var(--font-stat-value);
-}
-
-.brand-name {
-  font-size: 17px;
-  font-weight: 800;
-  color: var(--text-heading);
-}
-
-.brand-name--large {
-  font-size: var(--font-stat-value);
-}
-
-.brand-tag {
-  font-size: var(--text-sm);
-  color: var(--text-secondary);
-}
-
-.close-btn,
-.topbar-btn,
-.logout-btn {
-  width: 42px;
-  height: 42px;
-  border: none;
-  border-radius: var(--radius-lg);
-  background: rgba(248, 250, 252, 0.92);
-  color: var(--text-secondary);
-  display: grid;
-  place-items: center;
-  cursor: pointer;
-  transition: var(--transition);
-}
-
-.close-btn:hover,
-.topbar-btn:hover,
-.logout-btn:hover {
-  background: white;
-  color: var(--text-primary);
-}
-
-.sidebar-nav {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  margin-top: 20px;
-  overflow-y: auto;
-  overflow-x: hidden;
-}
-
-.nav-item {
-  padding: 14px 16px;
-  border-radius: var(--radius-xl);
-  color: var(--text-secondary);
-  font-size: var(--text-md);
-  font-weight: 600;
-  text-decoration: none;
-  transition: var(--transition);
-}
-
-.nav-item:hover {
-  background: rgba(255, 255, 255, 0.9);
-  color: var(--text-heading);
-}
-
-.nav-item-active {
-  background: linear-gradient(135deg, rgba(124, 58, 237, 0.12), rgba(96, 165, 250, 0.12));
-  color: var(--practiq-violet-dark);
-}
-
-.nav-group {
-  display: flex;
-  flex-direction: column;
-}
-
-.nav-item-btn {
-  width: 100%;
-  background: none;
-  border: none;
-  cursor: pointer;
-  text-align: left;
-  justify-content: flex-start;
-}
-
-.nav-chevron {
-  margin-left: auto;
-  font-size: var(--text-xs);
-  opacity: 0.6;
-}
-
-.nav-sub {
-  margin-top: 4px;
-  padding-left: 8px;
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  overflow: hidden;
-}
-
-.nav-sub-loading {
-  padding: 8px 12px;
-  font-size: var(--text-sm);
-  color: var(--text-secondary);
-}
-
-.nav-sub-empty {
-  padding: 6px 12px;
-  font-size: var(--text-sm);
-  color: var(--text-secondary);
-}
-
-.nav-course-group {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  margin-bottom: 4px;
-}
-
-.nav-course-toggle {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 8px 10px;
-  border-radius: var(--radius-md);
-  border: none;
-  background: none;
-  cursor: pointer;
-  text-align: left;
-  transition: var(--transition);
-  width: 100%;
-}
-.nav-course-toggle:hover {
-  background: rgba(124, 58, 237, 0.06);
-}
-.nav-course-toggle .pi-graduation-cap {
-  font-size: var(--text-base);
-  color: var(--practiq-violet);
-  flex-shrink: 0;
-}
-.nav-course-toggle-title {
-  flex: 1;
-  font-size: var(--text-md);
-  font-weight: 700;
-  color: var(--text-primary);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-/* ── Level rows ── */
-.nav-level-group {
-  display: flex;
-  flex-direction: column;
-  gap: 1px;
-  padding-left: 8px;
-}
-
-.nav-level-row {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 6px 10px;
-  border-radius: var(--radius-sm);
-  border: none;
-  background: none;
-  cursor: pointer;
-  width: 100%;
-  text-align: left;
-  transition: var(--transition);
-}
-.nav-level-row:hover:not(:disabled) {
-  background: rgba(124, 58, 237, 0.06);
-}
-.nav-level-row--current {
-  background: rgba(124, 58, 237, 0.07);
-}
-.nav-level-row--locked {
-  cursor: default;
-  opacity: 0.5;
-}
-
-.nav-level-badge {
-  width: 22px;
-  height: 22px;
-  border-radius: 7px;
-  background: linear-gradient(135deg, #8b5cf6, #6366f1);
-  color: #fff;
-  font-size: var(--text-xs);
-  font-weight: 800;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  flex-shrink: 0;
-}
-.nav-level-badge--locked {
-  background: rgba(148, 163, 184, 0.2);
-  color: var(--text-muted);
-}
-
-.nav-level-label {
-  flex: 1;
-  font-size: var(--text-sm);
-  font-weight: 700;
-  color: var(--text-primary);
-}
-
-.nav-level-tag {
-  font-size: 10px;
-  font-weight: 700;
-  color: var(--practiq-violet);
-  background: rgba(124, 58, 237, 0.1);
-  padding: 2px 7px;
-  border-radius: var(--radius-pill);
-  flex-shrink: 0;
-}
-
-/* ── Level content items ── */
-.nav-section-tag {
-  font-size: 10px;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
-  color: var(--text-secondary);
-  padding: 5px 12px 1px;
-  opacity: 0.5;
-}
-
-.nav-book-item {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 8px 12px;
-  border-radius: var(--radius-sm);
-  border: none;
-  background: none;
-  cursor: pointer;
-  font-size: var(--text-sm);
-  font-weight: 500;
-  color: var(--text-secondary);
-  text-align: left;
-  width: 100%;
-  transition: var(--transition);
-}
-
-.nav-book-item:hover {
-  background: rgba(124, 58, 237, 0.08);
-  color: var(--practiq-violet-dark);
-}
-
-.nav-book-item--practice:hover {
-  background: rgba(16, 185, 129, 0.08);
-  color: var(--color-success-dark);
-}
-
-.nav-book-item--test:hover {
-  background: rgba(245, 158, 11, 0.08);
-  color: #d97706;
-}
-
-.nav-book-item--notebook:hover {
-  background: rgba(139, 92, 246, 0.08);
-  color: #7c3aed;
-}
-
-.nav-book-item .pi {
-  font-size: var(--text-sm);
-  flex-shrink: 0;
-}
-
-.sidebar-footer {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  padding-top: 18px;
-  border-top: 1px solid rgba(148, 163, 184, 0.14);
-}
-
-.footer-actions {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  flex-shrink: 0;
-}
-
-.icon-btn {
-  width: 36px;
-  height: 36px;
-  border: none;
-  border-radius: var(--radius-md);
-  background: rgba(248, 250, 252, 0.92);
-  color: var(--text-secondary);
-  display: grid;
-  place-items: center;
-  cursor: pointer;
-  transition: var(--transition);
-  font-size: var(--text-md);
-}
-.icon-btn:hover {
-  background: white;
-  color: var(--text-primary);
-}
-.icon-btn--logout:hover {
-  color: var(--color-error);
-  background: var(--color-error-bg);
-}
-
-.user-info {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  min-width: 0;
-  flex: 1;
-}
-
-.user-avatar,
-.topbar-avatar {
-  width: 46px;
-  height: 46px;
-  border-radius: var(--radius-xl);
-  background: linear-gradient(135deg, #8b5cf6, #6366f1);
-  color: white;
-  display: grid;
-  place-items: center;
-  font-weight: 800;
-  box-shadow: 0 12px 22px rgba(99, 102, 241, 0.2);
-  flex-shrink: 0;
-}
-
-.user-details {
-  min-width: 0;
-}
-
-.user-name {
-  font-size: var(--text-md);
-  font-weight: 700;
-  color: var(--text-heading);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.user-role {
-  font-size: var(--text-sm);
-  color: var(--text-secondary);
-}
-
-
-.main-content {
-  flex: 1;
-  min-width: 0;
-}
-
-.drawer-backdrop {
-  display: none;
-}
-
-@media (max-width: 1100px) {
-  .sidebar {
-    width: 250px;
-    margin: 16px 0 16px 16px;
-    height: calc(100vh - 32px);
-  }
-}
-
-/* Tablet landscape */
-@media (max-width: 1024px) {
-  .sidebar {
-    width: 220px;
-    margin: 12px 0 12px 12px;
-    height: calc(100vh - 24px);
-  }
-
-  .main-content {
-    padding: 16px;
-  }
-}
-
-/* Tablet portrait */
-@media (max-width: 768px) {
-  .main-content {
-    padding: 12px;
-  }
-}
-
-@media (max-width: 920px) {
   .app-shell {
-    display: block;
+    min-height: 100vh;
+    display: flex;
+    background: var(--gradient-app-bg);
   }
 
   .mobile-topbar {
-    display: flex;
-    justify-content: space-between;
-    padding: 14px 16px 0;
-    position: sticky;
-    top: 0;
-    z-index: 30;
-    background: linear-gradient(180deg, rgba(247, 248, 255, 0.96), rgba(247, 248, 255, 0.76) 75%, transparent);
-    backdrop-filter: blur(16px);
-  }
-
-  .topbar-avatar {
-    width: 42px;
-    height: 42px;
-    border-radius: var(--radius-xl);
-  }
-
-  .drawer-backdrop {
-    display: block;
-    position: fixed;
-    inset: 0;
-    background: rgba(15, 23, 42, 0.34);
-    z-index: 34;
+    display: none;
   }
 
   .sidebar {
-    position: fixed;
+    width: 280px;
+    flex-shrink: 0;
+    margin: 18px 0 18px 18px;
+    border-radius: 32px;
+    background: var(--surface-glass);
+    border: 1px solid var(--surface-glass-border);
+    box-shadow: var(--shadow-panel);
+    backdrop-filter: blur(18px);
+    display: flex;
+    flex-direction: column;
+    padding: 18px 14px 14px;
+    position: sticky;
+    top: 18px;
+    height: calc(100vh - 36px);
+    z-index: 25;
+  }
+
+  .sidebar-brand,
+  .sidebar-brand-main,
+  .user-info,
+  .topbar-brand,
+  .nav-item,
+  .sidebar-footer {
+    display: flex;
+    align-items: center;
+  }
+
+  .sidebar-logo {
+    width: 120px;
+    display: block;
+  }
+
+  .topbar-logo {
+    width: 100px;
+    display: block;
+  }
+
+  .sidebar-brand {
+    justify-content: space-between;
+    align-items: center;
+    gap: 12px;
+    padding: 4px 8px 14px;
+    border-bottom: 1px solid rgba(var(--surface-border-rgb), 0.12);
+  }
+
+  .sidebar-brand-main,
+  .topbar-brand,
+  .user-info,
+  .nav-item {
+    gap: 12px;
+  }
+
+  .brand-icon {
+    width: 40px;
+    height: 40px;
+    border-radius: var(--radius-lg);
+    background: var(--gradient-brand);
+    color: var(--color-on-primary);
+    display: grid;
+    place-items: center;
+    font-weight: 800;
+    box-shadow: var(--shadow-indigo);
+  }
+
+  .brand-icon--large {
+    width: 48px;
+    height: 48px;
+    border-radius: var(--radius-xl);
+    font-size: var(--font-stat-value);
+  }
+
+  .brand-name {
+    font-size: 17px;
+    font-weight: 800;
+    color: var(--text-heading);
+  }
+
+  .brand-name--large {
+    font-size: var(--font-stat-value);
+  }
+
+  .brand-tag {
+    font-size: var(--text-sm);
+    color: var(--text-secondary);
+  }
+
+  .close-btn,
+  .topbar-btn,
+  .logout-btn {
+    width: 42px;
+    height: 42px;
+    border: none;
+    border-radius: var(--radius-lg);
+    background: var(--surface-subtle);
+    color: var(--text-secondary);
+    display: grid;
+    place-items: center;
+    cursor: pointer;
+    transition: var(--transition);
+  }
+
+  .close-btn:hover,
+  .topbar-btn:hover,
+  .logout-btn:hover {
+    background: var(--surface-card);
+    color: var(--text-primary);
+  }
+
+  .sidebar-nav {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    margin-top: 16px;
+    overflow-y: auto;
+    overflow-x: hidden;
+    padding: 0 4px 8px;
+    scrollbar-width: thin;
+  }
+
+  .nav-section-label {
+    padding: 4px 10px 6px;
+    font-size: var(--text-xs);
+    font-weight: 800;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--text-muted);
+  }
+
+  .nav-item {
+    position: relative;
+    padding: 10px 12px;
+    border-radius: var(--radius-xl);
+    color: var(--text-secondary);
+    font-size: var(--text-md);
+    font-weight: 700;
+    text-decoration: none;
+    transition: var(--transition);
+    min-height: 46px;
+  }
+
+  .nav-item:hover {
+    background: var(--surface-elevated-strong);
+    color: var(--text-heading);
+    transform: translateX(2px);
+  }
+
+  .nav-item-active {
+    background: var(--surface-card);
+    color: var(--practiq-violet-dark);
+    box-shadow: var(--shadow-card);
+  }
+
+  .nav-item-active::before {
+    content: "";
+    position: absolute;
+    left: -4px;
     top: 12px;
-    left: 12px;
-    margin: 0;
-    width: min(320px, calc(100vw - 24px));
-    height: calc(100vh - 24px);
-    transform: translateX(-110%);
-    transition: transform 0.24s ease;
-    z-index: 40;
+    bottom: 12px;
+    width: 3px;
+    border-radius: var(--radius-pill);
+    background: var(--practiq-violet);
   }
 
-  .sidebar--open {
-    transform: translateX(0);
+  .nav-icon {
+    width: 30px;
+    height: 30px;
+    border-radius: var(--radius-md);
+    display: grid;
+    place-items: center;
+    background: rgba(var(--surface-border-rgb), 0.12);
+    color: var(--text-secondary);
+    flex-shrink: 0;
   }
-}
 
-@media (min-width: 921px) {
-  .close-btn {
+  .nav-item:hover .nav-icon,
+  .nav-item-active .nav-icon,
+  .nav-item-btn:hover .nav-icon {
+    background: var(--gradient-brand);
+    color: var(--color-on-primary);
+  }
+
+  .nav-group {
+    display: flex;
+    flex-direction: column;
+  }
+
+  .nav-item-btn {
+    width: 100%;
+    background: none;
+    border: none;
+    cursor: pointer;
+    text-align: left;
+    justify-content: flex-start;
+  }
+
+  .nav-chevron {
+    margin-left: auto;
+    font-size: var(--text-xs);
+    opacity: 0.6;
+  }
+
+  .nav-sub {
+    margin-top: 6px;
+    padding: 8px 0 4px 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    overflow: hidden;
+    border-left: 1px solid rgba(var(--surface-border-rgb), 0.16);
+  }
+
+  .nav-sub-loading {
+    padding: 8px 12px;
+    font-size: var(--text-sm);
+    color: var(--text-secondary);
+  }
+
+  .nav-sub-empty {
+    padding: 6px 12px;
+    font-size: var(--text-sm);
+    color: var(--text-secondary);
+  }
+
+  .nav-course-group {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    margin-bottom: 2px;
+  }
+
+  .nav-course-toggle {
+    display: flex;
+    align-items: center;
+    gap: 9px;
+    padding: 10px 11px;
+    border-radius: var(--radius-lg);
+    border: 1px solid transparent;
+    background: rgba(var(--surface-card-rgb), 0.42);
+    cursor: pointer;
+    text-align: left;
+    transition: var(--transition);
+    width: 100%;
+  }
+  .nav-course-toggle:hover {
+    background: var(--surface-elevated-strong);
+    border-color: rgba(var(--practiq-violet-rgb), 0.12);
+  }
+  .nav-course-toggle .pi-graduation-cap {
+    width: 26px;
+    height: 26px;
+    border-radius: var(--radius-sm);
+    display: grid;
+    place-items: center;
+    background: var(--fill-primary-soft);
+    font-size: var(--text-sm);
+    color: var(--practiq-violet);
+    flex-shrink: 0;
+  }
+  .nav-course-toggle-title {
+    flex: 1;
+    font-size: var(--text-md);
+    font-weight: 700;
+    color: var(--text-primary);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  /* Level rows */
+  .nav-level-group {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    padding-left: 6px;
+  }
+
+  .nav-level-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 10px;
+    border-radius: var(--radius-md);
+    border: 1px solid transparent;
+    background: transparent;
+    cursor: pointer;
+    width: 100%;
+    text-align: left;
+    transition: var(--transition);
+  }
+  .nav-level-row:hover:not(:disabled) {
+    background: var(--surface-elevated-strong);
+    border-color: rgba(var(--practiq-violet-rgb), 0.1);
+  }
+  .nav-level-row--current {
+    background: var(--fill-primary-subtle);
+    border-color: rgba(var(--practiq-violet-rgb), 0.12);
+  }
+  .nav-level-row--locked {
+    cursor: default;
+    opacity: 0.5;
+  }
+
+  .nav-level-badge {
+    width: 24px;
+    height: 24px;
+    border-radius: 7px;
+    background: var(--gradient-brand);
+    color: var(--color-on-primary);
+    font-size: var(--text-xs);
+    font-weight: 800;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+  }
+  .nav-level-badge--locked {
+    background: var(--fill-border-muted);
+    color: var(--text-muted);
+  }
+
+  .nav-level-label {
+    flex: 1;
+    font-size: var(--text-sm);
+    font-weight: 700;
+    color: var(--text-primary);
+  }
+
+  .nav-level-tag {
+    font-size: 10px;
+    font-weight: 700;
+    color: var(--practiq-violet);
+    background: var(--fill-primary-soft);
+    padding: 2px 7px;
+    border-radius: var(--radius-pill);
+    flex-shrink: 0;
+  }
+
+  /* Level content items */
+  .nav-section-tag {
+    font-size: 10px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--text-muted);
+    padding: 7px 12px 2px;
+  }
+
+  .nav-book-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 10px 8px 12px;
+    border-radius: var(--radius-md);
+    border: 1px solid transparent;
+    background: rgba(var(--surface-bg-rgb), 0.5);
+    cursor: pointer;
+    font-size: var(--text-sm);
+    font-weight: 650;
+    color: var(--text-secondary);
+    text-align: left;
+    width: 100%;
+    transition: var(--transition);
+  }
+
+  .nav-book-item:hover {
+    background: var(--fill-primary-subtle);
+    border-color: rgba(var(--practiq-violet-rgb), 0.12);
+    color: var(--practiq-violet-dark);
+  }
+
+  .nav-book-item--practice:hover {
+    background: var(--fill-success-subtle);
+    border-color: rgba(var(--color-success-rgb), 0.14);
+    color: var(--color-success-dark);
+  }
+
+  .nav-book-item--test:hover {
+    background: var(--fill-warning-subtle);
+    border-color: rgba(var(--color-warning-rgb), 0.16);
+    color: var(--color-warning-strong);
+  }
+
+  .nav-book-item--notebook:hover {
+    background: var(--fill-primary-subtle);
+    border-color: rgba(var(--practiq-violet-rgb), 0.12);
+    color: var(--practiq-violet);
+  }
+
+  .nav-book-item .pi {
+    width: 22px;
+    height: 22px;
+    border-radius: var(--radius-xs);
+    display: grid;
+    place-items: center;
+    background: rgba(var(--surface-card-rgb), 0.7);
+    font-size: var(--text-xs);
+    flex-shrink: 0;
+  }
+
+  .nav-book-item span {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .sidebar-footer {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 14px 8px 0;
+    border-top: 1px solid rgba(var(--surface-border-rgb), 0.14);
+  }
+
+  .footer-actions {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex-shrink: 0;
+  }
+
+  .icon-btn {
+    width: 36px;
+    height: 36px;
+    border: none;
+    border-radius: var(--radius-md);
+    background: var(--surface-subtle);
+    color: var(--text-secondary);
+    display: grid;
+    place-items: center;
+    cursor: pointer;
+    transition: var(--transition);
+    font-size: var(--text-md);
+  }
+  .icon-btn:hover {
+    background: var(--surface-card);
+    color: var(--text-primary);
+  }
+  .icon-btn--logout:hover {
+    color: var(--color-error);
+    background: var(--color-error-bg);
+  }
+
+  .user-info {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    min-width: 0;
+    flex: 1;
+  }
+
+  .user-avatar,
+  .topbar-avatar {
+    width: 46px;
+    height: 46px;
+    border-radius: var(--radius-xl);
+    background: var(--gradient-brand);
+    color: var(--color-on-primary);
+    display: grid;
+    place-items: center;
+    font-weight: 800;
+    box-shadow: var(--shadow-indigo);
+    flex-shrink: 0;
+  }
+
+  .user-details {
+    min-width: 0;
+  }
+
+  .user-name {
+    font-size: var(--text-md);
+    font-weight: 700;
+    color: var(--text-heading);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .user-role {
+    font-size: var(--text-sm);
+    color: var(--text-secondary);
+  }
+
+  .main-content {
+    flex: 1;
+    min-width: 0;
+  }
+
+  .drawer-backdrop {
     display: none;
   }
-}
+
+  @media (max-width: 1100px) {
+    .sidebar {
+      width: 250px;
+      margin: 16px 0 16px 16px;
+      height: calc(100vh - 32px);
+    }
+  }
+
+  /* Tablet landscape */
+  @media (max-width: 1024px) {
+    .sidebar {
+      width: 220px;
+      margin: 12px 0 12px 12px;
+      height: calc(100vh - 24px);
+    }
+
+    .main-content {
+      padding: 16px;
+    }
+  }
+
+  /* Tablet portrait */
+  @media (max-width: 768px) {
+    .main-content {
+      padding: 12px;
+    }
+  }
+
+  @media (max-width: 920px) {
+    .app-shell {
+      display: block;
+    }
+
+    .mobile-topbar {
+      display: flex;
+      justify-content: space-between;
+      padding: 14px 16px 0;
+      position: sticky;
+      top: 0;
+      z-index: 30;
+      background: var(--gradient-mobile-topbar);
+      backdrop-filter: blur(16px);
+    }
+
+    .topbar-avatar {
+      width: 42px;
+      height: 42px;
+      border-radius: var(--radius-xl);
+    }
+
+    .drawer-backdrop {
+      display: block;
+      position: fixed;
+      inset: 0;
+      background: var(--surface-scrim);
+      z-index: 34;
+    }
+
+    .sidebar {
+      position: fixed;
+      top: 12px;
+      left: 12px;
+      margin: 0;
+      width: min(320px, calc(100vw - 24px));
+      height: calc(100vh - 24px);
+      transform: translateX(-110%);
+      transition: transform 0.24s ease;
+      z-index: 40;
+    }
+
+    .sidebar--open {
+      transform: translateX(0);
+    }
+  }
+
+  @media (min-width: 921px) {
+    .close-btn {
+      display: none;
+    }
+  }
 </style>

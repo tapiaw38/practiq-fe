@@ -6,7 +6,9 @@
           <!-- ── Header ── -->
           <div class="acm-header">
             <div class="acm-header-info">
-              <div class="acm-avatar"><i class="pi pi-robot"></i></div>
+              <div class="acm-avatar" aria-hidden="true">
+                <img src="@/assets/robot.png" alt="" />
+              </div>
               <div>
                 <div class="acm-title">Mi Asistente</div>
                 <div class="acm-status">
@@ -301,59 +303,25 @@
   import { ref, computed, watch, nextTick, onBeforeUnmount } from "vue";
   import { useAuthStore } from "@/stores/authStore";
   import { renderContent } from "@/composables/useContentRenderer";
+  import type {
+    AssistantChatModalEmits,
+    AssistantChatModalProps,
+  } from "./AssistantChatModal.types";
+  import type { AssistantMode, AssistantMessage, PizarronState } from "@/types";
 
-  interface StudentContext {
-    studentName?: string;
-    courses?: {
-      title: string;
-      subject: string;
-      grade: string;
-      currentLevel: number;
-    }[];
-    topicProgress?: {
-      topic: string;
-      mastery: number;
-      level: number;
-      streak: number;
-    }[];
-  }
-
-  const props = defineProps<{
-    show: boolean;
-    studentContext?: StudentContext;
-  }>();
-
-  defineEmits<{ close: [] }>();
+  const props = defineProps<AssistantChatModalProps>();
+  defineEmits<AssistantChatModalEmits>();
 
   const authStore = useAuthStore();
   const API_BASE = `${import.meta.env.VITE_PRACTIQ_API_URL || "http://localhost:8083"}/api/assistant-proxy`;
   const STORAGE_KEY = "ai-client-id";
 
-  // ── Types ────────────────────────────────────────────────────────────────────
+  // State
 
-  type Mode = "escrita" | "oral" | "pizarron";
-  type PizarronState =
-    | "idle"
-    | "generating"
-    | "drawing"
-    | "evaluating"
-    | "feedback";
-
-  interface Message {
-    id: number;
-    sender: "user" | "assistant";
-    content: string;
-    html: boolean;
-    isAudio?: boolean;
-    audioSrc?: string;
-  }
-
-  // ── State ────────────────────────────────────────────────────────────────────
-
-  const mode = ref<Mode>("escrita");
+  const mode = ref<AssistantMode>("escrita");
   const showModes = ref(false);
 
-  const messages = ref<Message[]>([]);
+  const messages = ref<AssistantMessage[]>([]);
   const draft = ref("");
   const responding = ref(false);
   const isRecording = ref(false);
@@ -375,17 +343,19 @@
   let lastX = 0;
   let lastY = 0;
   let canvasResizeObserver: ResizeObserver | null = null;
+  let canvasInitialized = false;
 
   // Audio recording
   let mediaRecorder: MediaRecorder | null = null;
   let audioChunks: Blob[] = [];
+  let recordingStream: MediaStream | null = null;
 
-  // ── Computed ─────────────────────────────────────────────────────────────────
+  // Computed
 
   const modes = [
-    { value: "escrita" as Mode, label: "Escrita", icon: "✍️" },
-    { value: "oral" as Mode, label: "Oral", icon: "🎙️" },
-    { value: "pizarron" as Mode, label: "Pizarrón", icon: "🖊️" },
+    { value: "escrita" as AssistantMode, label: "Escrita", icon: "✍️" },
+    { value: "oral" as AssistantMode, label: "Oral", icon: "🎙️" },
+    { value: "pizarron" as AssistantMode, label: "Pizarrón", icon: "🖊️" },
   ];
 
   const modeLabel = computed(
@@ -414,7 +384,7 @@
       : "Escribe tu pregunta… (Enter para enviar)",
   );
 
-  // ── Helpers ──────────────────────────────────────────────────────────────────
+  // Helpers
 
   function authHeaders(contentType?: string): Record<string, string> {
     const h: Record<string, string> = {};
@@ -443,7 +413,7 @@
   }
 
   function addMsg(
-    sender: Message["sender"],
+    sender: AssistantMessage["sender"],
     content: string,
     html = false,
     audio?: { src: string },
@@ -471,12 +441,92 @@
       Math.min(inputEl.value.scrollHeight, 140) + "px";
   }
 
+  function cssVar(
+    name: string,
+    fallback: string,
+    el?: Element | null,
+    depth = 0,
+  ) {
+    if (typeof window === "undefined") return fallback;
+    const target = el ?? canvasEl.value ?? document.documentElement;
+    const value = getComputedStyle(target).getPropertyValue(name).trim();
+    if (!value) return fallback;
+    const varMatch = value.match(/^var\((--[^,\s)]+)(?:,\s*(.+))?\)$/);
+    if (varMatch && depth < 4) {
+      return cssVar(
+        varMatch[1],
+        varMatch[2]?.trim() || fallback,
+        target,
+        depth + 1,
+      );
+    }
+    return value;
+  }
+
+  function getCanvasDebugStats(canvas: HTMLCanvasElement) {
+    const ctx = canvas.getContext("2d");
+    if (!ctx || canvas.width <= 0 || canvas.height <= 0) {
+      return {
+        width: canvas.width,
+        height: canvas.height,
+        inkPixels: 0,
+        sampledPixels: 0,
+        inkRatio: 0,
+      };
+    }
+
+    const maxSide = 320;
+    const scale = Math.min(1, maxSide / Math.max(canvas.width, canvas.height));
+    const sampleW = Math.max(1, Math.floor(canvas.width * scale));
+    const sampleH = Math.max(1, Math.floor(canvas.height * scale));
+    const sample = document.createElement("canvas");
+    sample.width = sampleW;
+    sample.height = sampleH;
+    const sampleCtx = sample.getContext("2d");
+    if (!sampleCtx) {
+      return {
+        width: canvas.width,
+        height: canvas.height,
+        inkPixels: 0,
+        sampledPixels: 0,
+        inkRatio: 0,
+      };
+    }
+
+    sampleCtx.drawImage(canvas, 0, 0, sampleW, sampleH);
+    const pixels = sampleCtx.getImageData(0, 0, sampleW, sampleH).data;
+    let inkPixels = 0;
+    for (let i = 0; i < pixels.length; i += 4) {
+      const alpha = pixels[i + 3];
+      if (alpha < 20) continue;
+      const r = pixels[i];
+      const g = pixels[i + 1];
+      const b = pixels[i + 2];
+      const max = Math.max(r, g, b);
+      const min = Math.min(r, g, b);
+      const gray = 0.299 * r + 0.587 * g + 0.114 * b;
+      if (gray < 210 || max - min > 25) inkPixels++;
+    }
+
+    const sampledPixels = sampleW * sampleH;
+    return {
+      width: canvas.width,
+      height: canvas.height,
+      cssWidth: Math.round(canvas.getBoundingClientRect().width),
+      cssHeight: Math.round(canvas.getBoundingClientRect().height),
+      inkPixels,
+      sampledPixels,
+      inkRatio: sampledPixels
+        ? Number((inkPixels / sampledPixels).toFixed(4))
+        : 0,
+    };
+  }
+
   function buildContext(): string {
     const ctx = props.studentContext;
-    if (!ctx) return "";
     const lines: string[] = [];
-    if (ctx.studentName) lines.push(`Estudiante: ${ctx.studentName}`);
-    if (ctx.courses?.length) {
+    if (ctx?.studentName) lines.push(`Estudiante: ${ctx.studentName}`);
+    if (ctx?.courses?.length) {
       lines.push("Cursos:");
       ctx.courses.forEach((c) =>
         lines.push(
@@ -484,7 +534,7 @@
         ),
       );
     }
-    if (ctx.topicProgress?.length) {
+    if (ctx?.topicProgress?.length) {
       lines.push("Progreso:");
       ctx.topicProgress.forEach((p) =>
         lines.push(
@@ -492,10 +542,76 @@
         ),
       );
     }
+    const activityContext = getActivityContext();
+    if (activityContext) {
+      lines.push("Contexto de la actividad actual:");
+      lines.push(JSON.stringify(activityContext));
+    }
     return lines.join("\n");
   }
 
-  // ── API ───────────────────────────────────────────────────────────────────────
+  function getActivityContext(): unknown {
+    try {
+      return window.__practiqAssistantContext?.() || null;
+    } catch (error) {
+      console.warn("[assistant-modal] failed to read activity context", error);
+      return null;
+    }
+  }
+
+  async function attachActivityCapture(fd: FormData): Promise<boolean> {
+    try {
+      const capture = await window.__practiqAssistantCapture?.();
+      if (!capture?.dataUrl) return false;
+      fd.append(
+        "image_content",
+        dataUrlToBlob(capture.dataUrl),
+        capture.filename || "activity-work.jpg",
+      );
+      console.info("[assistant-modal] attached activity capture", {
+        filename: capture.filename,
+        contentType: capture.contentType,
+        dataUrlLength: capture.dataUrl.length,
+      });
+      return true;
+    } catch (error) {
+      console.warn(
+        "[assistant-modal] failed to attach activity capture",
+        error,
+      );
+      return false;
+    }
+  }
+
+  function buildInstructionWrappedContent(
+    message: string,
+    hasImageAttachment: boolean,
+  ): string {
+    const trimmedMessage = message.trim();
+    return [
+      "POLITICA OBLIGATORIA:",
+      "No des respuestas finales ni resuelvas completamente ejercicios evaluables.",
+      "Da solo pistas, explicaciones breves, preguntas guia o el siguiente paso.",
+      "Si existe contexto estructurado de Practiq, usalo para ubicar curso, hoja y numero de ejercicio.",
+      hasImageAttachment
+        ? [
+            "Hay una imagen adjunta de la actividad actual.",
+            "Si la imagen tiene secciones rotuladas, lee directamente cada seccion.",
+            "La seccion 'Consigna del docente' puede contener el enunciado manuscrito; usala como fuente principal del ejercicio.",
+            "La seccion 'Respuesta del alumno' contiene el trabajo manuscrito del alumno.",
+            "Si el contexto textual trae una pregunta generica como 'Suma correctamente' o similar, NO infieras otros numeros desde ejercicios anteriores: lee la consigna manuscrita en la imagen.",
+            "Si no puedes leer la consigna o la respuesta con claridad, dilo y pide una imagen mas clara.",
+          ].join("\n")
+        : "Si el alumno menciona trabajo manuscrito pero no hay imagen legible, pide que lo describa.",
+      "Si detectas la respuesta del alumno en la imagen, confirma que escribio y guia con una pista sin revelar la solucion final.",
+      "",
+      `Mensaje del alumno: ${trimmedMessage || "[sin texto, usa contexto e imagen adjunta]"}`,
+      "",
+      "Responde en espanol.",
+    ].join("\n");
+  }
+
+  // API
 
   async function createConversation(title: string) {
     const res = await fetch(`${API_BASE}/conversation/`, {
@@ -520,6 +636,13 @@
     }
     const imgParam = imageProcessor ? "activate" : "deactivate";
     const url = `${API_BASE}/conversation/${conversationId}/message?has_image_processor=${imgParam}&has_text_to_voice=deactivate`;
+    fd.set(
+      "content",
+      buildInstructionWrappedContent(
+        ((fd.get("content") as string) || "").trim(),
+        fd.has("image_content"),
+      ),
+    );
     const res = await fetch(url, {
       method: "POST",
       headers: authHeaders(),
@@ -561,7 +684,7 @@
     }
   }
 
-  // ── Send: escrita ─────────────────────────────────────────────────────────────
+  // Send: escrita
 
   async function sendText() {
     const text = draft.value.trim();
@@ -580,7 +703,8 @@
       const fd = new FormData();
       fd.append("content", text);
       fd.append("context", buildContext());
-      const reply = await postFormData(fd);
+      const hasImage = await attachActivityCapture(fd);
+      const reply = await postFormData(fd, hasImage);
       if (reply) addMsg("assistant", reply, true);
     } catch {
       addMsg("assistant", "Ocurrió un error. Por favor intenta de nuevo.");
@@ -590,12 +714,23 @@
     }
   }
 
-  // ── Send: oral ────────────────────────────────────────────────────────────────
+  // Send: oral
 
   async function startRecording() {
     if (responding.value || isRecording.value) return;
     try {
+      if (
+        !navigator.mediaDevices?.getUserMedia ||
+        typeof MediaRecorder === "undefined"
+      ) {
+        addMsg(
+          "assistant",
+          "Tu navegador no soporta grabación de audio desde este modal.",
+        );
+        return;
+      }
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      recordingStream = stream;
       audioChunks = [];
       mediaRecorder = new MediaRecorder(stream);
       mediaRecorder.ondataavailable = (e) => {
@@ -617,31 +752,112 @@
     await new Promise<void>((resolve) => {
       mediaRecorder!.onstop = () => resolve();
       mediaRecorder!.stop();
-      mediaRecorder!.stream.getTracks().forEach((t) => t.stop());
+      stopRecordingStream();
     });
     if (audioChunks.length === 0) return;
-    const blob = new Blob(audioChunks, { type: "audio/webm" });
-    const localUrl = URL.createObjectURL(blob);
-    addMsg("user", "", false, { src: localUrl });
-    responding.value = true;
     try {
+      const webmBlob = new Blob(audioChunks, { type: "audio/webm" });
+      const wavBlob = await convertToWav(webmBlob);
+      if (wavBlob.size <= 44) {
+        addMsg(
+          "assistant",
+          "No se detectó audio. Mantén presionado y vuelve a intentar.",
+        );
+        return;
+      }
+      const localUrl = URL.createObjectURL(wavBlob);
+      addMsg("user", "", false, { src: localUrl });
+      responding.value = true;
       const fd = new FormData();
       fd.append("content", "");
-      fd.append("voice_content", blob, "audio.wav");
+      fd.append("voice_content", wavBlob, "audio.wav");
       fd.append("context", buildContext());
-      const reply = await postFormData(fd);
+      const hasImage = await attachActivityCapture(fd);
+      const reply = await postFormData(fd, hasImage);
       if (reply) addMsg("assistant", reply, true);
-    } catch {
+    } catch (error) {
+      console.error("Error processing audio:", error);
       addMsg(
         "assistant",
         "Ocurrió un error procesando el audio. Por favor intenta de nuevo.",
       );
     } finally {
       responding.value = false;
+      mediaRecorder = null;
+      audioChunks = [];
     }
   }
 
-  // ── Pizarrón ─────────────────────────────────────────────────────────────────
+  function stopRecordingStream() {
+    recordingStream?.getTracks().forEach((track) => track.stop());
+    recordingStream = null;
+  }
+
+  async function convertToWav(audioBlob: Blob): Promise<Blob> {
+    const AudioContextCtor =
+      window.AudioContext || (window as any).webkitAudioContext;
+    const audioContext = new AudioContextCtor();
+    try {
+      const arrayBuffer = await audioBlob.arrayBuffer();
+      const audioBuffer = await audioContext.decodeAudioData(arrayBuffer);
+      return audioBufferToWav(audioBuffer);
+    } finally {
+      await audioContext.close().catch(() => undefined);
+    }
+  }
+
+  function audioBufferToWav(buffer: AudioBuffer): Blob {
+    const length = buffer.length;
+    const numberOfChannels = buffer.numberOfChannels;
+    const sampleRate = buffer.sampleRate;
+    const bytesPerSample = 2;
+    const blockAlign = numberOfChannels * bytesPerSample;
+    const byteRate = sampleRate * blockAlign;
+    const dataSize = length * blockAlign;
+    const bufferSize = 44 + dataSize;
+    const arrayBuffer = new ArrayBuffer(bufferSize);
+    const view = new DataView(arrayBuffer);
+
+    const writeString = (offset: number, value: string) => {
+      for (let i = 0; i < value.length; i++) {
+        view.setUint8(offset + i, value.charCodeAt(i));
+      }
+    };
+
+    writeString(0, "RIFF");
+    view.setUint32(4, bufferSize - 8, true);
+    writeString(8, "WAVE");
+    writeString(12, "fmt ");
+    view.setUint32(16, 16, true);
+    view.setUint16(20, 1, true);
+    view.setUint16(22, numberOfChannels, true);
+    view.setUint32(24, sampleRate, true);
+    view.setUint32(28, byteRate, true);
+    view.setUint16(32, blockAlign, true);
+    view.setUint16(34, 16, true);
+    writeString(36, "data");
+    view.setUint32(40, dataSize, true);
+
+    let offset = 44;
+    for (let i = 0; i < length; i++) {
+      for (let channel = 0; channel < numberOfChannels; channel++) {
+        const sample = Math.max(
+          -1,
+          Math.min(1, buffer.getChannelData(channel)[i]),
+        );
+        view.setInt16(
+          offset,
+          sample < 0 ? sample * 0x8000 : sample * 0x7fff,
+          true,
+        );
+        offset += 2;
+      }
+    }
+
+    return new Blob([arrayBuffer], { type: "audio/wav" });
+  }
+
+  // Pizarrón
 
   async function generateExercise(topic: string) {
     pizarronTopic.value = topic;
@@ -669,7 +885,7 @@
       if (reply) {
         exerciseHtml.value = reply;
         pizState.value = "drawing";
-        nextTick(initCanvas);
+        nextTick(scheduleCanvasInit);
       } else {
         pizState.value = "idle";
       }
@@ -682,8 +898,15 @@
     if (!canvasEl.value || pizState.value === "evaluating") return;
     pizState.value = "evaluating";
     try {
+      await ensureCanvasReady();
       const dataUrl = canvasEl.value.toDataURL("image/png");
       const blob = dataUrlToBlob(dataUrl);
+      console.info("[assistant-modal] canvas capture", {
+        ...getCanvasDebugStats(canvasEl.value),
+        dataUrlLength: dataUrl.length,
+        blobSize: blob.size,
+        blobType: blob.type,
+      });
       const prompt = [
         "MODO PIZARRÓN - EVALUACIÓN DE RESPUESTA:",
         "El alumno ha resuelto el ejercicio anterior en su lienzo. Analiza la imagen adjunta y:",
@@ -699,7 +922,7 @@
       fd.append("content", prompt);
       fd.append("context", buildContext());
       fd.append("image_content", blob, "student_canvas.png");
-      const reply = await postFormData(fd, false);
+      const reply = await postFormData(fd, true);
       if (reply) feedbackHtml.value = reply;
       pizState.value = "feedback";
     } catch {
@@ -719,15 +942,16 @@
       const ctx = canvasEl.value.getContext("2d");
       if (ctx) ctx.clearRect(0, 0, canvasEl.value.width, canvasEl.value.height);
     }
+    canvasInitialized = false;
   }
 
-  function setMode(m: Mode) {
+  function setMode(m: AssistantMode) {
     mode.value = m;
     showModes.value = false;
     if (m === "pizarron") resetPizarron();
   }
 
-  // ── Canvas drawing ────────────────────────────────────────────────────────────
+  // Canvas drawing
 
   function initCanvas() {
     const canvas = canvasEl.value;
@@ -735,21 +959,57 @@
 
     const dpr = window.devicePixelRatio || 1;
     const { width, height } = canvas.getBoundingClientRect();
+    if (width <= 0 || height <= 0) return;
+
+    const previous =
+      canvasInitialized && canvas.width > 0 && canvas.height > 0
+        ? canvas.toDataURL("image/png")
+        : "";
+
     canvas.width = width * dpr;
     canvas.height = height * dpr;
     const ctx = canvas.getContext("2d")!;
     ctx.scale(dpr, dpr);
-    ctx.fillStyle = "#ffffff";
+
+    ctx.globalCompositeOperation = "source-over";
+    ctx.fillStyle = cssVar("--acm-canvas-bg", "Canvas", canvas);
     ctx.fillRect(0, 0, width, height);
+
     ctx.lineCap = "round";
     ctx.lineJoin = "round";
+    canvasInitialized = true;
+
+    if (previous) {
+      const img = new Image();
+      img.onload = () => {
+        ctx.drawImage(img, 0, 0, width, height);
+      };
+      img.src = previous;
+    }
 
     if (!canvasResizeObserver) {
       canvasResizeObserver = new ResizeObserver(() => {
-        initCanvas();
+        scheduleCanvasInit();
       });
       canvasResizeObserver.observe(canvas);
     }
+  }
+
+  function scheduleCanvasInit() {
+    requestAnimationFrame(() => {
+      requestAnimationFrame(initCanvas);
+    });
+  }
+
+  async function ensureCanvasReady() {
+    if (!canvasEl.value) return;
+    const rect = canvasEl.value.getBoundingClientRect();
+    if (canvasInitialized && rect.width > 0 && rect.height > 0) return;
+    await nextTick();
+    await new Promise<void>((resolve) =>
+      requestAnimationFrame(() => resolve()),
+    );
+    initCanvas();
   }
 
   function getPos(
@@ -770,7 +1030,7 @@
       ctx.lineWidth = 24;
     } else {
       ctx.globalCompositeOperation = "source-over";
-      ctx.strokeStyle = "#1e293b";
+      ctx.strokeStyle = cssVar("--acm-canvas-ink", "CanvasText");
       ctx.lineWidth = 2.5;
     }
   }
@@ -829,7 +1089,7 @@
     const ctx = getCtx();
     if (!ctx) return;
     ctx.globalCompositeOperation = "source-over";
-    ctx.fillStyle = "#ffffff";
+    ctx.fillStyle = cssVar("--acm-canvas-bg", "Canvas", canvas);
     ctx.fillRect(
       0,
       0,
@@ -838,7 +1098,7 @@
     );
   }
 
-  // ── Init ──────────────────────────────────────────────────────────────────────
+  // Init
 
   let initialized = false;
 
@@ -862,26 +1122,26 @@
     () => props.show,
     (visible) => {
       if (visible) {
-        document.body.classList.add('assistant-modal-open')
+        document.body.classList.add("assistant-modal-open");
       } else {
-        document.body.classList.remove('assistant-modal-open')
+        document.body.classList.remove("assistant-modal-open");
       }
     },
-    { immediate: true }
-  )
+    { immediate: true },
+  );
 
   onBeforeUnmount(() => {
-    document.body.classList.remove('assistant-modal-open')
-    canvasResizeObserver?.disconnect()
-  })
+    document.body.classList.remove("assistant-modal-open");
+    canvasResizeObserver?.disconnect();
+  });
 </script>
 
 <style scoped>
-  /* ── Overlay & Modal ─────────────────────────────────────────────────────── */
+  /* Overlay & Modal */
   .acm-overlay {
     position: fixed;
     inset: 0;
-    background: rgba(0, 0, 0, 0.5);
+    background: rgba(var(--text-primary-rgb), 0.5);
     backdrop-filter: blur(5px);
     z-index: 200;
     display: flex;
@@ -891,6 +1151,8 @@
   }
 
   .acm-modal {
+    --acm-canvas-bg: var(--surface-card);
+    --acm-canvas-ink: var(--text-primary);
     background: var(--surface-card);
     border-radius: var(--radius-xl);
     box-shadow: var(--shadow-lg);
@@ -919,14 +1181,14 @@
     transform: translateY(18px);
   }
 
-  /* ── Header ──────────────────────────────────────────────────────────────── */
+  /* Header */
   .acm-header {
     display: flex;
     align-items: center;
     justify-content: space-between;
     padding: 16px 24px;
-    background: var(--practiq-violet);
-    color: #fff;
+    background: var(--gradient-brand);
+    color: var(--color-on-primary);
     flex-shrink: 0;
   }
 
@@ -934,17 +1196,31 @@
     display: flex;
     align-items: center;
     gap: 14px;
+    min-width: 0;
   }
 
   .acm-avatar {
-    width: 42px;
-    height: 42px;
-    border-radius: 50%;
-    background: rgba(255, 255, 255, 0.18);
+    width: 44px;
+    height: 44px;
+    min-width: 44px;
+    border-radius: 0;
+    background: transparent;
+    border: none;
+    color: var(--color-on-primary);
     display: flex;
     align-items: center;
     justify-content: center;
-    font-size: 20px;
+    font-size: 21px;
+    flex: 0 0 auto;
+    box-shadow: none;
+  }
+
+  .acm-avatar img {
+    display: block;
+    width: 42px;
+    height: 42px;
+    object-fit: contain;
+    filter: drop-shadow(0 3px 6px rgba(var(--text-primary-rgb), 0.16));
   }
 
   .acm-title {
@@ -964,19 +1240,19 @@
     width: 7px;
     height: 7px;
     border-radius: 50%;
-    background: #4ade80;
+    background: var(--color-success);
     flex-shrink: 0;
   }
 
   .acm-dot--busy {
-    background: #fbbf24;
+    background: var(--color-warning);
     animation: acm-pulse 1s infinite;
   }
 
   .acm-close {
-    background: rgba(255, 255, 255, 0.15);
+    background: rgba(var(--surface-card-rgb), 0.15);
     border: none;
-    color: #fff;
+    color: var(--color-on-primary);
     width: 34px;
     height: 34px;
     border-radius: 50%;
@@ -988,10 +1264,10 @@
     transition: var(--transition-fast);
   }
   .acm-close:hover {
-    background: rgba(255, 255, 255, 0.3);
+    background: rgba(var(--surface-card-rgb), 0.3);
   }
 
-  /* ── Messages (escrita/oral) ─────────────────────────────────────────────── */
+  /* Messages (escrita/oral) */
   .acm-messages {
     flex: 1;
     overflow-y: auto;
@@ -1022,7 +1298,7 @@
 
   .acm-msg--user .acm-bubble {
     background: var(--practiq-violet);
-    color: #fff;
+    color: var(--color-on-primary);
     border-bottom-right-radius: var(--radius-xs);
   }
 
@@ -1039,7 +1315,7 @@
     gap: 10px;
     padding: 10px 14px;
     background: var(--practiq-violet);
-    color: #fff;
+    color: var(--color-on-primary);
     border-bottom-right-radius: var(--radius-xs);
   }
 
@@ -1091,7 +1367,7 @@
     font-size: 48px;
   }
 
-  /* ── PIZARRÓN: idle ──────────────────────────────────────────────────────── */
+  /* PIZARRÓN: idle */
   .acm-piz-idle {
     flex: 1;
     display: flex;
@@ -1131,7 +1407,7 @@
     color: var(--text-secondary);
   }
 
-  /* ── PIZARRÓN: split layout ──────────────────────────────────────────────── */
+  /* PIZARRÓN: split layout */
   .acm-piz-split {
     flex: 1;
     display: flex;
@@ -1219,7 +1495,7 @@
     flex: 1;
     display: block;
     cursor: crosshair;
-    background: #fff;
+    background: var(--surface-card);
     touch-action: none;
     width: 100%;
     height: 100%;
@@ -1234,7 +1510,7 @@
     justify-content: center;
   }
 
-  /* ── PIZARRÓN: feedback ──────────────────────────────────────────────────── */
+  /* PIZARRÓN: feedback */
   .acm-piz-feedback {
     flex: 1;
     display: flex;
@@ -1270,7 +1546,7 @@
     gap: 8px;
   }
 
-  /* ── Footer ──────────────────────────────────────────────────────────────── */
+  /* Footer */
   .acm-footer {
     flex-shrink: 0;
     border-top: 1px solid var(--surface-border);
@@ -1334,7 +1610,7 @@
 
   .acm-mode-btn--active {
     background: var(--practiq-violet);
-    color: #fff;
+    color: var(--color-on-primary);
     border-color: var(--practiq-violet);
   }
 
@@ -1365,7 +1641,7 @@
 
   .acm-textarea:focus {
     border-color: var(--practiq-violet-light);
-    box-shadow: 0 0 0 3px rgba(139, 92, 246, 0.1);
+    box-shadow: 0 0 0 3px rgba(var(--practiq-violet-light-rgb), 0.1);
     background: var(--surface-card);
   }
 
@@ -1382,7 +1658,7 @@
     height: 42px;
     border-radius: 50%;
     background: var(--practiq-violet);
-    color: #fff;
+    color: var(--color-on-primary);
     border: none;
     cursor: pointer;
     flex-shrink: 0;
@@ -1419,7 +1695,7 @@
     height: 64px;
     border-radius: 50%;
     background: var(--practiq-violet);
-    color: #fff;
+    color: var(--color-on-primary);
     border: none;
     cursor: pointer;
     display: flex;
@@ -1440,7 +1716,7 @@
   .acm-mic-big--recording {
     background: var(--color-error) !important;
     animation: acm-pulse 0.7s infinite;
-    box-shadow: 0 0 0 8px rgba(239, 68, 68, 0.15);
+    box-shadow: 0 0 0 8px rgba(var(--color-error-rgb), 0.15);
   }
 
   .acm-mic-big:disabled {
@@ -1461,8 +1737,8 @@
     align-items: center;
     gap: 8px;
     padding: 7px 16px;
-    background: #fef2f2;
-    border-top: 1px solid #fecaca;
+    background: var(--color-error-bg);
+    border-top: 1px solid rgba(var(--color-error-rgb), 0.25);
     font-size: var(--text-sm);
     color: var(--color-error-dark);
   }
@@ -1492,7 +1768,7 @@
     max-height: 80px;
   }
 
-  /* ── Animations ──────────────────────────────────────────────────────────── */
+  /* Animations */
   @keyframes acm-pulse {
     0%,
     100% {
@@ -1516,7 +1792,7 @@
     }
   }
 
-  /* ── Tablet portrait ────────────────────────────────────────────────────── */
+  /* Tablet portrait */
   @media (max-width: 768px) {
     .acm-modal {
       width: 96vw;
@@ -1533,12 +1809,16 @@
       border-bottom: 1px solid var(--surface-border);
     }
 
-    .acm-bubble { max-width: 80%; }
+    .acm-bubble {
+      max-width: 80%;
+    }
 
-    .acm-messages { padding: 16px; }
+    .acm-messages {
+      padding: 16px;
+    }
   }
 
-  /* ── Mobile ──────────────────────────────────────────────────────────────── */
+  /* Mobile */
   @media (max-width: 600px) {
     .acm-overlay {
       padding: 0;
@@ -1563,7 +1843,7 @@
     }
   }
 
-  /* ── Markdown + Math typography (deep = pierce scoped into v-html) ────────── */
+  /* Markdown + Math typography */
   :deep(.acm-bubble--md) {
     line-height: 1.7;
     overflow-wrap: break-word;
@@ -1610,7 +1890,7 @@
   }
 
   :deep(.acm-bubble--md code) {
-    background: rgba(124, 58, 237, 0.08);
+    background: rgba(var(--practiq-violet-rgb), 0.08);
     border-radius: 4px;
     padding: 1px 5px;
     font-family: "JetBrains Mono", "Fira Code", monospace;
