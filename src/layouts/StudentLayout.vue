@@ -177,10 +177,10 @@
 import { computed, onMounted, onUnmounted, ref, reactive, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/authStore'
-import { courseService } from '@/services/courses/courseService'
-import { levelService } from '@/services/levels/levelService'
-import ChangePasswordModal from '@/components/ChangePasswordModal.vue'
-import SetPasswordModal from '@/components/SetPasswordModal.vue'
+import { useCourse } from '@/composables/useCourse'
+import { useLevel } from '@/composables/useLevel'
+import ChangePasswordModal from '@/components/auth/ChangePasswordModal.vue'
+import SetPasswordModal from '@/components/auth/SetPasswordModal.vue'
 import type { LevelData } from '@/types'
 
 interface CourseNavItem {
@@ -194,6 +194,8 @@ interface CourseNavItem {
 const route = useRoute()
 const router = useRouter()
 const authStore = useAuthStore()
+const { loadCourses } = useCourse()
+const { loadCourseLevels } = useLevel()
 const profile = computed(() => authStore.profile)
 const userInitial = computed(() => profile.value?.name?.[0]?.toUpperCase() || 'A')
 const navOpen = ref(false)
@@ -213,7 +215,7 @@ function toggleCourse(id: string) {
     s.delete(id)
   } else {
     s.add(id)
-    loadCourseLevels(id)
+    loadCourseNavLevels(id)
   }
   openCourses.value = s
 }
@@ -225,12 +227,12 @@ function toggleLevel(courseId: string, level: number) {
   openLevels[courseId] = s
 }
 
-async function loadCourseLevels(courseId: string) {
+async function loadCourseNavLevels(courseId: string) {
   const course = coursesData.value.find(c => c.id === courseId)
   if (!course || course.levels.length) return
   course.loading = true
   try {
-    const res = await levelService.getCourseLevels(courseId)
+    const res = await loadCourseLevels(courseId)
     course.currentLevel = res.current_level
     course.levels = res.levels
     // Auto-open current level
@@ -245,8 +247,8 @@ watch(coursesOpen, async (open) => {
   if (!open || coursesData.value.length) return
   loadingCourses.value = true
   try {
-    const res = await courseService.list('student')
-    coursesData.value = (res.data || []).map(c => ({
+    const courses = await loadCourses('student')
+    coursesData.value = (courses || []).map(c => ({
       id: c.id,
       title: c.title,
       currentLevel: 1,

@@ -303,29 +303,10 @@
   import { ref, computed, watch, nextTick, onBeforeUnmount } from "vue";
   import { useAuthStore } from "@/stores/authStore";
   import { renderContent } from "@/composables/useContentRenderer";
+  import type { AssistantChatModalEmits, AssistantChatModalProps } from "./AssistantChatModal.types";
 
-  interface StudentContext {
-    studentName?: string;
-    courses?: {
-      title: string;
-      subject: string;
-      grade: string;
-      currentLevel: number;
-    }[];
-    topicProgress?: {
-      topic: string;
-      mastery: number;
-      level: number;
-      streak: number;
-    }[];
-  }
-
-  const props = defineProps<{
-    show: boolean;
-    studentContext?: StudentContext;
-  }>();
-
-  defineEmits<{ close: [] }>();
+  const props = defineProps<AssistantChatModalProps>();
+  defineEmits<AssistantChatModalEmits>();
 
   const authStore = useAuthStore();
   const API_BASE = `${import.meta.env.VITE_PRACTIQ_API_URL || "http://localhost:8083"}/api/assistant-proxy`;

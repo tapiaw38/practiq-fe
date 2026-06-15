@@ -1,25 +1,35 @@
-import { practiqApi } from '@/api/request/server'
-import type { Topic } from '@/types'
+import type { AxiosInstance } from "axios";
+import type { Topic } from "@/types";
 
-export class TopicService {
-  async create(courseId: string, params: Partial<Topic>): Promise<{ data: Topic }> {
-    const { data } = await practiqApi.post(`/courses/${courseId}/topics`, params)
-    return data
+export interface ITopicService {
+  create(courseId: string, params: Partial<Topic>): Promise<{ data: Topic }>;
+  list(courseId: string): Promise<{ data: Topic[] }>;
+  update(id: string, params: Partial<Topic>): Promise<{ data: Topic }>;
+  delete(id: string): Promise<void>;
+}
+
+export class TopicService implements ITopicService {
+  constructor(private readonly api: AxiosInstance) {}
+
+  async create(
+    courseId: string,
+    params: Partial<Topic>,
+  ): Promise<{ data: Topic }> {
+    const { data } = await this.api.post(`/courses/${courseId}/topics`, params);
+    return data;
   }
 
   async list(courseId: string): Promise<{ data: Topic[] }> {
-    const { data } = await practiqApi.get(`/courses/${courseId}/topics`)
-    return data
+    const { data } = await this.api.get(`/courses/${courseId}/topics`);
+    return data;
   }
 
   async update(id: string, params: Partial<Topic>): Promise<{ data: Topic }> {
-    const { data } = await practiqApi.put(`/topics/${id}`, params)
-    return data
+    const { data } = await this.api.put(`/topics/${id}`, params);
+    return data;
   }
 
   async delete(id: string): Promise<void> {
-    await practiqApi.delete(`/topics/${id}`)
+    await this.api.delete(`/topics/${id}`);
   }
 }
-
-export const topicService = new TopicService()
