@@ -1,11 +1,11 @@
-import type { CourseLevelsResponse, LevelSheetSummary } from '@/types'
+import type { CourseLevelsResponse, LevelSheetSummary } from "@/types";
 
 export interface StudentLevelsListProps {
-  data: CourseLevelsResponse
+  data: CourseLevelsResponse;
 }
 
 export interface StudentLevelsListEmits {
-  (e: 'openPractice', sheetId: string): void
-  (e: 'openNotebook', notebookId: string): void
-  (e: 'openLevelTest', sheet: LevelSheetSummary): void
+  (e: "openPractice", sheetId: string): void;
+  (e: "openNotebook", notebookId: string): void;
+  (e: "openLevelTest", sheet: LevelSheetSummary): void;
 }

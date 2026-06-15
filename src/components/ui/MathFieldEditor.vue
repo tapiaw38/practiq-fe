@@ -1,21 +1,3 @@
-<template>
-  <div class="math-field-container">
-    <math-field
-      ref="mathFieldRef"
-      class="math-field-editor"
-      :virtual-keyboard-mode="virtualKeyboardMode"
-      @input="onInput"
-    />
-    <div v-if="showLatexToggle" class="latex-toggle">
-      <button type="button" class="btn-latex-toggle" @click="toggleLatexView">
-        <i :class="showLatex ? 'pi pi-eye-slash' : 'pi pi-code'"></i>
-        {{ showLatex ? "Ocultar LaTeX" : "Ver LaTeX" }}
-      </button>
-      <code v-if="showLatex" class="latex-code">{{ modelValue }}</code>
-    </div>
-  </div>
-</template>
-
 <script setup lang="ts">
   import { ref, onMounted, watch, nextTick } from "vue";
   import "mathlive";
@@ -74,6 +56,24 @@
   );
 </script>
 
+<template>
+  <div class="math-field-container">
+    <math-field
+      ref="mathFieldRef"
+      class="math-field-editor"
+      :virtual-keyboard-mode="virtualKeyboardMode"
+      @input="onInput"
+    />
+    <div v-if="showLatexToggle" class="latex-toggle">
+      <button type="button" class="btn-latex-toggle" @click="toggleLatexView">
+        <i :class="showLatex ? 'pi pi-eye-slash' : 'pi pi-code'"></i>
+        {{ showLatex ? "Ocultar LaTeX" : "Ver LaTeX" }}
+      </button>
+      <code v-if="showLatex" class="latex-code">{{ modelValue }}</code>
+    </div>
+  </div>
+</template>
+
 <style scoped>
   .math-field-container {
     width: 100%;
@@ -90,7 +90,10 @@
     font-size: var(--text-lg, 18px);
     --caret-color: var(--practiq-violet, #7c3aed);
     --selection-background-color: rgba(var(--practiq-violet-rgb), 0.2);
-    --contains-highlight-background-color: rgba(var(--practiq-violet-rgb), 0.08);
+    --contains-highlight-background-color: rgba(
+      var(--practiq-violet-rgb),
+      0.08
+    );
   }
 
   .math-field-editor:focus-within {

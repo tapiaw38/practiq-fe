@@ -1,3 +1,68 @@
+<script setup lang="ts">
+  import { ref, computed } from "vue";
+  import { authService } from "@/services/auth/authService";
+  import type {
+    ChangePasswordModalEmits,
+    ChangePasswordModalProps,
+  } from "./ChangePasswordModal.types";
+
+  const props = defineProps<ChangePasswordModalProps>();
+  const emit = defineEmits<ChangePasswordModalEmits>();
+
+  const oldPassword = ref("");
+  const newPassword = ref("");
+  const confirmPassword = ref("");
+  const showOld = ref(false);
+  const showNew = ref(false);
+  const showConfirm = ref(false);
+  const loading = ref(false);
+  const errorMsg = ref("");
+  const success = ref(false);
+
+  const passwordStrong = computed(
+    () =>
+      newPassword.value.length >= 8 &&
+      /[A-Z]/.test(newPassword.value) &&
+      /[a-z]/.test(newPassword.value) &&
+      /[0-9]/.test(newPassword.value) &&
+      /[^A-Za-z0-9]/.test(newPassword.value),
+  );
+
+  const canSubmit = computed(
+    () =>
+      oldPassword.value.length > 0 &&
+      passwordStrong.value &&
+      confirmPassword.value === newPassword.value &&
+      newPassword.value !== oldPassword.value,
+  );
+
+  async function submit() {
+    if (!canSubmit.value) return;
+    loading.value = true;
+    errorMsg.value = "";
+    success.value = false;
+    try {
+      await authService.changePassword(oldPassword.value, newPassword.value);
+      success.value = true;
+      setTimeout(() => close(), 1800);
+    } catch (err: any) {
+      const msg = err?.response?.data?.message;
+      errorMsg.value = msg || "Ocurrió un error. Intentá de nuevo.";
+    } finally {
+      loading.value = false;
+    }
+  }
+
+  function close() {
+    oldPassword.value = "";
+    newPassword.value = "";
+    confirmPassword.value = "";
+    errorMsg.value = "";
+    success.value = false;
+    emit("update:visible", false);
+  }
+</script>
+
 <template>
   <div v-if="visible" class="modal-backdrop" @click.self="close">
     <div class="modal-box">
@@ -81,7 +146,9 @@
           </p>
         </div>
 
-        <p v-if="errorMsg" class="form-alert form-alert--error">{{ errorMsg }}</p>
+        <p v-if="errorMsg" class="form-alert form-alert--error">
+          {{ errorMsg }}
+        </p>
 
         <div v-if="success" class="form-alert form-alert--success">
           <i class="pi pi-check-circle"></i> Contraseña actualizada
@@ -100,71 +167,6 @@
     </div>
   </div>
 </template>
-
-<script setup lang="ts">
-  import { ref, computed } from "vue";
-  import { authService } from "@/services/auth/authService";
-  import type {
-    ChangePasswordModalEmits,
-    ChangePasswordModalProps,
-  } from "./ChangePasswordModal.types";
-
-  const props = defineProps<ChangePasswordModalProps>();
-  const emit = defineEmits<ChangePasswordModalEmits>();
-
-  const oldPassword = ref("");
-  const newPassword = ref("");
-  const confirmPassword = ref("");
-  const showOld = ref(false);
-  const showNew = ref(false);
-  const showConfirm = ref(false);
-  const loading = ref(false);
-  const errorMsg = ref("");
-  const success = ref(false);
-
-  const passwordStrong = computed(
-    () =>
-      newPassword.value.length >= 8 &&
-      /[A-Z]/.test(newPassword.value) &&
-      /[a-z]/.test(newPassword.value) &&
-      /[0-9]/.test(newPassword.value) &&
-      /[^A-Za-z0-9]/.test(newPassword.value),
-  );
-
-  const canSubmit = computed(
-    () =>
-      oldPassword.value.length > 0 &&
-      passwordStrong.value &&
-      confirmPassword.value === newPassword.value &&
-      newPassword.value !== oldPassword.value,
-  );
-
-  async function submit() {
-    if (!canSubmit.value) return;
-    loading.value = true;
-    errorMsg.value = "";
-    success.value = false;
-    try {
-      await authService.changePassword(oldPassword.value, newPassword.value);
-      success.value = true;
-      setTimeout(() => close(), 1800);
-    } catch (err: any) {
-      const msg = err?.response?.data?.message;
-      errorMsg.value = msg || "Ocurrió un error. Intentá de nuevo.";
-    } finally {
-      loading.value = false;
-    }
-  }
-
-  function close() {
-    oldPassword.value = "";
-    newPassword.value = "";
-    confirmPassword.value = "";
-    errorMsg.value = "";
-    success.value = false;
-    emit("update:visible", false);
-  }
-</script>
 
 <style scoped>
   .modal-box {

@@ -1,42 +1,3 @@
-<template>
-  <component
-    :is="wrapper ? 'div' : 'span'"
-    :class="wrapperClasses"
-    :style="wrapperStyle"
-  >
-    <!-- Single skeleton element -->
-    <div
-      v-if="!rows && !grid"
-      class="skeleton"
-      :class="skeletonClasses"
-      :style="skeletonStyle"
-    ></div>
-
-    <!-- Multiple rows -->
-    <template v-else-if="rows">
-      <div
-        v-for="i in rows"
-        :key="i"
-        class="skeleton"
-        :class="skeletonClasses"
-        :style="{ ...skeletonStyle, width: randomWidth(i) }"
-      ></div>
-    </template>
-
-    <!-- Grid layout -->
-    <template v-else-if="grid">
-      <div
-        v-for="i in grid"
-        :key="i"
-        class="skeleton skeleton--card"
-        :style="{ height: gridHeight }"
-      >
-        <slot :index="i"></slot>
-      </div>
-    </template>
-  </component>
-</template>
-
 <script setup lang="ts">
   import { computed } from "vue";
   import type { SkeletonProps } from "./Skeleton.types";
@@ -134,6 +95,45 @@
     return widths[(index - 1) % widths.length];
   }
 </script>
+
+<template>
+  <component
+    :is="wrapper ? 'div' : 'span'"
+    :class="wrapperClasses"
+    :style="wrapperStyle"
+  >
+    <!-- Single skeleton element -->
+    <div
+      v-if="!rows && !grid"
+      class="skeleton"
+      :class="skeletonClasses"
+      :style="skeletonStyle"
+    ></div>
+
+    <!-- Multiple rows -->
+    <template v-else-if="rows">
+      <div
+        v-for="i in rows"
+        :key="i"
+        class="skeleton"
+        :class="skeletonClasses"
+        :style="{ ...skeletonStyle, width: randomWidth(i) }"
+      ></div>
+    </template>
+
+    <!-- Grid layout -->
+    <template v-else-if="grid">
+      <div
+        v-for="i in grid"
+        :key="i"
+        class="skeleton skeleton--card"
+        :style="{ height: gridHeight }"
+      >
+        <slot :index="i"></slot>
+      </div>
+    </template>
+  </component>
+</template>
 
 <style scoped>
   .skeleton {

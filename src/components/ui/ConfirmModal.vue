@@ -1,3 +1,13 @@
+<script setup lang="ts">
+  import type {
+    ConfirmModalEmits,
+    ConfirmModalProps,
+  } from "./ConfirmModal.types";
+
+  defineProps<ConfirmModalProps>();
+  defineEmits<ConfirmModalEmits>();
+</script>
+
 <template>
   <Teleport to="body">
     <div v-if="show" class="confirm-backdrop" @click.self="$emit('cancel')">
@@ -35,16 +45,6 @@
     </div>
   </Teleport>
 </template>
-
-<script setup lang="ts">
-  import type {
-    ConfirmModalEmits,
-    ConfirmModalProps,
-  } from "./ConfirmModal.types";
-
-  defineProps<ConfirmModalProps>();
-  defineEmits<ConfirmModalEmits>();
-</script>
 
 <style scoped>
   .confirm-backdrop {

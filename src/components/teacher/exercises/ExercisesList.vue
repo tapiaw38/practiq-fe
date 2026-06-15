@@ -75,7 +75,9 @@
                 · Respuesta:
                 <span
                   class="answer-math"
-                  v-html="renderInlineEquation(exercise.correct_answer || 'N/A')"
+                  v-html="
+                    renderInlineEquation(exercise.correct_answer || 'N/A')
+                  "
                 ></span>
               </template>
               <template v-else

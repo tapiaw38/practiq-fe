@@ -303,7 +303,10 @@
   import { ref, computed, watch, nextTick, onBeforeUnmount } from "vue";
   import { useAuthStore } from "@/stores/authStore";
   import { renderContent } from "@/composables/useContentRenderer";
-  import type { AssistantChatModalEmits, AssistantChatModalProps } from "./AssistantChatModal.types";
+  import type {
+    AssistantChatModalEmits,
+    AssistantChatModalProps,
+  } from "./AssistantChatModal.types";
   import type { AssistantMode, AssistantMessage, PizarronState } from "@/types";
 
   const props = defineProps<AssistantChatModalProps>();
@@ -438,14 +441,24 @@
       Math.min(inputEl.value.scrollHeight, 140) + "px";
   }
 
-  function cssVar(name: string, fallback: string, el?: Element | null, depth = 0) {
+  function cssVar(
+    name: string,
+    fallback: string,
+    el?: Element | null,
+    depth = 0,
+  ) {
     if (typeof window === "undefined") return fallback;
     const target = el ?? canvasEl.value ?? document.documentElement;
     const value = getComputedStyle(target).getPropertyValue(name).trim();
     if (!value) return fallback;
     const varMatch = value.match(/^var\((--[^,\s)]+)(?:,\s*(.+))?\)$/);
     if (varMatch && depth < 4) {
-      return cssVar(varMatch[1], varMatch[2]?.trim() || fallback, target, depth + 1);
+      return cssVar(
+        varMatch[1],
+        varMatch[2]?.trim() || fallback,
+        target,
+        depth + 1,
+      );
     }
     return value;
   }
@@ -503,7 +516,9 @@
       cssHeight: Math.round(canvas.getBoundingClientRect().height),
       inkPixels,
       sampledPixels,
-      inkRatio: sampledPixels ? Number((inkPixels / sampledPixels).toFixed(4)) : 0,
+      inkRatio: sampledPixels
+        ? Number((inkPixels / sampledPixels).toFixed(4))
+        : 0,
     };
   }
 
@@ -527,46 +542,52 @@
         ),
       );
     }
-    const activityContext = getActivityContext()
+    const activityContext = getActivityContext();
     if (activityContext) {
-      lines.push("Contexto de la actividad actual:")
-      lines.push(JSON.stringify(activityContext))
+      lines.push("Contexto de la actividad actual:");
+      lines.push(JSON.stringify(activityContext));
     }
     return lines.join("\n");
   }
 
   function getActivityContext(): unknown {
     try {
-      return window.__practiqAssistantContext?.() || null
+      return window.__practiqAssistantContext?.() || null;
     } catch (error) {
-      console.warn("[assistant-modal] failed to read activity context", error)
-      return null
+      console.warn("[assistant-modal] failed to read activity context", error);
+      return null;
     }
   }
 
   async function attachActivityCapture(fd: FormData): Promise<boolean> {
     try {
-      const capture = await window.__practiqAssistantCapture?.()
-      if (!capture?.dataUrl) return false
+      const capture = await window.__practiqAssistantCapture?.();
+      if (!capture?.dataUrl) return false;
       fd.append(
         "image_content",
         dataUrlToBlob(capture.dataUrl),
         capture.filename || "activity-work.jpg",
-      )
+      );
       console.info("[assistant-modal] attached activity capture", {
         filename: capture.filename,
         contentType: capture.contentType,
         dataUrlLength: capture.dataUrl.length,
-      })
-      return true
+      });
+      return true;
     } catch (error) {
-      console.warn("[assistant-modal] failed to attach activity capture", error)
-      return false
+      console.warn(
+        "[assistant-modal] failed to attach activity capture",
+        error,
+      );
+      return false;
     }
   }
 
-  function buildInstructionWrappedContent(message: string, hasImageAttachment: boolean): string {
-    const trimmedMessage = message.trim()
+  function buildInstructionWrappedContent(
+    message: string,
+    hasImageAttachment: boolean,
+  ): string {
+    const trimmedMessage = message.trim();
     return [
       "POLITICA OBLIGATORIA:",
       "No des respuestas finales ni resuelvas completamente ejercicios evaluables.",
@@ -579,15 +600,15 @@
             "La seccion 'Consigna del docente' puede contener el enunciado manuscrito; usala como fuente principal del ejercicio.",
             "La seccion 'Respuesta del alumno' contiene el trabajo manuscrito del alumno.",
             "Si el contexto textual trae una pregunta generica como 'Suma correctamente' o similar, NO infieras otros numeros desde ejercicios anteriores: lee la consigna manuscrita en la imagen.",
-            "Si no puedes leer la consigna o la respuesta con claridad, dilo y pide una imagen mas clara."
+            "Si no puedes leer la consigna o la respuesta con claridad, dilo y pide una imagen mas clara.",
           ].join("\n")
         : "Si el alumno menciona trabajo manuscrito pero no hay imagen legible, pide que lo describa.",
       "Si detectas la respuesta del alumno en la imagen, confirma que escribio y guia con una pista sin revelar la solucion final.",
       "",
       `Mensaje del alumno: ${trimmedMessage || "[sin texto, usa contexto e imagen adjunta]"}`,
       "",
-      "Responde en espanol."
-    ].join("\n")
+      "Responde en espanol.",
+    ].join("\n");
   }
 
   // API
@@ -698,7 +719,10 @@
   async function startRecording() {
     if (responding.value || isRecording.value) return;
     try {
-      if (!navigator.mediaDevices?.getUserMedia || typeof MediaRecorder === "undefined") {
+      if (
+        !navigator.mediaDevices?.getUserMedia ||
+        typeof MediaRecorder === "undefined"
+      ) {
         addMsg(
           "assistant",
           "Tu navegador no soporta grabación de audio desde este modal.",
@@ -735,7 +759,10 @@
       const webmBlob = new Blob(audioChunks, { type: "audio/webm" });
       const wavBlob = await convertToWav(webmBlob);
       if (wavBlob.size <= 44) {
-        addMsg("assistant", "No se detectó audio. Mantén presionado y vuelve a intentar.");
+        addMsg(
+          "assistant",
+          "No se detectó audio. Mantén presionado y vuelve a intentar.",
+        );
         return;
       }
       const localUrl = URL.createObjectURL(wavBlob);
@@ -767,7 +794,8 @@
   }
 
   async function convertToWav(audioBlob: Blob): Promise<Blob> {
-    const AudioContextCtor = window.AudioContext || (window as any).webkitAudioContext;
+    const AudioContextCtor =
+      window.AudioContext || (window as any).webkitAudioContext;
     const audioContext = new AudioContextCtor();
     try {
       const arrayBuffer = await audioBlob.arrayBuffer();
@@ -813,8 +841,15 @@
     let offset = 44;
     for (let i = 0; i < length; i++) {
       for (let channel = 0; channel < numberOfChannels; channel++) {
-        const sample = Math.max(-1, Math.min(1, buffer.getChannelData(channel)[i]));
-        view.setInt16(offset, sample < 0 ? sample * 0x8000 : sample * 0x7fff, true);
+        const sample = Math.max(
+          -1,
+          Math.min(1, buffer.getChannelData(channel)[i]),
+        );
+        view.setInt16(
+          offset,
+          sample < 0 ? sample * 0x8000 : sample * 0x7fff,
+          true,
+        );
         offset += 2;
       }
     }
@@ -971,7 +1006,9 @@
     const rect = canvasEl.value.getBoundingClientRect();
     if (canvasInitialized && rect.width > 0 && rect.height > 0) return;
     await nextTick();
-    await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
+    await new Promise<void>((resolve) =>
+      requestAnimationFrame(() => resolve()),
+    );
     initCanvas();
   }
 
@@ -1085,18 +1122,18 @@
     () => props.show,
     (visible) => {
       if (visible) {
-        document.body.classList.add('assistant-modal-open')
+        document.body.classList.add("assistant-modal-open");
       } else {
-        document.body.classList.remove('assistant-modal-open')
+        document.body.classList.remove("assistant-modal-open");
       }
     },
-    { immediate: true }
-  )
+    { immediate: true },
+  );
 
   onBeforeUnmount(() => {
-    document.body.classList.remove('assistant-modal-open')
-    canvasResizeObserver?.disconnect()
-  })
+    document.body.classList.remove("assistant-modal-open");
+    canvasResizeObserver?.disconnect();
+  });
 </script>
 
 <style scoped>
@@ -1772,9 +1809,13 @@
       border-bottom: 1px solid var(--surface-border);
     }
 
-    .acm-bubble { max-width: 80%; }
+    .acm-bubble {
+      max-width: 80%;
+    }
 
-    .acm-messages { padding: 16px; }
+    .acm-messages {
+      padding: 16px;
+    }
   }
 
   /* Mobile */
