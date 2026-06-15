@@ -1,472 +1,3 @@
-<template>
-  <StudentLayout>
-    <div class="practice-shell">
-      <!-- Header -->
-      <header class="practice-header">
-        <button
-          class="btn-back"
-          type="button"
-          aria-label="Volver"
-          @click="router.back()"
-        >
-          <i class="pi pi-arrow-left"></i>
-        </button>
-        <div class="practice-header-info">
-          <div class="level-badges">
-            <div class="level-badge">Nivel {{ sheet?.level }}</div>
-            <div
-              v-if="sheet?.sheet_type === 'level_test'"
-              class="level-test-badge"
-            >
-              <i class="pi pi-star"></i> Prueba de Nivel
-            </div>
-            <div
-              v-if="sheet?.test_style === 'keyboard'"
-              class="input-mode-badge"
-            >
-              <i class="pi pi-keyboard"></i> Teclado
-            </div>
-          </div>
-          <h1 class="practice-title">{{ sheet?.title }}</h1>
-          <span class="practice-subtitle">
-            {{
-              sheet?.sheet_type === "level_test"
-                ? "Responde correctamente el 75% para avanzar al siguiente nivel"
-                : "Resuelve los siguientes ejercicios a tu propio ritmo"
-            }}
-          </span>
-        </div>
-        <div class="header-right">
-          <div class="streak-chip">
-            <span>🔥</span>
-            <div>
-              <div class="streak-val">{{ streakCount }}</div>
-              <div class="streak-lbl">racha</div>
-            </div>
-          </div>
-          <div class="student-avatar">{{ studentInitial }}</div>
-        </div>
-      </header>
-
-      <!-- Loading Skeleton -->
-      <template v-if="loading">
-        <div class="practice-progress-bar">
-          <div class="practice-progress-fill" style="width: 0%"></div>
-        </div>
-        <Skeleton width="100px" height="14px" class="progress-skel" />
-        <div class="exercises-list">
-          <div v-for="n in 3" :key="n" class="ex-card ex-card--skeleton">
-            <Skeleton
-              variant="avatar"
-              size="32px"
-              :rounded="false"
-              class="ex-num-skel"
-            />
-            <div class="ex-body ex-body--skeleton">
-              <div class="ex-meta" style="margin-bottom: 8px">
-                <Skeleton variant="badge" width="90px" />
-                <Skeleton width="50px" height="14px" />
-              </div>
-              <Skeleton width="100%" height="18px" />
-              <Skeleton width="80%" height="16px" />
-              <Skeleton width="100%" height="200px" class="canvas-skel" />
-            </div>
-          </div>
-        </div>
-      </template>
-
-      <template v-else-if="sheet">
-        <!-- Progress bar -->
-        <div class="practice-progress-bar">
-          <div
-            class="practice-progress-fill"
-            :style="{ width: progressPct + '%' }"
-          ></div>
-        </div>
-        <div class="practice-progress-label">
-          {{ answeredCount }} / {{ totalCount }} respondidas
-        </div>
-
-        <div class="practice-body">
-          <!-- Exercises + footer -->
-          <main class="practice-area">
-            <!-- Canvas toolbar (only in canvas mode) -->
-            <div v-if="hasCanvasExercises" class="draw-tools-bar">
-              <button
-                class="tool-btn"
-                type="button"
-                aria-label="Usar lápiz"
-                :class="{ 'tool-btn--active': tool === 'pen' }"
-                @click="tool = 'pen'"
-                title="Lápiz"
-              >
-                <i class="pi pi-pencil"></i>
-              </button>
-              <button
-                class="tool-btn"
-                type="button"
-                aria-label="Usar borrador"
-                :class="{ 'tool-btn--active': tool === 'eraser' }"
-                @click="tool = 'eraser'"
-                title="Borrador"
-              >
-                <i class="pi pi-times-circle"></i>
-              </button>
-              <button
-                class="tool-btn"
-                type="button"
-                aria-label="Deshacer trazo"
-                @click="undoActive"
-                title="Deshacer"
-              >
-                <i class="pi pi-undo"></i>
-              </button>
-              <div class="tool-sep"></div>
-              <input
-                type="color"
-                v-model="penColor"
-                class="color-picker"
-                title="Color"
-                aria-label="Color del lápiz"
-              />
-              <input
-                type="range"
-                v-model.number="penSize"
-                min="1"
-                max="20"
-                class="size-slider"
-                title="Grosor"
-                aria-label="Grosor del lápiz"
-              />
-              <span class="size-val">{{ penSize }}px</span>
-            </div>
-
-            <!-- Exercise cards -->
-            <div class="exercises-list">
-              <div
-                v-for="(pse, idx) in sheet.exercises"
-                :key="pse.id"
-                class="ex-card"
-                :class="{ 'ex-card--answered': isAnswered(pse.exercise.id) }"
-                @click="setActiveExercise(pse.exercise.id, idx)"
-                @focusin="setActiveExercise(pse.exercise.id, idx)"
-                @mouseenter="setActiveExercise(pse.exercise.id, idx)"
-              >
-                <div
-                  class="ex-num"
-                  :class="{ 'ex-num--done': isAnswered(pse.exercise.id) }"
-                >
-                  {{ idx + 1 }}
-                </div>
-                <div class="ex-body">
-                  <div class="ex-meta">
-                    <span
-                      class="difficulty-pill"
-                      :style="{
-                        '--difficulty-color': diffColor(
-                          pse.exercise.difficulty,
-                        ),
-                      }"
-                    >
-                      Dificultad {{ pse.exercise.difficulty }}
-                    </span>
-                    <span class="time-display"
-                      >⏱ {{ formatTime(timers[pse.exercise.id] || 0) }}</span
-                    >
-                    <span v-if="hints[pse.exercise.id]" class="hint-count">
-                      💡 {{ hints[pse.exercise.id] }} pista{{
-                        hints[pse.exercise.id] > 1 ? "s" : ""
-                      }}
-                    </span>
-                  </div>
-
-                  <div
-                    v-if="pse.exercise.type === 'equation'"
-                    class="ex-question ex-question--math"
-                    v-html="renderEquation(pse.exercise.question)"
-                  ></div>
-                  <div
-                    v-else-if="
-                      pse.exercise.type !== 'handwritten' ||
-                      !extractTeacherImageDataUrl(pse.exercise)
-                    "
-                    class="ex-question"
-                  >
-                    {{ pse.exercise.question }}
-                  </div>
-                  <img
-                    v-if="extractTeacherImageDataUrl(pse.exercise)"
-                    :src="extractTeacherImageDataUrl(pse.exercise)"
-                    class="teacher-handwritten-image"
-                    alt="Consigna manuscrita del profesor"
-                  />
-
-                  <!-- Keyboard mode input -->
-                  <div
-                    v-if="pse.exercise.type === 'multiple_choice'"
-                    class="choice-options"
-                  >
-                    <label
-                      v-for="option in exerciseOptions(pse.exercise.metadata)"
-                      :key="option"
-                      class="choice-option"
-                      :class="{
-                        'choice-option--selected':
-                          keyboardAnswers[pse.exercise.id] === option,
-                      }"
-                    >
-                      <input
-                        v-model="keyboardAnswers[pse.exercise.id]"
-                        type="radio"
-                        :name="`exercise-${pse.exercise.id}`"
-                        :value="option"
-                      />
-                      <span>{{ option }}</span>
-                    </label>
-                    <textarea
-                      v-if="exerciseOptions(pse.exercise.metadata).length === 0"
-                      v-model="keyboardAnswers[pse.exercise.id]"
-                      class="ex-textarea"
-                      :placeholder="getPlaceholder(pse.exercise.type)"
-                      rows="4"
-                    ></textarea>
-                  </div>
-
-                  <!-- Equation answer mode -->
-                  <div
-                    v-else-if="pse.exercise.type === 'equation'"
-                    class="equation-answer-wrap"
-                  >
-                    <MathFieldEditor
-                      v-model="keyboardAnswers[pse.exercise.id]"
-                      :show-latex-toggle="false"
-                      virtual-keyboard-mode="onfocus"
-                    />
-                  </div>
-
-                  <!-- Keyboard mode input (text/open_text) -->
-                  <div
-                    v-else-if="!exerciseUsesCanvas(pse.exercise.type)"
-                    class="keyboard-input-wrap"
-                  >
-                    <textarea
-                      v-model="keyboardAnswers[pse.exercise.id]"
-                      class="ex-textarea"
-                      :placeholder="getPlaceholder(pse.exercise.type)"
-                      rows="4"
-                    ></textarea>
-                  </div>
-
-                  <!-- Canvas mode input -->
-                  <div v-else class="canvas-wrap">
-                    <div class="canvas-header">
-                      <span class="canvas-label">Tu respuesta</span>
-                      <button
-                        class="btn-clear-canvas"
-                        type="button"
-                        @click="clearCanvas(pse.exercise.id)"
-                        title="Borrar todo"
-                        aria-label="Limpiar respuesta"
-                      >
-                        <i class="pi pi-trash"></i> Limpiar
-                      </button>
-                    </div>
-                    <canvas
-                      :ref="
-                        (el) =>
-                          setCanvasRef(
-                            pse.exercise.id,
-                            el as HTMLCanvasElement | null,
-                          )
-                      "
-                      class="ex-canvas"
-                      @mousedown="startDrawing($event, pse.exercise.id, idx)"
-                      @mousemove="draw($event, pse.exercise.id)"
-                      @mouseup="stopDrawing(pse.exercise.id)"
-                      @mouseleave="stopDrawing(pse.exercise.id)"
-                      @touchstart.prevent="
-                        startDrawingTouch($event, pse.exercise.id, idx)
-                      "
-                      @touchmove.prevent="drawTouch($event, pse.exercise.id)"
-                      @touchend="stopDrawing(pse.exercise.id)"
-                    ></canvas>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            <!-- Sticky footer -->
-            <div class="practice-footer">
-              <div class="footer-left">
-                <span class="footer-hint"
-                  >{{ totalCount - answeredCount }} sin responder</span
-                >
-                <span v-if="hasDraft" class="draft-indicator">
-                  <i class="pi pi-save"></i> Borrador guardado
-                </span>
-              </div>
-              <div class="footer-actions">
-                <button
-                  v-if="isCanvasMode"
-                  class="btn-draft"
-                  @click="saveDraft"
-                >
-                  <i class="pi pi-save"></i>
-                  Guardar borrador
-                </button>
-                <button class="btn-submit" @click="showSubmitConfirm = true">
-                  <i class="pi pi-send"></i>
-                  Revisar respuestas
-                </button>
-              </div>
-            </div>
-          </main>
-        </div>
-      </template>
-
-      <!-- Restore draft modal -->
-      <Teleport to="body">
-        <Transition name="fade">
-          <div v-if="showRestoreModal" class="modal-overlay">
-            <div class="modal-box">
-              <h3 class="modal-title">
-                <i class="pi pi-save"></i> Borrador encontrado
-              </h3>
-              <p class="submit-copy">
-                Encontramos un borrador guardado de esta practica. ¿Deseas
-                restaurar tu progreso anterior?
-              </p>
-              <div class="modal-actions">
-                <button class="btn btn-secondary" @click="discardDraft">
-                  Descartar
-                </button>
-                <button class="btn btn-primary" @click="restoreDraft">
-                  <i class="pi pi-refresh"></i> Restaurar
-                </button>
-              </div>
-            </div>
-          </div>
-        </Transition>
-      </Teleport>
-
-      <!-- Submit confirm modal -->
-      <Teleport to="body">
-        <Transition name="fade">
-          <div
-            v-if="showSubmitConfirm"
-            class="modal-overlay"
-            @click.self="closeSubmitConfirm()"
-          >
-            <div class="modal-box">
-              <h3 class="modal-title">Revisar y enviar</h3>
-              <p class="submit-copy">
-                Respondiste <strong>{{ answeredCount }}</strong> de
-                <strong>{{ totalCount }}</strong> ejercicios. ¿Deseas enviar tus
-                respuestas?
-              </p>
-              <div class="modal-actions">
-                <button
-                  class="btn btn-secondary"
-                  :disabled="submitting"
-                  @click="closeSubmitConfirm()"
-                >
-                  Cancelar
-                </button>
-                <button
-                  class="btn btn-primary"
-                  :disabled="submitting"
-                  @click="submitAnswers"
-                >
-                  <span v-if="submitting" class="spinner"></span>
-                  {{ submitting ? "Evaluando con IA..." : "Enviar respuestas" }}
-                </button>
-              </div>
-            </div>
-          </div>
-        </Transition>
-      </Teleport>
-
-      <!-- Results modal -->
-      <Teleport to="body">
-        <Transition name="fade">
-          <div v-if="showResults && result" class="modal-overlay">
-            <div class="modal-box results-box">
-              <div class="results-header">
-                <div class="results-emoji">
-                  {{
-                    result.score >= 90 ? "🏆" : result.score >= 70 ? "🌟" : "💪"
-                  }}
-                </div>
-                <h3 class="results-title">
-                  {{
-                    result.score >= 90
-                      ? "¡Excelente!"
-                      : result.score >= 70
-                        ? "¡Buen trabajo!"
-                        : "¡Sigue practicando!"
-                  }}
-                </h3>
-              </div>
-              <div class="results-stats">
-                <div class="stat-card">
-                  <div
-                    class="stat-value"
-                    :style="{ color: scoreColor(result.score) }"
-                  >
-                    {{ Math.round(result.score) }}%
-                  </div>
-                  <div class="stat-label">Puntaje</div>
-                </div>
-                <div class="stat-card">
-                  <div class="stat-value">
-                    {{ result.correct }}/{{ result.total }}
-                  </div>
-                  <div class="stat-label">Correctas</div>
-                </div>
-                <div class="stat-card">
-                  <div
-                    class="stat-value"
-                    :style="{ color: scoreColor(result.mastery_score) }"
-                  >
-                    {{ Math.round(result.mastery_score) }}%
-                  </div>
-                  <div class="stat-label">Dominio</div>
-                </div>
-              </div>
-              <div class="results-recommendation">
-                <div class="rec-icon">
-                  {{
-                    result.should_level_up
-                      ? "⬆️"
-                      : result.should_repeat
-                        ? "🔄"
-                        : "▶️"
-                  }}
-                </div>
-                <p>{{ result.recommendation }}</p>
-              </div>
-              <div v-if="result.ai_feedback" class="results-ai-feedback">
-                <strong>Comentario IA:</strong> {{ result.ai_feedback }}
-              </div>
-              <div v-if="result.should_level_up" class="level-up-badge">
-                🎉 ¡Subiste al Nivel {{ result.next_level }}!
-              </div>
-              <div class="modal-actions">
-                <button class="btn btn-secondary" @click="router.back()">
-                  Volver al inicio
-                </button>
-                <button class="btn btn-primary" @click="showResults = false">
-                  Ver mis respuestas
-                </button>
-              </div>
-            </div>
-          </div>
-        </Transition>
-      </Teleport>
-    </div>
-  </StudentLayout>
-</template>
-
 <script setup lang="ts">
   import { ref, computed, onMounted, onUnmounted } from "vue";
   import { useRoute, useRouter } from "vue-router";
@@ -483,6 +14,7 @@
     pickBestStudentImage,
     summarizeExerciseMetadata,
   } from "@/utils/assistantExerciseContext";
+  import { formatDuration } from "@/utils/formatters";
   import {
     renderContent,
     renderEquation,
@@ -1165,14 +697,6 @@
 
   // ── Helpers ───────────────────────────────────────────────────────────────────
 
-  function formatTime(secs: number) {
-    const m = Math.floor(secs / 60)
-      .toString()
-      .padStart(2, "0");
-    const s = (secs % 60).toString().padStart(2, "0");
-    return `${m}:${s}`;
-  }
-
   function diffColor(d: number) {
     if (d <= 3) return "var(--color-success)";
     if (d <= 6) return "var(--color-warning)";
@@ -1185,6 +709,475 @@
     return "var(--color-error)";
   }
 </script>
+
+<template>
+  <StudentLayout>
+    <div class="practice-shell">
+      <!-- Header -->
+      <header class="practice-header">
+        <button
+          class="btn-back"
+          type="button"
+          aria-label="Volver"
+          @click="router.back()"
+        >
+          <i class="pi pi-arrow-left"></i>
+        </button>
+        <div class="practice-header-info">
+          <div class="level-badges">
+            <div class="level-badge">Nivel {{ sheet?.level }}</div>
+            <div
+              v-if="sheet?.sheet_type === 'level_test'"
+              class="level-test-badge"
+            >
+              <i class="pi pi-star"></i> Prueba de Nivel
+            </div>
+            <div
+              v-if="sheet?.test_style === 'keyboard'"
+              class="input-mode-badge"
+            >
+              <i class="pi pi-keyboard"></i> Teclado
+            </div>
+          </div>
+          <h1 class="practice-title">{{ sheet?.title }}</h1>
+          <span class="practice-subtitle">
+            {{
+              sheet?.sheet_type === "level_test"
+                ? "Responde correctamente el 75% para avanzar al siguiente nivel"
+                : "Resuelve los siguientes ejercicios a tu propio ritmo"
+            }}
+          </span>
+        </div>
+        <div class="header-right">
+          <div class="streak-chip">
+            <span>🔥</span>
+            <div>
+              <div class="streak-val">{{ streakCount }}</div>
+              <div class="streak-lbl">racha</div>
+            </div>
+          </div>
+          <div class="student-avatar">{{ studentInitial }}</div>
+        </div>
+      </header>
+
+      <!-- Loading Skeleton -->
+      <template v-if="loading">
+        <div class="practice-progress-bar">
+          <div class="practice-progress-fill" style="width: 0%"></div>
+        </div>
+        <Skeleton width="100px" height="14px" class="progress-skel" />
+        <div class="exercises-list">
+          <div v-for="n in 3" :key="n" class="ex-card ex-card--skeleton">
+            <Skeleton
+              variant="avatar"
+              size="32px"
+              :rounded="false"
+              class="ex-num-skel"
+            />
+            <div class="ex-body ex-body--skeleton">
+              <div class="ex-meta" style="margin-bottom: 8px">
+                <Skeleton variant="badge" width="90px" />
+                <Skeleton width="50px" height="14px" />
+              </div>
+              <Skeleton width="100%" height="18px" />
+              <Skeleton width="80%" height="16px" />
+              <Skeleton width="100%" height="200px" class="canvas-skel" />
+            </div>
+          </div>
+        </div>
+      </template>
+
+      <template v-else-if="sheet">
+        <!-- Progress bar -->
+        <div class="practice-progress-bar">
+          <div
+            class="practice-progress-fill"
+            :style="{ width: progressPct + '%' }"
+          ></div>
+        </div>
+        <div class="practice-progress-label">
+          {{ answeredCount }} / {{ totalCount }} respondidas
+        </div>
+
+        <div class="practice-body">
+          <!-- Exercises + footer -->
+          <main class="practice-area">
+            <!-- Canvas toolbar (only in canvas mode) -->
+            <div v-if="hasCanvasExercises" class="draw-tools-bar">
+              <button
+                class="tool-btn"
+                type="button"
+                aria-label="Usar lápiz"
+                :class="{ 'tool-btn--active': tool === 'pen' }"
+                @click="tool = 'pen'"
+                title="Lápiz"
+              >
+                <i class="pi pi-pencil"></i>
+              </button>
+              <button
+                class="tool-btn"
+                type="button"
+                aria-label="Usar borrador"
+                :class="{ 'tool-btn--active': tool === 'eraser' }"
+                @click="tool = 'eraser'"
+                title="Borrador"
+              >
+                <i class="pi pi-times-circle"></i>
+              </button>
+              <button
+                class="tool-btn"
+                type="button"
+                aria-label="Deshacer trazo"
+                @click="undoActive"
+                title="Deshacer"
+              >
+                <i class="pi pi-undo"></i>
+              </button>
+              <div class="tool-sep"></div>
+              <input
+                type="color"
+                v-model="penColor"
+                class="color-picker"
+                title="Color"
+                aria-label="Color del lápiz"
+              />
+              <input
+                type="range"
+                v-model.number="penSize"
+                min="1"
+                max="20"
+                class="size-slider"
+                title="Grosor"
+                aria-label="Grosor del lápiz"
+              />
+              <span class="size-val">{{ penSize }}px</span>
+            </div>
+
+            <!-- Exercise cards -->
+            <div class="exercises-list">
+              <div
+                v-for="(pse, idx) in sheet.exercises"
+                :key="pse.id"
+                class="ex-card"
+                :class="{ 'ex-card--answered': isAnswered(pse.exercise.id) }"
+                @click="setActiveExercise(pse.exercise.id, idx)"
+                @focusin="setActiveExercise(pse.exercise.id, idx)"
+                @mouseenter="setActiveExercise(pse.exercise.id, idx)"
+              >
+                <div
+                  class="ex-num"
+                  :class="{ 'ex-num--done': isAnswered(pse.exercise.id) }"
+                >
+                  {{ idx + 1 }}
+                </div>
+                <div class="ex-body">
+                  <div class="ex-meta">
+                    <span
+                      class="difficulty-pill"
+                      :style="{
+                        '--difficulty-color': diffColor(
+                          pse.exercise.difficulty,
+                        ),
+                      }"
+                    >
+                      Dificultad {{ pse.exercise.difficulty }}
+                    </span>
+                    <span class="time-display"
+                      >⏱ {{ formatDuration(timers[pse.exercise.id] || 0) }}</span
+                    >
+                    <span v-if="hints[pse.exercise.id]" class="hint-count">
+                      💡 {{ hints[pse.exercise.id] }} pista{{
+                        hints[pse.exercise.id] > 1 ? "s" : ""
+                      }}
+                    </span>
+                  </div>
+
+                  <div
+                    v-if="pse.exercise.type === 'equation'"
+                    class="ex-question ex-question--math"
+                    v-html="renderEquation(pse.exercise.question)"
+                  ></div>
+                  <div
+                    v-else-if="
+                      pse.exercise.type !== 'handwritten' ||
+                      !extractTeacherImageDataUrl(pse.exercise)
+                    "
+                    class="ex-question"
+                  >
+                    {{ pse.exercise.question }}
+                  </div>
+                  <img
+                    v-if="extractTeacherImageDataUrl(pse.exercise)"
+                    :src="extractTeacherImageDataUrl(pse.exercise)"
+                    class="teacher-handwritten-image"
+                    alt="Consigna manuscrita del profesor"
+                  />
+
+                  <!-- Keyboard mode input -->
+                  <div
+                    v-if="pse.exercise.type === 'multiple_choice'"
+                    class="choice-options"
+                  >
+                    <label
+                      v-for="option in exerciseOptions(pse.exercise.metadata)"
+                      :key="option"
+                      class="choice-option"
+                      :class="{
+                        'choice-option--selected':
+                          keyboardAnswers[pse.exercise.id] === option,
+                      }"
+                    >
+                      <input
+                        v-model="keyboardAnswers[pse.exercise.id]"
+                        type="radio"
+                        :name="`exercise-${pse.exercise.id}`"
+                        :value="option"
+                      />
+                      <span>{{ option }}</span>
+                    </label>
+                    <textarea
+                      v-if="exerciseOptions(pse.exercise.metadata).length === 0"
+                      v-model="keyboardAnswers[pse.exercise.id]"
+                      class="ex-textarea"
+                      :placeholder="getPlaceholder(pse.exercise.type)"
+                      rows="4"
+                    ></textarea>
+                  </div>
+
+                  <!-- Equation answer mode -->
+                  <div
+                    v-else-if="pse.exercise.type === 'equation'"
+                    class="equation-answer-wrap"
+                  >
+                    <MathFieldEditor
+                      v-model="keyboardAnswers[pse.exercise.id]"
+                      :show-latex-toggle="false"
+                      virtual-keyboard-mode="onfocus"
+                    />
+                  </div>
+
+                  <!-- Keyboard mode input (text/open_text) -->
+                  <div
+                    v-else-if="!exerciseUsesCanvas(pse.exercise.type)"
+                    class="keyboard-input-wrap"
+                  >
+                    <textarea
+                      v-model="keyboardAnswers[pse.exercise.id]"
+                      class="ex-textarea"
+                      :placeholder="getPlaceholder(pse.exercise.type)"
+                      rows="4"
+                    ></textarea>
+                  </div>
+
+                  <!-- Canvas mode input -->
+                  <div v-else class="canvas-wrap">
+                    <div class="canvas-header">
+                      <span class="canvas-label">Tu respuesta</span>
+                      <button
+                        class="btn-clear-canvas"
+                        type="button"
+                        @click="clearCanvas(pse.exercise.id)"
+                        title="Borrar todo"
+                        aria-label="Limpiar respuesta"
+                      >
+                        <i class="pi pi-trash"></i> Limpiar
+                      </button>
+                    </div>
+                    <canvas
+                      :ref="
+                        (el) =>
+                          setCanvasRef(
+                            pse.exercise.id,
+                            el as HTMLCanvasElement | null,
+                          )
+                      "
+                      class="ex-canvas"
+                      @mousedown="startDrawing($event, pse.exercise.id, idx)"
+                      @mousemove="draw($event, pse.exercise.id)"
+                      @mouseup="stopDrawing(pse.exercise.id)"
+                      @mouseleave="stopDrawing(pse.exercise.id)"
+                      @touchstart.prevent="
+                        startDrawingTouch($event, pse.exercise.id, idx)
+                      "
+                      @touchmove.prevent="drawTouch($event, pse.exercise.id)"
+                      @touchend="stopDrawing(pse.exercise.id)"
+                    ></canvas>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Sticky footer -->
+            <div class="practice-footer">
+              <div class="footer-left">
+                <span class="footer-hint"
+                  >{{ totalCount - answeredCount }} sin responder</span
+                >
+                <span v-if="hasDraft" class="draft-indicator">
+                  <i class="pi pi-save"></i> Borrador guardado
+                </span>
+              </div>
+              <div class="footer-actions">
+                <button
+                  v-if="isCanvasMode"
+                  class="btn-draft"
+                  @click="saveDraft"
+                >
+                  <i class="pi pi-save"></i>
+                  Guardar borrador
+                </button>
+                <button class="btn-submit" @click="showSubmitConfirm = true">
+                  <i class="pi pi-send"></i>
+                  Revisar respuestas
+                </button>
+              </div>
+            </div>
+          </main>
+        </div>
+      </template>
+
+      <!-- Restore draft modal -->
+      <Teleport to="body">
+        <Transition name="fade">
+          <div v-if="showRestoreModal" class="modal-overlay">
+            <div class="modal-box">
+              <h3 class="modal-title">
+                <i class="pi pi-save"></i> Borrador encontrado
+              </h3>
+              <p class="submit-copy">
+                Encontramos un borrador guardado de esta practica. ¿Deseas
+                restaurar tu progreso anterior?
+              </p>
+              <div class="modal-actions">
+                <button class="btn btn-secondary" @click="discardDraft">
+                  Descartar
+                </button>
+                <button class="btn btn-primary" @click="restoreDraft">
+                  <i class="pi pi-refresh"></i> Restaurar
+                </button>
+              </div>
+            </div>
+          </div>
+        </Transition>
+      </Teleport>
+
+      <!-- Submit confirm modal -->
+      <Teleport to="body">
+        <Transition name="fade">
+          <div
+            v-if="showSubmitConfirm"
+            class="modal-overlay"
+            @click.self="closeSubmitConfirm()"
+          >
+            <div class="modal-box">
+              <h3 class="modal-title">Revisar y enviar</h3>
+              <p class="submit-copy">
+                Respondiste <strong>{{ answeredCount }}</strong> de
+                <strong>{{ totalCount }}</strong> ejercicios. ¿Deseas enviar tus
+                respuestas?
+              </p>
+              <div class="modal-actions">
+                <button
+                  class="btn btn-secondary"
+                  :disabled="submitting"
+                  @click="closeSubmitConfirm()"
+                >
+                  Cancelar
+                </button>
+                <button
+                  class="btn btn-primary"
+                  :disabled="submitting"
+                  @click="submitAnswers"
+                >
+                  <span v-if="submitting" class="spinner"></span>
+                  {{ submitting ? "Evaluando con IA..." : "Enviar respuestas" }}
+                </button>
+              </div>
+            </div>
+          </div>
+        </Transition>
+      </Teleport>
+
+      <!-- Results modal -->
+      <Teleport to="body">
+        <Transition name="fade">
+          <div v-if="showResults && result" class="modal-overlay">
+            <div class="modal-box results-box">
+              <div class="results-header">
+                <div class="results-emoji">
+                  {{
+                    result.score >= 90 ? "🏆" : result.score >= 70 ? "🌟" : "💪"
+                  }}
+                </div>
+                <h3 class="results-title">
+                  {{
+                    result.score >= 90
+                      ? "¡Excelente!"
+                      : result.score >= 70
+                        ? "¡Buen trabajo!"
+                        : "¡Sigue practicando!"
+                  }}
+                </h3>
+              </div>
+              <div class="results-stats">
+                <div class="stat-card">
+                  <div
+                    class="stat-value"
+                    :style="{ color: scoreColor(result.score) }"
+                  >
+                    {{ Math.round(result.score) }}%
+                  </div>
+                  <div class="stat-label">Puntaje</div>
+                </div>
+                <div class="stat-card">
+                  <div class="stat-value">
+                    {{ result.correct }}/{{ result.total }}
+                  </div>
+                  <div class="stat-label">Correctas</div>
+                </div>
+                <div class="stat-card">
+                  <div
+                    class="stat-value"
+                    :style="{ color: scoreColor(result.mastery_score) }"
+                  >
+                    {{ Math.round(result.mastery_score) }}%
+                  </div>
+                  <div class="stat-label">Dominio</div>
+                </div>
+              </div>
+              <div class="results-recommendation">
+                <div class="rec-icon">
+                  {{
+                    result.should_level_up
+                      ? "⬆️"
+                      : result.should_repeat
+                        ? "🔄"
+                        : "▶️"
+                  }}
+                </div>
+                <p>{{ result.recommendation }}</p>
+              </div>
+              <div v-if="result.ai_feedback" class="results-ai-feedback">
+                <strong>Comentario IA:</strong> {{ result.ai_feedback }}
+              </div>
+              <div v-if="result.should_level_up" class="level-up-badge">
+                🎉 ¡Subiste al Nivel {{ result.next_level }}!
+              </div>
+              <div class="modal-actions">
+                <button class="btn btn-secondary" @click="router.back()">
+                  Volver al inicio
+                </button>
+                <button class="btn btn-primary" @click="showResults = false">
+                  Ver mis respuestas
+                </button>
+              </div>
+            </div>
+          </div>
+        </Transition>
+      </Teleport>
+    </div>
+  </StudentLayout>
+</template>
 
 <style scoped>
   .practice-shell {

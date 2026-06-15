@@ -1,3 +1,336 @@
+<script setup lang="ts">
+  import { computed, onMounted, ref } from "vue";
+  import TeacherLayout from "@/layouts/TeacherLayout.vue";
+  import Skeleton from "@/components/ui/Skeleton.vue";
+  import { useAssignment } from "@/composables/useAssignment";
+  import { useAuthAdmin } from "@/composables/useAuthAdmin";
+  import { useGrade } from "@/composables/useGrade";
+  import { useProfile } from "@/composables/useProfile";
+  import { useAuthStore } from "@/stores/authStore";
+  import type { AssignedUser, AuthApiUser, Grade, UserProfile } from "@/types";
+
+  type UserRow = {
+    user: AuthApiUser;
+    profile: UserProfile | null;
+  };
+
+  const authStore = useAuthStore();
+  const { loadUsers, updateUser } = useAuthAdmin();
+  const {
+    loadTeacherStudents,
+    loadStudentTeachers,
+    assignTeacher: assignTeacherService,
+    unassignTeacher: unassignTeacherService,
+  } = useAssignment();
+  const { loadGrades, loadUserGrades, addGradeMember, removeGradeMember } =
+    useGrade();
+  const {
+    loadProfileById,
+    updateAssistantConfigById,
+    updateAcademicStatusById,
+  } = useProfile();
+  const loading = ref(false);
+  const errorMessage = ref("");
+  const rows = ref<UserRow[]>([]);
+  const grades = ref<Grade[]>([]);
+  const teacherAssignments = ref<Record<string, AssignedUser[]>>({});
+  const studentTeachers = ref<Record<string, AssignedUser[]>>({});
+  const userGrades = ref<Record<string, Grade[]>>({});
+  const teacherSelection = ref<Record<string, string>>({});
+  const gradeSelection = ref<Record<string, string>>({});
+  const assistantForms = ref<
+    Record<string, { assistant_base_url: string; assistant_api_key: string }>
+  >({});
+  const savingAssistant = ref(false);
+  const assistantSaveSuccess = ref(false);
+  const searchTerm = ref("");
+  const statusFilter = ref<"all" | "active" | "blocked" | "pending">("all");
+  const editingStudent = ref<UserRow | null>(null);
+
+  const statusOptions = [
+    { value: "all", label: "Todos" },
+    { value: "active", label: "Activos" },
+    { value: "blocked", label: "Bloqueados" },
+    { value: "pending", label: "Sin perfil" },
+  ] as const;
+
+  const isSuperAdmin = computed(() => {
+    const roles = authStore.authUser?.roles || [];
+    return roles.some(
+      (role) => role.name === "superadmin" || role.name === "admin",
+    );
+  });
+
+  function practiqUserId(user: AuthApiUser) {
+    return user.username || user.id;
+  }
+
+  const teachers = computed(() =>
+    rows.value.filter((item) => item.profile?.profile_type === "teacher"),
+  );
+  const students = computed(() =>
+    rows.value.filter((item) => item.profile?.profile_type === "student"),
+  );
+  const pendingProfiles = computed(() =>
+    rows.value.filter((item) => !item.profile),
+  );
+
+  const normalizedSearch = computed(() =>
+    searchTerm.value.trim().toLowerCase(),
+  );
+
+  function matchesSearch(item: UserRow) {
+    const needle = normalizedSearch.value;
+    if (!needle) return true;
+    return [
+      fullName(item.user),
+      item.user.email,
+      practiqUserId(item.user),
+    ].some((value) => value.toLowerCase().includes(needle));
+  }
+
+  function matchesStatus(item: UserRow) {
+    if (statusFilter.value === "all") return true;
+    if (statusFilter.value === "pending") return !item.profile;
+    const blocked =
+      item.profile?.academic_status === "blocked" || !item.user.is_active;
+    if (statusFilter.value === "blocked") return blocked;
+    if (statusFilter.value === "active") return !!item.profile && !blocked;
+    return true;
+  }
+
+  const filteredTeachers = computed(() =>
+    teachers.value.filter((item) => matchesSearch(item) && matchesStatus(item)),
+  );
+  const filteredStudents = computed(() =>
+    students.value.filter((item) => matchesSearch(item) && matchesStatus(item)),
+  );
+  const filteredPendingProfiles = computed(() =>
+    pendingProfiles.value.filter(
+      (item) => matchesSearch(item) && matchesStatus(item),
+    ),
+  );
+  const currentEditingStudentId = computed(() =>
+    editingStudent.value ? practiqUserId(editingStudent.value.user) : "",
+  );
+  const currentStudentTeachers = computed(() =>
+    currentEditingStudentId.value
+      ? studentTeachers.value[currentEditingStudentId.value] || []
+      : [],
+  );
+  const currentStudentGrades = computed(() =>
+    currentEditingStudentId.value
+      ? userGrades.value[currentEditingStudentId.value] || []
+      : [],
+  );
+
+  onMounted(async () => {
+    if (isSuperAdmin.value) {
+      await loadData();
+    }
+  });
+
+  async function loadData() {
+    loading.value = true;
+    errorMessage.value = "";
+    try {
+      const [usersData, gradesData] = await Promise.all([
+        loadUsers({ limit: 1000, offset: 0 }),
+        loadGrades(),
+      ]);
+
+      const userRows = await Promise.all(
+        (usersData || []).map(async (user) => {
+          try {
+            const profile = await loadProfileById(practiqUserId(user));
+            return { user, profile };
+          } catch {
+            return { user, profile: null };
+          }
+        }),
+      );
+
+      rows.value = userRows;
+      grades.value = gradesData || [];
+      syncAssistantForms();
+      await loadAssignments();
+    } catch (error) {
+      console.error(error);
+      errorMessage.value = "No se pudo cargar la estructura de usuarios.";
+    } finally {
+      loading.value = false;
+    }
+  }
+
+  async function loadAssignments() {
+    const teacherMap: Record<string, AssignedUser[]> = {};
+    const studentMap: Record<string, AssignedUser[]> = {};
+    const gradeMap: Record<string, Grade[]> = {};
+
+    await Promise.all(
+      teachers.value.map(async (teacher) => {
+        try {
+          const teacherId = practiqUserId(teacher.user);
+          teacherMap[teacherId] = await loadTeacherStudents(teacherId);
+        } catch {
+          teacherMap[practiqUserId(teacher.user)] = [];
+        }
+      }),
+    );
+
+    await Promise.all(
+      students.value.map(async (student) => {
+        try {
+          const studentId = practiqUserId(student.user);
+          const [teachersData, gradesData] = await Promise.all([
+            loadStudentTeachers(studentId),
+            loadUserGrades(studentId),
+          ]);
+          studentMap[studentId] = teachersData || [];
+          gradeMap[studentId] = gradesData || [];
+        } catch {
+          studentMap[practiqUserId(student.user)] = [];
+          gradeMap[practiqUserId(student.user)] = [];
+        }
+      }),
+    );
+
+    teacherAssignments.value = teacherMap;
+    studentTeachers.value = studentMap;
+    userGrades.value = gradeMap;
+  }
+
+  function fullName(user: AuthApiUser) {
+    return (
+      `${user.first_name || ""} ${user.last_name || ""}`.trim() || user.email
+    );
+  }
+
+  function syncAssistantForms() {
+    const next: Record<
+      string,
+      { assistant_base_url: string; assistant_api_key: string }
+    > = {};
+    for (const item of rows.value) {
+      next[practiqUserId(item.user)] = {
+        assistant_base_url: item.profile?.assistant_base_url || "",
+        assistant_api_key: item.profile?.assistant_api_key || "",
+      };
+    }
+    assistantForms.value = next;
+  }
+
+  function openStudentEditor(item: UserRow) {
+    editingStudent.value = item;
+  }
+
+  function closeStudentEditor() {
+    editingStudent.value = null;
+  }
+
+  async function saveAssistantConfig(userId: string) {
+    if (savingAssistant.value) return;
+    savingAssistant.value = true;
+    assistantSaveSuccess.value = false;
+    try {
+      const form = assistantForms.value[userId];
+      const profile = await updateAssistantConfigById(userId, form);
+      rows.value = rows.value.map((item) =>
+        practiqUserId(item.user) === userId ? { ...item, profile } : item,
+      );
+      if (
+        editingStudent.value &&
+        practiqUserId(editingStudent.value.user) === userId
+      ) {
+        editingStudent.value = { ...editingStudent.value, profile };
+      }
+      assistantSaveSuccess.value = true;
+      setTimeout(() => {
+        assistantSaveSuccess.value = false;
+      }, 3000);
+    } catch (error) {
+      console.error(error);
+      errorMessage.value = "No se pudo guardar la configuración del asistente.";
+    } finally {
+      savingAssistant.value = false;
+    }
+  }
+
+  async function assignTeacher(studentId: string) {
+    const teacherId = teacherSelection.value[studentId];
+    if (!teacherId) return;
+    try {
+      await assignTeacherService(teacherId, studentId);
+      teacherSelection.value[studentId] = "";
+      await loadAssignments();
+    } catch (error) {
+      console.error(error);
+      errorMessage.value = "No se pudo asignar el profesor.";
+    }
+  }
+
+  async function unassignTeacher(teacherId: string, studentId: string) {
+    try {
+      await unassignTeacherService(teacherId, studentId);
+      await loadAssignments();
+    } catch (error) {
+      console.error(error);
+      errorMessage.value = "No se pudo desvincular el profesor.";
+    }
+  }
+
+  async function assignGrade(userId: string) {
+    const gradeId = gradeSelection.value[userId];
+    if (!gradeId) return;
+    try {
+      await addGradeMember(gradeId, userId);
+      gradeSelection.value[userId] = "";
+      await loadAssignments();
+    } catch (error) {
+      console.error(error);
+      errorMessage.value = "No se pudo asignar el grado.";
+    }
+  }
+
+  async function removeGrade(gradeId: string, userId: string) {
+    try {
+      await removeGradeMember(gradeId, userId);
+      await loadAssignments();
+    } catch (error) {
+      console.error(error);
+      errorMessage.value = "No se pudo quitar el grado.";
+    }
+  }
+
+  async function toggleBlocked(item: UserRow) {
+    const nextBlocked = !(
+      item.profile?.academic_status === "blocked" || !item.user.is_active
+    );
+    try {
+      const practiqId = practiqUserId(item.user);
+      const [authUser, profile] = await Promise.all([
+        updateUser(item.user.id, { is_active: !nextBlocked }),
+        updateAcademicStatusById(practiqId, {
+          academic_status: nextBlocked ? "blocked" : "active",
+        }),
+      ]);
+
+      rows.value = rows.value.map((row) =>
+        row.user.id === item.user.id ? { user: authUser, profile } : row,
+      );
+      if (
+        editingStudent.value &&
+        editingStudent.value.user.id === item.user.id
+      ) {
+        editingStudent.value = { user: authUser, profile };
+      }
+    } catch (error) {
+      console.error(error);
+      errorMessage.value = "No se pudo cambiar el estado del alumno.";
+    }
+  }
+</script>
+
 <template>
   <TeacherLayout>
     <div class="admin-shell">
@@ -505,339 +838,6 @@
     </div>
   </TeacherLayout>
 </template>
-
-<script setup lang="ts">
-  import { computed, onMounted, ref } from "vue";
-  import TeacherLayout from "@/layouts/TeacherLayout.vue";
-  import Skeleton from "@/components/ui/Skeleton.vue";
-  import { useAssignment } from "@/composables/useAssignment";
-  import { useAuthAdmin } from "@/composables/useAuthAdmin";
-  import { useGrade } from "@/composables/useGrade";
-  import { useProfile } from "@/composables/useProfile";
-  import { useAuthStore } from "@/stores/authStore";
-  import type { AssignedUser, AuthApiUser, Grade, UserProfile } from "@/types";
-
-  type UserRow = {
-    user: AuthApiUser;
-    profile: UserProfile | null;
-  };
-
-  const authStore = useAuthStore();
-  const { loadUsers, updateUser } = useAuthAdmin();
-  const {
-    loadTeacherStudents,
-    loadStudentTeachers,
-    assignTeacher: assignTeacherService,
-    unassignTeacher: unassignTeacherService,
-  } = useAssignment();
-  const { loadGrades, loadUserGrades, addGradeMember, removeGradeMember } =
-    useGrade();
-  const {
-    loadProfileById,
-    updateAssistantConfigById,
-    updateAcademicStatusById,
-  } = useProfile();
-  const loading = ref(false);
-  const errorMessage = ref("");
-  const rows = ref<UserRow[]>([]);
-  const grades = ref<Grade[]>([]);
-  const teacherAssignments = ref<Record<string, AssignedUser[]>>({});
-  const studentTeachers = ref<Record<string, AssignedUser[]>>({});
-  const userGrades = ref<Record<string, Grade[]>>({});
-  const teacherSelection = ref<Record<string, string>>({});
-  const gradeSelection = ref<Record<string, string>>({});
-  const assistantForms = ref<
-    Record<string, { assistant_base_url: string; assistant_api_key: string }>
-  >({});
-  const savingAssistant = ref(false);
-  const assistantSaveSuccess = ref(false);
-  const searchTerm = ref("");
-  const statusFilter = ref<"all" | "active" | "blocked" | "pending">("all");
-  const editingStudent = ref<UserRow | null>(null);
-
-  const statusOptions = [
-    { value: "all", label: "Todos" },
-    { value: "active", label: "Activos" },
-    { value: "blocked", label: "Bloqueados" },
-    { value: "pending", label: "Sin perfil" },
-  ] as const;
-
-  const isSuperAdmin = computed(() => {
-    const roles = authStore.authUser?.roles || [];
-    return roles.some(
-      (role) => role.name === "superadmin" || role.name === "admin",
-    );
-  });
-
-  function practiqUserId(user: AuthApiUser) {
-    return user.username || user.id;
-  }
-
-  const teachers = computed(() =>
-    rows.value.filter((item) => item.profile?.profile_type === "teacher"),
-  );
-  const students = computed(() =>
-    rows.value.filter((item) => item.profile?.profile_type === "student"),
-  );
-  const pendingProfiles = computed(() =>
-    rows.value.filter((item) => !item.profile),
-  );
-
-  const normalizedSearch = computed(() =>
-    searchTerm.value.trim().toLowerCase(),
-  );
-
-  function matchesSearch(item: UserRow) {
-    const needle = normalizedSearch.value;
-    if (!needle) return true;
-    return [
-      fullName(item.user),
-      item.user.email,
-      practiqUserId(item.user),
-    ].some((value) => value.toLowerCase().includes(needle));
-  }
-
-  function matchesStatus(item: UserRow) {
-    if (statusFilter.value === "all") return true;
-    if (statusFilter.value === "pending") return !item.profile;
-    const blocked =
-      item.profile?.academic_status === "blocked" || !item.user.is_active;
-    if (statusFilter.value === "blocked") return blocked;
-    if (statusFilter.value === "active") return !!item.profile && !blocked;
-    return true;
-  }
-
-  const filteredTeachers = computed(() =>
-    teachers.value.filter((item) => matchesSearch(item) && matchesStatus(item)),
-  );
-  const filteredStudents = computed(() =>
-    students.value.filter((item) => matchesSearch(item) && matchesStatus(item)),
-  );
-  const filteredPendingProfiles = computed(() =>
-    pendingProfiles.value.filter(
-      (item) => matchesSearch(item) && matchesStatus(item),
-    ),
-  );
-  const currentEditingStudentId = computed(() =>
-    editingStudent.value ? practiqUserId(editingStudent.value.user) : "",
-  );
-  const currentStudentTeachers = computed(() =>
-    currentEditingStudentId.value
-      ? studentTeachers.value[currentEditingStudentId.value] || []
-      : [],
-  );
-  const currentStudentGrades = computed(() =>
-    currentEditingStudentId.value
-      ? userGrades.value[currentEditingStudentId.value] || []
-      : [],
-  );
-
-  onMounted(async () => {
-    if (isSuperAdmin.value) {
-      await loadData();
-    }
-  });
-
-  async function loadData() {
-    loading.value = true;
-    errorMessage.value = "";
-    try {
-      const [usersData, gradesData] = await Promise.all([
-        loadUsers({ limit: 1000, offset: 0 }),
-        loadGrades(),
-      ]);
-
-      const userRows = await Promise.all(
-        (usersData || []).map(async (user) => {
-          try {
-            const profile = await loadProfileById(practiqUserId(user));
-            return { user, profile };
-          } catch {
-            return { user, profile: null };
-          }
-        }),
-      );
-
-      rows.value = userRows;
-      grades.value = gradesData || [];
-      syncAssistantForms();
-      await loadAssignments();
-    } catch (error) {
-      console.error(error);
-      errorMessage.value = "No se pudo cargar la estructura de usuarios.";
-    } finally {
-      loading.value = false;
-    }
-  }
-
-  async function loadAssignments() {
-    const teacherMap: Record<string, AssignedUser[]> = {};
-    const studentMap: Record<string, AssignedUser[]> = {};
-    const gradeMap: Record<string, Grade[]> = {};
-
-    await Promise.all(
-      teachers.value.map(async (teacher) => {
-        try {
-          const teacherId = practiqUserId(teacher.user);
-          teacherMap[teacherId] = await loadTeacherStudents(teacherId);
-        } catch {
-          teacherMap[practiqUserId(teacher.user)] = [];
-        }
-      }),
-    );
-
-    await Promise.all(
-      students.value.map(async (student) => {
-        try {
-          const studentId = practiqUserId(student.user);
-          const [teachersData, gradesData] = await Promise.all([
-            loadStudentTeachers(studentId),
-            loadUserGrades(studentId),
-          ]);
-          studentMap[studentId] = teachersData || [];
-          gradeMap[studentId] = gradesData || [];
-        } catch {
-          studentMap[practiqUserId(student.user)] = [];
-          gradeMap[practiqUserId(student.user)] = [];
-        }
-      }),
-    );
-
-    teacherAssignments.value = teacherMap;
-    studentTeachers.value = studentMap;
-    userGrades.value = gradeMap;
-  }
-
-  function fullName(user: AuthApiUser) {
-    return (
-      `${user.first_name || ""} ${user.last_name || ""}`.trim() || user.email
-    );
-  }
-
-  function syncAssistantForms() {
-    const next: Record<
-      string,
-      { assistant_base_url: string; assistant_api_key: string }
-    > = {};
-    for (const item of rows.value) {
-      next[practiqUserId(item.user)] = {
-        assistant_base_url: item.profile?.assistant_base_url || "",
-        assistant_api_key: item.profile?.assistant_api_key || "",
-      };
-    }
-    assistantForms.value = next;
-  }
-
-  function openStudentEditor(item: UserRow) {
-    editingStudent.value = item;
-  }
-
-  function closeStudentEditor() {
-    editingStudent.value = null;
-  }
-
-  async function saveAssistantConfig(userId: string) {
-    if (savingAssistant.value) return;
-    savingAssistant.value = true;
-    assistantSaveSuccess.value = false;
-    try {
-      const form = assistantForms.value[userId];
-      const profile = await updateAssistantConfigById(userId, form);
-      rows.value = rows.value.map((item) =>
-        practiqUserId(item.user) === userId ? { ...item, profile } : item,
-      );
-      if (
-        editingStudent.value &&
-        practiqUserId(editingStudent.value.user) === userId
-      ) {
-        editingStudent.value = { ...editingStudent.value, profile };
-      }
-      assistantSaveSuccess.value = true;
-      setTimeout(() => {
-        assistantSaveSuccess.value = false;
-      }, 3000);
-    } catch (error) {
-      console.error(error);
-      errorMessage.value = "No se pudo guardar la configuración del asistente.";
-    } finally {
-      savingAssistant.value = false;
-    }
-  }
-
-  async function assignTeacher(studentId: string) {
-    const teacherId = teacherSelection.value[studentId];
-    if (!teacherId) return;
-    try {
-      await assignTeacherService(teacherId, studentId);
-      teacherSelection.value[studentId] = "";
-      await loadAssignments();
-    } catch (error) {
-      console.error(error);
-      errorMessage.value = "No se pudo asignar el profesor.";
-    }
-  }
-
-  async function unassignTeacher(teacherId: string, studentId: string) {
-    try {
-      await unassignTeacherService(teacherId, studentId);
-      await loadAssignments();
-    } catch (error) {
-      console.error(error);
-      errorMessage.value = "No se pudo desvincular el profesor.";
-    }
-  }
-
-  async function assignGrade(userId: string) {
-    const gradeId = gradeSelection.value[userId];
-    if (!gradeId) return;
-    try {
-      await addGradeMember(gradeId, userId);
-      gradeSelection.value[userId] = "";
-      await loadAssignments();
-    } catch (error) {
-      console.error(error);
-      errorMessage.value = "No se pudo asignar el grado.";
-    }
-  }
-
-  async function removeGrade(gradeId: string, userId: string) {
-    try {
-      await removeGradeMember(gradeId, userId);
-      await loadAssignments();
-    } catch (error) {
-      console.error(error);
-      errorMessage.value = "No se pudo quitar el grado.";
-    }
-  }
-
-  async function toggleBlocked(item: UserRow) {
-    const nextBlocked = !(
-      item.profile?.academic_status === "blocked" || !item.user.is_active
-    );
-    try {
-      const practiqId = practiqUserId(item.user);
-      const [authUser, profile] = await Promise.all([
-        updateUser(item.user.id, { is_active: !nextBlocked }),
-        updateAcademicStatusById(practiqId, {
-          academic_status: nextBlocked ? "blocked" : "active",
-        }),
-      ]);
-
-      rows.value = rows.value.map((row) =>
-        row.user.id === item.user.id ? { user: authUser, profile } : row,
-      );
-      if (
-        editingStudent.value &&
-        editingStudent.value.user.id === item.user.id
-      ) {
-        editingStudent.value = { user: authUser, profile };
-      }
-    } catch (error) {
-      console.error(error);
-      errorMessage.value = "No se pudo cambiar el estado del alumno.";
-    }
-  }
-</script>
 
 <style scoped>
   .admin-shell {

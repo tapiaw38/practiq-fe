@@ -1,3 +1,511 @@
+<script setup lang="ts">
+  import { ref, computed, watch, nextTick, onMounted, onUnmounted } from "vue";
+  import { useRoute, useRouter } from "vue-router";
+  import { useAuthStore } from "@/stores/authStore";
+  import StudentLayout from "@/layouts/StudentLayout.vue";
+  import Skeleton from "@/components/ui/Skeleton.vue";
+  import { useNotebook } from "@/composables/useNotebook";
+  import type { Notebook, NotebookPage } from "@/types";
+  import {
+    composeAssistantWorkImage,
+    pickBestStudentImage,
+  } from "@/utils/assistantExerciseContext";
+  import { formatAIFeedback, formatRelativeTime } from "@/utils/formatters";
+  import { renderContent } from "@/composables/useContentRenderer";
+
+  const route = useRoute();
+  const router = useRouter();
+  const authStore = useAuthStore();
+  const { loadNotebook, saveSubmissionAsync, loadSubmissionJob } =
+    useNotebook();
+
+  const notebook = ref<Notebook | null>(null);
+  const loading = ref(true);
+  const currentPageIndex = ref(0);
+
+  // Drawing state
+  const answerCanvas = ref<HTMLCanvasElement | null>(null);
+  const tool = ref<"pen" | "eraser">("pen");
+  const penColor = ref("#1e1e2e");
+  const penSize = ref(3);
+  const isDrawing = ref(false);
+  const undoStack = ref<ImageData[]>([]);
+
+  // Text state
+  const textAnswer = ref("");
+
+  // Save state
+  const saveStatus = ref<"saving" | "saved" | "">("");
+
+  // Per-page canvas snapshots
+  const canvasSnapshots = ref<Record<string, string>>({});
+  const textAnswers = ref<Record<string, string>>({});
+
+  const pages = computed(() => notebook.value?.pages || []);
+  const currentPage = computed<NotebookPage | null>(
+    () => pages.value[currentPageIndex.value] ?? null,
+  );
+  const studentId = computed(
+    () => authStore.profile?.id || authStore.authUser?.id || "",
+  );
+
+  const penCursor = `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24'%3E%3Cpath fill='%231e1e2e' d='M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04a1 1 0 0 0 0-1.41l-2.34-2.34a1 1 0 0 0-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z'/%3E%3C/svg%3E") 0 24, crosshair`;
+  const eraserCursor = `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='20' height='20' viewBox='0 0 20 20'%3E%3Ccircle cx='10' cy='10' r='8' fill='none' stroke='%23666' stroke-width='1.5'/%3E%3C/svg%3E") 10 10, cell`;
+  const canvasCursor = computed(() =>
+    tool.value === "eraser" ? eraserCursor : penCursor,
+  );
+
+  function hasSubmission(page: NotebookPage) {
+    return !!page.submission;
+  }
+
+  onMounted(async () => {
+    const id = route.params.id as string;
+    try {
+      notebook.value = await loadNotebook(id, studentId.value);
+      // Pre-fill existing submissions
+      for (const page of pages.value) {
+        if (page.submission?.canvas_data)
+          canvasSnapshots.value[page.id] = page.submission.canvas_data;
+        if (page.submission?.answer_text)
+          textAnswers.value[page.id] = page.submission.answer_text;
+      }
+    } finally {
+      loading.value = false;
+      await nextTick();
+      initCanvas();
+      registerAssistantHooks();
+    }
+  });
+
+  onUnmounted(() => {
+    unregisterAssistantHooks();
+  });
+
+  watch(currentPageIndex, async () => {
+    await nextTick();
+    initCanvas();
+    registerAssistantHooks();
+    if (currentPage.value) {
+      textAnswer.value = textAnswers.value[currentPage.value.id] || "";
+    }
+  });
+
+  function drawNotebookBackground(
+    ctx: CanvasRenderingContext2D,
+    w: number,
+    h: number,
+  ) {
+    // Fondo crema
+    ctx.fillStyle = "#fafaf7";
+    ctx.fillRect(0, 0, w, h);
+    // Línea de margen roja
+    ctx.strokeStyle = "rgba(239,68,68,0.25)";
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.moveTo(56, 0);
+    ctx.lineTo(56, h);
+    ctx.stroke();
+    // Líneas horizontales
+    ctx.strokeStyle = "rgba(124,58,237,0.1)";
+    ctx.lineWidth = 1;
+    for (let y = 32; y < h; y += 32) {
+      ctx.beginPath();
+      ctx.moveTo(0, y);
+      ctx.lineTo(w, y);
+      ctx.stroke();
+    }
+  }
+
+  function initCanvas() {
+    const canvas = answerCanvas.value;
+    if (!canvas || !currentPage.value) return;
+
+    const doInit = () => {
+      const w = canvas.offsetWidth || 700;
+      const h = canvas.offsetHeight || 300;
+      canvas.width = w;
+      canvas.height = h;
+      const ctx = canvas.getContext("2d")!;
+      drawNotebookBackground(ctx, w, h);
+      undoStack.value = [];
+
+      const snap = currentPage.value?.id
+        ? canvasSnapshots.value[currentPage.value.id]
+        : null;
+      if (snap) {
+        const img = new Image();
+        img.onload = () => ctx.drawImage(img, 0, 0, w, h);
+        img.src = snap;
+      }
+    };
+
+    // Esperar un frame para que el canvas tenga dimensiones reales
+    requestAnimationFrame(doInit);
+  }
+
+  function getCtx() {
+    return answerCanvas.value?.getContext("2d") ?? null;
+  }
+
+  function getPoint(e: MouseEvent) {
+    const canvas = answerCanvas.value!;
+    const rect = canvas.getBoundingClientRect();
+    return {
+      x: (e.clientX - rect.left) * (canvas.width / rect.width),
+      y: (e.clientY - rect.top) * (canvas.height / rect.height),
+    };
+  }
+
+  function startDraw(e: MouseEvent) {
+    const ctx = getCtx();
+    if (!ctx || !answerCanvas.value) return;
+    undoStack.value.push(
+      ctx.getImageData(
+        0,
+        0,
+        answerCanvas.value.width,
+        answerCanvas.value.height,
+      ),
+    );
+    isDrawing.value = true;
+    const { x, y } = getPoint(e);
+    ctx.beginPath();
+    ctx.moveTo(x, y);
+  }
+
+  function draw(e: MouseEvent) {
+    if (!isDrawing.value) return;
+    const ctx = getCtx();
+    if (!ctx) return;
+    const { x, y } = getPoint(e);
+    ctx.globalCompositeOperation =
+      tool.value === "eraser" ? "destination-out" : "source-over";
+    ctx.strokeStyle = penColor.value;
+    ctx.lineWidth = tool.value === "eraser" ? penSize.value * 4 : penSize.value;
+    ctx.lineCap = "round";
+    ctx.lineJoin = "round";
+    ctx.lineTo(x, y);
+    ctx.stroke();
+  }
+
+  function endDraw() {
+    isDrawing.value = false;
+    getCtx()?.beginPath();
+  }
+
+  function startDrawTouch(e: TouchEvent) {
+    const t = e.touches[0];
+    startDraw({ clientX: t.clientX, clientY: t.clientY } as MouseEvent);
+  }
+
+  function drawTouch(e: TouchEvent) {
+    const t = e.touches[0];
+    draw({ clientX: t.clientX, clientY: t.clientY } as MouseEvent);
+  }
+
+  function undoDraw() {
+    const ctx = getCtx();
+    if (!ctx || !answerCanvas.value || undoStack.value.length === 0) return;
+    ctx.putImageData(undoStack.value.pop()!, 0, 0);
+  }
+
+  function clearCanvas() {
+    const canvas = answerCanvas.value;
+    const ctx = getCtx();
+    if (!canvas || !ctx) return;
+    undoStack.value = [];
+    drawNotebookBackground(ctx, canvas.width, canvas.height);
+  }
+
+  function getReviewBoxClass(submission: { ai_is_correct?: boolean }) {
+    if (submission.ai_is_correct === true) return "ai-review-box--success";
+    if (submission.ai_is_correct === false) return "ai-review-box--error";
+    return "ai-review-box--pending";
+  }
+
+  function captureCanvas(): string {
+    const source = answerCanvas.value;
+    if (!source) return "";
+
+    const scale = 2;
+    const temp = document.createElement("canvas");
+    temp.width = Math.max(1, Math.floor(source.width * scale));
+    temp.height = Math.max(1, Math.floor(source.height * scale));
+    const tempCtx = temp.getContext("2d");
+    if (!tempCtx) {
+      return source.toDataURL("image/jpeg", 0.92);
+    }
+
+    tempCtx.fillStyle = "#ffffff";
+    tempCtx.fillRect(0, 0, temp.width, temp.height);
+    tempCtx.imageSmoothingEnabled = false;
+    tempCtx.drawImage(source, 0, 0, temp.width, temp.height);
+
+    const baseImage = tempCtx.getImageData(0, 0, temp.width, temp.height);
+    const basePixels = baseImage.data;
+    const threshold = 188;
+
+    let minX = temp.width;
+    let minY = temp.height;
+    let maxX = -1;
+    let maxY = -1;
+
+    for (let y = 0; y < temp.height; y++) {
+      for (let x = 0; x < temp.width; x++) {
+        const idx = (y * temp.width + x) * 4;
+        const r = basePixels[idx];
+        const g = basePixels[idx + 1];
+        const b = basePixels[idx + 2];
+        const alpha = basePixels[idx + 3];
+        const gray = 0.299 * r + 0.587 * g + 0.114 * b;
+        const isInk = alpha >= 8 && gray <= threshold;
+        if (!isInk) continue;
+
+        if (x < minX) minX = x;
+        if (y < minY) minY = y;
+        if (x > maxX) maxX = x;
+        if (y > maxY) maxY = y;
+      }
+    }
+
+    const pad = Math.floor(28 * scale);
+    if (maxX < minX || maxY < minY) {
+      minX = 0;
+      minY = 0;
+      maxX = temp.width - 1;
+      maxY = temp.height - 1;
+    } else {
+      minX = Math.max(0, minX - pad);
+      minY = Math.max(0, minY - pad);
+      maxX = Math.min(temp.width - 1, maxX + pad);
+      maxY = Math.min(temp.height - 1, maxY + pad);
+    }
+
+    const cropW = Math.max(1, maxX - minX + 1);
+    const cropH = Math.max(1, maxY - minY + 1);
+
+    const out = document.createElement("canvas");
+    out.width = cropW;
+    out.height = cropH;
+    const ctx = out.getContext("2d");
+    if (!ctx) {
+      return source.toDataURL("image/jpeg", 0.92);
+    }
+
+    ctx.fillStyle = "#ffffff";
+    ctx.fillRect(0, 0, out.width, out.height);
+    ctx.imageSmoothingEnabled = false;
+    ctx.drawImage(temp, minX, minY, cropW, cropH, 0, 0, cropW, cropH);
+
+    const image = ctx.getImageData(0, 0, out.width, out.height);
+    const pixels = image.data;
+    for (let i = 0; i < pixels.length; i += 4) {
+      const r = pixels[i];
+      const g = pixels[i + 1];
+      const b = pixels[i + 2];
+      const alpha = pixels[i + 3];
+
+      if (alpha < 8) {
+        pixels[i] = 255;
+        pixels[i + 1] = 255;
+        pixels[i + 2] = 255;
+        pixels[i + 3] = 255;
+        continue;
+      }
+
+      const gray = 0.299 * r + 0.587 * g + 0.114 * b;
+      const value = gray > threshold ? 255 : 0;
+      pixels[i] = value;
+      pixels[i + 1] = value;
+      pixels[i + 2] = value;
+      pixels[i + 3] = 255;
+    }
+    ctx.putImageData(image, 0, 0);
+
+    return out.toDataURL("image/jpeg", 0.92);
+  }
+
+  async function getBestStudentNotebookImage(): Promise<string> {
+    const pageId = currentPage.value?.id || "";
+    return pickBestStudentImage([
+      captureCanvas(),
+      canvasSnapshots.value[pageId],
+      currentPage.value?.submission?.canvas_data,
+    ]);
+  }
+
+  async function buildNotebookAssistantImage(): Promise<string> {
+    const teacherDataUrl =
+      currentPage.value?.content_type === "canvas" &&
+      currentPage.value?.content_data
+        ? currentPage.value.content_data
+        : "";
+    const studentDataUrl = await getBestStudentNotebookImage();
+
+    if (!teacherDataUrl) {
+      return studentDataUrl;
+    }
+
+    try {
+      return await composeAssistantWorkImage({
+        teacherDataUrl,
+        studentDataUrl,
+        teacherLabel: "Consigna del docente",
+        studentLabel: "Respuesta del alumno",
+      });
+    } catch (error) {
+      console.error(
+        "[notebook-view] failed to compose teacher and student images",
+        error,
+      );
+      return teacherDataUrl || studentDataUrl;
+    }
+  }
+
+  const notebookAssistantCapture = async () => {
+    if (!currentPage.value) return null;
+
+    const dataUrl = await buildNotebookAssistantImage();
+    if (!dataUrl) return null;
+
+    console.log("[notebook-view] assistant capture generated", {
+      pageId: currentPage.value.id,
+      pageNumber: currentPage.value.page_number,
+      hasTeacherImage:
+        currentPage.value.content_type === "canvas" &&
+        !!currentPage.value.content_data,
+      dataUrlPrefix: dataUrl.slice(0, 32),
+      dataUrlLength: dataUrl.length,
+    });
+
+    return {
+      dataUrl,
+      filename: `notebook-page-${currentPage.value.page_number || currentPageIndex.value + 1}.jpg`,
+      contentType: "image/jpeg",
+    };
+  };
+
+  const notebookAssistantContext = () => {
+    if (!notebook.value || !currentPage.value) return null;
+
+    return {
+      current_view: "student_notebook",
+      activity_type: "notebook_page",
+      notebook_id: notebook.value.id,
+      notebook_title: notebook.value.title,
+      notebook_description: notebook.value.description,
+      current_page: {
+        id: currentPage.value.id,
+        number: currentPage.value.page_number,
+        title: currentPage.value.title,
+        content_type: currentPage.value.content_type,
+        instructions: currentPage.value.instructions || "",
+        teacher_content_text:
+          currentPage.value.content_type === "text"
+            ? currentPage.value.content_data
+            : currentPage.value.content_data
+              ? "[consigna manuscrita en imagen adjunta]"
+              : "",
+        teacher_content_source:
+          currentPage.value.content_type === "canvas" &&
+          currentPage.value.content_data
+            ? "teacher_image_attachment"
+            : "text",
+        has_teacher_image:
+          currentPage.value.content_type === "canvas" &&
+          !!currentPage.value.content_data,
+        has_student_submission: !!currentPage.value.submission,
+        ai_feedback_visible: !!currentPage.value.submission?.ai_feedback,
+      },
+      page_list: pages.value.map((page) => ({
+        id: page.id,
+        number: page.page_number,
+        title: page.title,
+        content_type: page.content_type,
+        instructions: page.instructions || "",
+        teacher_content_text:
+          page.content_type === "text"
+            ? page.content_data
+            : page.content_data
+              ? "[consigna manuscrita en imagen adjunta]"
+              : "",
+        teacher_content_source:
+          page.content_type === "canvas" && page.content_data
+            ? "teacher_image_attachment"
+            : "text",
+        has_teacher_image:
+          page.content_type === "canvas" && !!page.content_data,
+      })),
+    };
+  };
+
+  function registerAssistantHooks() {
+    window.__practiqAssistantCapture = notebookAssistantCapture;
+    window.__practiqAssistantContext = notebookAssistantContext;
+    (window as any).__practiqAssistantHookSource = "notebook";
+    console.log("[notebook-view] assistant hooks registered", {
+      notebookId: notebook.value?.id || null,
+      pageId: currentPage.value?.id || null,
+    });
+  }
+
+  function unregisterAssistantHooks() {
+    if ((window as any).__practiqAssistantHookSource !== "notebook") return;
+    if (window.__practiqAssistantCapture === notebookAssistantCapture) {
+      delete window.__practiqAssistantCapture;
+    }
+    if (window.__practiqAssistantContext === notebookAssistantContext) {
+      delete window.__practiqAssistantContext;
+    }
+    delete (window as any).__practiqAssistantHookSource;
+  }
+
+  async function saveAndNext() {
+    if (!currentPage.value) return;
+    saveStatus.value = "saving";
+    try {
+      const pageId = currentPage.value.id;
+      const data = captureCanvas();
+      canvasSnapshots.value[pageId] = data;
+
+      const start = await saveSubmissionAsync(pageId, { canvas_data: data });
+      const jobId = start.job_id;
+      let jobDone = false;
+
+      while (!jobDone) {
+        await new Promise((resolve) => setTimeout(resolve, 1200));
+        const job = await loadSubmissionJob(jobId);
+        if (job.status === "processing") {
+          continue;
+        }
+        if (job.status === "failed") {
+          throw new Error(job.message || "No se pudo evaluar el cuaderno");
+        }
+        jobDone = true;
+      }
+
+      saveStatus.value = "saved";
+      const notebookId = route.params.id as string;
+      notebook.value = await loadNotebook(notebookId, studentId.value);
+      setTimeout(() => {
+        saveStatus.value = "";
+      }, 2000);
+
+      if (currentPageIndex.value < pages.value.length - 1) {
+        goToPage(currentPageIndex.value + 1);
+      }
+    } catch (err) {
+      console.error(err);
+      saveStatus.value = "";
+    }
+  }
+
+  function goToPage(idx: number) {
+    currentPageIndex.value = idx;
+  }
+</script>
+
 <template>
   <StudentLayout>
     <div class="notebook-shell">
@@ -288,539 +796,6 @@
     </div>
   </StudentLayout>
 </template>
-
-<script setup lang="ts">
-  import { ref, computed, watch, nextTick, onMounted, onUnmounted } from "vue";
-  import { useRoute, useRouter } from "vue-router";
-  import { useAuthStore } from "@/stores/authStore";
-  import StudentLayout from "@/layouts/StudentLayout.vue";
-  import Skeleton from "@/components/ui/Skeleton.vue";
-  import { useNotebook } from "@/composables/useNotebook";
-  import type { Notebook, NotebookPage } from "@/types";
-  import {
-    composeAssistantWorkImage,
-    pickBestStudentImage,
-  } from "@/utils/assistantExerciseContext";
-  import { renderContent } from "@/composables/useContentRenderer";
-
-  const route = useRoute();
-  const router = useRouter();
-  const authStore = useAuthStore();
-  const { loadNotebook, saveSubmissionAsync, loadSubmissionJob } =
-    useNotebook();
-
-  const notebook = ref<Notebook | null>(null);
-  const loading = ref(true);
-  const currentPageIndex = ref(0);
-
-  // Drawing state
-  const answerCanvas = ref<HTMLCanvasElement | null>(null);
-  const tool = ref<"pen" | "eraser">("pen");
-  const penColor = ref("#1e1e2e");
-  const penSize = ref(3);
-  const isDrawing = ref(false);
-  const undoStack = ref<ImageData[]>([]);
-
-  // Text state
-  const textAnswer = ref("");
-
-  // Save state
-  const saveStatus = ref<"saving" | "saved" | "">("");
-
-  // Per-page canvas snapshots
-  const canvasSnapshots = ref<Record<string, string>>({});
-  const textAnswers = ref<Record<string, string>>({});
-
-  const pages = computed(() => notebook.value?.pages || []);
-  const currentPage = computed<NotebookPage | null>(
-    () => pages.value[currentPageIndex.value] ?? null,
-  );
-  const studentId = computed(
-    () => authStore.profile?.id || authStore.authUser?.id || "",
-  );
-
-  const penCursor = `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24'%3E%3Cpath fill='%231e1e2e' d='M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04a1 1 0 0 0 0-1.41l-2.34-2.34a1 1 0 0 0-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z'/%3E%3C/svg%3E") 0 24, crosshair`;
-  const eraserCursor = `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='20' height='20' viewBox='0 0 20 20'%3E%3Ccircle cx='10' cy='10' r='8' fill='none' stroke='%23666' stroke-width='1.5'/%3E%3C/svg%3E") 10 10, cell`;
-  const canvasCursor = computed(() =>
-    tool.value === "eraser" ? eraserCursor : penCursor,
-  );
-
-  function hasSubmission(page: NotebookPage) {
-    return !!page.submission;
-  }
-
-  onMounted(async () => {
-    const id = route.params.id as string;
-    try {
-      notebook.value = await loadNotebook(id, studentId.value);
-      // Pre-fill existing submissions
-      for (const page of pages.value) {
-        if (page.submission?.canvas_data)
-          canvasSnapshots.value[page.id] = page.submission.canvas_data;
-        if (page.submission?.answer_text)
-          textAnswers.value[page.id] = page.submission.answer_text;
-      }
-    } finally {
-      loading.value = false;
-      await nextTick();
-      initCanvas();
-      registerAssistantHooks();
-    }
-  });
-
-  onUnmounted(() => {
-    unregisterAssistantHooks();
-  });
-
-  watch(currentPageIndex, async () => {
-    await nextTick();
-    initCanvas();
-    registerAssistantHooks();
-    if (currentPage.value) {
-      textAnswer.value = textAnswers.value[currentPage.value.id] || "";
-    }
-  });
-
-  function drawNotebookBackground(
-    ctx: CanvasRenderingContext2D,
-    w: number,
-    h: number,
-  ) {
-    // Fondo crema
-    ctx.fillStyle = "#fafaf7";
-    ctx.fillRect(0, 0, w, h);
-    // Línea de margen roja
-    ctx.strokeStyle = "rgba(239,68,68,0.25)";
-    ctx.lineWidth = 1.5;
-    ctx.beginPath();
-    ctx.moveTo(56, 0);
-    ctx.lineTo(56, h);
-    ctx.stroke();
-    // Líneas horizontales
-    ctx.strokeStyle = "rgba(124,58,237,0.1)";
-    ctx.lineWidth = 1;
-    for (let y = 32; y < h; y += 32) {
-      ctx.beginPath();
-      ctx.moveTo(0, y);
-      ctx.lineTo(w, y);
-      ctx.stroke();
-    }
-  }
-
-  function initCanvas() {
-    const canvas = answerCanvas.value;
-    if (!canvas || !currentPage.value) return;
-
-    const doInit = () => {
-      const w = canvas.offsetWidth || 700;
-      const h = canvas.offsetHeight || 300;
-      canvas.width = w;
-      canvas.height = h;
-      const ctx = canvas.getContext("2d")!;
-      drawNotebookBackground(ctx, w, h);
-      undoStack.value = [];
-
-      const snap = currentPage.value?.id
-        ? canvasSnapshots.value[currentPage.value.id]
-        : null;
-      if (snap) {
-        const img = new Image();
-        img.onload = () => ctx.drawImage(img, 0, 0, w, h);
-        img.src = snap;
-      }
-    };
-
-    // Esperar un frame para que el canvas tenga dimensiones reales
-    requestAnimationFrame(doInit);
-  }
-
-  function getCtx() {
-    return answerCanvas.value?.getContext("2d") ?? null;
-  }
-
-  function getPoint(e: MouseEvent) {
-    const canvas = answerCanvas.value!;
-    const rect = canvas.getBoundingClientRect();
-    return {
-      x: (e.clientX - rect.left) * (canvas.width / rect.width),
-      y: (e.clientY - rect.top) * (canvas.height / rect.height),
-    };
-  }
-
-  function startDraw(e: MouseEvent) {
-    const ctx = getCtx();
-    if (!ctx || !answerCanvas.value) return;
-    undoStack.value.push(
-      ctx.getImageData(
-        0,
-        0,
-        answerCanvas.value.width,
-        answerCanvas.value.height,
-      ),
-    );
-    isDrawing.value = true;
-    const { x, y } = getPoint(e);
-    ctx.beginPath();
-    ctx.moveTo(x, y);
-  }
-
-  function draw(e: MouseEvent) {
-    if (!isDrawing.value) return;
-    const ctx = getCtx();
-    if (!ctx) return;
-    const { x, y } = getPoint(e);
-    ctx.globalCompositeOperation =
-      tool.value === "eraser" ? "destination-out" : "source-over";
-    ctx.strokeStyle = penColor.value;
-    ctx.lineWidth = tool.value === "eraser" ? penSize.value * 4 : penSize.value;
-    ctx.lineCap = "round";
-    ctx.lineJoin = "round";
-    ctx.lineTo(x, y);
-    ctx.stroke();
-  }
-
-  function endDraw() {
-    isDrawing.value = false;
-    getCtx()?.beginPath();
-  }
-
-  function startDrawTouch(e: TouchEvent) {
-    const t = e.touches[0];
-    startDraw({ clientX: t.clientX, clientY: t.clientY } as MouseEvent);
-  }
-
-  function drawTouch(e: TouchEvent) {
-    const t = e.touches[0];
-    draw({ clientX: t.clientX, clientY: t.clientY } as MouseEvent);
-  }
-
-  function undoDraw() {
-    const ctx = getCtx();
-    if (!ctx || !answerCanvas.value || undoStack.value.length === 0) return;
-    ctx.putImageData(undoStack.value.pop()!, 0, 0);
-  }
-
-  function clearCanvas() {
-    const canvas = answerCanvas.value;
-    const ctx = getCtx();
-    if (!canvas || !ctx) return;
-    undoStack.value = [];
-    drawNotebookBackground(ctx, canvas.width, canvas.height);
-  }
-
-  function formatAIFeedback(value?: string) {
-    const feedback = (value || "").trim();
-    if (!feedback) return "Sin observaciones de IA";
-    if (feedback.includes("UNREADABLE")) return "Sin observaciones de IA";
-    if (feedback === "Gillie: respuesta no legible (UNREADABLE)")
-      return "Sin observaciones de IA";
-    if (feedback === "Asistente: respuesta no legible (UNREADABLE)")
-      return "Sin observaciones de IA";
-    return feedback;
-  }
-
-  function getReviewBoxClass(submission: { ai_is_correct?: boolean }) {
-    if (submission.ai_is_correct === true) return "ai-review-box--success";
-    if (submission.ai_is_correct === false) return "ai-review-box--error";
-    return "ai-review-box--pending";
-  }
-
-  function formatRelativeTime(dateStr?: string) {
-    if (!dateStr) return "";
-    const date = new Date(dateStr);
-    const now = new Date();
-    const diffMs = now.getTime() - date.getTime();
-    const diffMins = Math.floor(diffMs / 60000);
-    const diffHours = Math.floor(diffMs / 3600000);
-    const diffDays = Math.floor(diffMs / 86400000);
-
-    if (diffMins < 1) return "hace un momento";
-    if (diffMins < 60) return `hace ${diffMins} min`;
-    if (diffHours < 24) return `hace ${diffHours}h`;
-    return `hace ${diffDays}d`;
-  }
-
-  function captureCanvas(): string {
-    const source = answerCanvas.value;
-    if (!source) return "";
-
-    const scale = 2;
-    const temp = document.createElement("canvas");
-    temp.width = Math.max(1, Math.floor(source.width * scale));
-    temp.height = Math.max(1, Math.floor(source.height * scale));
-    const tempCtx = temp.getContext("2d");
-    if (!tempCtx) {
-      return source.toDataURL("image/jpeg", 0.92);
-    }
-
-    tempCtx.fillStyle = "#ffffff";
-    tempCtx.fillRect(0, 0, temp.width, temp.height);
-    tempCtx.imageSmoothingEnabled = false;
-    tempCtx.drawImage(source, 0, 0, temp.width, temp.height);
-
-    const baseImage = tempCtx.getImageData(0, 0, temp.width, temp.height);
-    const basePixels = baseImage.data;
-    const threshold = 188;
-
-    let minX = temp.width;
-    let minY = temp.height;
-    let maxX = -1;
-    let maxY = -1;
-
-    for (let y = 0; y < temp.height; y++) {
-      for (let x = 0; x < temp.width; x++) {
-        const idx = (y * temp.width + x) * 4;
-        const r = basePixels[idx];
-        const g = basePixels[idx + 1];
-        const b = basePixels[idx + 2];
-        const alpha = basePixels[idx + 3];
-        const gray = 0.299 * r + 0.587 * g + 0.114 * b;
-        const isInk = alpha >= 8 && gray <= threshold;
-        if (!isInk) continue;
-
-        if (x < minX) minX = x;
-        if (y < minY) minY = y;
-        if (x > maxX) maxX = x;
-        if (y > maxY) maxY = y;
-      }
-    }
-
-    const pad = Math.floor(28 * scale);
-    if (maxX < minX || maxY < minY) {
-      minX = 0;
-      minY = 0;
-      maxX = temp.width - 1;
-      maxY = temp.height - 1;
-    } else {
-      minX = Math.max(0, minX - pad);
-      minY = Math.max(0, minY - pad);
-      maxX = Math.min(temp.width - 1, maxX + pad);
-      maxY = Math.min(temp.height - 1, maxY + pad);
-    }
-
-    const cropW = Math.max(1, maxX - minX + 1);
-    const cropH = Math.max(1, maxY - minY + 1);
-
-    const out = document.createElement("canvas");
-    out.width = cropW;
-    out.height = cropH;
-    const ctx = out.getContext("2d");
-    if (!ctx) {
-      return source.toDataURL("image/jpeg", 0.92);
-    }
-
-    ctx.fillStyle = "#ffffff";
-    ctx.fillRect(0, 0, out.width, out.height);
-    ctx.imageSmoothingEnabled = false;
-    ctx.drawImage(temp, minX, minY, cropW, cropH, 0, 0, cropW, cropH);
-
-    const image = ctx.getImageData(0, 0, out.width, out.height);
-    const pixels = image.data;
-    for (let i = 0; i < pixels.length; i += 4) {
-      const r = pixels[i];
-      const g = pixels[i + 1];
-      const b = pixels[i + 2];
-      const alpha = pixels[i + 3];
-
-      if (alpha < 8) {
-        pixels[i] = 255;
-        pixels[i + 1] = 255;
-        pixels[i + 2] = 255;
-        pixels[i + 3] = 255;
-        continue;
-      }
-
-      const gray = 0.299 * r + 0.587 * g + 0.114 * b;
-      const value = gray > threshold ? 255 : 0;
-      pixels[i] = value;
-      pixels[i + 1] = value;
-      pixels[i + 2] = value;
-      pixels[i + 3] = 255;
-    }
-    ctx.putImageData(image, 0, 0);
-
-    return out.toDataURL("image/jpeg", 0.92);
-  }
-
-  async function getBestStudentNotebookImage(): Promise<string> {
-    const pageId = currentPage.value?.id || "";
-    return pickBestStudentImage([
-      captureCanvas(),
-      canvasSnapshots.value[pageId],
-      currentPage.value?.submission?.canvas_data,
-    ]);
-  }
-
-  async function buildNotebookAssistantImage(): Promise<string> {
-    const teacherDataUrl =
-      currentPage.value?.content_type === "canvas" &&
-      currentPage.value?.content_data
-        ? currentPage.value.content_data
-        : "";
-    const studentDataUrl = await getBestStudentNotebookImage();
-
-    if (!teacherDataUrl) {
-      return studentDataUrl;
-    }
-
-    try {
-      return await composeAssistantWorkImage({
-        teacherDataUrl,
-        studentDataUrl,
-        teacherLabel: "Consigna del docente",
-        studentLabel: "Respuesta del alumno",
-      });
-    } catch (error) {
-      console.error(
-        "[notebook-view] failed to compose teacher and student images",
-        error,
-      );
-      return teacherDataUrl || studentDataUrl;
-    }
-  }
-
-  const notebookAssistantCapture = async () => {
-    if (!currentPage.value) return null;
-
-    const dataUrl = await buildNotebookAssistantImage();
-    if (!dataUrl) return null;
-
-    console.log("[notebook-view] assistant capture generated", {
-      pageId: currentPage.value.id,
-      pageNumber: currentPage.value.page_number,
-      hasTeacherImage:
-        currentPage.value.content_type === "canvas" &&
-        !!currentPage.value.content_data,
-      dataUrlPrefix: dataUrl.slice(0, 32),
-      dataUrlLength: dataUrl.length,
-    });
-
-    return {
-      dataUrl,
-      filename: `notebook-page-${currentPage.value.page_number || currentPageIndex.value + 1}.jpg`,
-      contentType: "image/jpeg",
-    };
-  };
-
-  const notebookAssistantContext = () => {
-    if (!notebook.value || !currentPage.value) return null;
-
-    return {
-      current_view: "student_notebook",
-      activity_type: "notebook_page",
-      notebook_id: notebook.value.id,
-      notebook_title: notebook.value.title,
-      notebook_description: notebook.value.description,
-      current_page: {
-        id: currentPage.value.id,
-        number: currentPage.value.page_number,
-        title: currentPage.value.title,
-        content_type: currentPage.value.content_type,
-        instructions: currentPage.value.instructions || "",
-        teacher_content_text:
-          currentPage.value.content_type === "text"
-            ? currentPage.value.content_data
-            : currentPage.value.content_data
-              ? "[consigna manuscrita en imagen adjunta]"
-              : "",
-        teacher_content_source:
-          currentPage.value.content_type === "canvas" &&
-          currentPage.value.content_data
-            ? "teacher_image_attachment"
-            : "text",
-        has_teacher_image:
-          currentPage.value.content_type === "canvas" &&
-          !!currentPage.value.content_data,
-        has_student_submission: !!currentPage.value.submission,
-        ai_feedback_visible: !!currentPage.value.submission?.ai_feedback,
-      },
-      page_list: pages.value.map((page) => ({
-        id: page.id,
-        number: page.page_number,
-        title: page.title,
-        content_type: page.content_type,
-        instructions: page.instructions || "",
-        teacher_content_text:
-          page.content_type === "text"
-            ? page.content_data
-            : page.content_data
-              ? "[consigna manuscrita en imagen adjunta]"
-              : "",
-        teacher_content_source:
-          page.content_type === "canvas" && page.content_data
-            ? "teacher_image_attachment"
-            : "text",
-        has_teacher_image:
-          page.content_type === "canvas" && !!page.content_data,
-      })),
-    };
-  };
-
-  function registerAssistantHooks() {
-    window.__practiqAssistantCapture = notebookAssistantCapture;
-    window.__practiqAssistantContext = notebookAssistantContext;
-    (window as any).__practiqAssistantHookSource = "notebook";
-    console.log("[notebook-view] assistant hooks registered", {
-      notebookId: notebook.value?.id || null,
-      pageId: currentPage.value?.id || null,
-    });
-  }
-
-  function unregisterAssistantHooks() {
-    if ((window as any).__practiqAssistantHookSource !== "notebook") return;
-    if (window.__practiqAssistantCapture === notebookAssistantCapture) {
-      delete window.__practiqAssistantCapture;
-    }
-    if (window.__practiqAssistantContext === notebookAssistantContext) {
-      delete window.__practiqAssistantContext;
-    }
-    delete (window as any).__practiqAssistantHookSource;
-  }
-
-  async function saveAndNext() {
-    if (!currentPage.value) return;
-    saveStatus.value = "saving";
-    try {
-      const pageId = currentPage.value.id;
-      const data = captureCanvas();
-      canvasSnapshots.value[pageId] = data;
-
-      const start = await saveSubmissionAsync(pageId, { canvas_data: data });
-      const jobId = start.job_id;
-      let jobDone = false;
-
-      while (!jobDone) {
-        await new Promise((resolve) => setTimeout(resolve, 1200));
-        const job = await loadSubmissionJob(jobId);
-        if (job.status === "processing") {
-          continue;
-        }
-        if (job.status === "failed") {
-          throw new Error(job.message || "No se pudo evaluar el cuaderno");
-        }
-        jobDone = true;
-      }
-
-      saveStatus.value = "saved";
-      const notebookId = route.params.id as string;
-      notebook.value = await loadNotebook(notebookId, studentId.value);
-      setTimeout(() => {
-        saveStatus.value = "";
-      }, 2000);
-
-      if (currentPageIndex.value < pages.value.length - 1) {
-        goToPage(currentPageIndex.value + 1);
-      }
-    } catch (err) {
-      console.error(err);
-      saveStatus.value = "";
-    }
-  }
-
-  function goToPage(idx: number) {
-    currentPageIndex.value = idx;
-  }
-</script>
 
 <style scoped>
   .notebook-shell {

@@ -3,16 +3,10 @@
     StrategyCatalogEmits,
     StrategyCatalogProps,
   } from "./StrategyCatalog.types";
+  import { formatDate } from "@/utils/formatters";
 
   defineProps<StrategyCatalogProps>();
   const emit = defineEmits<StrategyCatalogEmits>();
-
-  const formatDate = (dateStr: string) =>
-    new Date(dateStr).toLocaleDateString("es", {
-      year: "numeric",
-      month: "short",
-      day: "numeric",
-    });
 </script>
 
 <template>

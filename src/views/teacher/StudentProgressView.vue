@@ -1,3 +1,400 @@
+<script setup lang="ts">
+  import { ref, computed, onMounted, watch } from "vue";
+  import { useRoute, useRouter } from "vue-router";
+  import TeacherLayout from "@/layouts/TeacherLayout.vue";
+  import Skeleton from "@/components/ui/Skeleton.vue";
+  import { useCourse } from "@/composables/useCourse";
+  import { useProgress } from "@/composables/useProgress";
+  import { usePracticeSheet } from "@/composables/usePracticeSheet";
+  import { useNotebook } from "@/composables/useNotebook";
+  import { formatAIFeedback, formatDate } from "@/utils/formatters";
+  import type {
+    TopicProgress,
+    PracticeSheet,
+    StudentAttempt,
+    Notebook,
+  } from "@/types";
+
+  const route = useRoute();
+  const router = useRouter();
+
+  const studentId = route.params.studentId as string;
+  const studentName = decodeURIComponent(
+    (route.query.name as string) || "Alumno",
+  );
+  const studentEmail = decodeURIComponent((route.query.email as string) || "");
+
+  // --- state ---
+  const { courses, loadCourses } = useCourse();
+  const {
+    loadStudentProgress,
+    loadStudentCourseProgress,
+    loadStudentAttempts,
+    downloadReport,
+  } = useProgress();
+  const { loadPracticeSheets } = usePracticeSheet();
+  const { loadNotebooks, loadNotebook } = useNotebook();
+  const loadingAll = ref(true);
+  const allProgress = ref<TopicProgress[]>([]);
+
+  const activeTab = ref<"progress" | "courses" | "sheets" | "notebooks">(
+    "progress",
+  );
+  const tabs = [
+    { key: "progress", label: "Progreso por tema", icon: "pi pi-chart-bar" },
+    { key: "courses", label: "Por curso", icon: "pi pi-sitemap" },
+    { key: "sheets", label: "Hojas de práctica", icon: "pi pi-file" },
+    { key: "notebooks", label: "Cuadernos", icon: "pi pi-book" },
+  ] as const;
+
+  type ProgressTabKey = (typeof tabs)[number]["key"];
+
+  // Courses tab
+  const loadingCourseProgress = ref(false);
+  const courseProgressMap = ref<
+    Record<string, import("@/types").TopicProgress[]>
+  >({});
+
+  // Sheets tab
+  const selectedCourseId = ref("");
+  const loadingSheets = ref(false);
+  const allSheets = ref<PracticeSheet[]>([]);
+  const selectedSheet = ref<PracticeSheet | null>(null);
+  const loadingAttempts = ref(false);
+  const attempts = ref<StudentAttempt[]>([]);
+  const attemptImageModalSrc = ref<string | null>(null);
+  const attemptImageZoom = ref(1);
+  const attemptImageOffsetX = ref(0);
+  const attemptImageOffsetY = ref(0);
+  const attemptImageDragging = ref(false);
+  const attemptImageDragStartX = ref(0);
+  const attemptImageDragStartY = ref(0);
+
+  // PDF download modal
+  const showPdfModal = ref(false);
+  const pdfFrom = ref("");
+  const pdfTo = ref("");
+  const pdfCourseId = ref("");
+  const downloadingPdf = ref(false);
+
+  // Notebooks tab
+  const selectedCourseIdNB = ref("");
+  const loadingNB = ref(false);
+  const allNotebooks = ref<Notebook[]>([]);
+  const selectedNotebook = ref<Notebook | null>(null);
+  const loadingNBDetail = ref(false);
+
+  // --- computed summary ---
+  const groupedProgress = computed(() => {
+    const map = new Map<string, TopicProgress>();
+    for (const p of allProgress.value) {
+      const existing = map.get(p.topic_id);
+      if (!existing) {
+        map.set(p.topic_id, { ...p });
+      } else {
+        existing.correct_attempts += p.correct_attempts;
+        existing.total_attempts += p.total_attempts;
+        existing.mastery_score =
+          existing.total_attempts > 0
+            ? (existing.correct_attempts / existing.total_attempts) * 100
+            : 0;
+        existing.current_level = Math.max(
+          existing.current_level,
+          p.current_level,
+        );
+        if (p.last_practiced_at > existing.last_practiced_at) {
+          existing.last_practiced_at = p.last_practiced_at;
+        }
+      }
+    }
+    return Array.from(map.values());
+  });
+
+  const totalTopics = computed(() => groupedProgress.value.length);
+  const avgMastery = computed(() => {
+    if (!groupedProgress.value.length) return 0;
+    const sum = groupedProgress.value.reduce(
+      (acc, p) => acc + p.mastery_score,
+      0,
+    );
+    return (sum / groupedProgress.value.length).toFixed(0);
+  });
+  const totalCorrect = computed(() =>
+    groupedProgress.value.reduce((a, p) => a + p.correct_attempts, 0),
+  );
+  const totalAttempts = computed(() =>
+    groupedProgress.value.reduce((a, p) => a + p.total_attempts, 0),
+  );
+
+  const filteredSheets = computed(() => {
+    if (!selectedCourseId.value) return allSheets.value;
+    return allSheets.value.filter(
+      (s) => s.course_id === selectedCourseId.value,
+    );
+  });
+
+  const filteredNotebooks = computed(() => {
+    if (!selectedCourseIdNB.value) return allNotebooks.value;
+    return allNotebooks.value.filter(
+      (n) => n.course_id === selectedCourseIdNB.value,
+    );
+  });
+
+  const attemptsCorrect = computed(
+    () => attempts.value.filter((a) => a.is_correct).length,
+  );
+  const attemptScore = computed(() => {
+    if (!attempts.value.length) return 0;
+    return ((attemptsCorrect.value / attempts.value.length) * 100).toFixed(0);
+  });
+
+  const submittedPages = computed(
+    () =>
+      selectedNotebook.value?.pages?.filter((p) => p.submission).length ?? 0,
+  );
+
+  function tabBadge(tab: ProgressTabKey) {
+    if (tab === "progress") return groupedProgress.value.length;
+    if (tab === "courses") return courses.value.length;
+    if (tab === "sheets") return filteredSheets.value.length;
+    return filteredNotebooks.value.length;
+  }
+
+  // --- lifecycle ---
+  onMounted(async () => {
+    loadingAll.value = true;
+    try {
+      const [progressRes] = await Promise.all([
+        loadStudentProgress(studentId),
+        loadCourses("teacher"),
+      ]);
+      allProgress.value = progressRes || [];
+
+      // Preload all sheets and notebooks
+      await Promise.all([loadAllSheets(), loadAllNotebooks()]);
+    } catch (e) {
+      console.error(e);
+    } finally {
+      loadingAll.value = false;
+    }
+  });
+
+  watch(activeTab, (tab) => {
+    if (tab === "courses" && !Object.keys(courseProgressMap.value).length) {
+      loadCourseProgress();
+    }
+  });
+
+  async function loadAllSheets() {
+    loadingSheets.value = true;
+    try {
+      const results = await Promise.all(
+        courses.value.map((c) =>
+          loadPracticeSheets(c.id).catch(() => [] as PracticeSheet[]),
+        ),
+      );
+      allSheets.value = results.flatMap((r) => r || []);
+    } finally {
+      loadingSheets.value = false;
+    }
+  }
+
+  async function loadAllNotebooks() {
+    loadingNB.value = true;
+    try {
+      const results = await Promise.all(
+        courses.value.map((c) =>
+          loadNotebooks(c.id).catch(() => [] as Notebook[]),
+        ),
+      );
+      allNotebooks.value = results.flat();
+    } finally {
+      loadingNB.value = false;
+    }
+  }
+
+  async function loadCourseProgress() {
+    if (loadingCourseProgress.value) return;
+    loadingCourseProgress.value = true;
+    try {
+      const entries = await Promise.all(
+        courses.value.map(async (c) => {
+          try {
+            const res = await loadStudentCourseProgress(studentId, c.id);
+            return [c.id, res || []] as const;
+          } catch {
+            return [c.id, []] as const;
+          }
+        }),
+      );
+      const map: Record<string, import("@/types").TopicProgress[]> = {};
+      for (const [id, data] of entries) {
+        const topicMap = new Map<string, import("@/types").TopicProgress>();
+        for (const p of data) {
+          const ex = topicMap.get(p.topic_id);
+          if (!ex) {
+            topicMap.set(p.topic_id, { ...p });
+          } else {
+            ex.correct_attempts += p.correct_attempts;
+            ex.total_attempts += p.total_attempts;
+            ex.mastery_score =
+              ex.total_attempts > 0
+                ? (ex.correct_attempts / ex.total_attempts) * 100
+                : 0;
+            ex.current_level = Math.max(ex.current_level, p.current_level);
+            if (p.last_practiced_at > ex.last_practiced_at)
+              ex.last_practiced_at = p.last_practiced_at;
+          }
+        }
+        map[id] = Array.from(topicMap.values());
+      }
+      courseProgressMap.value = map;
+    } finally {
+      loadingCourseProgress.value = false;
+    }
+  }
+
+  async function onCourseChange() {
+    selectedSheet.value = null;
+    attempts.value = [];
+  }
+
+  async function onCourseChangeNB() {
+    selectedNotebook.value = null;
+  }
+
+  async function viewAttempts(sheet: PracticeSheet) {
+    selectedSheet.value = sheet;
+    attempts.value = [];
+    loadingAttempts.value = true;
+    try {
+      const res = await loadStudentAttempts(studentId, sheet.id);
+      attempts.value = res || [];
+    } catch (e) {
+      console.error(e);
+    } finally {
+      loadingAttempts.value = false;
+    }
+  }
+
+  async function viewNotebook(notebookId: string) {
+    selectedNotebook.value = null;
+    loadingNBDetail.value = true;
+    try {
+      selectedNotebook.value = await loadNotebook(notebookId, studentId);
+    } catch (e) {
+      console.error(e);
+    } finally {
+      loadingNBDetail.value = false;
+    }
+  }
+
+  function getAttemptImageSrc(attempt: StudentAttempt): string | null {
+    const answer = (attempt.answer_text || "").trim();
+    if (!answer) return null;
+    if (/^data:image\/[a-zA-Z0-9.+-]+;base64,/.test(answer)) return answer;
+    if (!/^[A-Za-z0-9+/=\s]+$/.test(answer) || answer.length < 120) return null;
+    const compact = answer.replace(/\s+/g, "");
+    if (compact.startsWith("iVBORw0KGgo"))
+      return `data:image/png;base64,${compact}`;
+    if (compact.startsWith("/9j/")) return `data:image/jpeg;base64,${compact}`;
+    if (compact.startsWith("R0lGOD")) return `data:image/gif;base64,${compact}`;
+    return null;
+  }
+
+  function openAttemptImage(src: string) {
+    attemptImageModalSrc.value = src;
+    attemptImageZoom.value = 1;
+    attemptImageOffsetX.value = 0;
+    attemptImageOffsetY.value = 0;
+    attemptImageDragging.value = false;
+  }
+
+  function closeAttemptImage() {
+    attemptImageModalSrc.value = null;
+    attemptImageZoom.value = 1;
+    attemptImageOffsetX.value = 0;
+    attemptImageOffsetY.value = 0;
+    attemptImageDragging.value = false;
+  }
+
+  function zoomInAttemptImage() {
+    attemptImageZoom.value = Math.min(
+      3,
+      Number((attemptImageZoom.value + 0.25).toFixed(2)),
+    );
+  }
+
+  function zoomOutAttemptImage() {
+    attemptImageZoom.value = Math.max(
+      0.5,
+      Number((attemptImageZoom.value - 0.25).toFixed(2)),
+    );
+  }
+
+  function resetAttemptImageZoom() {
+    attemptImageZoom.value = 1;
+    attemptImageOffsetX.value = 0;
+    attemptImageOffsetY.value = 0;
+  }
+
+  function onAttemptImageWheel(event: WheelEvent) {
+    if (event.deltaY < 0) {
+      zoomInAttemptImage();
+      return;
+    }
+    zoomOutAttemptImage();
+  }
+
+  function onAttemptImagePointerDown(event: PointerEvent) {
+    if (attemptImageZoom.value <= 1) return;
+    const target = event.currentTarget as HTMLElement | null;
+    target?.setPointerCapture(event.pointerId);
+    attemptImageDragging.value = true;
+    attemptImageDragStartX.value = event.clientX - attemptImageOffsetX.value;
+    attemptImageDragStartY.value = event.clientY - attemptImageOffsetY.value;
+  }
+
+  function onAttemptImagePointerMove(event: PointerEvent) {
+    if (!attemptImageDragging.value || attemptImageZoom.value <= 1) return;
+    attemptImageOffsetX.value = event.clientX - attemptImageDragStartX.value;
+    attemptImageOffsetY.value = event.clientY - attemptImageDragStartY.value;
+  }
+
+  function onAttemptImagePointerUp(event: PointerEvent) {
+    const target = event.currentTarget as HTMLElement | null;
+    if (target?.hasPointerCapture(event.pointerId)) {
+      target.releasePointerCapture(event.pointerId);
+    }
+    attemptImageDragging.value = false;
+  }
+
+  async function downloadPdf() {
+    downloadingPdf.value = true;
+    try {
+      await downloadReport(studentId, {
+        from: pdfFrom.value || undefined,
+        to: pdfTo.value || undefined,
+        courseId: pdfCourseId.value || undefined,
+      });
+      showPdfModal.value = false;
+    } catch (e) {
+      console.error("Error downloading PDF:", e);
+      alert("Error al descargar el reporte. Por favor intente de nuevo.");
+    } finally {
+      downloadingPdf.value = false;
+    }
+  }
+
+  // --- helpers ---
+  function masteryClass(score: number) {
+    if (score >= 80) return "mastery--high";
+    if (score >= 50) return "mastery--mid";
+    return "mastery--low";
+  }
+
+</script>
+
 <template>
   <TeacherLayout>
     <div class="sp-page">
@@ -787,421 +1184,6 @@
     </div>
   </TeacherLayout>
 </template>
-
-<script setup lang="ts">
-  import { ref, computed, onMounted, watch } from "vue";
-  import { useRoute, useRouter } from "vue-router";
-  import TeacherLayout from "@/layouts/TeacherLayout.vue";
-  import Skeleton from "@/components/ui/Skeleton.vue";
-  import { useCourse } from "@/composables/useCourse";
-  import { useProgress } from "@/composables/useProgress";
-  import { usePracticeSheet } from "@/composables/usePracticeSheet";
-  import { useNotebook } from "@/composables/useNotebook";
-  import type {
-    TopicProgress,
-    PracticeSheet,
-    StudentAttempt,
-    Notebook,
-  } from "@/types";
-
-  const route = useRoute();
-  const router = useRouter();
-
-  const studentId = route.params.studentId as string;
-  const studentName = decodeURIComponent(
-    (route.query.name as string) || "Alumno",
-  );
-  const studentEmail = decodeURIComponent((route.query.email as string) || "");
-
-  // --- state ---
-  const { courses, loadCourses } = useCourse();
-  const {
-    loadStudentProgress,
-    loadStudentCourseProgress,
-    loadStudentAttempts,
-    downloadReport,
-  } = useProgress();
-  const { loadPracticeSheets } = usePracticeSheet();
-  const { loadNotebooks, loadNotebook } = useNotebook();
-  const loadingAll = ref(true);
-  const allProgress = ref<TopicProgress[]>([]);
-
-  const activeTab = ref<"progress" | "courses" | "sheets" | "notebooks">(
-    "progress",
-  );
-  const tabs = [
-    { key: "progress", label: "Progreso por tema", icon: "pi pi-chart-bar" },
-    { key: "courses", label: "Por curso", icon: "pi pi-sitemap" },
-    { key: "sheets", label: "Hojas de práctica", icon: "pi pi-file" },
-    { key: "notebooks", label: "Cuadernos", icon: "pi pi-book" },
-  ] as const;
-
-  type ProgressTabKey = (typeof tabs)[number]["key"];
-
-  // Courses tab
-  const loadingCourseProgress = ref(false);
-  const courseProgressMap = ref<
-    Record<string, import("@/types").TopicProgress[]>
-  >({});
-
-  // Sheets tab
-  const selectedCourseId = ref("");
-  const loadingSheets = ref(false);
-  const allSheets = ref<PracticeSheet[]>([]);
-  const selectedSheet = ref<PracticeSheet | null>(null);
-  const loadingAttempts = ref(false);
-  const attempts = ref<StudentAttempt[]>([]);
-  const attemptImageModalSrc = ref<string | null>(null);
-  const attemptImageZoom = ref(1);
-  const attemptImageOffsetX = ref(0);
-  const attemptImageOffsetY = ref(0);
-  const attemptImageDragging = ref(false);
-  const attemptImageDragStartX = ref(0);
-  const attemptImageDragStartY = ref(0);
-
-  // PDF download modal
-  const showPdfModal = ref(false);
-  const pdfFrom = ref("");
-  const pdfTo = ref("");
-  const pdfCourseId = ref("");
-  const downloadingPdf = ref(false);
-
-  // Notebooks tab
-  const selectedCourseIdNB = ref("");
-  const loadingNB = ref(false);
-  const allNotebooks = ref<Notebook[]>([]);
-  const selectedNotebook = ref<Notebook | null>(null);
-  const loadingNBDetail = ref(false);
-
-  // --- computed summary ---
-  const groupedProgress = computed(() => {
-    const map = new Map<string, TopicProgress>();
-    for (const p of allProgress.value) {
-      const existing = map.get(p.topic_id);
-      if (!existing) {
-        map.set(p.topic_id, { ...p });
-      } else {
-        existing.correct_attempts += p.correct_attempts;
-        existing.total_attempts += p.total_attempts;
-        existing.mastery_score =
-          existing.total_attempts > 0
-            ? (existing.correct_attempts / existing.total_attempts) * 100
-            : 0;
-        existing.current_level = Math.max(
-          existing.current_level,
-          p.current_level,
-        );
-        if (p.last_practiced_at > existing.last_practiced_at) {
-          existing.last_practiced_at = p.last_practiced_at;
-        }
-      }
-    }
-    return Array.from(map.values());
-  });
-
-  const totalTopics = computed(() => groupedProgress.value.length);
-  const avgMastery = computed(() => {
-    if (!groupedProgress.value.length) return 0;
-    const sum = groupedProgress.value.reduce(
-      (acc, p) => acc + p.mastery_score,
-      0,
-    );
-    return (sum / groupedProgress.value.length).toFixed(0);
-  });
-  const totalCorrect = computed(() =>
-    groupedProgress.value.reduce((a, p) => a + p.correct_attempts, 0),
-  );
-  const totalAttempts = computed(() =>
-    groupedProgress.value.reduce((a, p) => a + p.total_attempts, 0),
-  );
-
-  const filteredSheets = computed(() => {
-    if (!selectedCourseId.value) return allSheets.value;
-    return allSheets.value.filter(
-      (s) => s.course_id === selectedCourseId.value,
-    );
-  });
-
-  const filteredNotebooks = computed(() => {
-    if (!selectedCourseIdNB.value) return allNotebooks.value;
-    return allNotebooks.value.filter(
-      (n) => n.course_id === selectedCourseIdNB.value,
-    );
-  });
-
-  const attemptsCorrect = computed(
-    () => attempts.value.filter((a) => a.is_correct).length,
-  );
-  const attemptScore = computed(() => {
-    if (!attempts.value.length) return 0;
-    return ((attemptsCorrect.value / attempts.value.length) * 100).toFixed(0);
-  });
-
-  const submittedPages = computed(
-    () =>
-      selectedNotebook.value?.pages?.filter((p) => p.submission).length ?? 0,
-  );
-
-  function tabBadge(tab: ProgressTabKey) {
-    if (tab === "progress") return groupedProgress.value.length;
-    if (tab === "courses") return courses.value.length;
-    if (tab === "sheets") return filteredSheets.value.length;
-    return filteredNotebooks.value.length;
-  }
-
-  // --- lifecycle ---
-  onMounted(async () => {
-    loadingAll.value = true;
-    try {
-      const [progressRes] = await Promise.all([
-        loadStudentProgress(studentId),
-        loadCourses("teacher"),
-      ]);
-      allProgress.value = progressRes || [];
-
-      // Preload all sheets and notebooks
-      await Promise.all([loadAllSheets(), loadAllNotebooks()]);
-    } catch (e) {
-      console.error(e);
-    } finally {
-      loadingAll.value = false;
-    }
-  });
-
-  watch(activeTab, (tab) => {
-    if (tab === "courses" && !Object.keys(courseProgressMap.value).length) {
-      loadCourseProgress();
-    }
-  });
-
-  async function loadAllSheets() {
-    loadingSheets.value = true;
-    try {
-      const results = await Promise.all(
-        courses.value.map((c) =>
-          loadPracticeSheets(c.id).catch(() => [] as PracticeSheet[]),
-        ),
-      );
-      allSheets.value = results.flatMap((r) => r || []);
-    } finally {
-      loadingSheets.value = false;
-    }
-  }
-
-  async function loadAllNotebooks() {
-    loadingNB.value = true;
-    try {
-      const results = await Promise.all(
-        courses.value.map((c) =>
-          loadNotebooks(c.id).catch(() => [] as Notebook[]),
-        ),
-      );
-      allNotebooks.value = results.flat();
-    } finally {
-      loadingNB.value = false;
-    }
-  }
-
-  async function loadCourseProgress() {
-    if (loadingCourseProgress.value) return;
-    loadingCourseProgress.value = true;
-    try {
-      const entries = await Promise.all(
-        courses.value.map(async (c) => {
-          try {
-            const res = await loadStudentCourseProgress(studentId, c.id);
-            return [c.id, res || []] as const;
-          } catch {
-            return [c.id, []] as const;
-          }
-        }),
-      );
-      const map: Record<string, import("@/types").TopicProgress[]> = {};
-      for (const [id, data] of entries) {
-        const topicMap = new Map<string, import("@/types").TopicProgress>();
-        for (const p of data) {
-          const ex = topicMap.get(p.topic_id);
-          if (!ex) {
-            topicMap.set(p.topic_id, { ...p });
-          } else {
-            ex.correct_attempts += p.correct_attempts;
-            ex.total_attempts += p.total_attempts;
-            ex.mastery_score =
-              ex.total_attempts > 0
-                ? (ex.correct_attempts / ex.total_attempts) * 100
-                : 0;
-            ex.current_level = Math.max(ex.current_level, p.current_level);
-            if (p.last_practiced_at > ex.last_practiced_at)
-              ex.last_practiced_at = p.last_practiced_at;
-          }
-        }
-        map[id] = Array.from(topicMap.values());
-      }
-      courseProgressMap.value = map;
-    } finally {
-      loadingCourseProgress.value = false;
-    }
-  }
-
-  async function onCourseChange() {
-    selectedSheet.value = null;
-    attempts.value = [];
-  }
-
-  async function onCourseChangeNB() {
-    selectedNotebook.value = null;
-  }
-
-  async function viewAttempts(sheet: PracticeSheet) {
-    selectedSheet.value = sheet;
-    attempts.value = [];
-    loadingAttempts.value = true;
-    try {
-      const res = await loadStudentAttempts(studentId, sheet.id);
-      attempts.value = res || [];
-    } catch (e) {
-      console.error(e);
-    } finally {
-      loadingAttempts.value = false;
-    }
-  }
-
-  async function viewNotebook(notebookId: string) {
-    selectedNotebook.value = null;
-    loadingNBDetail.value = true;
-    try {
-      selectedNotebook.value = await loadNotebook(notebookId, studentId);
-    } catch (e) {
-      console.error(e);
-    } finally {
-      loadingNBDetail.value = false;
-    }
-  }
-
-  function getAttemptImageSrc(attempt: StudentAttempt): string | null {
-    const answer = (attempt.answer_text || "").trim();
-    if (!answer) return null;
-    if (/^data:image\/[a-zA-Z0-9.+-]+;base64,/.test(answer)) return answer;
-    if (!/^[A-Za-z0-9+/=\s]+$/.test(answer) || answer.length < 120) return null;
-    const compact = answer.replace(/\s+/g, "");
-    if (compact.startsWith("iVBORw0KGgo"))
-      return `data:image/png;base64,${compact}`;
-    if (compact.startsWith("/9j/")) return `data:image/jpeg;base64,${compact}`;
-    if (compact.startsWith("R0lGOD")) return `data:image/gif;base64,${compact}`;
-    return null;
-  }
-
-  function openAttemptImage(src: string) {
-    attemptImageModalSrc.value = src;
-    attemptImageZoom.value = 1;
-    attemptImageOffsetX.value = 0;
-    attemptImageOffsetY.value = 0;
-    attemptImageDragging.value = false;
-  }
-
-  function closeAttemptImage() {
-    attemptImageModalSrc.value = null;
-    attemptImageZoom.value = 1;
-    attemptImageOffsetX.value = 0;
-    attemptImageOffsetY.value = 0;
-    attemptImageDragging.value = false;
-  }
-
-  function zoomInAttemptImage() {
-    attemptImageZoom.value = Math.min(
-      3,
-      Number((attemptImageZoom.value + 0.25).toFixed(2)),
-    );
-  }
-
-  function zoomOutAttemptImage() {
-    attemptImageZoom.value = Math.max(
-      0.5,
-      Number((attemptImageZoom.value - 0.25).toFixed(2)),
-    );
-  }
-
-  function resetAttemptImageZoom() {
-    attemptImageZoom.value = 1;
-    attemptImageOffsetX.value = 0;
-    attemptImageOffsetY.value = 0;
-  }
-
-  function onAttemptImageWheel(event: WheelEvent) {
-    if (event.deltaY < 0) {
-      zoomInAttemptImage();
-      return;
-    }
-    zoomOutAttemptImage();
-  }
-
-  function onAttemptImagePointerDown(event: PointerEvent) {
-    if (attemptImageZoom.value <= 1) return;
-    const target = event.currentTarget as HTMLElement | null;
-    target?.setPointerCapture(event.pointerId);
-    attemptImageDragging.value = true;
-    attemptImageDragStartX.value = event.clientX - attemptImageOffsetX.value;
-    attemptImageDragStartY.value = event.clientY - attemptImageOffsetY.value;
-  }
-
-  function onAttemptImagePointerMove(event: PointerEvent) {
-    if (!attemptImageDragging.value || attemptImageZoom.value <= 1) return;
-    attemptImageOffsetX.value = event.clientX - attemptImageDragStartX.value;
-    attemptImageOffsetY.value = event.clientY - attemptImageDragStartY.value;
-  }
-
-  function onAttemptImagePointerUp(event: PointerEvent) {
-    const target = event.currentTarget as HTMLElement | null;
-    if (target?.hasPointerCapture(event.pointerId)) {
-      target.releasePointerCapture(event.pointerId);
-    }
-    attemptImageDragging.value = false;
-  }
-
-  async function downloadPdf() {
-    downloadingPdf.value = true;
-    try {
-      await downloadReport(studentId, {
-        from: pdfFrom.value || undefined,
-        to: pdfTo.value || undefined,
-        courseId: pdfCourseId.value || undefined,
-      });
-      showPdfModal.value = false;
-    } catch (e) {
-      console.error("Error downloading PDF:", e);
-      alert("Error al descargar el reporte. Por favor intente de nuevo.");
-    } finally {
-      downloadingPdf.value = false;
-    }
-  }
-
-  // --- helpers ---
-  function masteryClass(score: number) {
-    if (score >= 80) return "mastery--high";
-    if (score >= 50) return "mastery--mid";
-    return "mastery--low";
-  }
-
-  function formatDate(dateStr: string) {
-    if (!dateStr) return "—";
-    return new Date(dateStr).toLocaleDateString("es", {
-      year: "numeric",
-      month: "short",
-      day: "numeric",
-    });
-  }
-
-  function formatAIFeedback(value?: string) {
-    const feedback = (value || "").trim();
-    if (!feedback) return "Sin observaciones de IA";
-    if (feedback.includes("UNREADABLE")) return "Sin observaciones de IA";
-    if (feedback === "Gillie: respuesta no legible (UNREADABLE)")
-      return "Sin observaciones de IA";
-    if (feedback === "Asistente: respuesta no legible (UNREADABLE)")
-      return "Sin observaciones de IA";
-    return feedback;
-  }
-</script>
 
 <style scoped>
   .sp-page {

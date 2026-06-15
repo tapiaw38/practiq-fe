@@ -1,3 +1,186 @@
+<script setup lang="ts">
+  import { ref, reactive, computed, onMounted } from "vue";
+  import TeacherLayout from "@/layouts/TeacherLayout.vue";
+  import Skeleton from "@/components/ui/Skeleton.vue";
+  import { useCourse } from "@/composables/useCourse";
+  import { useNotebook } from "@/composables/useNotebook";
+  import { formatDateTime } from "@/utils/formatters";
+  import type { NotebookSubmissionFull } from "@/types";
+
+  const { courses, students, loadCourses, loadStudents } = useCourse();
+  const {
+    loadSubmissions: loadSubmissionsService,
+    triggerAIReview: triggerAIReviewService,
+    updateManualReview: updateManualReviewService,
+  } = useNotebook();
+  const loading = ref(true);
+  const submissions = ref<NotebookSubmissionFull[]>([]);
+  const reviewingIds = ref<Set<string>>(new Set());
+  const previewSubmission = ref<NotebookSubmissionFull | null>(null);
+  const reviewingSubmission = ref<NotebookSubmissionFull | null>(null);
+  const savingReview = ref(false);
+  const studentsLoading = ref(false);
+
+  const filters = reactive({
+    courseId: "",
+    studentId: "",
+    reviewedStatus: "",
+    studentSearch: "",
+  });
+
+  const reviewForm = reactive({
+    isCorrect: null as boolean | null,
+    feedback: "",
+  });
+
+  const filteredSubmissions = computed(() => {
+    let result = [...submissions.value];
+
+    if (filters.studentSearch.trim()) {
+      const search = filters.studentSearch.toLowerCase();
+      result = result.filter(
+        (s) =>
+          (s.student_name?.toLowerCase() || "").includes(search) ||
+          (s.student_email?.toLowerCase() || "").includes(search),
+      );
+    }
+
+    return result;
+  });
+
+  onMounted(async () => {
+    await loadCoursesData();
+    if (filters.courseId) {
+      await Promise.all([loadStudentsForCourse(), loadSubmissions()]);
+    } else {
+      loading.value = false;
+    }
+  });
+
+  async function loadCoursesData() {
+    try {
+      await loadCourses("teacher");
+      filters.courseId = courses.value[0]?.id || "";
+    } catch (err) {
+      console.error("Failed to load courses:", err);
+    }
+  }
+
+  async function loadSubmissions() {
+    if (!filters.courseId) {
+      submissions.value = [];
+      loading.value = false;
+      return;
+    }
+
+    loading.value = true;
+    try {
+      const params: Record<string, string | boolean | undefined> = {};
+      params.course_id = filters.courseId;
+      if (filters.studentId) params.student_id = filters.studentId;
+      if (filters.reviewedStatus === "reviewed") params.reviewed = true;
+      if (filters.reviewedStatus === "unreviewed") params.reviewed = false;
+
+      submissions.value = (await loadSubmissionsService(params)) || [];
+    } catch (err) {
+      console.error("Failed to load submissions:", err);
+      submissions.value = [];
+    } finally {
+      loading.value = false;
+    }
+  }
+
+  async function loadStudentsForCourse() {
+    if (!filters.courseId) {
+      students.value = [];
+      return;
+    }
+
+    studentsLoading.value = true;
+    try {
+      await loadStudents(filters.courseId);
+    } catch (err) {
+      console.error("Failed to load students:", err);
+      students.value = [];
+    } finally {
+      studentsLoading.value = false;
+    }
+  }
+
+  async function onCourseChange() {
+    filters.studentId = "";
+    await Promise.all([loadStudentsForCourse(), loadSubmissions()]);
+  }
+
+  async function refreshSubmissions() {
+    await loadSubmissions();
+  }
+
+  function getInitial(name?: string) {
+    return (name || "E").charAt(0).toUpperCase();
+  }
+
+  function openPreview(submission: NotebookSubmissionFull) {
+    previewSubmission.value = submission;
+  }
+
+  function openReviewModal(submission: NotebookSubmissionFull) {
+    reviewingSubmission.value = submission;
+    reviewForm.isCorrect = submission.teacher_is_correct ?? null;
+    reviewForm.feedback = submission.teacher_feedback || "";
+  }
+
+  function closeReviewModal() {
+    reviewingSubmission.value = null;
+    reviewForm.isCorrect = null;
+    reviewForm.feedback = "";
+  }
+
+  async function triggerAIReview(submissionId: string) {
+    reviewingIds.value.add(submissionId);
+    try {
+      await triggerAIReviewService(submissionId);
+      // Poll for result or reload after delay
+      setTimeout(loadSubmissions, 3000);
+    } catch (err) {
+      console.error("Failed to trigger AI review:", err);
+    } finally {
+      reviewingIds.value.delete(submissionId);
+    }
+  }
+
+  async function saveManualReview() {
+    if (!reviewingSubmission.value || reviewForm.isCorrect === null) return;
+
+    savingReview.value = true;
+    try {
+      await updateManualReviewService(reviewingSubmission.value.id, {
+        teacher_is_correct: reviewForm.isCorrect,
+        teacher_feedback: reviewForm.feedback,
+      });
+
+      // Update local state
+      const idx = submissions.value.findIndex(
+        (s) => s.id === reviewingSubmission.value!.id,
+      );
+      if (idx >= 0) {
+        submissions.value[idx] = {
+          ...submissions.value[idx],
+          teacher_is_correct: reviewForm.isCorrect,
+          teacher_feedback: reviewForm.feedback,
+          teacher_reviewed_at: new Date().toISOString(),
+        };
+      }
+
+      closeReviewModal();
+    } catch (err) {
+      console.error("Failed to save review:", err);
+    } finally {
+      savingReview.value = false;
+    }
+  }
+</script>
+
 <template>
   <TeacherLayout>
     <div class="review-dashboard">
@@ -209,7 +392,7 @@
             </span>
             <span class="meta-item">
               <i class="pi pi-calendar"></i>
-              {{ formatDate(submission.created_at) }}
+              {{ formatDateTime(submission.created_at) }}
             </span>
           </div>
 
@@ -424,198 +607,6 @@
     </div>
   </TeacherLayout>
 </template>
-
-<script setup lang="ts">
-  import { ref, reactive, computed, onMounted } from "vue";
-  import TeacherLayout from "@/layouts/TeacherLayout.vue";
-  import Skeleton from "@/components/ui/Skeleton.vue";
-  import { useCourse } from "@/composables/useCourse";
-  import { useNotebook } from "@/composables/useNotebook";
-  import type { NotebookSubmissionFull } from "@/types";
-
-  const { courses, students, loadCourses, loadStudents } = useCourse();
-  const {
-    loadSubmissions: loadSubmissionsService,
-    triggerAIReview: triggerAIReviewService,
-    updateManualReview: updateManualReviewService,
-  } = useNotebook();
-  const loading = ref(true);
-  const submissions = ref<NotebookSubmissionFull[]>([]);
-  const reviewingIds = ref<Set<string>>(new Set());
-  const previewSubmission = ref<NotebookSubmissionFull | null>(null);
-  const reviewingSubmission = ref<NotebookSubmissionFull | null>(null);
-  const savingReview = ref(false);
-  const studentsLoading = ref(false);
-
-  const filters = reactive({
-    courseId: "",
-    studentId: "",
-    reviewedStatus: "",
-    studentSearch: "",
-  });
-
-  const reviewForm = reactive({
-    isCorrect: null as boolean | null,
-    feedback: "",
-  });
-
-  const filteredSubmissions = computed(() => {
-    let result = [...submissions.value];
-
-    if (filters.studentSearch.trim()) {
-      const search = filters.studentSearch.toLowerCase();
-      result = result.filter(
-        (s) =>
-          (s.student_name?.toLowerCase() || "").includes(search) ||
-          (s.student_email?.toLowerCase() || "").includes(search),
-      );
-    }
-
-    return result;
-  });
-
-  onMounted(async () => {
-    await loadCoursesData();
-    if (filters.courseId) {
-      await Promise.all([loadStudentsForCourse(), loadSubmissions()]);
-    } else {
-      loading.value = false;
-    }
-  });
-
-  async function loadCoursesData() {
-    try {
-      await loadCourses("teacher");
-      filters.courseId = courses.value[0]?.id || "";
-    } catch (err) {
-      console.error("Failed to load courses:", err);
-    }
-  }
-
-  async function loadSubmissions() {
-    if (!filters.courseId) {
-      submissions.value = [];
-      loading.value = false;
-      return;
-    }
-
-    loading.value = true;
-    try {
-      const params: Record<string, string | boolean | undefined> = {};
-      params.course_id = filters.courseId;
-      if (filters.studentId) params.student_id = filters.studentId;
-      if (filters.reviewedStatus === "reviewed") params.reviewed = true;
-      if (filters.reviewedStatus === "unreviewed") params.reviewed = false;
-
-      submissions.value = (await loadSubmissionsService(params)) || [];
-    } catch (err) {
-      console.error("Failed to load submissions:", err);
-      submissions.value = [];
-    } finally {
-      loading.value = false;
-    }
-  }
-
-  async function loadStudentsForCourse() {
-    if (!filters.courseId) {
-      students.value = [];
-      return;
-    }
-
-    studentsLoading.value = true;
-    try {
-      await loadStudents(filters.courseId);
-    } catch (err) {
-      console.error("Failed to load students:", err);
-      students.value = [];
-    } finally {
-      studentsLoading.value = false;
-    }
-  }
-
-  async function onCourseChange() {
-    filters.studentId = "";
-    await Promise.all([loadStudentsForCourse(), loadSubmissions()]);
-  }
-
-  async function refreshSubmissions() {
-    await loadSubmissions();
-  }
-
-  function getInitial(name?: string) {
-    return (name || "E").charAt(0).toUpperCase();
-  }
-
-  function formatDate(dateStr: string) {
-    return new Date(dateStr).toLocaleDateString("es", {
-      year: "numeric",
-      month: "short",
-      day: "numeric",
-      hour: "2-digit",
-      minute: "2-digit",
-    });
-  }
-
-  function openPreview(submission: NotebookSubmissionFull) {
-    previewSubmission.value = submission;
-  }
-
-  function openReviewModal(submission: NotebookSubmissionFull) {
-    reviewingSubmission.value = submission;
-    reviewForm.isCorrect = submission.teacher_is_correct ?? null;
-    reviewForm.feedback = submission.teacher_feedback || "";
-  }
-
-  function closeReviewModal() {
-    reviewingSubmission.value = null;
-    reviewForm.isCorrect = null;
-    reviewForm.feedback = "";
-  }
-
-  async function triggerAIReview(submissionId: string) {
-    reviewingIds.value.add(submissionId);
-    try {
-      await triggerAIReviewService(submissionId);
-      // Poll for result or reload after delay
-      setTimeout(loadSubmissions, 3000);
-    } catch (err) {
-      console.error("Failed to trigger AI review:", err);
-    } finally {
-      reviewingIds.value.delete(submissionId);
-    }
-  }
-
-  async function saveManualReview() {
-    if (!reviewingSubmission.value || reviewForm.isCorrect === null) return;
-
-    savingReview.value = true;
-    try {
-      await updateManualReviewService(reviewingSubmission.value.id, {
-        teacher_is_correct: reviewForm.isCorrect,
-        teacher_feedback: reviewForm.feedback,
-      });
-
-      // Update local state
-      const idx = submissions.value.findIndex(
-        (s) => s.id === reviewingSubmission.value!.id,
-      );
-      if (idx >= 0) {
-        submissions.value[idx] = {
-          ...submissions.value[idx],
-          teacher_is_correct: reviewForm.isCorrect,
-          teacher_feedback: reviewForm.feedback,
-          teacher_reviewed_at: new Date().toISOString(),
-        };
-      }
-
-      closeReviewModal();
-    } catch (err) {
-      console.error("Failed to save review:", err);
-    } finally {
-      savingReview.value = false;
-    }
-  }
-</script>
 
 <style scoped>
   .review-dashboard {

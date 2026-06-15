@@ -1,192 +1,3 @@
-<template>
-  <TeacherLayout>
-    <div class="strategy-dashboard">
-      <!-- Header -->
-      <div class="page-header">
-        <div class="page-header__left">
-          <div class="page-kicker">Configuracion avanzada</div>
-          <h1 class="page-title">Estrategias de Aprendizaje</h1>
-        </div>
-        <div class="page-header__right">
-          <button
-            v-if="isAdmin"
-            class="btn btn-primary"
-            @click="openCreateModal"
-          >
-            <i class="pi pi-plus"></i>
-            Nueva estrategia
-          </button>
-        </div>
-      </div>
-
-      <!-- Loading skeleton -->
-      <template v-if="loading">
-        <section class="content-section">
-          <div class="section-header">
-            <div>
-              <Skeleton width="180px" height="24px" />
-              <Skeleton width="320px" height="14px" />
-            </div>
-          </div>
-          <div class="strategies-grid">
-            <div
-              v-for="i in 3"
-              :key="i"
-              class="strategy-card strategy-card--skeleton"
-            >
-              <div class="strategy-header">
-                <Skeleton width="140px" height="20px" />
-                <div style="display: flex; gap: 6px">
-                  <Skeleton variant="circle" size="28px" />
-                  <Skeleton variant="circle" size="28px" />
-                </div>
-              </div>
-              <Skeleton width="100%" height="14px" style="margin: 12px 0" />
-              <Skeleton width="80%" height="14px" />
-              <div style="display: flex; gap: 8px; margin-top: 16px">
-                <Skeleton width="80px" height="24px" rounded />
-                <Skeleton width="100px" height="24px" rounded />
-              </div>
-            </div>
-          </div>
-        </section>
-      </template>
-
-      <template v-else>
-        <StrategyCatalog
-          :strategies="strategies"
-          :is-admin="isAdmin"
-          @create="openCreateModal"
-          @edit="editStrategy"
-          @delete="confirmDeleteStrategy"
-        />
-
-        <CourseStrategyAssignments
-          :courses="courses"
-          :strategies="strategies"
-          :course-assignments="courseAssignments"
-          :selected-strategy-for-course="selectedStrategyForCourse"
-          :assigning="assigning"
-          @update:selected-strategy-for-course="selectedStrategyForCourse = $event"
-          @assign="assignStrategy"
-          @remove="removeAssignment"
-        />
-      </template>
-
-      <!-- Create/Edit Strategy Modal -->
-      <Teleport to="body">
-        <Transition name="fade">
-          <div
-            v-if="showStrategyModal"
-            class="modal-overlay"
-            @click.self="closeStrategyModal"
-          >
-            <div class="modal-box">
-              <div class="modal-head">
-                <h3 class="modal-title">
-                  {{
-                    editingStrategy ? "Editar estrategia" : "Nueva estrategia"
-                  }}
-                </h3>
-                <button class="icon-btn" @click="closeStrategyModal">
-                  <i class="pi pi-times"></i>
-                </button>
-              </div>
-
-              <form @submit.prevent="saveStrategy">
-                <div class="form-group">
-                  <label class="form-label">Nombre *</label>
-                  <input
-                    v-model="strategyForm.name"
-                    class="form-input"
-                    placeholder="Ej: Aprendizaje adaptativo"
-                    required
-                  />
-                </div>
-                <div class="form-group">
-                  <label class="form-label">Código *</label>
-                  <input
-                    v-model="strategyForm.code"
-                    class="form-input"
-                    placeholder="Ej: adaptive_practice"
-                    required
-                  />
-                </div>
-                <div class="form-group">
-                  <label class="form-label">Descripcion</label>
-                  <textarea
-                    v-model="strategyForm.description"
-                    class="form-textarea"
-                    placeholder="Describe como funciona esta estrategia..."
-                    rows="3"
-                  ></textarea>
-                </div>
-                <div class="modal-actions">
-                  <button
-                    type="button"
-                    class="btn btn-secondary"
-                    @click="closeStrategyModal"
-                  >
-                    Cancelar
-                  </button>
-                  <button
-                    type="submit"
-                    class="btn btn-primary"
-                    :disabled="saving"
-                  >
-                    <span v-if="saving" class="spinner spinner-sm"></span>
-                    <i v-else class="pi pi-check"></i>
-                    {{
-                      editingStrategy ? "Guardar cambios" : "Crear estrategia"
-                    }}
-                  </button>
-                </div>
-              </form>
-            </div>
-          </div>
-        </Transition>
-      </Teleport>
-
-      <!-- Delete Confirmation Modal -->
-      <Teleport to="body">
-        <Transition name="fade">
-          <div
-            v-if="deletingStrategy"
-            class="modal-overlay"
-            @click.self="deletingStrategy = null"
-          >
-            <div class="modal-box">
-              <h3 class="modal-title">Eliminar estrategia</h3>
-              <p class="submit-copy">
-                ¿Estas seguro de eliminar la estrategia
-                <strong>{{ deletingStrategy.name }}</strong
-                >? Esta accion no se puede deshacer.
-              </p>
-              <div class="modal-actions">
-                <button
-                  class="btn btn-secondary"
-                  @click="deletingStrategy = null"
-                >
-                  Cancelar
-                </button>
-                <button
-                  class="btn btn-danger"
-                  :disabled="deleting"
-                  @click="deleteStrategy"
-                >
-                  <span v-if="deleting" class="spinner spinner-sm"></span>
-                  <i v-else class="pi pi-trash"></i>
-                  Eliminar
-                </button>
-              </div>
-            </div>
-          </div>
-        </Transition>
-      </Teleport>
-    </div>
-  </TeacherLayout>
-</template>
-
 <script setup lang="ts">
   import { ref, reactive, computed, onMounted } from "vue";
   import TeacherLayout from "@/layouts/TeacherLayout.vue";
@@ -352,6 +163,197 @@
   }
 </script>
 
+<template>
+  <TeacherLayout>
+    <div class="strategy-dashboard">
+      <!-- Header -->
+      <div class="page-header">
+        <div class="page-header__left">
+          <div class="page-kicker">Configuracion avanzada</div>
+          <h1 class="page-title">Estrategias de Aprendizaje</h1>
+        </div>
+        <div class="page-header__right">
+          <button
+            v-if="isAdmin"
+            class="btn btn-primary"
+            @click="openCreateModal"
+          >
+            <i class="pi pi-plus"></i>
+            Nueva estrategia
+          </button>
+        </div>
+      </div>
+
+      <!-- Loading skeleton -->
+      <template v-if="loading">
+        <section class="content-section">
+          <div class="section-header">
+            <div>
+              <Skeleton width="180px" height="24px" />
+              <Skeleton width="320px" height="14px" />
+            </div>
+          </div>
+          <div class="strategies-grid">
+            <div
+              v-for="i in 3"
+              :key="i"
+              class="strategy-card strategy-card--skeleton"
+            >
+              <div class="strategy-header">
+                <Skeleton width="140px" height="20px" />
+                <div style="display: flex; gap: 6px">
+                  <Skeleton variant="circle" size="28px" />
+                  <Skeleton variant="circle" size="28px" />
+                </div>
+              </div>
+              <Skeleton width="100%" height="14px" style="margin: 12px 0" />
+              <Skeleton width="80%" height="14px" />
+              <div style="display: flex; gap: 8px; margin-top: 16px">
+                <Skeleton width="80px" height="24px" rounded />
+                <Skeleton width="100px" height="24px" rounded />
+              </div>
+            </div>
+          </div>
+        </section>
+      </template>
+
+      <template v-else>
+        <StrategyCatalog
+          :strategies="strategies"
+          :is-admin="isAdmin"
+          @create="openCreateModal"
+          @edit="editStrategy"
+          @delete="confirmDeleteStrategy"
+        />
+
+        <CourseStrategyAssignments
+          :courses="courses"
+          :strategies="strategies"
+          :course-assignments="courseAssignments"
+          :selected-strategy-for-course="selectedStrategyForCourse"
+          :assigning="assigning"
+          @update:selected-strategy-for-course="
+            selectedStrategyForCourse = $event
+          "
+          @assign="assignStrategy"
+          @remove="removeAssignment"
+        />
+      </template>
+
+      <!-- Create/Edit Strategy Modal -->
+      <Teleport to="body">
+        <Transition name="fade">
+          <div
+            v-if="showStrategyModal"
+            class="modal-overlay"
+            @click.self="closeStrategyModal"
+          >
+            <div class="modal-box">
+              <div class="modal-head">
+                <h3 class="modal-title">
+                  {{
+                    editingStrategy ? "Editar estrategia" : "Nueva estrategia"
+                  }}
+                </h3>
+                <button class="icon-btn" @click="closeStrategyModal">
+                  <i class="pi pi-times"></i>
+                </button>
+              </div>
+
+              <form @submit.prevent="saveStrategy">
+                <div class="form-group">
+                  <label class="form-label">Nombre *</label>
+                  <input
+                    v-model="strategyForm.name"
+                    class="form-input"
+                    placeholder="Ej: Aprendizaje adaptativo"
+                    required
+                  />
+                </div>
+                <div class="form-group">
+                  <label class="form-label">Código *</label>
+                  <input
+                    v-model="strategyForm.code"
+                    class="form-input"
+                    placeholder="Ej: adaptive_practice"
+                    required
+                  />
+                </div>
+                <div class="form-group">
+                  <label class="form-label">Descripcion</label>
+                  <textarea
+                    v-model="strategyForm.description"
+                    class="form-textarea"
+                    placeholder="Describe como funciona esta estrategia..."
+                    rows="3"
+                  ></textarea>
+                </div>
+                <div class="modal-actions">
+                  <button
+                    type="button"
+                    class="btn btn-secondary"
+                    @click="closeStrategyModal"
+                  >
+                    Cancelar
+                  </button>
+                  <button
+                    type="submit"
+                    class="btn btn-primary"
+                    :disabled="saving"
+                  >
+                    <span v-if="saving" class="spinner spinner-sm"></span>
+                    <i v-else class="pi pi-check"></i>
+                    {{
+                      editingStrategy ? "Guardar cambios" : "Crear estrategia"
+                    }}
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        </Transition>
+      </Teleport>
+
+      <!-- Delete Confirmation Modal -->
+      <Teleport to="body">
+        <Transition name="fade">
+          <div
+            v-if="deletingStrategy"
+            class="modal-overlay"
+            @click.self="deletingStrategy = null"
+          >
+            <div class="modal-box">
+              <h3 class="modal-title">Eliminar estrategia</h3>
+              <p class="submit-copy">
+                ¿Estas seguro de eliminar la estrategia
+                <strong>{{ deletingStrategy.name }}</strong
+                >? Esta accion no se puede deshacer.
+              </p>
+              <div class="modal-actions">
+                <button
+                  class="btn btn-secondary"
+                  @click="deletingStrategy = null"
+                >
+                  Cancelar
+                </button>
+                <button
+                  class="btn btn-danger"
+                  :disabled="deleting"
+                  @click="deleteStrategy"
+                >
+                  <span v-if="deleting" class="spinner spinner-sm"></span>
+                  <i v-else class="pi pi-trash"></i>
+                  Eliminar
+                </button>
+              </div>
+            </div>
+          </div>
+        </Transition>
+      </Teleport>
+    </div>
+  </TeacherLayout>
+</template>
+
 <style scoped>
   .strategy-dashboard {
     padding: 24px 28px 40px;
@@ -441,9 +443,9 @@
     margin-bottom: 16px;
   }
 
-/* Strategies Grid */
-.strategies-grid {
-  display: grid;
+  /* Strategies Grid */
+  .strategies-grid {
+    display: grid;
     grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
     gap: 16px;
   }
@@ -459,16 +461,16 @@
     gap: 12px;
   }
 
-.strategy-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: flex-start;
-  gap: 12px;
-}
+  .strategy-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 12px;
+  }
 
-.icon-btn {
-  width: 32px;
-  height: 32px;
+  .icon-btn {
+    width: 32px;
+    height: 32px;
     border-radius: var(--radius-sm);
     border: 1px solid rgba(var(--surface-border-rgb), 0.2);
     background: transparent;
@@ -484,14 +486,14 @@
     color: var(--text-primary);
   }
 
-.icon-btn--danger:hover {
-  background: rgba(var(--color-error-rgb), 0.1);
-  color: var(--color-error);
-  border-color: rgba(var(--color-error-rgb), 0.3);
-}
+  .icon-btn--danger:hover {
+    background: rgba(var(--color-error-rgb), 0.1);
+    color: var(--color-error);
+    border-color: rgba(var(--color-error-rgb), 0.3);
+  }
 
-/* Modal */
-.modal-head {
+  /* Modal */
+  .modal-head {
     display: flex;
     align-items: center;
     justify-content: space-between;
@@ -529,8 +531,7 @@
     .strategies-grid {
       grid-template-columns: 1fr;
     }
-
-}
+  }
 
   @media (max-width: 768px) {
     .page-header {

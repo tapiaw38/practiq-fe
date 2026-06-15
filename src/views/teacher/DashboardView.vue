@@ -1,3 +1,209 @@
+<script setup lang="ts">
+  import { ref, reactive, computed, onMounted } from "vue";
+  import { useRouter } from "vue-router";
+  import { useAuthStore } from "@/stores/authStore";
+  import TeacherLayout from "@/layouts/TeacherLayout.vue";
+  import Skeleton from "@/components/ui/Skeleton.vue";
+  import { useCourse } from "@/composables/useCourse";
+  import { useAssignment } from "@/composables/useAssignment";
+  import { useGrade } from "@/composables/useGrade";
+  import { useProfile } from "@/composables/useProfile";
+  import { useSubject } from "@/composables/useSubject";
+  import { formatDate, formatShortDate } from "@/utils/formatters";
+  import type { AssignedUser, Grade, Subject } from "@/types";
+
+  const router = useRouter();
+  const authStore = useAuthStore();
+  const {
+    courses,
+    loading: loadingCourses,
+    loadCourses,
+    createCourse: createCourseService,
+  } = useCourse();
+  const { grades, loadGrades, loadUserGrades } = useGrade();
+  const { subjects, loadSubjects } = useSubject();
+  const { loadProfile } = useProfile();
+  const { loadMyStudents } = useAssignment();
+  const assignedStudents = ref<AssignedUser[]>([]);
+  const studentGrades = ref<Record<string, Grade[]>>({});
+  const loading = ref(true);
+  const showCreateModal = ref(false);
+  const creating = ref(false);
+
+  const newCourse = reactive({
+    title: "",
+    description: "",
+    subject: "",
+    grade_id: "",
+    level: "",
+  });
+
+  const teacherName = computed(() => {
+    const name = authStore.profile?.name || "";
+    return name.split(" ")[0] || "Docente";
+  });
+
+  const isAdmin = computed(() => {
+    const roles = authStore.authUser?.roles || [];
+    return roles.some(
+      (role) => role.name === "admin" || role.name === "superadmin",
+    );
+  });
+
+  const subjectCount = computed(() => {
+    const set = new Set(courses.value.map((c) => c.subject || "general"));
+    return set.size;
+  });
+
+  const latestCourseDate = computed(() => {
+    if (!courses.value.length) return "-";
+    const sorted = [...courses.value].sort(
+      (a, b) =>
+        new Date(b.created_at).getTime() - new Date(a.created_at).getTime(),
+    );
+    return formatShortDate(sorted[0].created_at);
+  });
+
+  const assignedStudentsByGrade = computed(() => {
+    const buckets = new Map<
+      string,
+      { gradeKey: string; gradeName: string; students: AssignedUser[] }
+    >();
+    for (const student of assignedStudents.value) {
+      const gradesForStudent = studentGrades.value[student.id] || [];
+      if (!gradesForStudent.length) {
+        if (!buckets.has("no-grade"))
+          buckets.set("no-grade", {
+            gradeKey: "no-grade",
+            gradeName: "Sin grado",
+            students: [],
+          });
+        buckets.get("no-grade")!.students.push(student);
+        continue;
+      }
+      for (const grade of gradesForStudent) {
+        if (!buckets.has(grade.id))
+          buckets.set(grade.id, {
+            gradeKey: grade.id,
+            gradeName: grade.name,
+            students: [],
+          });
+        buckets.get(grade.id)!.students.push(student);
+      }
+    }
+    return Array.from(buckets.values());
+  });
+
+  onMounted(async () => {
+    if (!authStore.profile) {
+      try {
+        const profile = await loadProfile();
+        authStore.setProfile(profile);
+      } catch {}
+    }
+    await loadCoursesData();
+    await loadCatalogs();
+    await loadAssignedStudents();
+  });
+
+  async function loadCoursesData() {
+    loading.value = true;
+    try {
+      await loadCourses("teacher");
+    } catch (err) {
+      console.error(err);
+    } finally {
+      loading.value = false;
+    }
+  }
+
+  async function createCourse() {
+    creating.value = true;
+    try {
+      const selectedSubject = subjects.value.find(
+        (item) => item.id === newCourse.subject,
+      );
+      await createCourseService({
+        title: newCourse.title,
+        description: newCourse.description,
+        subject_id: newCourse.subject,
+        subject: selectedSubject?.name || "",
+        grade_id: newCourse.grade_id,
+        level: newCourse.level,
+      });
+      showCreateModal.value = false;
+      newCourse.title = "";
+      newCourse.description = "";
+      newCourse.subject = "";
+      newCourse.grade_id = "";
+      newCourse.level = "";
+    } catch (err) {
+      console.error(err);
+    } finally {
+      creating.value = false;
+    }
+  }
+
+  function goToCourse(id: string) {
+    router.push(`/teacher/courses/${id}`);
+  }
+  function goToAdminUsers() {
+    router.push("/teacher/admin/users");
+  }
+  function goToAcademicAdmin() {
+    router.push("/teacher/admin/academic");
+  }
+
+  function goToStudentProgress(student: AssignedUser) {
+    router.push({
+      path: `/teacher/students/${student.id}/progress`,
+      query: {
+        name: encodeURIComponent(student.name),
+        email: encodeURIComponent(student.email),
+      },
+    });
+  }
+
+  async function loadCatalogs() {
+    try {
+      await Promise.all([loadGrades(), loadSubjects()]);
+    } catch (err) {
+      console.error(err);
+    }
+  }
+
+  async function loadAssignedStudents() {
+    try {
+      assignedStudents.value = await loadMyStudents();
+      const gradeEntries = await Promise.all(
+        assignedStudents.value.map(async (student) => {
+          try {
+            const grades = await loadUserGrades(student.id);
+            return [student.id, grades || []] as const;
+          } catch {
+            return [student.id, []] as const;
+          }
+        }),
+      );
+      studentGrades.value = Object.fromEntries(gradeEntries);
+    } catch (err) {
+      console.error(err);
+      assignedStudents.value = [];
+      studentGrades.value = {};
+    }
+  }
+
+  function stripeClass(subject?: string) {
+    const s = (subject || "").toLowerCase();
+    if (s.includes("matem")) return "stripe--violet";
+    if (s.includes("lectura") || s.includes("lengu")) return "stripe--blue";
+    if (s.includes("ingl")) return "stripe--green";
+    if (s.includes("ciencia")) return "stripe--orange";
+    if (s.includes("histor") || s.includes("social")) return "stripe--red";
+    return "stripe--slate";
+  }
+</script>
+
 <template>
   <TeacherLayout>
     <div class="dashboard">
@@ -390,222 +596,6 @@
     </Teleport>
   </TeacherLayout>
 </template>
-
-<script setup lang="ts">
-  import { ref, reactive, computed, onMounted } from "vue";
-  import { useRouter } from "vue-router";
-  import { useAuthStore } from "@/stores/authStore";
-  import TeacherLayout from "@/layouts/TeacherLayout.vue";
-  import Skeleton from "@/components/ui/Skeleton.vue";
-  import { useCourse } from "@/composables/useCourse";
-  import { useAssignment } from "@/composables/useAssignment";
-  import { useGrade } from "@/composables/useGrade";
-  import { useProfile } from "@/composables/useProfile";
-  import { useSubject } from "@/composables/useSubject";
-  import type { AssignedUser, Grade, Subject } from "@/types";
-
-  const router = useRouter();
-  const authStore = useAuthStore();
-  const {
-    courses,
-    loading: loadingCourses,
-    loadCourses,
-    createCourse: createCourseService,
-  } = useCourse();
-  const { grades, loadGrades, loadUserGrades } = useGrade();
-  const { subjects, loadSubjects } = useSubject();
-  const { loadProfile } = useProfile();
-  const { loadMyStudents } = useAssignment();
-  const assignedStudents = ref<AssignedUser[]>([]);
-  const studentGrades = ref<Record<string, Grade[]>>({});
-  const loading = ref(true);
-  const showCreateModal = ref(false);
-  const creating = ref(false);
-
-  const newCourse = reactive({
-    title: "",
-    description: "",
-    subject: "",
-    grade_id: "",
-    level: "",
-  });
-
-  const teacherName = computed(() => {
-    const name = authStore.profile?.name || "";
-    return name.split(" ")[0] || "Docente";
-  });
-
-  const isAdmin = computed(() => {
-    const roles = authStore.authUser?.roles || [];
-    return roles.some(
-      (role) => role.name === "admin" || role.name === "superadmin",
-    );
-  });
-
-  const subjectCount = computed(() => {
-    const set = new Set(courses.value.map((c) => c.subject || "general"));
-    return set.size;
-  });
-
-  const latestCourseDate = computed(() => {
-    if (!courses.value.length) return "-";
-    const sorted = [...courses.value].sort(
-      (a, b) =>
-        new Date(b.created_at).getTime() - new Date(a.created_at).getTime(),
-    );
-    return new Date(sorted[0].created_at).toLocaleDateString("es", {
-      month: "short",
-      day: "numeric",
-    });
-  });
-
-  const assignedStudentsByGrade = computed(() => {
-    const buckets = new Map<
-      string,
-      { gradeKey: string; gradeName: string; students: AssignedUser[] }
-    >();
-    for (const student of assignedStudents.value) {
-      const gradesForStudent = studentGrades.value[student.id] || [];
-      if (!gradesForStudent.length) {
-        if (!buckets.has("no-grade"))
-          buckets.set("no-grade", {
-            gradeKey: "no-grade",
-            gradeName: "Sin grado",
-            students: [],
-          });
-        buckets.get("no-grade")!.students.push(student);
-        continue;
-      }
-      for (const grade of gradesForStudent) {
-        if (!buckets.has(grade.id))
-          buckets.set(grade.id, {
-            gradeKey: grade.id,
-            gradeName: grade.name,
-            students: [],
-          });
-        buckets.get(grade.id)!.students.push(student);
-      }
-    }
-    return Array.from(buckets.values());
-  });
-
-  onMounted(async () => {
-    if (!authStore.profile) {
-      try {
-        const profile = await loadProfile();
-        authStore.setProfile(profile);
-      } catch {}
-    }
-    await loadCoursesData();
-    await loadCatalogs();
-    await loadAssignedStudents();
-  });
-
-  async function loadCoursesData() {
-    loading.value = true;
-    try {
-      await loadCourses("teacher");
-    } catch (err) {
-      console.error(err);
-    } finally {
-      loading.value = false;
-    }
-  }
-
-  async function createCourse() {
-    creating.value = true;
-    try {
-      const selectedSubject = subjects.value.find(
-        (item) => item.id === newCourse.subject,
-      );
-      await createCourseService({
-        title: newCourse.title,
-        description: newCourse.description,
-        subject_id: newCourse.subject,
-        subject: selectedSubject?.name || "",
-        grade_id: newCourse.grade_id,
-        level: newCourse.level,
-      });
-      showCreateModal.value = false;
-      newCourse.title = "";
-      newCourse.description = "";
-      newCourse.subject = "";
-      newCourse.grade_id = "";
-      newCourse.level = "";
-    } catch (err) {
-      console.error(err);
-    } finally {
-      creating.value = false;
-    }
-  }
-
-  function goToCourse(id: string) {
-    router.push(`/teacher/courses/${id}`);
-  }
-  function goToAdminUsers() {
-    router.push("/teacher/admin/users");
-  }
-  function goToAcademicAdmin() {
-    router.push("/teacher/admin/academic");
-  }
-
-  function goToStudentProgress(student: AssignedUser) {
-    router.push({
-      path: `/teacher/students/${student.id}/progress`,
-      query: {
-        name: encodeURIComponent(student.name),
-        email: encodeURIComponent(student.email),
-      },
-    });
-  }
-
-  async function loadCatalogs() {
-    try {
-      await Promise.all([loadGrades(), loadSubjects()]);
-    } catch (err) {
-      console.error(err);
-    }
-  }
-
-  async function loadAssignedStudents() {
-    try {
-      assignedStudents.value = await loadMyStudents();
-      const gradeEntries = await Promise.all(
-        assignedStudents.value.map(async (student) => {
-          try {
-            const grades = await loadUserGrades(student.id);
-            return [student.id, grades || []] as const;
-          } catch {
-            return [student.id, []] as const;
-          }
-        }),
-      );
-      studentGrades.value = Object.fromEntries(gradeEntries);
-    } catch (err) {
-      console.error(err);
-      assignedStudents.value = [];
-      studentGrades.value = {};
-    }
-  }
-
-  function formatDate(dateStr: string) {
-    return new Date(dateStr).toLocaleDateString("es", {
-      year: "numeric",
-      month: "short",
-      day: "numeric",
-    });
-  }
-
-  function stripeClass(subject?: string) {
-    const s = (subject || "").toLowerCase();
-    if (s.includes("matem")) return "stripe--violet";
-    if (s.includes("lectura") || s.includes("lengu")) return "stripe--blue";
-    if (s.includes("ingl")) return "stripe--green";
-    if (s.includes("ciencia")) return "stripe--orange";
-    if (s.includes("histor") || s.includes("social")) return "stripe--red";
-    return "stripe--slate";
-  }
-</script>
 
 <style scoped>
   .dashboard {

@@ -1,3 +1,261 @@
+<script setup lang="ts">
+  import { computed, reactive, ref } from "vue";
+  import { useRoute, useRouter } from "vue-router";
+  import GoogleButton from "@/components/auth/GoogleButton.vue";
+  import { authService } from "@/services/auth/authService";
+  import { useProfile } from "@/composables/useProfile";
+  import { useAuthStore } from "@/stores/authStore";
+  import type { LoginResponse, UserProfile } from "@/types";
+
+  type ViewMode = "login" | "register" | "forgot" | "complete";
+  type ProfileType = "teacher" | "student";
+
+  const router = useRouter();
+  const route = useRoute();
+  const authStore = useAuthStore();
+  const { loadProfile, syncProfile } = useProfile();
+
+  const currentView = ref<ViewMode>("login");
+  const loading = ref(false);
+  const errorMsg = ref("");
+  const forgotSent = ref(false);
+
+  const email = ref("");
+  const password = ref("");
+  const firstName = ref("");
+  const lastName = ref("");
+  const confirmPassword = ref("");
+  const forgotEmail = ref("");
+  const profileType = ref<ProfileType>("student");
+
+  const pendingProfile = reactive({
+    token: "",
+    name: "",
+    email: "",
+    profile_type: "student" as ProfileType,
+  });
+
+  const redirectUrl = computed(() => (route.query.redirect as string) || "");
+  const pendingFullName = computed(() => pendingProfile.name || "Usuario");
+  const pendingInitial = computed(
+    () => pendingFullName.value.charAt(0).toUpperCase() || "U",
+  );
+
+  const emailError = computed(() => {
+    if (!email.value) return "";
+    return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.value)
+      ? ""
+      : "Ingresa un email válido.";
+  });
+
+  const passwordError = computed(() => {
+    if (!password.value) return "";
+    return password.value.length >= 6
+      ? ""
+      : "La contraseña debe tener al menos 6 caracteres.";
+  });
+
+  const registerPasswordError = computed(() => {
+    const p = password.value;
+    if (!p) return "";
+    if (p.length < 8) return "La contraseña debe tener al menos 8 caracteres.";
+    if (!/[A-Z]/.test(p)) return "Debe contener una mayúscula.";
+    if (!/[a-z]/.test(p)) return "Debe contener una minúscula.";
+    if (!/[0-9]/.test(p)) return "Debe contener un número.";
+    if (!/[!@#$%^&*()_+\-=[\]{}|;:,.<>?]/.test(p))
+      return "Debe contener un carácter especial.";
+    return "";
+  });
+
+  const confirmPasswordError = computed(() => {
+    if (!confirmPassword.value) return "";
+    return confirmPassword.value === password.value
+      ? ""
+      : "Las contraseñas no coinciden.";
+  });
+
+  const isLoginValid = computed(
+    () =>
+      !!email.value &&
+      !!password.value &&
+      !emailError.value &&
+      !passwordError.value,
+  );
+
+  const isRegisterValid = computed(
+    () =>
+      !!firstName.value &&
+      !!lastName.value &&
+      !!email.value &&
+      !!password.value &&
+      !!confirmPassword.value &&
+      !emailError.value &&
+      !registerPasswordError.value &&
+      !confirmPasswordError.value,
+  );
+
+  function resetMessages() {
+    errorMsg.value = "";
+    forgotSent.value = false;
+  }
+
+  function goLogin() {
+    currentView.value = "login";
+    resetMessages();
+  }
+
+  function goRegister() {
+    currentView.value = "register";
+    resetMessages();
+  }
+
+  function goForgot() {
+    currentView.value = "forgot";
+    resetMessages();
+  }
+
+  function routeAfterProfile(profile: UserProfile) {
+    if (redirectUrl.value) {
+      router.push(redirectUrl.value);
+      return;
+    }
+    router.push(
+      profile.profile_type === "teacher"
+        ? "/teacher/dashboard"
+        : "/student/dashboard",
+    );
+  }
+
+  async function finalizeSession(
+    response: LoginResponse,
+    fallbackProfileType?: ProfileType,
+  ) {
+    authService.setToken(response.token);
+    authStore.storeToken(response.token);
+    if (response.data) authStore.setAuthUser(response.data);
+
+    try {
+      const profile = await loadProfile();
+      authStore.setProfile(profile);
+      routeAfterProfile(profile);
+    } catch (err: any) {
+      if (err.response?.status !== 404) throw err;
+
+      pendingProfile.token = response.token;
+      pendingProfile.name =
+        `${response.data.first_name} ${response.data.last_name}`.trim();
+      pendingProfile.email = response.data.email;
+      pendingProfile.profile_type = fallbackProfileType || "student";
+      currentView.value = "complete";
+    }
+  }
+
+  async function handleLogin() {
+    if (!isLoginValid.value) return;
+    resetMessages();
+    loading.value = true;
+    try {
+      const response = await authService.login({
+        email: email.value,
+        password: password.value,
+      });
+      await finalizeSession(response);
+    } catch (err: any) {
+      errorMsg.value =
+        err.response?.data?.message || "No se pudo iniciar sesión.";
+    } finally {
+      loading.value = false;
+    }
+  }
+
+  async function handleRegister() {
+    if (!isRegisterValid.value) return;
+    resetMessages();
+    loading.value = true;
+    try {
+      await authService.register({
+        first_name: firstName.value,
+        last_name: lastName.value,
+        email: email.value,
+        password: password.value,
+        profile_type: profileType.value,
+      });
+      const loginRes = await authService.login({
+        email: email.value,
+        password: password.value,
+      });
+      authService.setToken(loginRes.token);
+      authStore.storeToken(loginRes.token);
+      const profile = await syncProfile({
+        name: `${firstName.value} ${lastName.value}`.trim(),
+        email: email.value,
+        profile_type: profileType.value,
+      });
+      authStore.setProfile(profile);
+      routeAfterProfile(profile);
+    } catch (err: any) {
+      errorMsg.value =
+        err.response?.data?.message || "No se pudo crear la cuenta.";
+    } finally {
+      loading.value = false;
+    }
+  }
+
+  async function handleForgotPassword() {
+    if (!forgotEmail.value) return;
+    resetMessages();
+    loading.value = true;
+    try {
+      await authService.requestResetPassword(forgotEmail.value);
+      forgotSent.value = true;
+    } catch (err: any) {
+      errorMsg.value =
+        err.response?.data?.message ||
+        "No se pudo enviar el enlace de recuperación.";
+    } finally {
+      loading.value = false;
+    }
+  }
+
+  async function handleGoogleLogin(code: string) {
+    resetMessages();
+    loading.value = true;
+    try {
+      const response = await authService.login({
+        ssoType: "google",
+        ssoCode: code,
+      });
+      await finalizeSession(response, profileType.value);
+    } catch (err: any) {
+      errorMsg.value =
+        err.response?.data?.message || "No se pudo iniciar con Google.";
+    } finally {
+      loading.value = false;
+    }
+  }
+
+  async function completePendingProfile() {
+    resetMessages();
+    loading.value = true;
+    try {
+      authService.setToken(pendingProfile.token);
+      authStore.storeToken(pendingProfile.token);
+      const profile = await syncProfile({
+        name: pendingProfile.name,
+        email: pendingProfile.email,
+        profile_type: pendingProfile.profile_type,
+      });
+      authStore.setProfile(profile);
+      routeAfterProfile(profile);
+    } catch (err: any) {
+      errorMsg.value =
+        err.response?.data?.message || "No se pudo completar el perfil.";
+    } finally {
+      loading.value = false;
+    }
+  }
+</script>
+
 <template>
   <div class="auth-page">
     <!-- ─── LEFT PANEL ─── -->
@@ -421,264 +679,6 @@
     </section>
   </div>
 </template>
-
-<script setup lang="ts">
-  import { computed, reactive, ref } from "vue";
-  import { useRoute, useRouter } from "vue-router";
-  import GoogleButton from "@/components/auth/GoogleButton.vue";
-  import { authService } from "@/services/auth/authService";
-  import { useProfile } from "@/composables/useProfile";
-  import { useAuthStore } from "@/stores/authStore";
-  import type { LoginResponse, UserProfile } from "@/types";
-
-  type ViewMode = "login" | "register" | "forgot" | "complete";
-  type ProfileType = "teacher" | "student";
-
-  const router = useRouter();
-  const route = useRoute();
-  const authStore = useAuthStore();
-  const { loadProfile, syncProfile } = useProfile();
-
-  const currentView = ref<ViewMode>("login");
-  const loading = ref(false);
-  const errorMsg = ref("");
-  const forgotSent = ref(false);
-
-  const email = ref("");
-  const password = ref("");
-  const firstName = ref("");
-  const lastName = ref("");
-  const confirmPassword = ref("");
-  const forgotEmail = ref("");
-  const profileType = ref<ProfileType>("student");
-
-  const pendingProfile = reactive({
-    token: "",
-    name: "",
-    email: "",
-    profile_type: "student" as ProfileType,
-  });
-
-  const redirectUrl = computed(() => (route.query.redirect as string) || "");
-  const pendingFullName = computed(() => pendingProfile.name || "Usuario");
-  const pendingInitial = computed(
-    () => pendingFullName.value.charAt(0).toUpperCase() || "U",
-  );
-
-  const emailError = computed(() => {
-    if (!email.value) return "";
-    return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.value)
-      ? ""
-      : "Ingresa un email válido.";
-  });
-
-  const passwordError = computed(() => {
-    if (!password.value) return "";
-    return password.value.length >= 6
-      ? ""
-      : "La contraseña debe tener al menos 6 caracteres.";
-  });
-
-  const registerPasswordError = computed(() => {
-    const p = password.value;
-    if (!p) return "";
-    if (p.length < 8) return "La contraseña debe tener al menos 8 caracteres.";
-    if (!/[A-Z]/.test(p)) return "Debe contener una mayúscula.";
-    if (!/[a-z]/.test(p)) return "Debe contener una minúscula.";
-    if (!/[0-9]/.test(p)) return "Debe contener un número.";
-    if (!/[!@#$%^&*()_+\-=[\]{}|;:,.<>?]/.test(p))
-      return "Debe contener un carácter especial.";
-    return "";
-  });
-
-  const confirmPasswordError = computed(() => {
-    if (!confirmPassword.value) return "";
-    return confirmPassword.value === password.value
-      ? ""
-      : "Las contraseñas no coinciden.";
-  });
-
-  const isLoginValid = computed(
-    () =>
-      !!email.value &&
-      !!password.value &&
-      !emailError.value &&
-      !passwordError.value,
-  );
-
-  const isRegisterValid = computed(
-    () =>
-      !!firstName.value &&
-      !!lastName.value &&
-      !!email.value &&
-      !!password.value &&
-      !!confirmPassword.value &&
-      !emailError.value &&
-      !registerPasswordError.value &&
-      !confirmPasswordError.value,
-  );
-
-  function resetMessages() {
-    errorMsg.value = "";
-    forgotSent.value = false;
-  }
-
-  function goLogin() {
-    currentView.value = "login";
-    resetMessages();
-  }
-
-  function goRegister() {
-    currentView.value = "register";
-    resetMessages();
-  }
-
-  function goForgot() {
-    currentView.value = "forgot";
-    resetMessages();
-  }
-
-  function routeAfterProfile(profile: UserProfile) {
-    if (redirectUrl.value) {
-      router.push(redirectUrl.value);
-      return;
-    }
-    router.push(
-      profile.profile_type === "teacher"
-        ? "/teacher/dashboard"
-        : "/student/dashboard",
-    );
-  }
-
-  async function finalizeSession(
-    response: LoginResponse,
-    fallbackProfileType?: ProfileType,
-  ) {
-    authService.setToken(response.token);
-    authStore.storeToken(response.token);
-    if (response.data) authStore.setAuthUser(response.data);
-
-    try {
-      const profile = await loadProfile();
-      authStore.setProfile(profile);
-      routeAfterProfile(profile);
-    } catch (err: any) {
-      if (err.response?.status !== 404) throw err;
-
-      pendingProfile.token = response.token;
-      pendingProfile.name =
-        `${response.data.first_name} ${response.data.last_name}`.trim();
-      pendingProfile.email = response.data.email;
-      pendingProfile.profile_type = fallbackProfileType || "student";
-      currentView.value = "complete";
-    }
-  }
-
-  async function handleLogin() {
-    if (!isLoginValid.value) return;
-    resetMessages();
-    loading.value = true;
-    try {
-      const response = await authService.login({
-        email: email.value,
-        password: password.value,
-      });
-      await finalizeSession(response);
-    } catch (err: any) {
-      errorMsg.value =
-        err.response?.data?.message || "No se pudo iniciar sesión.";
-    } finally {
-      loading.value = false;
-    }
-  }
-
-  async function handleRegister() {
-    if (!isRegisterValid.value) return;
-    resetMessages();
-    loading.value = true;
-    try {
-      await authService.register({
-        first_name: firstName.value,
-        last_name: lastName.value,
-        email: email.value,
-        password: password.value,
-        profile_type: profileType.value,
-      });
-      const loginRes = await authService.login({
-        email: email.value,
-        password: password.value,
-      });
-      authService.setToken(loginRes.token);
-      authStore.storeToken(loginRes.token);
-      const profile = await syncProfile({
-        name: `${firstName.value} ${lastName.value}`.trim(),
-        email: email.value,
-        profile_type: profileType.value,
-      });
-      authStore.setProfile(profile);
-      routeAfterProfile(profile);
-    } catch (err: any) {
-      errorMsg.value =
-        err.response?.data?.message || "No se pudo crear la cuenta.";
-    } finally {
-      loading.value = false;
-    }
-  }
-
-  async function handleForgotPassword() {
-    if (!forgotEmail.value) return;
-    resetMessages();
-    loading.value = true;
-    try {
-      await authService.requestResetPassword(forgotEmail.value);
-      forgotSent.value = true;
-    } catch (err: any) {
-      errorMsg.value =
-        err.response?.data?.message ||
-        "No se pudo enviar el enlace de recuperación.";
-    } finally {
-      loading.value = false;
-    }
-  }
-
-  async function handleGoogleLogin(code: string) {
-    resetMessages();
-    loading.value = true;
-    try {
-      const response = await authService.login({
-        ssoType: "google",
-        ssoCode: code,
-      });
-      await finalizeSession(response, profileType.value);
-    } catch (err: any) {
-      errorMsg.value =
-        err.response?.data?.message || "No se pudo iniciar con Google.";
-    } finally {
-      loading.value = false;
-    }
-  }
-
-  async function completePendingProfile() {
-    resetMessages();
-    loading.value = true;
-    try {
-      authService.setToken(pendingProfile.token);
-      authStore.storeToken(pendingProfile.token);
-      const profile = await syncProfile({
-        name: pendingProfile.name,
-        email: pendingProfile.email,
-        profile_type: pendingProfile.profile_type,
-      });
-      authStore.setProfile(profile);
-      routeAfterProfile(profile);
-    } catch (err: any) {
-      errorMsg.value =
-        err.response?.data?.message || "No se pudo completar el perfil.";
-    } finally {
-      loading.value = false;
-    }
-  }
-</script>
 
 <style scoped>
   /* ───────── PAGE GRID ───────── */

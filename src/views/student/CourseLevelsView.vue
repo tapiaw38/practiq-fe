@@ -1,3 +1,50 @@
+<script setup lang="ts">
+  import { ref, onMounted } from "vue";
+  import { useRoute, useRouter } from "vue-router";
+  import StudentLayout from "@/layouts/StudentLayout.vue";
+  import Skeleton from "@/components/ui/Skeleton.vue";
+  import StudentLevelsList from "@/components/student/levels/StudentLevelsList.vue";
+  import { useCourse } from "@/composables/useCourse";
+  import { useLevel } from "@/composables/useLevel";
+  import type { CourseLevelsResponse, LevelSheetSummary } from "@/types";
+
+  const route = useRoute();
+  const router = useRouter();
+  const courseId = route.params.courseId as string;
+
+  const { loadCourse } = useCourse();
+  const { loadCourseLevels } = useLevel();
+  const loading = ref(true);
+  const data = ref<CourseLevelsResponse | null>(null);
+  const courseTitle = ref("");
+
+  onMounted(async () => {
+    try {
+      const [levelsRes, courseRes] = await Promise.allSettled([
+        loadCourseLevels(courseId),
+        loadCourse(courseId),
+      ]);
+      if (levelsRes.status === "fulfilled") data.value = levelsRes.value;
+      if (courseRes.status === "fulfilled")
+        courseTitle.value = courseRes.value?.title || "";
+    } finally {
+      loading.value = false;
+    }
+  });
+
+  function goLevelTest(sheet: LevelSheetSummary) {
+    router.push(`/student/level-test/${sheet.id}`);
+  }
+
+  function openPractice(sheetId: string) {
+    router.push(`/student/practice/${sheetId}`);
+  }
+
+  function openNotebook(notebookId: string) {
+    router.push(`/student/notebook/${notebookId}`);
+  }
+</script>
+
 <template>
   <StudentLayout>
     <div class="levels-shell">
@@ -82,53 +129,6 @@
     </div>
   </StudentLayout>
 </template>
-
-<script setup lang="ts">
-  import { ref, onMounted } from "vue";
-  import { useRoute, useRouter } from "vue-router";
-  import StudentLayout from "@/layouts/StudentLayout.vue";
-  import Skeleton from "@/components/ui/Skeleton.vue";
-  import StudentLevelsList from "@/components/student/levels/StudentLevelsList.vue";
-  import { useCourse } from "@/composables/useCourse";
-  import { useLevel } from "@/composables/useLevel";
-  import type { CourseLevelsResponse, LevelSheetSummary } from "@/types";
-
-  const route = useRoute();
-  const router = useRouter();
-  const courseId = route.params.courseId as string;
-
-  const { loadCourse } = useCourse();
-  const { loadCourseLevels } = useLevel();
-  const loading = ref(true);
-  const data = ref<CourseLevelsResponse | null>(null);
-  const courseTitle = ref("");
-
-  onMounted(async () => {
-    try {
-      const [levelsRes, courseRes] = await Promise.allSettled([
-        loadCourseLevels(courseId),
-        loadCourse(courseId),
-      ]);
-      if (levelsRes.status === "fulfilled") data.value = levelsRes.value;
-      if (courseRes.status === "fulfilled")
-        courseTitle.value = courseRes.value?.title || "";
-    } finally {
-      loading.value = false;
-    }
-  });
-
-  function goLevelTest(sheet: LevelSheetSummary) {
-    router.push(`/student/level-test/${sheet.id}`);
-  }
-
-  function openPractice(sheetId: string) {
-    router.push(`/student/practice/${sheetId}`);
-  }
-
-  function openNotebook(notebookId: string) {
-    router.push(`/student/notebook/${notebookId}`);
-  }
-</script>
 
 <style scoped>
   .levels-shell {
@@ -250,21 +250,21 @@
     transition: box-shadow 0.15s;
   }
 
-/* Level card header */
-.lc-header {
-  display: flex;
+  /* Level card header */
+  .lc-header {
+    display: flex;
     align-items: center;
     gap: 14px;
     padding: 18px 20px;
     border-bottom: 1.5px solid rgba(124, 58, 237, 0.06);
   }
 
-.lc-meta {
-  flex: 1;
-}
+  .lc-meta {
+    flex: 1;
+  }
 
-/* Level card body */
-.lc-body {
+  /* Level card body */
+  .lc-body {
     padding: 16px 20px;
     display: flex;
     flex-direction: column;
@@ -277,20 +277,20 @@
     gap: 8px;
   }
 
-.lc-items {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
+  .lc-items {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
 
-.lc-item-info {
-  display: flex;
-  flex-direction: column;
+  .lc-item-info {
+    display: flex;
+    flex-direction: column;
     gap: 2px;
     flex: 1;
     min-width: 0;
   }
-@media (max-width: 1024px) {
+  @media (max-width: 1024px) {
     .levels-shell {
       padding: 20px 16px 48px;
     }
@@ -323,10 +323,10 @@
       gap: 10px;
       flex-wrap: wrap;
     }
-  .lc-body {
-    padding: 12px 16px;
+    .lc-body {
+      padding: 12px 16px;
+    }
   }
-}
 
   @media (max-width: 600px) {
     .levels-shell {
@@ -342,5 +342,5 @@
     .lc-body {
       padding: 10px 12px;
     }
-}
+  }
 </style>

@@ -1,257 +1,3 @@
-<template>
-  <StudentLayout>
-    <div class="student-home">
-      <!-- Loading skeletons -->
-      <template v-if="loading">
-        <!-- Welcome skeleton -->
-        <section class="welcome-banner welcome-banner--skeleton">
-          <div class="welcome-copy">
-            <Skeleton width="120px" height="14px" />
-            <Skeleton width="200px" height="32px" />
-            <Skeleton width="90%" height="16px" />
-          </div>
-          <div class="welcome-topic-card">
-            <div class="topic-card__top">
-              <div>
-                <Skeleton width="80px" height="12px" />
-                <Skeleton width="140px" height="20px" />
-              </div>
-              <Skeleton width="60px" height="24px" rounded />
-            </div>
-            <Skeleton width="100%" height="8px" rounded />
-            <div style="display: flex; justify-content: space-between">
-              <Skeleton width="100px" height="12px" />
-              <Skeleton width="120px" height="12px" />
-            </div>
-          </div>
-          <div class="welcome-actions">
-            <Skeleton variant="button" width="160px" height="44px" />
-            <Skeleton variant="button" width="180px" height="44px" />
-          </div>
-        </section>
-
-        <!-- Metrics skeleton -->
-        <section class="metrics-row">
-          <div
-            v-for="i in 3"
-            :key="i"
-            class="metric-card metric-card--skeleton"
-          >
-            <Skeleton variant="circle" size="40px" />
-            <div>
-              <Skeleton width="50px" height="24px" />
-              <Skeleton width="60px" height="14px" />
-            </div>
-          </div>
-        </section>
-
-        <!-- Progress skeleton -->
-        <section class="mastery-section">
-          <div class="section-head">
-            <div>
-              <Skeleton width="100px" height="12px" />
-              <Skeleton width="180px" height="24px" />
-            </div>
-          </div>
-          <div class="mastery-grid">
-            <div
-              v-for="i in 3"
-              :key="i"
-              class="mastery-card mastery-card--skeleton"
-            >
-              <div class="mastery-card__top">
-                <Skeleton width="70%" height="16px" />
-                <Skeleton width="60px" height="20px" rounded />
-              </div>
-              <Skeleton width="100%" height="8px" rounded />
-              <div style="display: flex; justify-content: space-between">
-                <Skeleton width="80px" height="12px" />
-                <Skeleton width="90px" height="12px" />
-              </div>
-            </div>
-          </div>
-        </section>
-
-        <!-- Courses skeleton -->
-        <section class="courses-section">
-          <div class="section-head">
-            <div>
-              <Skeleton width="80px" height="12px" />
-              <Skeleton width="140px" height="24px" />
-            </div>
-          </div>
-          <div class="courses-list">
-            <div
-              v-for="i in 2"
-              :key="i"
-              class="course-row course-row--skeleton"
-            >
-              <Skeleton variant="circle" size="48px" />
-              <div class="course-row__info">
-                <Skeleton width="60%" height="18px" />
-                <Skeleton width="40%" height="14px" />
-              </div>
-              <Skeleton width="80px" height="32px" rounded />
-            </div>
-          </div>
-        </section>
-      </template>
-
-      <template v-else>
-        <!-- Welcome banner -->
-        <section class="welcome-banner">
-          <div class="welcome-copy">
-            <div class="welcome-kicker">Tu práctica de hoy</div>
-            <h1 class="welcome-title">Hola, {{ firstName }}.</h1>
-            <p class="welcome-subtitle">
-              Sigamos avanzando con ejercicios cortos, retroalimentación
-              inmediata y ayuda paso a paso.
-            </p>
-          </div>
-
-          <div class="welcome-topic-card">
-            <div class="topic-card__top">
-              <div>
-                <div class="topic-card__label">Tema actual</div>
-                <div class="topic-card__name">{{ currentTopic }}</div>
-              </div>
-              <div class="topic-card__level">Nivel {{ currentLevel }}</div>
-            </div>
-            <div class="progress-bar topic-progress">
-              <div
-                class="progress-fill"
-                :style="{ width: averageMastery + '%' }"
-              ></div>
-            </div>
-            <div class="topic-progress-meta">
-              <span>{{ Math.round(averageMastery) }}% de dominio</span>
-              <span>{{ totalSheets }} prácticas disponibles</span>
-            </div>
-          </div>
-
-          <div class="welcome-actions">
-            <button
-              class="btn btn-primary welcome-btn"
-              @click="startFeaturedPractice"
-              :disabled="!featuredSheetId"
-            >
-              <i class="pi pi-play-circle"></i>
-              Continuar práctica
-            </button>
-            <button
-              class="btn btn-secondary welcome-btn"
-              @click="showAssistant = true"
-            >
-              <i class="pi pi-comments"></i>
-              Practicar con mi asistente
-            </button>
-          </div>
-        </section>
-
-        <!-- Metrics row -->
-        <section class="metrics-row">
-          <div class="metric-card">
-            <div class="metric-card__icon metric-card__icon--fire">🔥</div>
-            <div>
-              <div class="metric-card__value">{{ streakDays }}</div>
-              <div class="metric-card__label">Racha</div>
-            </div>
-          </div>
-
-          <div class="metric-card">
-            <div class="metric-card__icon metric-card__icon--star">⭐</div>
-            <div>
-              <div class="metric-card__value">{{ totalCorrect }}</div>
-              <div class="metric-card__label">Aciertos</div>
-            </div>
-          </div>
-
-          <div class="metric-card metric-card--goal">
-            <div class="metric-card__icon metric-card__icon--goal">🎯</div>
-            <div class="metric-goal-body">
-              <div class="metric-goal-top">
-                <span class="metric-card__label">Precisión global</span>
-                <span class="metric-goal-count"
-                  >{{ totalCorrect }}/{{ totalAttempts }}</span
-                >
-              </div>
-              <div class="progress-bar">
-                <div
-                  class="progress-fill"
-                  :style="{ width: goalProgress + '%' }"
-                ></div>
-              </div>
-            </div>
-          </div>
-        </section>
-
-        <!-- Progress section -->
-        <section v-if="groupedProgress.length > 0" class="mastery-section">
-          <div class="section-head">
-            <div>
-              <div class="section-kicker">Resumen rápido</div>
-              <h2 class="section-title">Tu progreso por tema</h2>
-            </div>
-          </div>
-
-          <div class="mastery-grid">
-            <article
-              v-for="p in groupedProgress"
-              :key="p.topic_id"
-              class="mastery-card"
-            >
-              <div class="mastery-card__top">
-                <div class="mastery-topic">{{ p.topic_title }}</div>
-                <div class="mastery-level">Nivel {{ p.current_level }}</div>
-              </div>
-              <div class="progress-bar">
-                <div
-                  class="progress-fill"
-                  :style="{ width: p.mastery_score + '%' }"
-                ></div>
-              </div>
-              <div class="mastery-meta">
-                <span>{{ Math.round(p.mastery_score) }}% dominio</span>
-                <span
-                  >{{ p.correct_attempts }}/{{
-                    p.total_attempts
-                  }}
-                  aciertos</span
-                >
-              </div>
-            </article>
-          </div>
-        </section>
-
-        <StudentCoursesGrid
-          :courses="courses"
-          :course-current-level="courseCurrentLevel"
-          :course-sheets="courseSheets"
-          :course-notebooks="courseNotebooks"
-          :dismissed-review-cards="dismissedReviewCards"
-          :topics-needing-review="topicsNeedingReview"
-          :get-course-progress-percent="getCourseProgressPercent"
-          @open-levels="openCourseLevels"
-          @dismiss-review="dismissReviewCard"
-        />
-      </template>
-
-      <img
-        src="@/assets/backpack.png"
-        class="dashboard-mascot"
-        alt=""
-        aria-hidden="true"
-      />
-    </div>
-  </StudentLayout>
-
-  <AssistantChatModal
-    :show="showAssistant"
-    :student-context="assistantContext"
-    @close="showAssistant = false"
-  />
-</template>
-
 <script setup lang="ts">
   import { ref, computed, onMounted } from "vue";
   import { useRouter } from "vue-router";
@@ -519,6 +265,260 @@
   }
 </script>
 
+<template>
+  <StudentLayout>
+    <div class="student-home">
+      <!-- Loading skeletons -->
+      <template v-if="loading">
+        <!-- Welcome skeleton -->
+        <section class="welcome-banner welcome-banner--skeleton">
+          <div class="welcome-copy">
+            <Skeleton width="120px" height="14px" />
+            <Skeleton width="200px" height="32px" />
+            <Skeleton width="90%" height="16px" />
+          </div>
+          <div class="welcome-topic-card">
+            <div class="topic-card__top">
+              <div>
+                <Skeleton width="80px" height="12px" />
+                <Skeleton width="140px" height="20px" />
+              </div>
+              <Skeleton width="60px" height="24px" rounded />
+            </div>
+            <Skeleton width="100%" height="8px" rounded />
+            <div style="display: flex; justify-content: space-between">
+              <Skeleton width="100px" height="12px" />
+              <Skeleton width="120px" height="12px" />
+            </div>
+          </div>
+          <div class="welcome-actions">
+            <Skeleton variant="button" width="160px" height="44px" />
+            <Skeleton variant="button" width="180px" height="44px" />
+          </div>
+        </section>
+
+        <!-- Metrics skeleton -->
+        <section class="metrics-row">
+          <div
+            v-for="i in 3"
+            :key="i"
+            class="metric-card metric-card--skeleton"
+          >
+            <Skeleton variant="circle" size="40px" />
+            <div>
+              <Skeleton width="50px" height="24px" />
+              <Skeleton width="60px" height="14px" />
+            </div>
+          </div>
+        </section>
+
+        <!-- Progress skeleton -->
+        <section class="mastery-section">
+          <div class="section-head">
+            <div>
+              <Skeleton width="100px" height="12px" />
+              <Skeleton width="180px" height="24px" />
+            </div>
+          </div>
+          <div class="mastery-grid">
+            <div
+              v-for="i in 3"
+              :key="i"
+              class="mastery-card mastery-card--skeleton"
+            >
+              <div class="mastery-card__top">
+                <Skeleton width="70%" height="16px" />
+                <Skeleton width="60px" height="20px" rounded />
+              </div>
+              <Skeleton width="100%" height="8px" rounded />
+              <div style="display: flex; justify-content: space-between">
+                <Skeleton width="80px" height="12px" />
+                <Skeleton width="90px" height="12px" />
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- Courses skeleton -->
+        <section class="courses-section">
+          <div class="section-head">
+            <div>
+              <Skeleton width="80px" height="12px" />
+              <Skeleton width="140px" height="24px" />
+            </div>
+          </div>
+          <div class="courses-list">
+            <div
+              v-for="i in 2"
+              :key="i"
+              class="course-row course-row--skeleton"
+            >
+              <Skeleton variant="circle" size="48px" />
+              <div class="course-row__info">
+                <Skeleton width="60%" height="18px" />
+                <Skeleton width="40%" height="14px" />
+              </div>
+              <Skeleton width="80px" height="32px" rounded />
+            </div>
+          </div>
+        </section>
+      </template>
+
+      <template v-else>
+        <!-- Welcome banner -->
+        <section class="welcome-banner">
+          <div class="welcome-copy">
+            <div class="welcome-kicker">Tu práctica de hoy</div>
+            <h1 class="welcome-title">Hola, {{ firstName }}.</h1>
+            <p class="welcome-subtitle">
+              Sigamos avanzando con ejercicios cortos, retroalimentación
+              inmediata y ayuda paso a paso.
+            </p>
+          </div>
+
+          <div class="welcome-topic-card">
+            <div class="topic-card__top">
+              <div>
+                <div class="topic-card__label">Tema actual</div>
+                <div class="topic-card__name">{{ currentTopic }}</div>
+              </div>
+              <div class="topic-card__level">Nivel {{ currentLevel }}</div>
+            </div>
+            <div class="progress-bar topic-progress">
+              <div
+                class="progress-fill"
+                :style="{ width: averageMastery + '%' }"
+              ></div>
+            </div>
+            <div class="topic-progress-meta">
+              <span>{{ Math.round(averageMastery) }}% de dominio</span>
+              <span>{{ totalSheets }} prácticas disponibles</span>
+            </div>
+          </div>
+
+          <div class="welcome-actions">
+            <button
+              class="btn btn-primary welcome-btn"
+              @click="startFeaturedPractice"
+              :disabled="!featuredSheetId"
+            >
+              <i class="pi pi-play-circle"></i>
+              Continuar práctica
+            </button>
+            <button
+              class="btn btn-secondary welcome-btn"
+              @click="showAssistant = true"
+            >
+              <i class="pi pi-comments"></i>
+              Practicar con mi asistente
+            </button>
+          </div>
+        </section>
+
+        <!-- Metrics row -->
+        <section class="metrics-row">
+          <div class="metric-card">
+            <div class="metric-card__icon metric-card__icon--fire">🔥</div>
+            <div>
+              <div class="metric-card__value">{{ streakDays }}</div>
+              <div class="metric-card__label">Racha</div>
+            </div>
+          </div>
+
+          <div class="metric-card">
+            <div class="metric-card__icon metric-card__icon--star">⭐</div>
+            <div>
+              <div class="metric-card__value">{{ totalCorrect }}</div>
+              <div class="metric-card__label">Aciertos</div>
+            </div>
+          </div>
+
+          <div class="metric-card metric-card--goal">
+            <div class="metric-card__icon metric-card__icon--goal">🎯</div>
+            <div class="metric-goal-body">
+              <div class="metric-goal-top">
+                <span class="metric-card__label">Precisión global</span>
+                <span class="metric-goal-count"
+                  >{{ totalCorrect }}/{{ totalAttempts }}</span
+                >
+              </div>
+              <div class="progress-bar">
+                <div
+                  class="progress-fill"
+                  :style="{ width: goalProgress + '%' }"
+                ></div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- Progress section -->
+        <section v-if="groupedProgress.length > 0" class="mastery-section">
+          <div class="section-head">
+            <div>
+              <div class="section-kicker">Resumen rápido</div>
+              <h2 class="section-title">Tu progreso por tema</h2>
+            </div>
+          </div>
+
+          <div class="mastery-grid">
+            <article
+              v-for="p in groupedProgress"
+              :key="p.topic_id"
+              class="mastery-card"
+            >
+              <div class="mastery-card__top">
+                <div class="mastery-topic">{{ p.topic_title }}</div>
+                <div class="mastery-level">Nivel {{ p.current_level }}</div>
+              </div>
+              <div class="progress-bar">
+                <div
+                  class="progress-fill"
+                  :style="{ width: p.mastery_score + '%' }"
+                ></div>
+              </div>
+              <div class="mastery-meta">
+                <span>{{ Math.round(p.mastery_score) }}% dominio</span>
+                <span
+                  >{{ p.correct_attempts }}/{{
+                    p.total_attempts
+                  }}
+                  aciertos</span
+                >
+              </div>
+            </article>
+          </div>
+        </section>
+
+        <StudentCoursesGrid
+          :courses="courses"
+          :course-current-level="courseCurrentLevel"
+          :course-sheets="courseSheets"
+          :course-notebooks="courseNotebooks"
+          :dismissed-review-cards="dismissedReviewCards"
+          :topics-needing-review="topicsNeedingReview"
+          :get-course-progress-percent="getCourseProgressPercent"
+          @open-levels="openCourseLevels"
+          @dismiss-review="dismissReviewCard"
+        />
+      </template>
+
+      <img
+        src="@/assets/backpack.png"
+        class="dashboard-mascot"
+        alt=""
+        aria-hidden="true"
+      />
+    </div>
+  </StudentLayout>
+
+  <AssistantChatModal
+    :show="showAssistant"
+    :student-context="assistantContext"
+    @close="showAssistant = false"
+  />
+</template>
+
 <style scoped>
   .student-home {
     position: relative;
@@ -771,10 +771,10 @@
     transition: var(--transition);
   }
 
-.mastery-card:hover {
-  transform: translateY(-2px);
-  box-shadow: var(--shadow-card-lg);
-}
+  .mastery-card:hover {
+    transform: translateY(-2px);
+    box-shadow: var(--shadow-card-lg);
+  }
 
   .mastery-card__top {
     display: flex;
@@ -832,7 +832,7 @@
     font-size: var(--text-md);
   }
 
-/* ── Responsive ── */
+  /* ── Responsive ── */
 
   /* Tablet landscape */
   @media (max-width: 1024px) {
@@ -888,9 +888,9 @@
     .metric-card--goal {
       grid-column: auto;
     }
-  .mastery-grid {
-    grid-template-columns: 1fr;
-  }
+    .mastery-grid {
+      grid-template-columns: 1fr;
+    }
     .section-title {
       font-size: 18px;
     }

@@ -1,3 +1,114 @@
+<script setup lang="ts">
+  import { computed, onMounted, reactive, ref } from "vue";
+  import { useRoute, useRouter } from "vue-router";
+  import TeacherLayout from "@/layouts/TeacherLayout.vue";
+  import Skeleton from "@/components/ui/Skeleton.vue";
+  import { useCourse } from "@/composables/useCourse";
+  import { useGrade } from "@/composables/useGrade";
+  import { useSubject } from "@/composables/useSubject";
+  import { formatDate } from "@/utils/formatters";
+  import type { Grade, Subject } from "@/types";
+
+  const route = useRoute();
+  const router = useRouter();
+  const subjectId = route.params.subjectId as string;
+
+  const {
+    courses,
+    loadCourses: loadCoursesService,
+    createCourse: createCourseService,
+  } = useCourse();
+  const { grades, loadGrades: loadGradesService } = useGrade();
+  const { subjects, loadSubjects } = useSubject();
+  const loading = ref(true);
+  const showCreateModal = ref(false);
+  const creating = ref(false);
+  const subject = ref<Subject | null>(null);
+
+  const newCourse = reactive({
+    title: "",
+    description: "",
+    grade_id: "",
+    level: "",
+  });
+
+  const filteredCourses = computed(() =>
+    courses.value.filter((course) => course.subject_id === subjectId),
+  );
+  const gradesInUse = computed(
+    () =>
+      new Set(
+        filteredCourses.value.map((course) => course.grade_id).filter(Boolean),
+      ).size,
+  );
+
+  onMounted(async () => {
+    await Promise.all([loadSubject(), loadCourses(), loadGrades()]);
+  });
+
+  async function loadSubject() {
+    try {
+      const data = await loadSubjects();
+      subject.value =
+        (data || []).find((item) => item.id === subjectId) || null;
+    } catch (error) {
+      console.error(error);
+    }
+  }
+
+  async function loadCourses() {
+    loading.value = true;
+    try {
+      await loadCoursesService("teacher");
+    } catch (error) {
+      console.error(error);
+    } finally {
+      loading.value = false;
+    }
+  }
+
+  async function loadGrades() {
+    try {
+      await loadGradesService();
+    } catch (error) {
+      console.error(error);
+    }
+  }
+
+  async function createCourse() {
+    if (!subject.value) return;
+    creating.value = true;
+    try {
+      await createCourseService({
+        title: newCourse.title,
+        description: newCourse.description,
+        subject_id: subject.value.id,
+        subject: subject.value.name,
+        grade_id: newCourse.grade_id,
+        level: newCourse.level,
+      });
+      newCourse.title = "";
+      newCourse.description = "";
+      newCourse.grade_id = "";
+      newCourse.level = "";
+      showCreateModal.value = false;
+    } catch (error) {
+      console.error(error);
+    } finally {
+      creating.value = false;
+    }
+  }
+
+  function goBack() {
+    router.push("/teacher/admin/academic");
+  }
+
+  function openCourse(id: string) {
+    router.push(`/teacher/courses/${id}`);
+  }
+
+</script>
+
 <template>
   <TeacherLayout>
     <div class="courses-page">
@@ -229,123 +340,6 @@
     </div>
   </TeacherLayout>
 </template>
-
-<script setup lang="ts">
-  import { computed, onMounted, reactive, ref } from "vue";
-  import { useRoute, useRouter } from "vue-router";
-  import TeacherLayout from "@/layouts/TeacherLayout.vue";
-  import Skeleton from "@/components/ui/Skeleton.vue";
-  import { useCourse } from "@/composables/useCourse";
-  import { useGrade } from "@/composables/useGrade";
-  import { useSubject } from "@/composables/useSubject";
-  import type { Grade, Subject } from "@/types";
-
-  const route = useRoute();
-  const router = useRouter();
-  const subjectId = route.params.subjectId as string;
-
-  const {
-    courses,
-    loadCourses: loadCoursesService,
-    createCourse: createCourseService,
-  } = useCourse();
-  const { grades, loadGrades: loadGradesService } = useGrade();
-  const { subjects, loadSubjects } = useSubject();
-  const loading = ref(true);
-  const showCreateModal = ref(false);
-  const creating = ref(false);
-  const subject = ref<Subject | null>(null);
-
-  const newCourse = reactive({
-    title: "",
-    description: "",
-    grade_id: "",
-    level: "",
-  });
-
-  const filteredCourses = computed(() =>
-    courses.value.filter((course) => course.subject_id === subjectId),
-  );
-  const gradesInUse = computed(
-    () =>
-      new Set(
-        filteredCourses.value.map((course) => course.grade_id).filter(Boolean),
-      ).size,
-  );
-
-  onMounted(async () => {
-    await Promise.all([loadSubject(), loadCourses(), loadGrades()]);
-  });
-
-  async function loadSubject() {
-    try {
-      const data = await loadSubjects();
-      subject.value =
-        (data || []).find((item) => item.id === subjectId) || null;
-    } catch (error) {
-      console.error(error);
-    }
-  }
-
-  async function loadCourses() {
-    loading.value = true;
-    try {
-      await loadCoursesService("teacher");
-    } catch (error) {
-      console.error(error);
-    } finally {
-      loading.value = false;
-    }
-  }
-
-  async function loadGrades() {
-    try {
-      await loadGradesService();
-    } catch (error) {
-      console.error(error);
-    }
-  }
-
-  async function createCourse() {
-    if (!subject.value) return;
-    creating.value = true;
-    try {
-      await createCourseService({
-        title: newCourse.title,
-        description: newCourse.description,
-        subject_id: subject.value.id,
-        subject: subject.value.name,
-        grade_id: newCourse.grade_id,
-        level: newCourse.level,
-      });
-      newCourse.title = "";
-      newCourse.description = "";
-      newCourse.grade_id = "";
-      newCourse.level = "";
-      showCreateModal.value = false;
-    } catch (error) {
-      console.error(error);
-    } finally {
-      creating.value = false;
-    }
-  }
-
-  function goBack() {
-    router.push("/teacher/admin/academic");
-  }
-
-  function openCourse(id: string) {
-    router.push(`/teacher/courses/${id}`);
-  }
-
-  function formatDate(dateStr: string) {
-    return new Date(dateStr).toLocaleDateString("es", {
-      year: "numeric",
-      month: "short",
-      day: "numeric",
-    });
-  }
-</script>
 
 <style scoped>
   .courses-page {

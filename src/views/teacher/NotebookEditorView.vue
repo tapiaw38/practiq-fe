@@ -1,3 +1,247 @@
+<script setup lang="ts">
+  import { ref, computed, watch, nextTick, onMounted, reactive } from "vue";
+  import { useRoute, useRouter } from "vue-router";
+  import TeacherLayout from "@/layouts/TeacherLayout.vue";
+  import Skeleton from "@/components/ui/Skeleton.vue";
+  import { useNotebook } from "@/composables/useNotebook";
+  import type { Notebook, NotebookPage } from "@/types";
+
+  const route = useRoute();
+  const router = useRouter();
+  const {
+    loadNotebook,
+    updateNotebook: updateNotebookService,
+    addPage: addPageService,
+    updatePage: updatePageService,
+  } = useNotebook();
+
+  const notebookId = route.params.id as string;
+  const notebook = ref<Notebook | null>(null);
+  const loading = ref(true);
+  const saving = ref(false);
+  const selectedIdx = ref(0);
+  const showAddPage = ref(false);
+  const saveMsg = ref("");
+
+  // Canvas refs
+  const editorCanvas = ref<HTMLCanvasElement | null>(null);
+  const tool = ref<"pen" | "eraser">("pen");
+  const penColor = ref(cssVar("--text-primary", "#1e293b"));
+  const penSize = ref(3);
+  const isDrawing = ref(false);
+  const undoStack = ref<ImageData[]>([]);
+
+  function cssVar(name: string, fallback: string, depth = 0): string {
+    if (typeof window === "undefined") return fallback;
+    const value = getComputedStyle(document.documentElement)
+      .getPropertyValue(name)
+      .trim();
+    if (!value) return fallback;
+    const varMatch = value.match(/^var\((--[^,\s)]+)(?:,\s*(.+))?\)$/);
+    if (varMatch && depth < 4) {
+      return cssVar(varMatch[1], varMatch[2]?.trim() || fallback, depth + 1);
+    }
+    return value;
+  }
+
+  const penCursor = `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24'%3E%3Cpath fill='%231e1e2e' d='M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04a1 1 0 0 0 0-1.41l-2.34-2.34a1 1 0 0 0-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z'/%3E%3C/svg%3E") 0 24, crosshair`;
+  const eraserCursor = `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='20' height='20' viewBox='0 0 20 20'%3E%3Ccircle cx='10' cy='10' r='8' fill='none' stroke='%23666' stroke-width='1.5'/%3E%3C/svg%3E") 10 10, cell`;
+  const canvasCursor = computed(() =>
+    tool.value === "eraser" ? eraserCursor : penCursor,
+  );
+
+  const newPage = reactive({
+    title: "",
+    content_type: "canvas" as "canvas" | "text",
+    instructions: "",
+  });
+
+  const pages = computed(() => notebook.value?.pages || []);
+
+  // FIX: currentPage devuelve el objeto mutable del array directamente.
+  // Se expone como ref writeable para que v-model en el template pueda mutar
+  // las propiedades y savePage() lea los valores actualizados.
+  const currentPage = computed<NotebookPage | null>(
+    () => pages.value[selectedIdx.value] ?? null,
+  );
+
+  onMounted(async () => {
+    try {
+      notebook.value = await loadNotebook(notebookId);
+    } finally {
+      loading.value = false;
+      await nextTick();
+      if (currentPage.value?.content_type === "canvas") initCanvas(true);
+    }
+  });
+
+  watch(selectedIdx, async () => {
+    undoStack.value = [];
+    await nextTick();
+    if (currentPage.value?.content_type === "canvas") initCanvas(true);
+  });
+
+  watch(
+    () => currentPage.value?.content_type,
+    async (type) => {
+      if (type === "canvas") {
+        await nextTick();
+        initCanvas(true);
+      }
+    },
+  );
+
+  function selectPage(idx: number) {
+    selectedIdx.value = idx;
+  }
+
+  async function addPage() {
+    const pageCount = pages.value.length;
+    await addPageService(notebookId, {
+      page_number: pageCount + 1,
+      title: newPage.title || `Página ${pageCount + 1}`,
+      content_type: newPage.content_type,
+      content_data: "",
+      instructions: newPage.instructions,
+    });
+    showAddPage.value = false;
+    newPage.title = "";
+    newPage.instructions = "";
+    newPage.content_type = "canvas";
+
+    notebook.value = await loadNotebook(notebookId);
+    await nextTick();
+    selectedIdx.value = pages.value.length - 1;
+    await nextTick();
+    if (currentPage.value?.content_type === "canvas") initCanvas(true);
+  }
+
+  async function savePage() {
+    if (!currentPage.value || saving.value) return;
+    saving.value = true;
+    try {
+      await updatePageService(currentPage.value.id, {
+        title: currentPage.value.title || "",
+        content_type: currentPage.value.content_type,
+        content_data: currentPage.value.content_data || "",
+        instructions: currentPage.value.instructions || "",
+      });
+      saveMsg.value = "Guardado";
+      setTimeout(() => {
+        saveMsg.value = "";
+      }, 2000);
+    } finally {
+      saving.value = false;
+    }
+  }
+
+  async function saveCanvasContent() {
+    if (!editorCanvas.value || !currentPage.value) return;
+    const dataUrl = editorCanvas.value.toDataURL("image/png");
+    currentPage.value.content_data = dataUrl;
+    await savePage();
+  }
+
+  function initCanvas(loadExisting = false) {
+    const canvas = editorCanvas.value;
+    if (!canvas) return;
+    const rect = canvas.getBoundingClientRect();
+    canvas.width = rect.width || 700;
+    canvas.height = rect.height || 400;
+    const ctx = canvas.getContext("2d")!;
+
+    ctx.fillStyle = cssVar("--surface-card", "#ffffff");
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    undoStack.value = [];
+
+    if (loadExisting && currentPage.value?.content_data) {
+      const img = new Image();
+      img.onload = () => ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+      img.src = currentPage.value.content_data;
+    }
+  }
+
+  function getCtx() {
+    return editorCanvas.value?.getContext("2d") ?? null;
+  }
+
+  function getPoint(e: MouseEvent) {
+    const canvas = editorCanvas.value!;
+    const rect = canvas.getBoundingClientRect();
+    return {
+      x: (e.clientX - rect.left) * (canvas.width / rect.width),
+      y: (e.clientY - rect.top) * (canvas.height / rect.height),
+    };
+  }
+
+  function startDraw(e: MouseEvent) {
+    const ctx = getCtx();
+    if (!ctx || !editorCanvas.value) return;
+    undoStack.value.push(
+      ctx.getImageData(
+        0,
+        0,
+        editorCanvas.value.width,
+        editorCanvas.value.height,
+      ),
+    );
+    isDrawing.value = true;
+    const { x, y } = getPoint(e);
+    ctx.beginPath();
+    ctx.moveTo(x, y);
+  }
+
+  function draw(e: MouseEvent) {
+    if (!isDrawing.value) return;
+    const ctx = getCtx();
+    if (!ctx) return;
+    const { x, y } = getPoint(e);
+    ctx.globalCompositeOperation =
+      tool.value === "eraser" ? "destination-out" : "source-over";
+    ctx.strokeStyle = penColor.value;
+    ctx.lineWidth = tool.value === "eraser" ? penSize.value * 4 : penSize.value;
+    ctx.lineCap = "round";
+    ctx.lineJoin = "round";
+    ctx.lineTo(x, y);
+    ctx.stroke();
+  }
+
+  function endDraw() {
+    isDrawing.value = false;
+    getCtx()?.beginPath();
+  }
+
+  function startDrawTouch(e: TouchEvent) {
+    startDraw({
+      clientX: e.touches[0].clientX,
+      clientY: e.touches[0].clientY,
+    } as MouseEvent);
+  }
+
+  function drawTouch(e: TouchEvent) {
+    draw({
+      clientX: e.touches[0].clientX,
+      clientY: e.touches[0].clientY,
+    } as MouseEvent);
+  }
+
+  function undoDraw() {
+    const ctx = getCtx();
+    if (!ctx || !editorCanvas.value || !undoStack.value.length) return;
+    ctx.putImageData(undoStack.value.pop()!, 0, 0);
+  }
+
+  function clearCanvas() {
+    const canvas = editorCanvas.value;
+    const ctx = getCtx();
+    if (!canvas || !ctx) return;
+    undoStack.value = [];
+    ctx.fillStyle = cssVar("--surface-card", "#ffffff");
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    if (currentPage.value) currentPage.value.content_data = "";
+  }
+</script>
+
 <template>
   <TeacherLayout>
     <div class="editor-shell">
@@ -292,250 +536,6 @@
     </Teleport>
   </TeacherLayout>
 </template>
-
-<script setup lang="ts">
-  import { ref, computed, watch, nextTick, onMounted, reactive } from "vue";
-  import { useRoute, useRouter } from "vue-router";
-  import TeacherLayout from "@/layouts/TeacherLayout.vue";
-  import Skeleton from "@/components/ui/Skeleton.vue";
-  import { useNotebook } from "@/composables/useNotebook";
-  import type { Notebook, NotebookPage } from "@/types";
-
-  const route = useRoute();
-  const router = useRouter();
-  const {
-    loadNotebook,
-    updateNotebook: updateNotebookService,
-    addPage: addPageService,
-    updatePage: updatePageService,
-  } = useNotebook();
-
-  const notebookId = route.params.id as string;
-  const notebook = ref<Notebook | null>(null);
-  const loading = ref(true);
-  const saving = ref(false);
-  const selectedIdx = ref(0);
-  const showAddPage = ref(false);
-  const saveMsg = ref("");
-
-  // Canvas refs
-  const editorCanvas = ref<HTMLCanvasElement | null>(null);
-  const tool = ref<"pen" | "eraser">("pen");
-  const penColor = ref(cssVar("--text-primary", "#1e293b"));
-  const penSize = ref(3);
-  const isDrawing = ref(false);
-  const undoStack = ref<ImageData[]>([]);
-
-  function cssVar(name: string, fallback: string, depth = 0): string {
-    if (typeof window === "undefined") return fallback;
-    const value = getComputedStyle(document.documentElement)
-      .getPropertyValue(name)
-      .trim();
-    if (!value) return fallback;
-    const varMatch = value.match(/^var\((--[^,\s)]+)(?:,\s*(.+))?\)$/);
-    if (varMatch && depth < 4) {
-      return cssVar(varMatch[1], varMatch[2]?.trim() || fallback, depth + 1);
-    }
-    return value;
-  }
-
-  const penCursor = `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24'%3E%3Cpath fill='%231e1e2e' d='M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04a1 1 0 0 0 0-1.41l-2.34-2.34a1 1 0 0 0-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z'/%3E%3C/svg%3E") 0 24, crosshair`;
-  const eraserCursor = `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='20' height='20' viewBox='0 0 20 20'%3E%3Ccircle cx='10' cy='10' r='8' fill='none' stroke='%23666' stroke-width='1.5'/%3E%3C/svg%3E") 10 10, cell`;
-  const canvasCursor = computed(() =>
-    tool.value === "eraser" ? eraserCursor : penCursor,
-  );
-
-  const newPage = reactive({
-    title: "",
-    content_type: "canvas" as "canvas" | "text",
-    instructions: "",
-  });
-
-  const pages = computed(() => notebook.value?.pages || []);
-
-  // FIX: currentPage devuelve el objeto mutable del array directamente.
-  // Se expone como ref writeable para que v-model en el template pueda mutar
-  // las propiedades y savePage() lea los valores actualizados.
-  const currentPage = computed<NotebookPage | null>(
-    () => pages.value[selectedIdx.value] ?? null,
-  );
-
-  onMounted(async () => {
-    try {
-      notebook.value = await loadNotebook(notebookId);
-    } finally {
-      loading.value = false;
-      await nextTick();
-      if (currentPage.value?.content_type === "canvas") initCanvas(true);
-    }
-  });
-
-  watch(selectedIdx, async () => {
-    undoStack.value = [];
-    await nextTick();
-    if (currentPage.value?.content_type === "canvas") initCanvas(true);
-  });
-
-  watch(
-    () => currentPage.value?.content_type,
-    async (type) => {
-      if (type === "canvas") {
-        await nextTick();
-        initCanvas(true);
-      }
-    },
-  );
-
-  function selectPage(idx: number) {
-    selectedIdx.value = idx;
-  }
-
-  async function addPage() {
-    const pageCount = pages.value.length;
-    await addPageService(notebookId, {
-      page_number: pageCount + 1,
-      title: newPage.title || `Página ${pageCount + 1}`,
-      content_type: newPage.content_type,
-      content_data: "",
-      instructions: newPage.instructions,
-    });
-    showAddPage.value = false;
-    newPage.title = "";
-    newPage.instructions = "";
-    newPage.content_type = "canvas";
-
-    notebook.value = await loadNotebook(notebookId);
-    await nextTick();
-    selectedIdx.value = pages.value.length - 1;
-    await nextTick();
-    if (currentPage.value?.content_type === "canvas") initCanvas(true);
-  }
-
-  async function savePage() {
-    if (!currentPage.value || saving.value) return;
-    saving.value = true;
-    try {
-      await updatePageService(currentPage.value.id, {
-        title: currentPage.value.title || "",
-        content_type: currentPage.value.content_type,
-        content_data: currentPage.value.content_data || "",
-        instructions: currentPage.value.instructions || "",
-      });
-      saveMsg.value = "Guardado";
-      setTimeout(() => {
-        saveMsg.value = "";
-      }, 2000);
-    } finally {
-      saving.value = false;
-    }
-  }
-
-  async function saveCanvasContent() {
-    if (!editorCanvas.value || !currentPage.value) return;
-    const dataUrl = editorCanvas.value.toDataURL("image/png");
-    currentPage.value.content_data = dataUrl;
-    await savePage();
-  }
-
-  function initCanvas(loadExisting = false) {
-    const canvas = editorCanvas.value;
-    if (!canvas) return;
-    const rect = canvas.getBoundingClientRect();
-    canvas.width = rect.width || 700;
-    canvas.height = rect.height || 400;
-    const ctx = canvas.getContext("2d")!;
-
-    ctx.fillStyle = cssVar("--surface-card", "#ffffff");
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
-    undoStack.value = [];
-
-    if (loadExisting && currentPage.value?.content_data) {
-      const img = new Image();
-      img.onload = () => ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-      img.src = currentPage.value.content_data;
-    }
-  }
-
-  function getCtx() {
-    return editorCanvas.value?.getContext("2d") ?? null;
-  }
-
-  function getPoint(e: MouseEvent) {
-    const canvas = editorCanvas.value!;
-    const rect = canvas.getBoundingClientRect();
-    return {
-      x: (e.clientX - rect.left) * (canvas.width / rect.width),
-      y: (e.clientY - rect.top) * (canvas.height / rect.height),
-    };
-  }
-
-  function startDraw(e: MouseEvent) {
-    const ctx = getCtx();
-    if (!ctx || !editorCanvas.value) return;
-    undoStack.value.push(
-      ctx.getImageData(
-        0,
-        0,
-        editorCanvas.value.width,
-        editorCanvas.value.height,
-      ),
-    );
-    isDrawing.value = true;
-    const { x, y } = getPoint(e);
-    ctx.beginPath();
-    ctx.moveTo(x, y);
-  }
-
-  function draw(e: MouseEvent) {
-    if (!isDrawing.value) return;
-    const ctx = getCtx();
-    if (!ctx) return;
-    const { x, y } = getPoint(e);
-    ctx.globalCompositeOperation =
-      tool.value === "eraser" ? "destination-out" : "source-over";
-    ctx.strokeStyle = penColor.value;
-    ctx.lineWidth = tool.value === "eraser" ? penSize.value * 4 : penSize.value;
-    ctx.lineCap = "round";
-    ctx.lineJoin = "round";
-    ctx.lineTo(x, y);
-    ctx.stroke();
-  }
-
-  function endDraw() {
-    isDrawing.value = false;
-    getCtx()?.beginPath();
-  }
-
-  function startDrawTouch(e: TouchEvent) {
-    startDraw({
-      clientX: e.touches[0].clientX,
-      clientY: e.touches[0].clientY,
-    } as MouseEvent);
-  }
-
-  function drawTouch(e: TouchEvent) {
-    draw({
-      clientX: e.touches[0].clientX,
-      clientY: e.touches[0].clientY,
-    } as MouseEvent);
-  }
-
-  function undoDraw() {
-    const ctx = getCtx();
-    if (!ctx || !editorCanvas.value || !undoStack.value.length) return;
-    ctx.putImageData(undoStack.value.pop()!, 0, 0);
-  }
-
-  function clearCanvas() {
-    const canvas = editorCanvas.value;
-    const ctx = getCtx();
-    if (!canvas || !ctx) return;
-    undoStack.value = [];
-    ctx.fillStyle = cssVar("--surface-card", "#ffffff");
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
-    if (currentPage.value) currentPage.value.content_data = "";
-  }
-</script>
 
 <style scoped>
   .editor-shell {

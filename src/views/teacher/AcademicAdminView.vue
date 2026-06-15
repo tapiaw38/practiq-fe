@@ -1,3 +1,264 @@
+<script setup lang="ts">
+  import { computed, onMounted, reactive, ref } from "vue";
+  import { useRouter } from "vue-router";
+  import TeacherLayout from "@/layouts/TeacherLayout.vue";
+  import Skeleton from "@/components/ui/Skeleton.vue";
+  import ConfirmModal from "@/components/ui/ConfirmModal.vue";
+  import { useConfirm } from "@/composables/useConfirm";
+  import { useCourse } from "@/composables/useCourse";
+  import { useGrade } from "@/composables/useGrade";
+  import { useSubject } from "@/composables/useSubject";
+  import type { Course, Grade, Subject } from "@/types";
+
+  const router = useRouter();
+  const { confirmState, showConfirm, onConfirm, onCancel } = useConfirm();
+  const {
+    courses,
+    loadCourses,
+    createCourse: createCourseService,
+    updateCourse: updateCourseService,
+    deleteCourse: deleteCourseService,
+  } = useCourse();
+  const {
+    grades,
+    loadGrades,
+    createGrade: createGradeService,
+    updateGrade: updateGradeService,
+    deleteGrade: deleteGradeService,
+  } = useGrade();
+  const {
+    subjects,
+    loadSubjects,
+    createSubject: createSubjectService,
+    updateSubject: updateSubjectService,
+    deleteSubject: deleteSubjectService,
+  } = useSubject();
+
+  const loading = ref(false);
+  const saving = ref(false);
+  const selectedGradeId = ref<string | null>(null);
+
+  const showGradeModal = ref(false);
+  const showCourseModal = ref(false);
+  const showSubjectCatalog = ref(false);
+
+  const editingGrade = ref<Grade | null>(null);
+  const editingCourse = ref<Course | null>(null);
+  const editingSubject = ref<{
+    id: string;
+    name: string;
+    description: string;
+  } | null>(null);
+
+  const gradeForm = reactive({ name: "", description: "" });
+  const courseForm = reactive({
+    subjectId: "",
+    title: "",
+    description: "",
+    level: "",
+  });
+  const subjectForm = reactive({ name: "", description: "" });
+
+  const selectedGrade = computed(
+    () => grades.value.find((g) => g.id === selectedGradeId.value) ?? null,
+  );
+  const selectedCourses = computed(() =>
+    courses.value.filter((c) => c.grade_id === selectedGradeId.value),
+  );
+
+  function gradeCourses(gradeId: string) {
+    return courses.value.filter((c) => c.grade_id === gradeId);
+  }
+
+  function subjectCourseCount(subjectId: string) {
+    return courses.value.filter((c) => c.subject_id === subjectId).length;
+  }
+
+  onMounted(loadData);
+
+  async function loadData() {
+    loading.value = true;
+    try {
+      await Promise.all([loadGrades(), loadSubjects(), loadCourses("teacher")]);
+      if (!selectedGradeId.value && grades.value.length > 0) {
+        selectedGradeId.value = grades.value[0].id;
+      }
+    } finally {
+      loading.value = false;
+    }
+  }
+
+  // ── Grados ───────────────────────────────────────────────────────────────────
+
+  function openCreateGrade() {
+    editingGrade.value = null;
+    gradeForm.name = "";
+    gradeForm.description = "";
+    showGradeModal.value = true;
+  }
+
+  function openEditGrade(grade: Grade) {
+    editingGrade.value = grade;
+    gradeForm.name = grade.name;
+    gradeForm.description = grade.description || "";
+    showGradeModal.value = true;
+  }
+
+  function closeGradeModal() {
+    showGradeModal.value = false;
+    editingGrade.value = null;
+  }
+
+  async function submitGrade() {
+    saving.value = true;
+    try {
+      if (editingGrade.value) {
+        await updateGradeService(editingGrade.value.id, {
+          name: gradeForm.name,
+          description: gradeForm.description,
+        });
+      } else {
+        const grade = await createGradeService({
+          name: gradeForm.name,
+          description: gradeForm.description,
+        });
+        selectedGradeId.value = grade.id;
+      }
+      closeGradeModal();
+      await loadData();
+    } finally {
+      saving.value = false;
+    }
+  }
+
+  async function confirmDeleteGrade(id: string) {
+    const ok = await showConfirm("¿Eliminar este grado?", {
+      description: "Los cursos asociados también se perderán.",
+    });
+    if (!ok) return;
+    if (selectedGradeId.value === id) selectedGradeId.value = null;
+    await deleteGradeService(id);
+    await loadData();
+    if (!selectedGradeId.value && grades.value.length > 0) {
+      selectedGradeId.value = grades.value[0].id;
+    }
+  }
+
+  // ── Cursos ────────────────────────────────────────────────────────────────────
+
+  function openCreateCourse() {
+    editingCourse.value = null;
+    courseForm.subjectId = "";
+    courseForm.title = "";
+    courseForm.description = "";
+    courseForm.level = "";
+    showCourseModal.value = true;
+  }
+
+  function openEditCourse(course: Course) {
+    editingCourse.value = course;
+    courseForm.subjectId = course.subject_id || "";
+    courseForm.title = course.title;
+    courseForm.description = course.description || "";
+    courseForm.level = course.level || "";
+    showCourseModal.value = true;
+  }
+
+  function closeCourseModal() {
+    showCourseModal.value = false;
+    editingCourse.value = null;
+  }
+
+  async function submitCourse() {
+    if (!selectedGrade.value) return;
+    saving.value = true;
+    try {
+      const subjectName =
+        subjects.value.find((s) => s.id === courseForm.subjectId)?.name || "";
+      if (editingCourse.value) {
+        await updateCourseService(editingCourse.value.id, {
+          title: courseForm.title,
+          description: courseForm.description,
+          subject_id: courseForm.subjectId,
+          subject: subjectName,
+          level: courseForm.level,
+        });
+      } else {
+        await createCourseService({
+          title: courseForm.title,
+          description: courseForm.description,
+          grade_id: selectedGrade.value.id,
+          subject_id: courseForm.subjectId,
+          subject: subjectName,
+          level: courseForm.level,
+        });
+      }
+      closeCourseModal();
+    } finally {
+      saving.value = false;
+    }
+  }
+
+  async function confirmDeleteCourse(id: string) {
+    const ok = await showConfirm("¿Eliminar este curso?");
+    if (!ok) return;
+    await deleteCourseService(id);
+  }
+
+  function goToCourse(courseId: string) {
+    router.push(`/teacher/courses/${courseId}`);
+  }
+
+  // ── Materias ──────────────────────────────────────────────────────────────────
+
+  async function createSubject() {
+    saving.value = true;
+    try {
+      await createSubjectService({
+        name: subjectForm.name,
+        description: subjectForm.description,
+      });
+      subjectForm.name = "";
+      subjectForm.description = "";
+      await loadData();
+    } finally {
+      saving.value = false;
+    }
+  }
+
+  function startEditSubject(subject: Subject) {
+    editingSubject.value = {
+      id: subject.id,
+      name: subject.name,
+      description: subject.description || "",
+    };
+  }
+
+  async function saveSubject() {
+    if (!editingSubject.value) return;
+    saving.value = true;
+    try {
+      await updateSubjectService(editingSubject.value.id, {
+        name: editingSubject.value.name,
+        description: editingSubject.value.description,
+      });
+      editingSubject.value = null;
+      await loadData();
+    } finally {
+      saving.value = false;
+    }
+  }
+
+  async function confirmDeleteSubject(id: string) {
+    const ok = await showConfirm("¿Eliminar esta materia?", {
+      description: "Los cursos asociados a esta materia también se perderán.",
+    });
+    if (!ok) return;
+    await deleteSubjectService(id);
+    await loadData();
+  }
+</script>
+
 <template>
   <TeacherLayout>
     <div class="ac-root">
@@ -517,267 +778,6 @@
     />
   </TeacherLayout>
 </template>
-
-<script setup lang="ts">
-  import { computed, onMounted, reactive, ref } from "vue";
-  import { useRouter } from "vue-router";
-  import TeacherLayout from "@/layouts/TeacherLayout.vue";
-  import Skeleton from "@/components/ui/Skeleton.vue";
-  import ConfirmModal from "@/components/ui/ConfirmModal.vue";
-  import { useConfirm } from "@/composables/useConfirm";
-  import { useCourse } from "@/composables/useCourse";
-  import { useGrade } from "@/composables/useGrade";
-  import { useSubject } from "@/composables/useSubject";
-  import type { Course, Grade, Subject } from "@/types";
-
-  const router = useRouter();
-  const { confirmState, showConfirm, onConfirm, onCancel } = useConfirm();
-  const {
-    courses,
-    loadCourses,
-    createCourse: createCourseService,
-    updateCourse: updateCourseService,
-    deleteCourse: deleteCourseService,
-  } = useCourse();
-  const {
-    grades,
-    loadGrades,
-    createGrade: createGradeService,
-    updateGrade: updateGradeService,
-    deleteGrade: deleteGradeService,
-  } = useGrade();
-  const {
-    subjects,
-    loadSubjects,
-    createSubject: createSubjectService,
-    updateSubject: updateSubjectService,
-    deleteSubject: deleteSubjectService,
-  } = useSubject();
-
-  const loading = ref(false);
-  const saving = ref(false);
-  const selectedGradeId = ref<string | null>(null);
-
-  const showGradeModal = ref(false);
-  const showCourseModal = ref(false);
-  const showSubjectCatalog = ref(false);
-
-  const editingGrade = ref<Grade | null>(null);
-  const editingCourse = ref<Course | null>(null);
-  const editingSubject = ref<{
-    id: string;
-    name: string;
-    description: string;
-  } | null>(null);
-
-  const gradeForm = reactive({ name: "", description: "" });
-  const courseForm = reactive({
-    subjectId: "",
-    title: "",
-    description: "",
-    level: "",
-  });
-  const subjectForm = reactive({ name: "", description: "" });
-
-  const selectedGrade = computed(
-    () => grades.value.find((g) => g.id === selectedGradeId.value) ?? null,
-  );
-  const selectedCourses = computed(() =>
-    courses.value.filter((c) => c.grade_id === selectedGradeId.value),
-  );
-
-  function gradeCourses(gradeId: string) {
-    return courses.value.filter((c) => c.grade_id === gradeId);
-  }
-
-  function subjectCourseCount(subjectId: string) {
-    return courses.value.filter((c) => c.subject_id === subjectId).length;
-  }
-
-  onMounted(loadData);
-
-  async function loadData() {
-    loading.value = true;
-    try {
-      await Promise.all([loadGrades(), loadSubjects(), loadCourses("teacher")]);
-      if (!selectedGradeId.value && grades.value.length > 0) {
-        selectedGradeId.value = grades.value[0].id;
-      }
-    } finally {
-      loading.value = false;
-    }
-  }
-
-  // ── Grados ───────────────────────────────────────────────────────────────────
-
-  function openCreateGrade() {
-    editingGrade.value = null;
-    gradeForm.name = "";
-    gradeForm.description = "";
-    showGradeModal.value = true;
-  }
-
-  function openEditGrade(grade: Grade) {
-    editingGrade.value = grade;
-    gradeForm.name = grade.name;
-    gradeForm.description = grade.description || "";
-    showGradeModal.value = true;
-  }
-
-  function closeGradeModal() {
-    showGradeModal.value = false;
-    editingGrade.value = null;
-  }
-
-  async function submitGrade() {
-    saving.value = true;
-    try {
-      if (editingGrade.value) {
-        await updateGradeService(editingGrade.value.id, {
-          name: gradeForm.name,
-          description: gradeForm.description,
-        });
-      } else {
-        const grade = await createGradeService({
-          name: gradeForm.name,
-          description: gradeForm.description,
-        });
-        selectedGradeId.value = grade.id;
-      }
-      closeGradeModal();
-      await loadData();
-    } finally {
-      saving.value = false;
-    }
-  }
-
-  async function confirmDeleteGrade(id: string) {
-    const ok = await showConfirm("¿Eliminar este grado?", {
-      description: "Los cursos asociados también se perderán.",
-    });
-    if (!ok) return;
-    if (selectedGradeId.value === id) selectedGradeId.value = null;
-    await deleteGradeService(id);
-    await loadData();
-    if (!selectedGradeId.value && grades.value.length > 0) {
-      selectedGradeId.value = grades.value[0].id;
-    }
-  }
-
-  // ── Cursos ────────────────────────────────────────────────────────────────────
-
-  function openCreateCourse() {
-    editingCourse.value = null;
-    courseForm.subjectId = "";
-    courseForm.title = "";
-    courseForm.description = "";
-    courseForm.level = "";
-    showCourseModal.value = true;
-  }
-
-  function openEditCourse(course: Course) {
-    editingCourse.value = course;
-    courseForm.subjectId = course.subject_id || "";
-    courseForm.title = course.title;
-    courseForm.description = course.description || "";
-    courseForm.level = course.level || "";
-    showCourseModal.value = true;
-  }
-
-  function closeCourseModal() {
-    showCourseModal.value = false;
-    editingCourse.value = null;
-  }
-
-  async function submitCourse() {
-    if (!selectedGrade.value) return;
-    saving.value = true;
-    try {
-      const subjectName =
-        subjects.value.find((s) => s.id === courseForm.subjectId)?.name || "";
-      if (editingCourse.value) {
-        await updateCourseService(editingCourse.value.id, {
-          title: courseForm.title,
-          description: courseForm.description,
-          subject_id: courseForm.subjectId,
-          subject: subjectName,
-          level: courseForm.level,
-        });
-      } else {
-        await createCourseService({
-          title: courseForm.title,
-          description: courseForm.description,
-          grade_id: selectedGrade.value.id,
-          subject_id: courseForm.subjectId,
-          subject: subjectName,
-          level: courseForm.level,
-        });
-      }
-      closeCourseModal();
-    } finally {
-      saving.value = false;
-    }
-  }
-
-  async function confirmDeleteCourse(id: string) {
-    const ok = await showConfirm("¿Eliminar este curso?");
-    if (!ok) return;
-    await deleteCourseService(id);
-  }
-
-  function goToCourse(courseId: string) {
-    router.push(`/teacher/courses/${courseId}`);
-  }
-
-  // ── Materias ──────────────────────────────────────────────────────────────────
-
-  async function createSubject() {
-    saving.value = true;
-    try {
-      await createSubjectService({
-        name: subjectForm.name,
-        description: subjectForm.description,
-      });
-      subjectForm.name = "";
-      subjectForm.description = "";
-      await loadData();
-    } finally {
-      saving.value = false;
-    }
-  }
-
-  function startEditSubject(subject: Subject) {
-    editingSubject.value = {
-      id: subject.id,
-      name: subject.name,
-      description: subject.description || "",
-    };
-  }
-
-  async function saveSubject() {
-    if (!editingSubject.value) return;
-    saving.value = true;
-    try {
-      await updateSubjectService(editingSubject.value.id, {
-        name: editingSubject.value.name,
-        description: editingSubject.value.description,
-      });
-      editingSubject.value = null;
-      await loadData();
-    } finally {
-      saving.value = false;
-    }
-  }
-
-  async function confirmDeleteSubject(id: string) {
-    const ok = await showConfirm("¿Eliminar esta materia?", {
-      description: "Los cursos asociados a esta materia también se perderán.",
-    });
-    if (!ok) return;
-    await deleteSubjectService(id);
-    await loadData();
-  }
-</script>
 
 <style scoped>
   /* ── Root ─────────────────────────────────────────────────────────────────── */

@@ -1,3 +1,581 @@
+<script setup lang="ts">
+  import { ref, computed, onMounted, onUnmounted, nextTick } from "vue";
+  import { useRoute, useRouter } from "vue-router";
+  import StudentLayout from "@/layouts/StudentLayout.vue";
+  import Skeleton from "@/components/ui/Skeleton.vue";
+  import ConfirmModal from "@/components/ui/ConfirmModal.vue";
+  import { useConfirm } from "@/composables/useConfirm";
+  import { usePracticeSheet } from "@/composables/usePracticeSheet";
+  import { useAuthStore } from "@/stores/authStore";
+  import type {
+    PracticeSheet,
+    PracticeSheetExercise,
+    SubmitResult,
+  } from "@/types";
+  import {
+    composeAssistantWorkImage,
+    extractTeacherImageDataUrl,
+    parseExerciseMetadata,
+    pickBestStudentImage,
+    summarizeExerciseMetadata,
+  } from "@/utils/assistantExerciseContext";
+  import { formatDuration } from "@/utils/formatters";
+  import {
+    renderContent,
+    renderEquation,
+  } from "@/composables/useContentRenderer";
+  import MathFieldEditor from "@/components/ui/MathFieldEditor.vue";
+
+  const route = useRoute();
+  const router = useRouter();
+  const { confirmState, showConfirm, onConfirm, onCancel } = useConfirm();
+  const authStore = useAuthStore();
+  const { loadPracticeSheet, submitPracticeSheetAsync, loadSubmitJob } =
+    usePracticeSheet();
+
+  const sheet = ref<PracticeSheet | null>(null);
+  const loading = ref(true);
+  const submitted = ref(false);
+  const submitting = ref(false);
+  const result = ref<SubmitResult | null>(null);
+  const answers = ref<Record<string, string>>({});
+
+  // Modal states
+  const showInstructionsModal = ref(true);
+  const showTimeWarning = ref(false);
+  const showRetryModal = ref(false);
+  const showSuccessModal = ref(false);
+  const testStarted = ref(false);
+  let warningShown = false;
+
+  // Canvas state
+  const canvasRefs: Record<string, HTMLCanvasElement | null> = {};
+  const initializedIds = new Set<string>();
+  const canvasData = ref<Record<string, string>>({});
+  const undoStacks: Record<string, ImageData[]> = {};
+  const isDrawing: Record<string, boolean> = {};
+  const activeId = ref<string>("");
+  const tool = ref<"pen" | "eraser">("pen");
+  const penColor = ref(cssVar("--text-primary", "#1e293b"));
+  const penSize = ref(3);
+
+  const penCursor = `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24'%3E%3Cpath fill='%231e1e2e' d='M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04a1 1 0 0 0 0-1.41l-2.34-2.34a1 1 0 0 0-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z'/%3E%3C/svg%3E") 0 24, crosshair`;
+  const eraserCursor = `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='20' height='20' viewBox='0 0 20 20'%3E%3Ccircle cx='10' cy='10' r='8' fill='none' stroke='%23666' stroke-width='1.5'/%3E%3C/svg%3E") 10 10, cell`;
+  const canvasCursor = computed(() =>
+    tool.value === "eraser" ? eraserCursor : penCursor,
+  );
+
+  function cssVar(name: string, fallback: string, depth = 0): string {
+    if (typeof window === "undefined") return fallback;
+    const value = getComputedStyle(document.documentElement)
+      .getPropertyValue(name)
+      .trim();
+    if (!value) return fallback;
+    const varMatch = value.match(/^var\((--[^,\s)]+)(?:,\s*(.+))?\)$/);
+    if (varMatch && depth < 4) {
+      return cssVar(varMatch[1], varMatch[2]?.trim() || fallback, depth + 1);
+    }
+    return value;
+  }
+
+  // Timer — 30 min
+  const TEST_DURATION_SECONDS = 30 * 60;
+  const timeLeft = ref(TEST_DURATION_SECONDS);
+  let timer: ReturnType<typeof setInterval> | null = null;
+
+  function startTimer() {
+    if (timer) clearInterval(timer);
+    timer = setInterval(() => {
+      if (timeLeft.value <= 0) {
+        clearInterval(timer!);
+        timer = null;
+        submit();
+      } else if (timeLeft.value === 300 && !warningShown) {
+        // Show 5 minute warning
+        showTimeWarning.value = true;
+        warningShown = true;
+        // Auto-hide after 10 seconds
+        setTimeout(() => {
+          showTimeWarning.value = false;
+        }, 10000);
+      } else {
+        timeLeft.value--;
+      }
+    }, 1000);
+  }
+
+  const exercises = computed<PracticeSheetExercise[]>(
+    () => sheet.value?.exercises || [],
+  );
+  const isCanvas = computed(() => sheet.value?.test_style === "canvas");
+  const hasCanvasExercises = computed(() =>
+    exercises.value.some((ex) => exerciseUsesCanvas(ex.exercise.type)),
+  );
+
+  function isAnswered(exerciseId: string) {
+    const exercise = exercises.value.find(
+      (ex) => ex.exercise.id === exerciseId,
+    )?.exercise;
+    if (exercise && exerciseUsesCanvas(exercise.type))
+      return !!canvasData.value[exerciseId];
+    return (answers.value[exerciseId] || "").trim() !== "";
+  }
+
+  function setActiveExercise(exerciseId: string) {
+    activeId.value = exerciseId;
+  }
+
+  function exerciseUsesCanvas(exerciseType: string) {
+    return (
+      isCanvas.value ||
+      exerciseType === "handwritten" ||
+      exerciseType === "canvas"
+    );
+  }
+
+  function exerciseOptions(metadata?: string) {
+    const options = parseExerciseMetadata(metadata)?.options;
+    return Array.isArray(options)
+      ? options.map((option) => String(option)).filter(Boolean)
+      : [];
+  }
+
+  const answeredCount = computed(
+    () => exercises.value.filter((ex) => isAnswered(ex.exercise.id)).length,
+  );
+  const unansweredCount = computed(
+    () => exercises.value.length - answeredCount.value,
+  );
+  const answeredPercent = computed(() =>
+    exercises.value.length
+      ? Math.round((answeredCount.value / exercises.value.length) * 100)
+      : 0,
+  );
+  const formattedTime = computed(() => formatDuration(timeLeft.value));
+
+  // ── Canvas helpers ────────────────────────────────────────────────────────────
+
+  function setCanvasRef(id: string, el: HTMLCanvasElement | null) {
+    if (!el) {
+      canvasRefs[id] = null;
+      initializedIds.delete(id);
+      return;
+    }
+    canvasRefs[id] = el;
+    if (!initializedIds.has(id)) {
+      initializedIds.add(id);
+      initCanvas(id, el);
+    }
+  }
+
+  function drawBackground(ctx: CanvasRenderingContext2D, w: number, h: number) {
+    ctx.fillStyle = cssVar("--surface-bg-soft", "#fafaf7");
+    ctx.fillRect(0, 0, w, h);
+    ctx.strokeStyle = `rgba(${cssVar("--color-error-rgb", "239, 68, 68")}, 0.25)`;
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.moveTo(56, 0);
+    ctx.lineTo(56, h);
+    ctx.stroke();
+    ctx.strokeStyle = `rgba(${cssVar("--practiq-violet-rgb", "124, 58, 237")}, 0.1)`;
+    ctx.lineWidth = 1;
+    for (let y = 32; y < h; y += 32) {
+      ctx.beginPath();
+      ctx.moveTo(0, y);
+      ctx.lineTo(w, y);
+      ctx.stroke();
+    }
+  }
+
+  function initCanvas(id: string, canvas: HTMLCanvasElement) {
+    requestAnimationFrame(() => {
+      const w = canvas.offsetWidth || 680;
+      const h = canvas.offsetHeight || 220;
+      canvas.width = w;
+      canvas.height = h;
+      const ctx = canvas.getContext("2d")!;
+      drawBackground(ctx, w, h);
+      undoStacks[id] = [];
+    });
+  }
+
+  function getPoint(e: MouseEvent, canvas: HTMLCanvasElement) {
+    const rect = canvas.getBoundingClientRect();
+    return {
+      x: (e.clientX - rect.left) * (canvas.width / rect.width),
+      y: (e.clientY - rect.top) * (canvas.height / rect.height),
+    };
+  }
+
+  function startDraw(e: MouseEvent, id: string) {
+    const canvas = canvasRefs[id];
+    if (!canvas) return;
+    const ctx = canvas.getContext("2d")!;
+    // save undo state
+    if (!undoStacks[id]) undoStacks[id] = [];
+    undoStacks[id].push(ctx.getImageData(0, 0, canvas.width, canvas.height));
+    isDrawing[id] = true;
+    activeId.value = id;
+    const { x, y } = getPoint(e, canvas);
+    ctx.beginPath();
+    ctx.moveTo(x, y);
+  }
+
+  function draw(e: MouseEvent, id: string) {
+    if (!isDrawing[id]) return;
+    const canvas = canvasRefs[id];
+    if (!canvas) return;
+    const ctx = canvas.getContext("2d")!;
+    const { x, y } = getPoint(e, canvas);
+    ctx.globalCompositeOperation =
+      tool.value === "eraser" ? "destination-out" : "source-over";
+    ctx.strokeStyle = penColor.value;
+    ctx.lineWidth = tool.value === "eraser" ? penSize.value * 4 : penSize.value;
+    ctx.lineCap = "round";
+    ctx.lineJoin = "round";
+    ctx.lineTo(x, y);
+    ctx.stroke();
+  }
+
+  function endDraw(id: string) {
+    if (!isDrawing[id]) return;
+    isDrawing[id] = false;
+    const canvas = canvasRefs[id];
+    if (!canvas) return;
+    canvas.getContext("2d")!.beginPath();
+    // snapshot for answeredCount tracking (non-reactive — won't trigger re-render of canvases)
+    canvasData.value = {
+      ...canvasData.value,
+      [id]: canvas.toDataURL("image/png"),
+    };
+  }
+
+  function startDrawTouch(e: TouchEvent, id: string) {
+    const t = e.touches[0];
+    startDraw({ clientX: t.clientX, clientY: t.clientY } as MouseEvent, id);
+  }
+
+  function drawTouch(e: TouchEvent, id: string) {
+    const t = e.touches[0];
+    draw({ clientX: t.clientX, clientY: t.clientY } as MouseEvent, id);
+  }
+
+  function undoActive() {
+    const id = activeId.value;
+    if (!id) return;
+    const canvas = canvasRefs[id];
+    const stack = undoStacks[id];
+    if (!canvas || !stack || stack.length === 0) return;
+    canvas.getContext("2d")!.putImageData(stack.pop()!, 0, 0);
+    if (!canvas.toDataURL().includes("data:image/png")) {
+      const copy = { ...canvasData.value };
+      delete copy[id];
+      canvasData.value = copy;
+    }
+  }
+
+  function clearCanvas(id: string) {
+    const canvas = canvasRefs[id];
+    if (!canvas) return;
+    const ctx = canvas.getContext("2d")!;
+    undoStacks[id] = [];
+    drawBackground(ctx, canvas.width, canvas.height);
+    const copy = { ...canvasData.value };
+    delete copy[id];
+    canvasData.value = copy;
+  }
+
+  // ── Lifecycle ────────────────────────────────────────────────────────────────
+
+  onMounted(async () => {
+    const id = route.params.id as string;
+    try {
+      sheet.value = await loadPracticeSheet(id);
+      for (const ex of exercises.value) {
+        answers.value[ex.exercise.id] = "";
+      }
+      // Timer starts when user clicks "Comenzar" in instructions modal
+    } finally {
+      loading.value = false;
+    }
+  });
+
+  onUnmounted(() => {
+    if (timer) clearInterval(timer);
+    if ((window as any).__practiqAssistantHookSource === "level-test") {
+      delete window.__practiqAssistantCapture;
+      delete window.__practiqAssistantContext;
+      delete (window as any).__practiqAssistantHookSource;
+    }
+  });
+
+  function focusNext(idx: number) {
+    const inputs = document.querySelectorAll<HTMLInputElement>(".ex-input");
+    inputs[idx + 1]?.focus();
+  }
+
+  async function confirmExit() {
+    const ok = await showConfirm("¿Salir de la prueba?", {
+      description: "Tu progreso no se guardará.",
+      confirmLabel: "Salir",
+      danger: false,
+    });
+    if (ok) router.back();
+  }
+
+  async function submit() {
+    if (submitting.value) return;
+    submitting.value = true;
+    if (timer) clearInterval(timer);
+
+    const elapsedSeconds = TEST_DURATION_SECONDS - timeLeft.value;
+    const perExerciseSeconds = exercises.value.length
+      ? Math.round(elapsedSeconds / exercises.value.length)
+      : 0;
+
+    const attempts = exercises.value.map((ex) => ({
+      exercise_id: ex.exercise.id,
+      answer_text: exerciseUsesCanvas(ex.exercise.type)
+        ? ""
+        : answers.value[ex.exercise.id] || "",
+      canvas_data: exerciseUsesCanvas(ex.exercise.type)
+        ? buildCanvasDataForOCR(ex.exercise.id)
+        : "",
+      time_spent_seconds: perExerciseSeconds,
+      hints_used: 0,
+    }));
+
+    try {
+      const start = await submitPracticeSheetAsync(sheet.value!.id, {
+        attempts,
+      });
+      const jobId = start.job_id;
+      let jobDone = false;
+
+      while (!jobDone) {
+        await new Promise((resolve) => setTimeout(resolve, 1200));
+        const job = await loadSubmitJob(jobId);
+        if (job.status === "processing") {
+          continue;
+        }
+        if (job.status === "failed") {
+          throw new Error(job.message || "No se pudo evaluar la prueba");
+        }
+        result.value = job.result?.data || null;
+        jobDone = true;
+      }
+
+      if (!result.value) {
+        throw new Error("No se recibió resultado de evaluación");
+      }
+      submitted.value = true;
+
+      // Show success modal if passed
+      if (result.value.should_level_up) {
+        showSuccessModal.value = true;
+      }
+    } catch (err) {
+      console.error(err);
+    } finally {
+      submitting.value = false;
+    }
+  }
+
+  function buildCanvasDataForOCR(exerciseId: string) {
+    const source = canvasRefs[exerciseId];
+    if (!source) {
+      return canvasData.value[exerciseId] || "";
+    }
+
+    const scale = 2;
+    const out = document.createElement("canvas");
+    out.width = Math.max(1, Math.floor(source.width * scale));
+    out.height = Math.max(1, Math.floor(source.height * scale));
+    const ctx = out.getContext("2d");
+    if (!ctx) {
+      return canvasData.value[exerciseId] || "";
+    }
+
+    ctx.fillStyle = cssVar("--surface-card", "#ffffff");
+    ctx.fillRect(0, 0, out.width, out.height);
+    ctx.imageSmoothingEnabled = false;
+    ctx.drawImage(source, 0, 0, out.width, out.height);
+
+    const image = ctx.getImageData(0, 0, out.width, out.height);
+    const pixels = image.data;
+    for (let i = 0; i < pixels.length; i += 4) {
+      const r = pixels[i];
+      const g = pixels[i + 1];
+      const b = pixels[i + 2];
+      const alpha = pixels[i + 3];
+
+      if (alpha < 8) {
+        pixels[i] = 255;
+        pixels[i + 1] = 255;
+        pixels[i + 2] = 255;
+        pixels[i + 3] = 255;
+        continue;
+      }
+
+      const gray = 0.299 * r + 0.587 * g + 0.114 * b;
+      const value = gray > 205 ? 255 : 0;
+      pixels[i] = value;
+      pixels[i + 1] = value;
+      pixels[i + 2] = value;
+      pixels[i + 3] = 255;
+    }
+    ctx.putImageData(image, 0, 0);
+
+    return out.toDataURL("image/jpeg", 0.92);
+  }
+
+  function getAssistantExerciseId() {
+    if (activeId.value) {
+      return activeId.value;
+    }
+
+    const answeredId = Object.keys(canvasData.value)[0];
+    if (answeredId) return answeredId;
+
+    return exercises.value[0]?.exercise.id || "";
+  }
+
+  function getAssistantExerciseIndex(exerciseId: string) {
+    return exercises.value.findIndex((item) => item.exercise.id === exerciseId);
+  }
+
+  (window as any).__practiqAssistantHookSource = "level-test";
+
+  window.__practiqAssistantContext = () => {
+    if (!sheet.value) return null;
+
+    const activeExerciseId = getAssistantExerciseId();
+    const activeExerciseIndex = getAssistantExerciseIndex(activeExerciseId);
+    const activeExercise =
+      activeExerciseIndex >= 0
+        ? exercises.value[activeExerciseIndex]?.exercise
+        : null;
+    const activeTeacherImage = extractTeacherImageDataUrl(activeExercise);
+
+    return {
+      current_view: "student_level_test",
+      activity_type: "level_test",
+      sheet_id: sheet.value.id,
+      sheet_title: sheet.value.title,
+      level: sheet.value.level,
+      response_mode: hasCanvasExercises.value ? "mixed" : "keyboard",
+      exercise_count: exercises.value.length,
+      active_exercise: activeExercise
+        ? {
+            id: activeExercise.id,
+            number: activeExerciseIndex + 1,
+            type: activeExercise.type,
+            difficulty: activeExercise.difficulty,
+            question:
+              activeExercise.type === "handwritten" && activeTeacherImage
+                ? "[consigna manuscrita en imagen adjunta]"
+                : activeExercise.question,
+            has_teacher_image: !!activeTeacherImage,
+            question_source:
+              activeExercise.type === "handwritten" && activeTeacherImage
+                ? "teacher_image_attachment"
+                : "text",
+            metadata_summary: JSON.stringify(
+              summarizeExerciseMetadata(activeExercise) || {},
+            ),
+          }
+        : null,
+      exercise_list: exercises.value.map((item, idx) => ({
+        id: item.exercise.id,
+        number: idx + 1,
+        type: item.exercise.type,
+        difficulty: item.exercise.difficulty,
+        question:
+          item.exercise.type === "handwritten" &&
+          extractTeacherImageDataUrl(item.exercise)
+            ? "[consigna manuscrita en imagen adjunta]"
+            : item.exercise.question,
+        has_teacher_image: !!extractTeacherImageDataUrl(item.exercise),
+        question_source:
+          item.exercise.type === "handwritten" &&
+          extractTeacherImageDataUrl(item.exercise)
+            ? "teacher_image_attachment"
+            : "text",
+      })),
+      answered_exercise_ids: exercises.value
+        .filter((item) => isAnswered(item.exercise.id))
+        .map((item) => item.exercise.id),
+    };
+  };
+
+  window.__practiqAssistantCapture = async () => {
+    const exerciseId = getAssistantExerciseId();
+    if (!exerciseId) return null;
+    const exerciseIndex = getAssistantExerciseIndex(exerciseId);
+    const exercise =
+      exerciseIndex >= 0 ? exercises.value[exerciseIndex]?.exercise : null;
+    if (!exercise || !exerciseUsesCanvas(exercise.type)) return null;
+
+    const studentDataUrl = await pickBestStudentImage([
+      buildCanvasDataForOCR(exerciseId),
+      canvasData.value[exerciseId],
+    ]);
+    const teacherDataUrl = extractTeacherImageDataUrl(exercise);
+    const dataUrl = await composeAssistantWorkImage({
+      teacherDataUrl,
+      studentDataUrl,
+      teacherLabel: "Consigna del docente",
+      studentLabel: "Respuesta del alumno",
+    });
+
+    if (!dataUrl) return null;
+
+    return {
+      dataUrl,
+      filename: `level-test-${exerciseId}.jpg`,
+      contentType: dataUrl.startsWith("data:image/png")
+        ? "image/png"
+        : "image/jpeg",
+    };
+  };
+
+  function retry() {
+    showRetryModal.value = true;
+  }
+
+  function confirmRetry() {
+    showRetryModal.value = false;
+    submitted.value = false;
+    result.value = null;
+    timeLeft.value = TEST_DURATION_SECONDS;
+    warningShown = false;
+    canvasData.value = {};
+    for (const key in answers.value) answers.value[key] = "";
+    // Re-init canvases after DOM updates
+    nextTick(() => {
+      for (const id of initializedIds) {
+        initializedIds.delete(id);
+      }
+    });
+    startTimer();
+  }
+
+  function goBackFromInstructions() {
+    router.back();
+  }
+
+  function startTest() {
+    showInstructionsModal.value = false;
+    testStarted.value = true;
+    startTimer();
+  }
+
+  function closeSuccessAndGoHome() {
+    showSuccessModal.value = false;
+    router.push("/student/dashboard");
+  }
+</script>
+
 <template>
   <StudentLayout>
     <div class="test-shell">
@@ -465,589 +1043,6 @@
     </Transition>
   </Teleport>
 </template>
-
-<script setup lang="ts">
-  import { ref, computed, onMounted, onUnmounted, nextTick } from "vue";
-  import { useRoute, useRouter } from "vue-router";
-  import StudentLayout from "@/layouts/StudentLayout.vue";
-  import Skeleton from "@/components/ui/Skeleton.vue";
-  import ConfirmModal from "@/components/ui/ConfirmModal.vue";
-  import { useConfirm } from "@/composables/useConfirm";
-  import { usePracticeSheet } from "@/composables/usePracticeSheet";
-  import { useAuthStore } from "@/stores/authStore";
-  import type {
-    PracticeSheet,
-    PracticeSheetExercise,
-    SubmitResult,
-  } from "@/types";
-  import {
-    composeAssistantWorkImage,
-    extractTeacherImageDataUrl,
-    parseExerciseMetadata,
-    pickBestStudentImage,
-    summarizeExerciseMetadata,
-  } from "@/utils/assistantExerciseContext";
-  import {
-    renderContent,
-    renderEquation,
-  } from "@/composables/useContentRenderer";
-  import MathFieldEditor from "@/components/ui/MathFieldEditor.vue";
-
-  const route = useRoute();
-  const router = useRouter();
-  const { confirmState, showConfirm, onConfirm, onCancel } = useConfirm();
-  const authStore = useAuthStore();
-  const { loadPracticeSheet, submitPracticeSheetAsync, loadSubmitJob } =
-    usePracticeSheet();
-
-  const sheet = ref<PracticeSheet | null>(null);
-  const loading = ref(true);
-  const submitted = ref(false);
-  const submitting = ref(false);
-  const result = ref<SubmitResult | null>(null);
-  const answers = ref<Record<string, string>>({});
-
-  // Modal states
-  const showInstructionsModal = ref(true);
-  const showTimeWarning = ref(false);
-  const showRetryModal = ref(false);
-  const showSuccessModal = ref(false);
-  const testStarted = ref(false);
-  let warningShown = false;
-
-  // Canvas state
-  const canvasRefs: Record<string, HTMLCanvasElement | null> = {};
-  const initializedIds = new Set<string>();
-  const canvasData = ref<Record<string, string>>({});
-  const undoStacks: Record<string, ImageData[]> = {};
-  const isDrawing: Record<string, boolean> = {};
-  const activeId = ref<string>("");
-  const tool = ref<"pen" | "eraser">("pen");
-  const penColor = ref(cssVar("--text-primary", "#1e293b"));
-  const penSize = ref(3);
-
-  const penCursor = `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24'%3E%3Cpath fill='%231e1e2e' d='M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04a1 1 0 0 0 0-1.41l-2.34-2.34a1 1 0 0 0-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z'/%3E%3C/svg%3E") 0 24, crosshair`;
-  const eraserCursor = `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='20' height='20' viewBox='0 0 20 20'%3E%3Ccircle cx='10' cy='10' r='8' fill='none' stroke='%23666' stroke-width='1.5'/%3E%3C/svg%3E") 10 10, cell`;
-  const canvasCursor = computed(() =>
-    tool.value === "eraser" ? eraserCursor : penCursor,
-  );
-
-  function cssVar(name: string, fallback: string, depth = 0): string {
-    if (typeof window === "undefined") return fallback;
-    const value = getComputedStyle(document.documentElement)
-      .getPropertyValue(name)
-      .trim();
-    if (!value) return fallback;
-    const varMatch = value.match(/^var\((--[^,\s)]+)(?:,\s*(.+))?\)$/);
-    if (varMatch && depth < 4) {
-      return cssVar(varMatch[1], varMatch[2]?.trim() || fallback, depth + 1);
-    }
-    return value;
-  }
-
-  // Timer — 30 min
-  const TEST_DURATION_SECONDS = 30 * 60;
-  const timeLeft = ref(TEST_DURATION_SECONDS);
-  let timer: ReturnType<typeof setInterval> | null = null;
-
-  function startTimer() {
-    if (timer) clearInterval(timer);
-    timer = setInterval(() => {
-      if (timeLeft.value <= 0) {
-        clearInterval(timer!);
-        timer = null;
-        submit();
-      } else if (timeLeft.value === 300 && !warningShown) {
-        // Show 5 minute warning
-        showTimeWarning.value = true;
-        warningShown = true;
-        // Auto-hide after 10 seconds
-        setTimeout(() => {
-          showTimeWarning.value = false;
-        }, 10000);
-      } else {
-        timeLeft.value--;
-      }
-    }, 1000);
-  }
-
-  const exercises = computed<PracticeSheetExercise[]>(
-    () => sheet.value?.exercises || [],
-  );
-  const isCanvas = computed(() => sheet.value?.test_style === "canvas");
-  const hasCanvasExercises = computed(() =>
-    exercises.value.some((ex) => exerciseUsesCanvas(ex.exercise.type)),
-  );
-
-  function isAnswered(exerciseId: string) {
-    const exercise = exercises.value.find(
-      (ex) => ex.exercise.id === exerciseId,
-    )?.exercise;
-    if (exercise && exerciseUsesCanvas(exercise.type))
-      return !!canvasData.value[exerciseId];
-    return (answers.value[exerciseId] || "").trim() !== "";
-  }
-
-  function setActiveExercise(exerciseId: string) {
-    activeId.value = exerciseId;
-  }
-
-  function exerciseUsesCanvas(exerciseType: string) {
-    return (
-      isCanvas.value ||
-      exerciseType === "handwritten" ||
-      exerciseType === "canvas"
-    );
-  }
-
-  function exerciseOptions(metadata?: string) {
-    const options = parseExerciseMetadata(metadata)?.options;
-    return Array.isArray(options)
-      ? options.map((option) => String(option)).filter(Boolean)
-      : [];
-  }
-
-  const answeredCount = computed(
-    () => exercises.value.filter((ex) => isAnswered(ex.exercise.id)).length,
-  );
-  const unansweredCount = computed(
-    () => exercises.value.length - answeredCount.value,
-  );
-  const answeredPercent = computed(() =>
-    exercises.value.length
-      ? Math.round((answeredCount.value / exercises.value.length) * 100)
-      : 0,
-  );
-  const formattedTime = computed(() => {
-    const m = Math.floor(timeLeft.value / 60)
-      .toString()
-      .padStart(2, "0");
-    const s = (timeLeft.value % 60).toString().padStart(2, "0");
-    return `${m}:${s}`;
-  });
-
-  // ── Canvas helpers ────────────────────────────────────────────────────────────
-
-  function setCanvasRef(id: string, el: HTMLCanvasElement | null) {
-    if (!el) {
-      canvasRefs[id] = null;
-      initializedIds.delete(id);
-      return;
-    }
-    canvasRefs[id] = el;
-    if (!initializedIds.has(id)) {
-      initializedIds.add(id);
-      initCanvas(id, el);
-    }
-  }
-
-  function drawBackground(ctx: CanvasRenderingContext2D, w: number, h: number) {
-    ctx.fillStyle = cssVar("--surface-bg-soft", "#fafaf7");
-    ctx.fillRect(0, 0, w, h);
-    ctx.strokeStyle = `rgba(${cssVar("--color-error-rgb", "239, 68, 68")}, 0.25)`;
-    ctx.lineWidth = 1.5;
-    ctx.beginPath();
-    ctx.moveTo(56, 0);
-    ctx.lineTo(56, h);
-    ctx.stroke();
-    ctx.strokeStyle = `rgba(${cssVar("--practiq-violet-rgb", "124, 58, 237")}, 0.1)`;
-    ctx.lineWidth = 1;
-    for (let y = 32; y < h; y += 32) {
-      ctx.beginPath();
-      ctx.moveTo(0, y);
-      ctx.lineTo(w, y);
-      ctx.stroke();
-    }
-  }
-
-  function initCanvas(id: string, canvas: HTMLCanvasElement) {
-    requestAnimationFrame(() => {
-      const w = canvas.offsetWidth || 680;
-      const h = canvas.offsetHeight || 220;
-      canvas.width = w;
-      canvas.height = h;
-      const ctx = canvas.getContext("2d")!;
-      drawBackground(ctx, w, h);
-      undoStacks[id] = [];
-    });
-  }
-
-  function getPoint(e: MouseEvent, canvas: HTMLCanvasElement) {
-    const rect = canvas.getBoundingClientRect();
-    return {
-      x: (e.clientX - rect.left) * (canvas.width / rect.width),
-      y: (e.clientY - rect.top) * (canvas.height / rect.height),
-    };
-  }
-
-  function startDraw(e: MouseEvent, id: string) {
-    const canvas = canvasRefs[id];
-    if (!canvas) return;
-    const ctx = canvas.getContext("2d")!;
-    // save undo state
-    if (!undoStacks[id]) undoStacks[id] = [];
-    undoStacks[id].push(ctx.getImageData(0, 0, canvas.width, canvas.height));
-    isDrawing[id] = true;
-    activeId.value = id;
-    const { x, y } = getPoint(e, canvas);
-    ctx.beginPath();
-    ctx.moveTo(x, y);
-  }
-
-  function draw(e: MouseEvent, id: string) {
-    if (!isDrawing[id]) return;
-    const canvas = canvasRefs[id];
-    if (!canvas) return;
-    const ctx = canvas.getContext("2d")!;
-    const { x, y } = getPoint(e, canvas);
-    ctx.globalCompositeOperation =
-      tool.value === "eraser" ? "destination-out" : "source-over";
-    ctx.strokeStyle = penColor.value;
-    ctx.lineWidth = tool.value === "eraser" ? penSize.value * 4 : penSize.value;
-    ctx.lineCap = "round";
-    ctx.lineJoin = "round";
-    ctx.lineTo(x, y);
-    ctx.stroke();
-  }
-
-  function endDraw(id: string) {
-    if (!isDrawing[id]) return;
-    isDrawing[id] = false;
-    const canvas = canvasRefs[id];
-    if (!canvas) return;
-    canvas.getContext("2d")!.beginPath();
-    // snapshot for answeredCount tracking (non-reactive — won't trigger re-render of canvases)
-    canvasData.value = {
-      ...canvasData.value,
-      [id]: canvas.toDataURL("image/png"),
-    };
-  }
-
-  function startDrawTouch(e: TouchEvent, id: string) {
-    const t = e.touches[0];
-    startDraw({ clientX: t.clientX, clientY: t.clientY } as MouseEvent, id);
-  }
-
-  function drawTouch(e: TouchEvent, id: string) {
-    const t = e.touches[0];
-    draw({ clientX: t.clientX, clientY: t.clientY } as MouseEvent, id);
-  }
-
-  function undoActive() {
-    const id = activeId.value;
-    if (!id) return;
-    const canvas = canvasRefs[id];
-    const stack = undoStacks[id];
-    if (!canvas || !stack || stack.length === 0) return;
-    canvas.getContext("2d")!.putImageData(stack.pop()!, 0, 0);
-    if (!canvas.toDataURL().includes("data:image/png")) {
-      const copy = { ...canvasData.value };
-      delete copy[id];
-      canvasData.value = copy;
-    }
-  }
-
-  function clearCanvas(id: string) {
-    const canvas = canvasRefs[id];
-    if (!canvas) return;
-    const ctx = canvas.getContext("2d")!;
-    undoStacks[id] = [];
-    drawBackground(ctx, canvas.width, canvas.height);
-    const copy = { ...canvasData.value };
-    delete copy[id];
-    canvasData.value = copy;
-  }
-
-  // ── Lifecycle ────────────────────────────────────────────────────────────────
-
-  onMounted(async () => {
-    const id = route.params.id as string;
-    try {
-      sheet.value = await loadPracticeSheet(id);
-      for (const ex of exercises.value) {
-        answers.value[ex.exercise.id] = "";
-      }
-      // Timer starts when user clicks "Comenzar" in instructions modal
-    } finally {
-      loading.value = false;
-    }
-  });
-
-  onUnmounted(() => {
-    if (timer) clearInterval(timer);
-    if ((window as any).__practiqAssistantHookSource === "level-test") {
-      delete window.__practiqAssistantCapture;
-      delete window.__practiqAssistantContext;
-      delete (window as any).__practiqAssistantHookSource;
-    }
-  });
-
-  function focusNext(idx: number) {
-    const inputs = document.querySelectorAll<HTMLInputElement>(".ex-input");
-    inputs[idx + 1]?.focus();
-  }
-
-  async function confirmExit() {
-    const ok = await showConfirm("¿Salir de la prueba?", {
-      description: "Tu progreso no se guardará.",
-      confirmLabel: "Salir",
-      danger: false,
-    });
-    if (ok) router.back();
-  }
-
-  async function submit() {
-    if (submitting.value) return;
-    submitting.value = true;
-    if (timer) clearInterval(timer);
-
-    const elapsedSeconds = TEST_DURATION_SECONDS - timeLeft.value;
-    const perExerciseSeconds = exercises.value.length
-      ? Math.round(elapsedSeconds / exercises.value.length)
-      : 0;
-
-    const attempts = exercises.value.map((ex) => ({
-      exercise_id: ex.exercise.id,
-      answer_text: exerciseUsesCanvas(ex.exercise.type)
-        ? ""
-        : answers.value[ex.exercise.id] || "",
-      canvas_data: exerciseUsesCanvas(ex.exercise.type)
-        ? buildCanvasDataForOCR(ex.exercise.id)
-        : "",
-      time_spent_seconds: perExerciseSeconds,
-      hints_used: 0,
-    }));
-
-    try {
-      const start = await submitPracticeSheetAsync(sheet.value!.id, {
-        attempts,
-      });
-      const jobId = start.job_id;
-      let jobDone = false;
-
-      while (!jobDone) {
-        await new Promise((resolve) => setTimeout(resolve, 1200));
-        const job = await loadSubmitJob(jobId);
-        if (job.status === "processing") {
-          continue;
-        }
-        if (job.status === "failed") {
-          throw new Error(job.message || "No se pudo evaluar la prueba");
-        }
-        result.value = job.result?.data || null;
-        jobDone = true;
-      }
-
-      if (!result.value) {
-        throw new Error("No se recibió resultado de evaluación");
-      }
-      submitted.value = true;
-
-      // Show success modal if passed
-      if (result.value.should_level_up) {
-        showSuccessModal.value = true;
-      }
-    } catch (err) {
-      console.error(err);
-    } finally {
-      submitting.value = false;
-    }
-  }
-
-  function buildCanvasDataForOCR(exerciseId: string) {
-    const source = canvasRefs[exerciseId];
-    if (!source) {
-      return canvasData.value[exerciseId] || "";
-    }
-
-    const scale = 2;
-    const out = document.createElement("canvas");
-    out.width = Math.max(1, Math.floor(source.width * scale));
-    out.height = Math.max(1, Math.floor(source.height * scale));
-    const ctx = out.getContext("2d");
-    if (!ctx) {
-      return canvasData.value[exerciseId] || "";
-    }
-
-    ctx.fillStyle = cssVar("--surface-card", "#ffffff");
-    ctx.fillRect(0, 0, out.width, out.height);
-    ctx.imageSmoothingEnabled = false;
-    ctx.drawImage(source, 0, 0, out.width, out.height);
-
-    const image = ctx.getImageData(0, 0, out.width, out.height);
-    const pixels = image.data;
-    for (let i = 0; i < pixels.length; i += 4) {
-      const r = pixels[i];
-      const g = pixels[i + 1];
-      const b = pixels[i + 2];
-      const alpha = pixels[i + 3];
-
-      if (alpha < 8) {
-        pixels[i] = 255;
-        pixels[i + 1] = 255;
-        pixels[i + 2] = 255;
-        pixels[i + 3] = 255;
-        continue;
-      }
-
-      const gray = 0.299 * r + 0.587 * g + 0.114 * b;
-      const value = gray > 205 ? 255 : 0;
-      pixels[i] = value;
-      pixels[i + 1] = value;
-      pixels[i + 2] = value;
-      pixels[i + 3] = 255;
-    }
-    ctx.putImageData(image, 0, 0);
-
-    return out.toDataURL("image/jpeg", 0.92);
-  }
-
-  function getAssistantExerciseId() {
-    if (activeId.value) {
-      return activeId.value;
-    }
-
-    const answeredId = Object.keys(canvasData.value)[0];
-    if (answeredId) return answeredId;
-
-    return exercises.value[0]?.exercise.id || "";
-  }
-
-  function getAssistantExerciseIndex(exerciseId: string) {
-    return exercises.value.findIndex((item) => item.exercise.id === exerciseId);
-  }
-
-  (window as any).__practiqAssistantHookSource = "level-test";
-
-  window.__practiqAssistantContext = () => {
-    if (!sheet.value) return null;
-
-    const activeExerciseId = getAssistantExerciseId();
-    const activeExerciseIndex = getAssistantExerciseIndex(activeExerciseId);
-    const activeExercise =
-      activeExerciseIndex >= 0
-        ? exercises.value[activeExerciseIndex]?.exercise
-        : null;
-    const activeTeacherImage = extractTeacherImageDataUrl(activeExercise);
-
-    return {
-      current_view: "student_level_test",
-      activity_type: "level_test",
-      sheet_id: sheet.value.id,
-      sheet_title: sheet.value.title,
-      level: sheet.value.level,
-      response_mode: hasCanvasExercises.value ? "mixed" : "keyboard",
-      exercise_count: exercises.value.length,
-      active_exercise: activeExercise
-        ? {
-            id: activeExercise.id,
-            number: activeExerciseIndex + 1,
-            type: activeExercise.type,
-            difficulty: activeExercise.difficulty,
-            question:
-              activeExercise.type === "handwritten" && activeTeacherImage
-                ? "[consigna manuscrita en imagen adjunta]"
-                : activeExercise.question,
-            has_teacher_image: !!activeTeacherImage,
-            question_source:
-              activeExercise.type === "handwritten" && activeTeacherImage
-                ? "teacher_image_attachment"
-                : "text",
-            metadata_summary: JSON.stringify(
-              summarizeExerciseMetadata(activeExercise) || {},
-            ),
-          }
-        : null,
-      exercise_list: exercises.value.map((item, idx) => ({
-        id: item.exercise.id,
-        number: idx + 1,
-        type: item.exercise.type,
-        difficulty: item.exercise.difficulty,
-        question:
-          item.exercise.type === "handwritten" &&
-          extractTeacherImageDataUrl(item.exercise)
-            ? "[consigna manuscrita en imagen adjunta]"
-            : item.exercise.question,
-        has_teacher_image: !!extractTeacherImageDataUrl(item.exercise),
-        question_source:
-          item.exercise.type === "handwritten" &&
-          extractTeacherImageDataUrl(item.exercise)
-            ? "teacher_image_attachment"
-            : "text",
-      })),
-      answered_exercise_ids: exercises.value
-        .filter((item) => isAnswered(item.exercise.id))
-        .map((item) => item.exercise.id),
-    };
-  };
-
-  window.__practiqAssistantCapture = async () => {
-    const exerciseId = getAssistantExerciseId();
-    if (!exerciseId) return null;
-    const exerciseIndex = getAssistantExerciseIndex(exerciseId);
-    const exercise =
-      exerciseIndex >= 0 ? exercises.value[exerciseIndex]?.exercise : null;
-    if (!exercise || !exerciseUsesCanvas(exercise.type)) return null;
-
-    const studentDataUrl = await pickBestStudentImage([
-      buildCanvasDataForOCR(exerciseId),
-      canvasData.value[exerciseId],
-    ]);
-    const teacherDataUrl = extractTeacherImageDataUrl(exercise);
-    const dataUrl = await composeAssistantWorkImage({
-      teacherDataUrl,
-      studentDataUrl,
-      teacherLabel: "Consigna del docente",
-      studentLabel: "Respuesta del alumno",
-    });
-
-    if (!dataUrl) return null;
-
-    return {
-      dataUrl,
-      filename: `level-test-${exerciseId}.jpg`,
-      contentType: dataUrl.startsWith("data:image/png")
-        ? "image/png"
-        : "image/jpeg",
-    };
-  };
-
-  function retry() {
-    showRetryModal.value = true;
-  }
-
-  function confirmRetry() {
-    showRetryModal.value = false;
-    submitted.value = false;
-    result.value = null;
-    timeLeft.value = TEST_DURATION_SECONDS;
-    warningShown = false;
-    canvasData.value = {};
-    for (const key in answers.value) answers.value[key] = "";
-    // Re-init canvases after DOM updates
-    nextTick(() => {
-      for (const id of initializedIds) {
-        initializedIds.delete(id);
-      }
-    });
-    startTimer();
-  }
-
-  function goBackFromInstructions() {
-    router.back();
-  }
-
-  function startTest() {
-    showInstructionsModal.value = false;
-    testStarted.value = true;
-    startTimer();
-  }
-
-  function closeSuccessAndGoHome() {
-    showSuccessModal.value = false;
-    router.push("/student/dashboard");
-  }
-</script>
 
 <style scoped>
   .test-shell {
