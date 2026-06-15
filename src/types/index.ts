@@ -8,6 +8,7 @@ export * from "./grades";
 export * from "./levels";
 export * from "./materials";
 export * from "./notebooks";
+export * from "./operation";
 export * from "./practiceSheets";
 export * from "./profile";
 export * from "./progress";

@@ -1,5 +1,5 @@
 import type { AxiosInstance } from "axios";
-import type { Grade, UserProfile } from "@/types";
+import type { Grade, OperationResult, UserProfile } from "@/types";
 
 export interface IGradeService {
   list(): Promise<{ data: Grade[] }>;
@@ -12,8 +12,14 @@ export interface IGradeService {
     params: { name: string; description: string },
   ): Promise<{ data: Grade }>;
   delete(id: string): Promise<void>;
-  addMember(gradeId: string, userId: string): Promise<{ message: string }>;
-  removeMember(gradeId: string, userId: string): Promise<{ message: string }>;
+  addMember(
+    gradeId: string,
+    userId: string,
+  ): Promise<{ data: OperationResult }>;
+  removeMember(
+    gradeId: string,
+    userId: string,
+  ): Promise<{ data: OperationResult }>;
   listMembers(gradeId: string): Promise<{ data: UserProfile[] }>;
   listUserGrades(userId: string): Promise<{ data: Grade[] }>;
 }
@@ -49,7 +55,7 @@ export class GradeService implements IGradeService {
   async addMember(
     gradeId: string,
     userId: string,
-  ): Promise<{ message: string }> {
+  ): Promise<{ data: OperationResult }> {
     const { data } = await this.api.post(`/grades/${gradeId}/members`, {
       user_id: userId,
     });
@@ -59,7 +65,7 @@ export class GradeService implements IGradeService {
   async removeMember(
     gradeId: string,
     userId: string,
-  ): Promise<{ message: string }> {
+  ): Promise<{ data: OperationResult }> {
     const { data } = await this.api.delete(
       `/grades/${gradeId}/members/${userId}`,
     );
