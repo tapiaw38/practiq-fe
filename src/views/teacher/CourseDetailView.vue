@@ -61,6 +61,7 @@
     pageSize: sheetsPageSize,
     hasMore: sheetsHasMore,
     loadPracticeSheets,
+    loadPracticeSheet,
     loadPage: loadSheetsPage,
     nextPage: nextSheetsPage,
     prevPage: prevSheetsPage,
@@ -353,11 +354,21 @@
     showSheetModal.value = true;
   }
 
-  function goToSheet(sheetId: string) {
+  async function goToSheet(sheetId: string) {
     const sheet = practiceSheets.value.find((s) => s.id === sheetId);
-    if (!sheet) return;
-    activeTab.value = "sheets";
-    openEditSheet(sheet);
+    if (sheet) {
+      activeTab.value = "sheets";
+      openEditSheet(sheet);
+      return;
+    }
+
+    try {
+      const loadedSheet = await loadPracticeSheet(sheetId);
+      activeTab.value = "sheets";
+      openEditSheet(loadedSheet);
+    } catch {
+      return;
+    }
   }
 
   function openNotebook(notebookId: string) {

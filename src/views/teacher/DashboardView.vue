@@ -81,7 +81,7 @@
       string,
       { gradeKey: string; gradeName: string; students: AssignedUser[] }
     >();
-    for (const student of paginatedStudents.value) {
+    for (const student of assignedStudents.value) {
       const gradesForStudent = studentGrades.value[student.id] || [];
       if (!gradesForStudent.length) {
         if (!buckets.has("no-grade"))

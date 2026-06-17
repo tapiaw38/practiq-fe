@@ -183,7 +183,7 @@
     try {
       await triggerAIReviewService(submissionId);
       // Poll for result or reload after delay
-      setTimeout(loadSubmissions, 3000);
+      setTimeout(() => loadSubmissions(submissionsPage.value), 3000);
     } catch (err) {
       console.error("Failed to trigger AI review:", err);
     } finally {
