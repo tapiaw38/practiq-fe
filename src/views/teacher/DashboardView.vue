@@ -29,6 +29,8 @@
   const loading = ref(true);
   const showCreateModal = ref(false);
   const creating = ref(false);
+  const currentStudentPage = ref(1);
+  const studentsPerPage = 20;
 
   const newCourse = reactive({
     title: "",
@@ -64,12 +66,22 @@
     return formatShortDate(sorted[0].created_at);
   });
 
+  const paginatedStudents = computed(() => {
+    const start = (currentStudentPage.value - 1) * studentsPerPage;
+    const end = start + studentsPerPage;
+    return assignedStudents.value.slice(start, end);
+  });
+
+  const totalStudentPages = computed(() =>
+    Math.ceil(assignedStudents.value.length / studentsPerPage)
+  );
+
   const assignedStudentsByGrade = computed(() => {
     const buckets = new Map<
       string,
       { gradeKey: string; gradeName: string; students: AssignedUser[] }
     >();
-    for (const student of assignedStudents.value) {
+    for (const student of paginatedStudents.value) {
       const gradesForStudent = studentGrades.value[student.id] || [];
       if (!gradesForStudent.length) {
         if (!buckets.has("no-grade"))
@@ -162,6 +174,18 @@
         email: encodeURIComponent(student.email),
       },
     });
+  }
+
+  function nextStudentPage() {
+    if (currentStudentPage.value < totalStudentPages.value) {
+      currentStudentPage.value++;
+    }
+  }
+
+  function prevStudentPage() {
+    if (currentStudentPage.value > 1) {
+      currentStudentPage.value--;
+    }
   }
 
   async function loadCatalogs() {
@@ -443,7 +467,7 @@
 
           <div class="student-grid">
             <article
-              v-for="student in assignedStudents"
+              v-for="student in paginatedStudents"
               :key="student.id"
               class="student-card"
               @click="goToStudentProgress(student)"
@@ -472,6 +496,29 @@
               </div>
               <i class="pi pi-angle-right student-card__arrow"></i>
             </article>
+          </div>
+
+          <!-- Pagination Controls -->
+          <div v-if="assignedStudents.length > studentsPerPage" class="pagination-controls">
+            <button
+              class="btn btn-secondary"
+              :disabled="currentStudentPage === 1"
+              @click="prevStudentPage"
+            >
+              <i class="pi pi-chevron-left"></i>
+              Anterior
+            </button>
+            <span class="pagination-info">
+              Página {{ currentStudentPage }} de {{ totalStudentPages }} · {{ assignedStudents.length }} estudiantes
+            </span>
+            <button
+              class="btn btn-secondary"
+              :disabled="currentStudentPage === totalStudentPages"
+              @click="nextStudentPage"
+            >
+              Siguiente
+              <i class="pi pi-chevron-right"></i>
+            </button>
           </div>
         </section>
       </template>
@@ -1078,6 +1125,30 @@
     color: var(--text-muted);
     font-size: var(--text-md);
     flex-shrink: 0;
+  }
+
+  /* Pagination */
+  .pagination-controls {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    margin-top: 24px;
+    padding: 16px 20px;
+    background: var(--surface-elevated);
+    border-radius: var(--radius-xl);
+    border: 1px solid var(--surface-elevated-strong);
+  }
+
+  .pagination-info {
+    font-size: var(--text-base);
+    font-weight: 600;
+    color: var(--text-secondary);
+  }
+
+  .btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
   }
 
   /* Empty & loading */

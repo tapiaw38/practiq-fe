@@ -20,7 +20,7 @@ export interface IPracticeSheetService {
       exercise_ids: string[];
     },
   ): Promise<{ data: PracticeSheet }>;
-  list(courseId: string): Promise<{ data: PracticeSheet[] }>;
+  list(courseId: string, params?: { limit?: number; offset?: number }): Promise<{ data: PracticeSheet[] }>;
   get(id: string): Promise<{ data: PracticeSheet }>;
   update(
     id: string,
@@ -64,8 +64,8 @@ export class PracticeSheetService implements IPracticeSheetService {
     return data;
   }
 
-  async list(courseId: string): Promise<{ data: PracticeSheet[] }> {
-    const { data } = await this.api.get(`/courses/${courseId}/practice-sheets`);
+  async list(courseId: string, params?: { limit?: number; offset?: number }): Promise<{ data: PracticeSheet[] }> {
+    const { data } = await this.api.get(`/courses/${courseId}/practice-sheets`, { params });
     return data;
   }
 

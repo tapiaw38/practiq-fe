@@ -56,7 +56,14 @@
     deleteExercise: deleteExerciseService,
   } = useExercise();
   const {
+    practiceSheets,
+    currentPage: sheetsPage,
+    pageSize: sheetsPageSize,
+    hasMore: sheetsHasMore,
     loadPracticeSheets,
+    loadPage: loadSheetsPage,
+    nextPage: nextSheetsPage,
+    prevPage: prevSheetsPage,
     createPracticeSheet,
     updatePracticeSheet,
     deletePracticeSheet: deletePracticeSheetService,
@@ -74,7 +81,6 @@
   } = useNotebook();
   const { loadCourseLevels } = useLevel();
   const materials = ref<Material[]>([]);
-  const sheets = ref<PracticeSheet[]>([]);
   const notebooks = ref<Notebook[]>([]);
   const courseLevels = ref<CourseLevelsResponse | null>(null);
   const selectedTopicId = ref("");
@@ -168,7 +174,7 @@
         notebooks: ld.notebooks,
       }));
     }
-    const maxFromSheets = sheets.value.reduce(
+    const maxFromSheets = practiceSheets.value.reduce(
       (max, sheet) => Math.max(max, sheet.level || 1),
       1,
     );
@@ -182,11 +188,11 @@
       const level = index + 1;
       return {
         level,
-        practices: sheets.value.filter(
+        practices: practiceSheets.value.filter(
           (sheet) => sheet.level === level && sheet.sheet_type !== "level_test",
         ),
         levelTest:
-          sheets.value.find(
+          practiceSheets.value.find(
             (sheet) =>
               sheet.level === level && sheet.sheet_type === "level_test",
           ) || null,
@@ -223,14 +229,13 @@
       loadTopics(courseId),
       loadMaterials(courseId),
       loadStudents(courseId),
-      loadPracticeSheets(courseId),
+      loadSheetsPage(courseId, 1),
       loadNotebooks(courseId),
       loadCourseLevels(courseId),
     ]);
 
     if (materialsRes.status === "fulfilled")
       materials.value = materialsRes.value || [];
-    if (sheetsRes.status === "fulfilled") sheets.value = sheetsRes.value || [];
     if (notebooksRes.status === "fulfilled")
       notebooks.value = notebooksRes.value || [];
     if (levelsRes.status === "fulfilled") courseLevels.value = levelsRes.value;
@@ -324,8 +329,7 @@
     newSheet.test_style = "keyboard";
     newSheet.exercise_ids = [];
     sheetExercises.value = [];
-    const res = await loadPracticeSheets(courseId);
-    sheets.value = res || [];
+    await loadSheetsPage(courseId, 1);
   }
 
   async function createNotebook() {
@@ -350,7 +354,7 @@
   }
 
   function goToSheet(sheetId: string) {
-    const sheet = sheets.value.find((s) => s.id === sheetId);
+    const sheet = practiceSheets.value.find((s) => s.id === sheetId);
     if (!sheet) return;
     activeTab.value = "sheets";
     openEditSheet(sheet);
@@ -451,15 +455,14 @@
       exercise_ids: editSheet.exercise_ids,
     });
     showEditSheetModal.value = false;
-    const res = await loadPracticeSheets(courseId);
-    sheets.value = res || [];
+    await loadSheetsPage(courseId, 1);
   }
 
   async function deleteSheet(id: string) {
     const ok = await showConfirm("¿Eliminar esta hoja de práctica?");
     if (!ok) return;
     await deletePracticeSheetService(id);
-    sheets.value = sheets.value.filter((s) => s.id !== id);
+    await loadSheetsPage(courseId, sheetsPage.value);
   }
 
   function openEditExercise(ex: Exercise) {
@@ -813,13 +816,25 @@
       <StudentsList v-if="activeTab === 'students'" :students="students" />
 
       <!-- TAB: Hojas de Práctica -->
-      <PracticeSheetsList
-        v-if="activeTab === 'sheets'"
-        :sheets="sheets"
-        @create="openNewSheet"
-        @edit="openEditSheet"
-        @delete="deleteSheet"
-      />
+      <div v-if="activeTab === 'sheets'">
+        <PracticeSheetsList
+          :sheets="practiceSheets"
+          @create="openNewSheet"
+          @edit="openEditSheet"
+          @delete="deleteSheet"
+        />
+        <div v-if="practiceSheets.length > 0" class="pagination-controls">
+          <button :disabled="sheetsPage === 1" @click="() => prevSheetsPage(courseId)">
+            <i class="pi pi-chevron-left"></i> Anterior
+          </button>
+          <span class="pagination-info">
+            Página {{ sheetsPage }} · {{ practiceSheets.length }} resultados
+          </span>
+          <button :disabled="!sheetsHasMore" @click="() => nextSheetsPage(courseId)">
+            Siguiente <i class="pi pi-chevron-right"></i>
+          </button>
+        </div>
+      </div>
 
       <!-- TAB: Cuadernos -->
       <NotebooksList
@@ -1730,5 +1745,47 @@
     .modal-actions .btn {
       width: 100%;
     }
+  }
+
+  .pagination-controls {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    margin-top: 24px;
+    padding: 16px 20px;
+    background: var(--surface-elevated);
+    border-radius: var(--radius-xl);
+  }
+
+  .pagination-controls button {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 16px;
+    border: 1px solid var(--border-subtle);
+    border-radius: 12px;
+    background: var(--surface-base);
+    color: var(--text-primary);
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+
+  .pagination-controls button:hover:not(:disabled) {
+    background: var(--surface-elevated-strong);
+    border-color: var(--border-strong);
+  }
+
+  .pagination-controls button:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+
+  .pagination-info {
+    font-size: 14px;
+    color: var(--text-secondary);
+    font-weight: 500;
   }
 </style>

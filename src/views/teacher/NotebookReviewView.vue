@@ -9,7 +9,13 @@
 
   const { courses, students, loadCourses, loadStudents } = useCourse();
   const {
+    submissionsPage,
+    submissionsPageSize,
+    submissionsHasMore,
     loadSubmissions: loadSubmissionsService,
+    loadSubmissionsPage,
+    nextSubmissionsPage,
+    prevSubmissionsPage,
     triggerAIReview: triggerAIReviewService,
     updateManualReview: updateManualReviewService,
   } = useNotebook();
@@ -66,7 +72,7 @@
     }
   }
 
-  async function loadSubmissions() {
+  async function loadSubmissions(page = 1) {
     if (!filters.courseId) {
       submissions.value = [];
       loading.value = false;
@@ -75,16 +81,52 @@
 
     loading.value = true;
     try {
-      const params: Record<string, string | boolean | undefined> = {};
-      params.course_id = filters.courseId;
-      if (filters.studentId) params.student_id = filters.studentId;
-      if (filters.reviewedStatus === "reviewed") params.reviewed = true;
-      if (filters.reviewedStatus === "unreviewed") params.reviewed = false;
+      const filterParams: Record<string, string | boolean | undefined> = {};
+      filterParams.course_id = filters.courseId;
+      if (filters.studentId) filterParams.student_id = filters.studentId;
+      if (filters.reviewedStatus === "reviewed") filterParams.reviewed = true;
+      if (filters.reviewedStatus === "unreviewed") filterParams.reviewed = false;
 
-      submissions.value = (await loadSubmissionsService(params)) || [];
+      submissions.value = (await loadSubmissionsPage(page, filterParams)) || [];
     } catch (err) {
       console.error("Failed to load submissions:", err);
       submissions.value = [];
+    } finally {
+      loading.value = false;
+    }
+  }
+
+  async function goToNextPage() {
+    if (!submissionsHasMore.value) return;
+    const filterParams: Record<string, string | boolean | undefined> = {};
+    filterParams.course_id = filters.courseId;
+    if (filters.studentId) filterParams.student_id = filters.studentId;
+    if (filters.reviewedStatus === "reviewed") filterParams.reviewed = true;
+    if (filters.reviewedStatus === "unreviewed") filterParams.reviewed = false;
+
+    loading.value = true;
+    try {
+      submissions.value = (await nextSubmissionsPage(filterParams)) || [];
+    } catch (err) {
+      console.error("Failed to load next page:", err);
+    } finally {
+      loading.value = false;
+    }
+  }
+
+  async function goToPrevPage() {
+    if (submissionsPage.value <= 1) return;
+    const filterParams: Record<string, string | boolean | undefined> = {};
+    filterParams.course_id = filters.courseId;
+    if (filters.studentId) filterParams.student_id = filters.studentId;
+    if (filters.reviewedStatus === "reviewed") filterParams.reviewed = true;
+    if (filters.reviewedStatus === "unreviewed") filterParams.reviewed = false;
+
+    loading.value = true;
+    try {
+      submissions.value = (await prevSubmissionsPage(filterParams)) || [];
+    } catch (err) {
+      console.error("Failed to load previous page:", err);
     } finally {
       loading.value = false;
     }
@@ -222,7 +264,7 @@
           <select
             v-model="filters.reviewedStatus"
             class="filter-select"
-            @change="loadSubmissions"
+            @change="() => loadSubmissions(1)"
           >
             <option value="unreviewed">Sin revisar (IA)</option>
             <option value="reviewed">Revisadas (IA)</option>
@@ -235,7 +277,7 @@
             v-model="filters.studentId"
             class="filter-select"
             :disabled="studentsLoading || students.length === 0"
-            @change="loadSubmissions"
+            @change="() => loadSubmissions(1)"
           >
             <option value="">Todos los alumnos del curso</option>
             <option
@@ -333,11 +375,12 @@
       </div>
 
       <!-- Submissions Grid -->
-      <div v-else class="submissions-grid">
-        <article
-          v-for="submission in filteredSubmissions"
-          :key="submission.id"
-          class="submission-card"
+      <div v-else>
+        <div class="submissions-grid">
+          <article
+            v-for="submission in filteredSubmissions"
+            :key="submission.id"
+            class="submission-card"
           :class="{
             'submission-card--correct': submission.ai_is_correct === true,
             'submission-card--incorrect': submission.ai_is_correct === false,
@@ -467,6 +510,30 @@
           </div>
         </article>
       </div>
+
+      <!-- Pagination Controls -->
+      <div v-if="filteredSubmissions.length > 0" class="pagination-controls">
+        <button
+          class="btn btn-secondary"
+          :disabled="submissionsPage === 1"
+          @click="goToPrevPage"
+        >
+          <i class="pi pi-chevron-left"></i>
+          Anterior
+        </button>
+        <span class="pagination-info">
+          Página {{ submissionsPage }} · {{ filteredSubmissions.length }} resultados
+        </span>
+        <button
+          class="btn btn-secondary"
+          :disabled="!submissionsHasMore"
+          @click="goToNextPage"
+        >
+          Siguiente
+          <i class="pi pi-chevron-right"></i>
+        </button>
+      </div>
+    </div>
 
       <!-- Preview Modal -->
       <Teleport to="body">
@@ -1070,6 +1137,30 @@
   .toggle-btn--danger.toggle-btn--active {
     background: var(--color-error);
     border-color: var(--color-error);
+  }
+
+  /* Pagination */
+  .pagination-controls {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    margin-top: 24px;
+    padding: 16px 20px;
+    background: var(--surface-elevated);
+    border-radius: var(--radius-xl);
+    border: 1px solid var(--surface-elevated-strong);
+  }
+
+  .pagination-info {
+    font-size: var(--text-base);
+    font-weight: 600;
+    color: var(--text-secondary);
+  }
+
+  .btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
   }
 
   /* Responsive */

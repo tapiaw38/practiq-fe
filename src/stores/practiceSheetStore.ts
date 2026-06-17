@@ -17,15 +17,43 @@ export const usePracticeSheetStore = (service: IPracticeSheetService) =>
     const submitJob = ref<SubmitJobStart | null>(null);
     const jobStatus = ref<SubmitJobStatus | null>(null);
     const loading = ref(false);
+    const currentPage = ref(1);
+    const pageSize = ref(20);
+    const hasMore = ref(true);
 
-    const fetchPracticeSheets = async (courseId: string) => {
+    const fetchPracticeSheets = async (
+      courseId: string,
+      params?: { limit?: number; offset?: number },
+    ) => {
       loading.value = true;
       try {
-        const response = await service.list(courseId);
+        const response = await service.list(courseId, params);
         practiceSheets.value = response.data;
+        hasMore.value = response.data.length >= (params?.limit ?? pageSize.value);
         return response.data;
       } finally {
         loading.value = false;
+      }
+    };
+
+    const loadPage = async (courseId: string, page: number) => {
+      currentPage.value = page;
+      const offset = (page - 1) * pageSize.value;
+      return fetchPracticeSheets(courseId, {
+        limit: pageSize.value,
+        offset,
+      });
+    };
+
+    const nextPage = async (courseId: string) => {
+      if (hasMore.value) {
+        return loadPage(courseId, currentPage.value + 1);
+      }
+    };
+
+    const prevPage = async (courseId: string) => {
+      if (currentPage.value > 1) {
+        return loadPage(courseId, currentPage.value - 1);
       }
     };
 
@@ -144,7 +172,13 @@ export const usePracticeSheetStore = (service: IPracticeSheetService) =>
       submitJob,
       jobStatus,
       loading,
+      currentPage,
+      pageSize,
+      hasMore,
       fetchPracticeSheets,
+      loadPage,
+      nextPage,
+      prevPage,
       fetchPracticeSheet,
       createPracticeSheet,
       updatePracticeSheet,

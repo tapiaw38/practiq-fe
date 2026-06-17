@@ -52,6 +52,8 @@ export interface INotebookService {
     student_id?: string;
     reviewed?: boolean;
     course_id?: string;
+    limit?: number;
+    offset?: number;
   }): Promise<{ data: NotebookSubmissionFull[] }>;
   triggerAIReview(
     submissionId: string,
@@ -162,6 +164,8 @@ export class NotebookService implements INotebookService {
     student_id?: string;
     reviewed?: boolean;
     course_id?: string;
+    limit?: number;
+    offset?: number;
   }): Promise<{ data: NotebookSubmissionFull[] }> {
     const { data } = await this.api.get("/notebook-submissions", { params });
     return data;

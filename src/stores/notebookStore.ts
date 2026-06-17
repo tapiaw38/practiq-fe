@@ -17,6 +17,9 @@ export const useNotebookStore = (service: INotebookService) =>
     const submitJob = ref<NotebookSubmitJobStart | null>(null);
     const jobStatus = ref<NotebookSubmitJobStatus | null>(null);
     const loading = ref(false);
+    const submissionsPage = ref(1);
+    const submissionsPageSize = ref(20);
+    const submissionsHasMore = ref(true);
 
     const fetchNotebooks = async (courseId: string) => {
       loading.value = true;
@@ -165,14 +168,58 @@ export const useNotebookStore = (service: INotebookService) =>
       student_id?: string;
       reviewed?: boolean;
       course_id?: string;
+      limit?: number;
+      offset?: number;
     }) => {
       loading.value = true;
       try {
         const response = await service.getSubmissions(params);
         submissions.value = response.data;
+        submissionsHasMore.value =
+          response.data.length >= (params?.limit ?? submissionsPageSize.value);
         return response.data;
       } finally {
         loading.value = false;
+      }
+    };
+
+    const loadSubmissionsPage = async (
+      page: number,
+      filters?: {
+        notebook_id?: string;
+        student_id?: string;
+        reviewed?: boolean;
+        course_id?: string;
+      },
+    ) => {
+      submissionsPage.value = page;
+      const offset = (page - 1) * submissionsPageSize.value;
+      return fetchSubmissions({
+        ...filters,
+        limit: submissionsPageSize.value,
+        offset,
+      });
+    };
+
+    const nextSubmissionsPage = async (filters?: {
+      notebook_id?: string;
+      student_id?: string;
+      reviewed?: boolean;
+      course_id?: string;
+    }) => {
+      if (submissionsHasMore.value) {
+        return loadSubmissionsPage(submissionsPage.value + 1, filters);
+      }
+    };
+
+    const prevSubmissionsPage = async (filters?: {
+      notebook_id?: string;
+      student_id?: string;
+      reviewed?: boolean;
+      course_id?: string;
+    }) => {
+      if (submissionsPage.value > 1) {
+        return loadSubmissionsPage(submissionsPage.value - 1, filters);
       }
     };
 
@@ -217,6 +264,9 @@ export const useNotebookStore = (service: INotebookService) =>
       submitJob,
       jobStatus,
       loading,
+      submissionsPage,
+      submissionsPageSize,
+      submissionsHasMore,
       fetchNotebooks,
       fetchNotebook,
       createNotebook,
@@ -228,6 +278,9 @@ export const useNotebookStore = (service: INotebookService) =>
       savePageSubmissionAsync,
       fetchSubmissionJob,
       fetchSubmissions,
+      loadSubmissionsPage,
+      nextSubmissionsPage,
+      prevSubmissionsPage,
       triggerAIReviewForSubmission,
       updateManualReviewForSubmission,
     };
