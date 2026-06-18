@@ -224,6 +224,20 @@
     return "ai-review-box--pending";
   }
 
+  function hasUnreadableAIFeedback(feedback?: string) {
+    return !!feedback?.includes("UNREADABLE");
+  }
+
+  function getReviewBadgeLabel(submission: {
+    ai_is_correct?: boolean;
+    ai_feedback?: string;
+  }) {
+    if (submission.ai_is_correct === true) return "Correcto";
+    if (submission.ai_is_correct === false) return "Incorrecto";
+    if (hasUnreadableAIFeedback(submission.ai_feedback)) return "No legible";
+    return "Pendiente de revision";
+  }
+
   function captureCanvas(): string {
     const source = answerCanvas.value;
     if (!source) return "";
@@ -462,7 +476,7 @@
   }
 
   async function saveAndNext() {
-    if (!currentPage.value) return;
+    if (!currentPage.value || saveStatus.value === "saving") return;
     saveStatus.value = "saving";
     try {
       const pageId = currentPage.value.id;
@@ -491,10 +505,6 @@
       setTimeout(() => {
         saveStatus.value = "";
       }, 2000);
-
-      if (currentPageIndex.value < pages.value.length - 1) {
-        goToPage(currentPageIndex.value + 1);
-      }
     } catch (err) {
       console.error(err);
       saveStatus.value = "";
@@ -707,19 +717,20 @@
                 </div>
                 <div class="ai-review-status">
                   <span
-                    v-if="currentPage.submission.ai_is_correct !== undefined"
+                    v-if="
+                      currentPage.submission.ai_is_correct !== undefined ||
+                      hasUnreadableAIFeedback(currentPage.submission.ai_feedback)
+                    "
                     class="ai-review-badge"
                     :class="
-                      currentPage.submission.ai_is_correct
+                      currentPage.submission.ai_is_correct === true
                         ? 'ai-review-badge--ok'
-                        : 'ai-review-badge--fail'
+                        : currentPage.submission.ai_is_correct === false
+                          ? 'ai-review-badge--fail'
+                          : 'ai-review-badge--warn'
                     "
                   >
-                    {{
-                      currentPage.submission.ai_is_correct
-                        ? "Correcto"
-                        : "Incorrecto"
-                    }}
+                    {{ getReviewBadgeLabel(currentPage.submission) }}
                   </span>
                   <span v-else class="ai-review-badge ai-review-badge--warn"
                     >Pendiente de revision</span
@@ -775,12 +786,16 @@
               >
                 <i class="pi pi-chevron-left"></i> Anterior
               </button>
-              <button class="btn-save" @click="saveAndNext">
-                {{
-                  currentPageIndex < pages.length - 1
-                    ? "Guardar y seguir →"
-                    : "Guardar y finalizar ✓"
-                }}
+              <button
+                class="btn-save"
+                :disabled="saveStatus === 'saving'"
+                @click="saveAndNext"
+              >
+                <i
+                  v-if="saveStatus === 'saving'"
+                  class="pi pi-spin pi-spinner"
+                ></i>
+                {{ saveStatus === "saving" ? "Analizando..." : "Guardar" }}
               </button>
               <button
                 class="btn-nav"
@@ -984,14 +999,30 @@
   .page-instructions {
     margin-top: 14px;
     padding: 10px 14px;
-    background: rgba(var(--practiq-violet-rgb), 0.9);
+    background: linear-gradient(
+      135deg,
+      var(--practiq-violet),
+      var(--practiq-indigo)
+    );
     border-left: 3px solid var(--practiq-violet);
     border-radius: 0 8px 8px 0;
     font-size: 0.88rem;
-    color: var(--text-secondary);
+    color: #ffffff;
     display: flex;
     gap: 8px;
     align-items: flex-start;
+  }
+
+  .page-instructions > span {
+    color: #ffffff !important;
+  }
+
+  .page-instructions :deep(*) {
+    color: #ffffff !important;
+  }
+
+  .page-instructions :deep(p) {
+    margin: 0;
   }
 
   /* Answer area */
@@ -1108,10 +1139,10 @@
     display: flex;
     align-items: center;
     justify-content: space-between;
-    padding: 16px 28px;
+    padding: 18px 28px;
     border-top: 1.5px solid rgba(var(--practiq-violet-rgb), 0.08);
-    background: rgba(var(--practiq-violet-rgb), 0.5);
-    gap: 12px;
+    background: linear-gradient(180deg, var(--surface-card), var(--surface-bg));
+    gap: 16px;
     flex-wrap: wrap;
   }
 
@@ -1125,39 +1156,27 @@
 
   .ai-review-box {
     width: 100%;
-    margin-top: 8px;
-    padding: 14px 16px;
-    border-radius: var(--radius-lg);
-    background: var(--practiq-violet-bg);
-    border: 1.5px solid var(--practiq-violet-200);
-    transition: all 0.2s;
+    order: 1;
+    padding: 16px 18px;
+    border-radius: var(--radius-md);
+    background: var(--surface-card);
+    border: 1.5px solid rgba(var(--practiq-violet-rgb), 0.14);
+    box-shadow: 0 8px 22px rgba(var(--practiq-violet-rgb), 0.08);
   }
 
   .ai-review-box--success {
-    background: linear-gradient(
-      135deg,
-      rgba(var(--color-success-rgb), 0.06),
-      rgba(var(--color-success-rgb), 0.02)
-    );
-    border-color: rgba(var(--color-success-rgb), 0.3);
+    background: var(--color-success-bg);
+    border-color: rgba(var(--color-success-rgb), 0.32);
   }
 
   .ai-review-box--error {
-    background: linear-gradient(
-      135deg,
-      rgba(var(--color-error-rgb), 0.06),
-      rgba(var(--color-error-rgb), 0.02)
-    );
-    border-color: rgba(var(--color-error-rgb), 0.3);
+    background: var(--color-error-bg);
+    border-color: rgba(var(--color-error-rgb), 0.32);
   }
 
   .ai-review-box--pending {
-    background: linear-gradient(
-      135deg,
-      rgba(var(--color-warning-rgb), 0.06),
-      rgba(var(--color-warning-rgb), 0.02)
-    );
-    border-color: rgba(var(--color-warning-rgb), 0.3);
+    background: var(--color-warning-bg);
+    border-color: rgba(var(--color-warning-rgb), 0.38);
   }
 
   .ai-review-head {
@@ -1178,17 +1197,17 @@
   }
 
   .ai-review-box--success .ai-review-icon {
-    background: rgba(var(--color-success-rgb), 0.15);
+    background: rgba(var(--color-success-rgb), 0.18);
     color: var(--color-success-dark);
   }
 
   .ai-review-box--error .ai-review-icon {
-    background: rgba(var(--color-error-rgb), 0.15);
+    background: rgba(var(--color-error-rgb), 0.18);
     color: var(--color-error-dark);
   }
 
   .ai-review-box--pending .ai-review-icon {
-    background: rgba(var(--color-warning-rgb), 0.15);
+    background: rgba(var(--color-warning-rgb), 0.2);
     color: var(--color-warning-strong);
   }
 
@@ -1225,13 +1244,13 @@
 
   .ai-review-time {
     font-size: var(--text-xs);
-    color: var(--text-muted);
+    color: var(--text-secondary);
   }
 
   .ai-review-text {
     margin: 10px 0 0;
     font-size: var(--text-base);
-    color: var(--text-secondary);
+    color: var(--text-primary);
     line-height: 1.6;
     padding-left: 48px;
   }
@@ -1283,13 +1302,14 @@
     align-items: center;
     gap: 10px;
     margin-left: auto;
+    order: 2;
   }
 
   .btn-nav {
     padding: 8px 16px;
     border-radius: var(--radius-sm);
     border: 1.5px solid rgba(var(--practiq-violet-rgb), 0.2);
-    background: rgba(var(--surface-card-rgb), 0.8);
+    background: var(--surface-card);
     cursor: pointer;
     font-size: 0.88rem;
     color: var(--text-secondary);
@@ -1301,6 +1321,7 @@
   .btn-nav:hover:not(:disabled) {
     border-color: var(--practiq-violet);
     color: var(--practiq-violet);
+    background: var(--practiq-violet-bg);
   }
   .btn-nav:disabled {
     opacity: 0.4;
@@ -1317,9 +1338,17 @@
     font-size: 0.9rem;
     cursor: pointer;
     transition: opacity 0.15s;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
   }
   .btn-save:hover {
     opacity: 0.9;
+  }
+  .btn-save:disabled {
+    cursor: wait;
+    opacity: 0.72;
   }
 
   @media (max-width: 1024px) {
@@ -1377,12 +1406,31 @@
     }
     .page-nav {
       margin-left: 0;
+      order: 2;
       justify-content: space-between;
       width: 100%;
+    }
+    .btn-nav {
+      flex: 1;
+      justify-content: center;
+      padding: 8px 10px;
     }
     .btn-save {
       width: 100%;
       text-align: center;
+      order: -1;
+    }
+    .ai-review-head {
+      align-items: flex-start;
+    }
+    .ai-review-status {
+      flex-direction: column;
+      align-items: flex-start;
+      gap: 6px;
+    }
+    .ai-review-text,
+    .teacher-review-section {
+      padding-left: 0;
     }
   }
 </style>

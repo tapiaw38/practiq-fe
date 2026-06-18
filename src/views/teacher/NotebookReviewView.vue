@@ -202,9 +202,11 @@
   async function triggerAIReview(submissionId: string) {
     reviewingIds.value.add(submissionId);
     try {
-      await triggerAIReviewService(submissionId);
-      // Poll for result or reload after delay
-      setTimeout(() => loadSubmissions(submissionsPage.value), 3000);
+      const reviewedSubmission = await triggerAIReviewService(submissionId);
+      const index = submissions.value.findIndex((s) => s.id === submissionId);
+      if (index >= 0 && reviewedSubmission) {
+        submissions.value[index] = reviewedSubmission;
+      }
     } catch (err) {
       console.error("Failed to trigger AI review:", err);
     } finally {
