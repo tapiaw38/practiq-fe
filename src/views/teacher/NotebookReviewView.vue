@@ -4,10 +4,14 @@
   import Skeleton from "@/components/ui/Skeleton.vue";
   import { useCourse } from "@/composables/useCourse";
   import { useNotebook } from "@/composables/useNotebook";
+  import { useGrade } from "@/composables/useGrade";
+  import { useSubject } from "@/composables/useSubject";
   import { formatDateTime } from "@/utils/formatters";
   import type { NotebookSubmissionFull } from "@/types";
 
   const { courses, students, loadCourses, loadStudents } = useCourse();
+  const { grades, loadGrades } = useGrade();
+  const { subjects, loadSubjects } = useSubject();
   const {
     submissionsPage,
     submissionsPageSize,
@@ -30,6 +34,8 @@
 
   const filters = reactive({
     courseId: "",
+    gradeId: "",
+    subjectId: "",
     studentId: "",
     reviewedStatus: "",
     studentSearch: "",
@@ -56,9 +62,16 @@
   });
 
   onMounted(async () => {
-    await loadCoursesData();
-    if (filters.courseId) {
-      await Promise.all([loadStudentsForCourse(), loadSubmissions()]);
+    await Promise.all([
+      loadCoursesData(),
+      loadGrades(),
+      loadSubjects(),
+    ]);
+    if (filters.courseId || filters.gradeId || filters.subjectId) {
+      if (filters.courseId) {
+        await loadStudentsForCourse();
+      }
+      await loadSubmissions();
     } else {
       loading.value = false;
     }
@@ -88,7 +101,7 @@
   }
 
   async function loadSubmissions(page = 1) {
-    if (!filters.courseId) {
+    if (!filters.courseId && !filters.gradeId && !filters.subjectId) {
       submissions.value = [];
       loading.value = false;
       return;
@@ -97,7 +110,9 @@
     loading.value = true;
     try {
       const filterParams: Record<string, string | boolean | undefined> = {};
-      filterParams.course_id = filters.courseId;
+      if (filters.courseId) filterParams.course_id = filters.courseId;
+      if (filters.gradeId) filterParams.grade_id = filters.gradeId;
+      if (filters.subjectId) filterParams.subject_id = filters.subjectId;
       if (filters.studentId) filterParams.student_id = filters.studentId;
       if (filters.reviewedStatus === "reviewed") filterParams.reviewed = true;
       if (filters.reviewedStatus === "unreviewed")
@@ -120,7 +135,9 @@
   async function goToNextPage() {
     if (!submissionsHasMore.value) return;
     const filterParams: Record<string, string | boolean | undefined> = {};
-    filterParams.course_id = filters.courseId;
+    if (filters.courseId) filterParams.course_id = filters.courseId;
+    if (filters.gradeId) filterParams.grade_id = filters.gradeId;
+    if (filters.subjectId) filterParams.subject_id = filters.subjectId;
     if (filters.studentId) filterParams.student_id = filters.studentId;
     if (filters.reviewedStatus === "reviewed") filterParams.reviewed = true;
     if (filters.reviewedStatus === "unreviewed") filterParams.reviewed = false;
@@ -138,7 +155,9 @@
   async function goToPrevPage() {
     if (submissionsPage.value <= 1) return;
     const filterParams: Record<string, string | boolean | undefined> = {};
-    filterParams.course_id = filters.courseId;
+    if (filters.courseId) filterParams.course_id = filters.courseId;
+    if (filters.gradeId) filterParams.grade_id = filters.gradeId;
+    if (filters.subjectId) filterParams.subject_id = filters.subjectId;
     if (filters.studentId) filterParams.student_id = filters.studentId;
     if (filters.reviewedStatus === "reviewed") filterParams.reviewed = true;
     if (filters.reviewedStatus === "unreviewed") filterParams.reviewed = false;
@@ -266,13 +285,47 @@
       <!-- Filters -->
       <div class="filters-bar">
         <div class="filter-group">
+          <label class="filter-label">Grado</label>
+          <select
+            v-model="filters.gradeId"
+            class="filter-select"
+            @change="() => loadSubmissions(1)"
+          >
+            <option value="">Todos los grados</option>
+            <option
+              v-for="grade in grades"
+              :key="grade.id"
+              :value="grade.id"
+            >
+              {{ grade.name }}
+            </option>
+          </select>
+        </div>
+        <div class="filter-group">
+          <label class="filter-label">Materia</label>
+          <select
+            v-model="filters.subjectId"
+            class="filter-select"
+            @change="() => loadSubmissions(1)"
+          >
+            <option value="">Todas las materias</option>
+            <option
+              v-for="subject in subjects"
+              :key="subject.id"
+              :value="subject.id"
+            >
+              {{ subject.name }}
+            </option>
+          </select>
+        </div>
+        <div class="filter-group">
           <label class="filter-label">Curso</label>
           <select
             v-model="filters.courseId"
             class="filter-select"
             @change="onCourseChange"
           >
-            <option value="" disabled>Selecciona un curso</option>
+            <option value="">Todos los cursos</option>
             <option
               v-for="course in courses"
               :key="course.id"
@@ -289,9 +342,9 @@
             class="filter-select"
             @change="() => loadSubmissions(1)"
           >
-            <option value="unreviewed">Sin revisar (IA)</option>
-            <option value="reviewed">Revisadas (IA)</option>
             <option value="">Todas del curso</option>
+            <option value="reviewed">Revisadas (IA)</option>
+            <option value="unreviewed">Sin revisar (IA)</option>
           </select>
         </div>
         <div class="filter-group">
@@ -323,10 +376,9 @@
         </div>
       </div>
 
-      <div v-if="!filters.courseId && !loading" class="scope-hint">
+      <div v-if="!filters.courseId && !filters.gradeId && !filters.subjectId && !loading" class="scope-hint">
         <i class="pi pi-filter"></i>
-        Selecciona un curso para ver entregas. Esto evita cargar entregas de
-        todos los alumnos.
+        Selecciona al menos un filtro (grado, materia o curso) para ver entregas.
       </div>
 
       <!-- Loading Skeleton -->
