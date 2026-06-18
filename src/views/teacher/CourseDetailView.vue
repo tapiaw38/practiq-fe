@@ -834,7 +834,7 @@
           @edit="openEditSheet"
           @delete="deleteSheet"
         />
-        <div v-if="practiceSheets.length > 0" class="pagination-controls">
+        <div v-if="practiceSheets.length > 0 || sheetsPage > 1" class="pagination-controls">
           <button :disabled="sheetsPage === 1" @click="() => prevSheetsPage(courseId)">
             <i class="pi pi-chevron-left"></i> Anterior
           </button>

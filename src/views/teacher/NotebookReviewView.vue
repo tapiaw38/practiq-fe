@@ -522,30 +522,30 @@
             </div>
           </article>
         </div>
+      </div>
 
-        <!-- Pagination Controls -->
-        <div v-if="filteredSubmissions.length > 0" class="pagination-controls">
-          <button
-            class="btn btn-secondary"
-            :disabled="submissionsPage === 1"
-            @click="goToPrevPage"
-          >
-            <i class="pi pi-chevron-left"></i>
-            Anterior
-          </button>
-          <span class="pagination-info">
-            Página {{ submissionsPage }} ·
-            {{ filteredSubmissions.length }} resultados
-          </span>
-          <button
-            class="btn btn-secondary"
-            :disabled="!submissionsHasMore"
-            @click="goToNextPage"
-          >
-            Siguiente
-            <i class="pi pi-chevron-right"></i>
-          </button>
-        </div>
+      <!-- Pagination Controls -->
+      <div v-if="!loading && (filteredSubmissions.length > 0 || submissionsPage > 1)" class="pagination-controls">
+        <button
+          class="btn btn-secondary"
+          :disabled="submissionsPage === 1"
+          @click="goToPrevPage"
+        >
+          <i class="pi pi-chevron-left"></i>
+          Anterior
+        </button>
+        <span class="pagination-info">
+          Página {{ submissionsPage }} ·
+          {{ filteredSubmissions.length }} resultados
+        </span>
+        <button
+          class="btn btn-secondary"
+          :disabled="!submissionsHasMore"
+          @click="goToNextPage"
+        >
+          Siguiente
+          <i class="pi pi-chevron-right"></i>
+        </button>
       </div>
 
       <!-- Preview Modal -->
