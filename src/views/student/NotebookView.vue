@@ -122,8 +122,8 @@
     if (!canvas || !currentPage.value) return;
 
     const doInit = () => {
-      const w = canvas.offsetWidth || 700;
-      const h = canvas.offsetHeight || 300;
+      const w = canvas.offsetWidth || 1200;
+      const h = canvas.offsetHeight || 600;
       canvas.width = w;
       canvas.height = h;
       const ctx = canvas.getContext("2d")!;
@@ -242,13 +242,13 @@
     const source = answerCanvas.value;
     if (!source) return "";
 
-    const scale = 2;
+    const scale = 2.5;
     const temp = document.createElement("canvas");
     temp.width = Math.max(1, Math.floor(source.width * scale));
     temp.height = Math.max(1, Math.floor(source.height * scale));
     const tempCtx = temp.getContext("2d");
     if (!tempCtx) {
-      return source.toDataURL("image/jpeg", 0.92);
+      return source.toDataURL("image/png");
     }
 
     tempCtx.fillStyle = "#ffffff";
@@ -304,7 +304,7 @@
     out.height = cropH;
     const ctx = out.getContext("2d");
     if (!ctx) {
-      return source.toDataURL("image/jpeg", 0.92);
+      return source.toDataURL("image/png");
     }
 
     ctx.fillStyle = "#ffffff";
@@ -337,7 +337,7 @@
     }
     ctx.putImageData(image, 0, 0);
 
-    return out.toDataURL("image/jpeg", 0.92);
+    return out.toDataURL("image/png");
   }
 
   async function getBestStudentNotebookImage(): Promise<string> {
