@@ -26,6 +26,7 @@
   const reviewingSubmission = ref<NotebookSubmissionFull | null>(null);
   const savingReview = ref(false);
   const studentsLoading = ref(false);
+  let searchDebounceTimer: ReturnType<typeof setTimeout> | null = null;
 
   const filters = reactive({
     courseId: "",
@@ -66,9 +67,14 @@
   watch(
     () => filters.studentSearch,
     () => {
-      if (filters.courseId) {
-        loadSubmissions(1);
+      if (searchDebounceTimer) {
+        clearTimeout(searchDebounceTimer);
       }
+      searchDebounceTimer = setTimeout(() => {
+        if (filters.courseId) {
+          loadSubmissions(1);
+        }
+      }, 300);
     }
   );
 
