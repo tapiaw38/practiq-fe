@@ -525,7 +525,7 @@
       </div>
 
       <!-- Pagination Controls -->
-      <div v-if="!loading && (filteredSubmissions.length > 0 || submissionsPage > 1)" class="pagination-controls">
+      <div v-if="!loading && !filters.studentSearch.trim() && (filteredSubmissions.length > 0 || submissionsPage > 1)" class="pagination-controls">
         <button
           class="btn btn-secondary"
           :disabled="submissionsPage === 1"
