@@ -85,9 +85,15 @@
       filterParams.course_id = filters.courseId;
       if (filters.studentId) filterParams.student_id = filters.studentId;
       if (filters.reviewedStatus === "reviewed") filterParams.reviewed = true;
-      if (filters.reviewedStatus === "unreviewed") filterParams.reviewed = false;
+      if (filters.reviewedStatus === "unreviewed")
+        filterParams.reviewed = false;
 
-      submissions.value = (await loadSubmissionsPage(page, filterParams)) || [];
+      if (filters.studentSearch.trim()) {
+        submissions.value = (await loadSubmissionsService(filterParams)) || [];
+      } else {
+        submissions.value =
+          (await loadSubmissionsPage(page, filterParams)) || [];
+      }
     } catch (err) {
       console.error("Failed to load submissions:", err);
       submissions.value = [];
@@ -155,7 +161,7 @@
   }
 
   async function refreshSubmissions() {
-    await loadSubmissions();
+    await loadSubmissions(submissionsPage.value);
   }
 
   function getInitial(name?: string) {
@@ -381,159 +387,166 @@
             v-for="submission in filteredSubmissions"
             :key="submission.id"
             class="submission-card"
-          :class="{
-            'submission-card--correct': submission.ai_is_correct === true,
-            'submission-card--incorrect': submission.ai_is_correct === false,
-            'submission-card--pending': submission.ai_is_correct === undefined,
-          }"
-        >
-          <div class="submission-header">
-            <div class="student-info">
-              <div class="student-avatar">
-                {{ getInitial(submission.student_name) }}
-              </div>
-              <div class="student-details">
-                <div class="student-name">
-                  {{ submission.student_name || "Estudiante" }}
+            :class="{
+              'submission-card--correct': submission.ai_is_correct === true,
+              'submission-card--incorrect': submission.ai_is_correct === false,
+              'submission-card--pending':
+                submission.ai_is_correct === undefined,
+            }"
+          >
+            <div class="submission-header">
+              <div class="student-info">
+                <div class="student-avatar">
+                  {{ getInitial(submission.student_name) }}
                 </div>
-                <div class="student-email">{{ submission.student_email }}</div>
+                <div class="student-details">
+                  <div class="student-name">
+                    {{ submission.student_name || "Estudiante" }}
+                  </div>
+                  <div class="student-email">
+                    {{ submission.student_email }}
+                  </div>
+                </div>
+              </div>
+              <div class="submission-badges">
+                <span
+                  v-if="submission.ai_is_correct === true"
+                  class="badge badge--success"
+                >
+                  <i class="pi pi-check"></i> Correcto
+                </span>
+                <span
+                  v-else-if="submission.ai_is_correct === false"
+                  class="badge badge--error"
+                >
+                  <i class="pi pi-times"></i> Incorrecto
+                </span>
+                <span v-else class="badge badge--pending">
+                  <i class="pi pi-clock"></i> Pendiente
+                </span>
+                <span
+                  v-if="submission.teacher_reviewed_at"
+                  class="badge badge--teacher"
+                >
+                  <i class="pi pi-user"></i> Revisado
+                </span>
               </div>
             </div>
-            <div class="submission-badges">
-              <span
-                v-if="submission.ai_is_correct === true"
-                class="badge badge--success"
-              >
-                <i class="pi pi-check"></i> Correcto
+
+            <div class="submission-meta">
+              <span class="meta-item">
+                <i class="pi pi-book"></i>
+                {{ submission.notebook_title || "Cuaderno" }}
               </span>
-              <span
-                v-else-if="submission.ai_is_correct === false"
-                class="badge badge--error"
-              >
-                <i class="pi pi-times"></i> Incorrecto
+              <span class="meta-item">
+                <i class="pi pi-file"></i>
+                Pagina {{ submission.page_number }}
               </span>
-              <span v-else class="badge badge--pending">
-                <i class="pi pi-clock"></i> Pendiente
-              </span>
-              <span
-                v-if="submission.teacher_reviewed_at"
-                class="badge badge--teacher"
-              >
-                <i class="pi pi-user"></i> Revisado
+              <span class="meta-item">
+                <i class="pi pi-calendar"></i>
+                {{ formatDateTime(submission.created_at) }}
               </span>
             </div>
-          </div>
 
-          <div class="submission-meta">
-            <span class="meta-item">
-              <i class="pi pi-book"></i>
-              {{ submission.notebook_title || "Cuaderno" }}
-            </span>
-            <span class="meta-item">
-              <i class="pi pi-file"></i>
-              Pagina {{ submission.page_number }}
-            </span>
-            <span class="meta-item">
-              <i class="pi pi-calendar"></i>
-              {{ formatDateTime(submission.created_at) }}
-            </span>
-          </div>
-
-          <!-- Canvas Preview -->
-          <div class="canvas-preview" v-if="submission.canvas_data">
-            <img
-              :src="submission.canvas_data"
-              :alt="`Respuesta de ${submission.student_name}`"
-              class="preview-image"
-              @click="openPreview(submission)"
-            />
-          </div>
-
-          <!-- AI Feedback -->
-          <div v-if="submission.ai_feedback" class="ai-feedback-box">
-            <div class="feedback-header">
-              <i class="pi pi-android"></i>
-              <span>Feedback IA</span>
+            <!-- Canvas Preview -->
+            <div class="canvas-preview" v-if="submission.canvas_data">
+              <img
+                :src="submission.canvas_data"
+                :alt="`Respuesta de ${submission.student_name}`"
+                class="preview-image"
+                @click="openPreview(submission)"
+              />
             </div>
-            <p class="feedback-text">{{ submission.ai_feedback }}</p>
-          </div>
 
-          <!-- Teacher Review Section -->
-          <div v-if="submission.teacher_feedback" class="teacher-feedback-box">
-            <div class="feedback-header">
-              <i class="pi pi-user"></i>
-              <span>Tu revision</span>
+            <!-- AI Feedback -->
+            <div v-if="submission.ai_feedback" class="ai-feedback-box">
+              <div class="feedback-header">
+                <i class="pi pi-android"></i>
+                <span>Feedback IA</span>
+              </div>
+              <p class="feedback-text">{{ submission.ai_feedback }}</p>
             </div>
-            <p class="feedback-text">{{ submission.teacher_feedback }}</p>
-            <span
-              class="review-badge"
-              :class="
-                submission.teacher_is_correct
-                  ? 'review-badge--correct'
-                  : 'review-badge--incorrect'
-              "
-            >
-              {{
-                submission.teacher_is_correct
-                  ? "Marcado correcto"
-                  : "Marcado incorrecto"
-              }}
-            </span>
-          </div>
 
-          <!-- Actions -->
-          <div class="submission-actions">
-            <button
-              v-if="submission.ai_is_correct === undefined"
-              class="btn btn-sm btn-secondary"
-              :disabled="reviewingIds.has(submission.id)"
-              @click="triggerAIReview(submission.id)"
+            <!-- Teacher Review Section -->
+            <div
+              v-if="submission.teacher_feedback"
+              class="teacher-feedback-box"
             >
-              <i
-                v-if="reviewingIds.has(submission.id)"
-                class="pi pi-spin pi-spinner"
-              ></i>
-              <i v-else class="pi pi-android"></i>
-              {{
-                reviewingIds.has(submission.id)
-                  ? "Evaluando..."
-                  : "Evaluar con IA"
-              }}
-            </button>
-            <button
-              class="btn btn-sm btn-primary"
-              @click="openReviewModal(submission)"
-            >
-              <i class="pi pi-pencil"></i>
-              Revisar manualmente
-            </button>
-          </div>
-        </article>
+              <div class="feedback-header">
+                <i class="pi pi-user"></i>
+                <span>Tu revision</span>
+              </div>
+              <p class="feedback-text">{{ submission.teacher_feedback }}</p>
+              <span
+                class="review-badge"
+                :class="
+                  submission.teacher_is_correct
+                    ? 'review-badge--correct'
+                    : 'review-badge--incorrect'
+                "
+              >
+                {{
+                  submission.teacher_is_correct
+                    ? "Marcado correcto"
+                    : "Marcado incorrecto"
+                }}
+              </span>
+            </div>
+
+            <!-- Actions -->
+            <div class="submission-actions">
+              <button
+                v-if="submission.ai_is_correct === undefined"
+                class="btn btn-sm btn-secondary"
+                :disabled="reviewingIds.has(submission.id)"
+                @click="triggerAIReview(submission.id)"
+              >
+                <i
+                  v-if="reviewingIds.has(submission.id)"
+                  class="pi pi-spin pi-spinner"
+                ></i>
+                <i v-else class="pi pi-android"></i>
+                {{
+                  reviewingIds.has(submission.id)
+                    ? "Evaluando..."
+                    : "Evaluar con IA"
+                }}
+              </button>
+              <button
+                class="btn btn-sm btn-primary"
+                @click="openReviewModal(submission)"
+              >
+                <i class="pi pi-pencil"></i>
+                Revisar manualmente
+              </button>
+            </div>
+          </article>
+        </div>
+
+        <!-- Pagination Controls -->
+        <div v-if="filteredSubmissions.length > 0" class="pagination-controls">
+          <button
+            class="btn btn-secondary"
+            :disabled="submissionsPage === 1"
+            @click="goToPrevPage"
+          >
+            <i class="pi pi-chevron-left"></i>
+            Anterior
+          </button>
+          <span class="pagination-info">
+            Página {{ submissionsPage }} ·
+            {{ filteredSubmissions.length }} resultados
+          </span>
+          <button
+            class="btn btn-secondary"
+            :disabled="!submissionsHasMore"
+            @click="goToNextPage"
+          >
+            Siguiente
+            <i class="pi pi-chevron-right"></i>
+          </button>
+        </div>
       </div>
-
-      <!-- Pagination Controls -->
-      <div v-if="filteredSubmissions.length > 0" class="pagination-controls">
-        <button
-          class="btn btn-secondary"
-          :disabled="submissionsPage === 1"
-          @click="goToPrevPage"
-        >
-          <i class="pi pi-chevron-left"></i>
-          Anterior
-        </button>
-        <span class="pagination-info">
-          Página {{ submissionsPage }} · {{ filteredSubmissions.length }} resultados
-        </span>
-        <button
-          class="btn btn-secondary"
-          :disabled="!submissionsHasMore"
-          @click="goToNextPage"
-        >
-          Siguiente
-          <i class="pi pi-chevron-right"></i>
-        </button>
-      </div>
-    </div>
 
       <!-- Preview Modal -->
       <Teleport to="body">
