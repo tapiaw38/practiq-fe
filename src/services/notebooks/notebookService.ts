@@ -82,8 +82,7 @@ export class NotebookService implements INotebookService {
 
   async list(courseId: string): Promise<Notebook[]> {
     const { data } = await this.api.get(`/courses/${courseId}/notebooks`);
-    // backend returns [{data: Notebook}, ...] — unwrap each item
-    return (data as Array<{ data: Notebook }>).map((item) => item.data);
+    return data.data;
   }
 
   async get(id: string, studentId?: string): Promise<{ data: Notebook }> {
