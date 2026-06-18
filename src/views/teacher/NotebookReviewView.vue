@@ -1,5 +1,5 @@
 <script setup lang="ts">
-  import { ref, reactive, computed, onMounted } from "vue";
+  import { ref, reactive, computed, onMounted, watch } from "vue";
   import TeacherLayout from "@/layouts/TeacherLayout.vue";
   import Skeleton from "@/components/ui/Skeleton.vue";
   import { useCourse } from "@/composables/useCourse";
@@ -62,6 +62,15 @@
       loading.value = false;
     }
   });
+
+  watch(
+    () => filters.studentSearch,
+    () => {
+      if (filters.courseId) {
+        loadSubmissions(1);
+      }
+    }
+  );
 
   async function loadCoursesData() {
     try {
