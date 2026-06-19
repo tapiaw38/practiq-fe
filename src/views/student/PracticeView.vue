@@ -1898,5 +1898,45 @@
     .results-stats {
       grid-template-columns: 1fr;
     }
+
+    .ex-card {
+      padding: 14px 12px;
+      gap: 10px;
+    }
+
+    .ex-canvas {
+      height: 320px;
+    }
+
+    .practice-footer {
+      flex-direction: column;
+      gap: 12px;
+      align-items: stretch;
+      padding: 12px 16px;
+    }
+
+    .footer-left {
+      width: 100%;
+      justify-content: space-between;
+    }
+
+    .footer-actions {
+      width: 100%;
+      gap: 8px;
+    }
+
+    .btn-draft {
+      flex: 1;
+      padding: 12px 16px;
+      justify-content: center;
+      font-size: 0.875rem;
+    }
+
+    .btn-submit {
+      flex: 1;
+      padding: 12px 20px;
+      justify-content: center;
+      font-size: 0.9rem;
+    }
   }
 </style>
