@@ -2,6 +2,8 @@
   import { computed, ref, watch } from "vue";
   import { useRoute, useRouter } from "vue-router";
   import { useAuthStore } from "@/stores/authStore";
+  import ChangePasswordModal from "@/components/auth/ChangePasswordModal.vue";
+  import SetPasswordModal from "@/components/auth/SetPasswordModal.vue";
 
   const route = useRoute();
   const router = useRouter();
@@ -11,6 +13,9 @@
     () => profile.value?.name?.[0]?.toUpperCase() || "D",
   );
   const navOpen = ref(false);
+  const showChangePassword = ref(false);
+  const showSetPassword = ref(false);
+  const isGoogleUser = computed(() => authStore.authMethod === "google");
   const isAdmin = computed(() => {
     const roles = authStore.authUser?.roles || [];
     return roles.some(
@@ -116,9 +121,30 @@
             <div class="user-role">{{ roleLabel }}</div>
           </div>
         </div>
-        <button class="logout-btn" type="button" @click="logout">
-          <i class="pi pi-sign-out"></i>
-        </button>
+        <div class="footer-actions">
+          <button
+            class="icon-btn"
+            type="button"
+            :title="
+              isGoogleUser ? 'Establecer contraseña' : 'Cambiar contraseña'
+            "
+            @click="
+              isGoogleUser
+                ? (showSetPassword = true)
+                : (showChangePassword = true)
+            "
+          >
+            <i class="pi pi-lock"></i>
+          </button>
+          <button
+            class="icon-btn icon-btn--logout"
+            type="button"
+            title="Cerrar sesión"
+            @click="logout"
+          >
+            <i class="pi pi-sign-out"></i>
+          </button>
+        </div>
       </div>
     </aside>
 
@@ -126,6 +152,11 @@
       <slot />
     </main>
   </div>
+
+  <Teleport to="body">
+    <ChangePasswordModal v-model:visible="showChangePassword" />
+    <SetPasswordModal v-model:visible="showSetPassword" />
+  </Teleport>
 </template>
 
 <style scoped>
@@ -330,6 +361,35 @@
   }
 
   .logout-btn:hover {
+    color: var(--color-error);
+    background: var(--color-error-bg);
+  }
+
+  .footer-actions {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex-shrink: 0;
+  }
+
+  .icon-btn {
+    width: 36px;
+    height: 36px;
+    border: none;
+    border-radius: var(--radius-md);
+    background: var(--surface-subtle);
+    color: var(--text-secondary);
+    display: grid;
+    place-items: center;
+    cursor: pointer;
+    transition: var(--transition);
+    font-size: var(--text-md);
+  }
+  .icon-btn:hover {
+    background: var(--surface-card);
+    color: var(--text-primary);
+  }
+  .icon-btn--logout:hover {
     color: var(--color-error);
     background: var(--color-error-bg);
   }
