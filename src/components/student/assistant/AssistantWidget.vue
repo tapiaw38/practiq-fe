@@ -3,7 +3,14 @@
 </template>
 
 <script setup lang="ts">
-  import { computed, nextTick, onBeforeUnmount, watch } from "vue";
+  import {
+    computed,
+    nextTick,
+    onMounted,
+    onBeforeUnmount,
+    ref,
+    watch,
+  } from "vue";
   import { useRoute } from "vue-router";
   import robotAvatarUrl from "@/assets/robot.png";
   import { useAuthStore } from "@/stores/authStore";
@@ -16,6 +23,7 @@
 
   let assistant: Assistant | null = null;
   let activeToken: string | null = null;
+  const drawerOpen = ref(false);
 
   function getAssistantCanvasAttachment() {
     const capture = window.__practiqAssistantCapture;
@@ -106,9 +114,36 @@
 
   function destroyAssistant() {
     if (!assistant) return;
+    setAssistantDrawerHidden(false);
     assistant.unmount();
     assistant = null;
     activeToken = null;
+  }
+
+  function setAssistantDrawerHidden(hidden: boolean) {
+    document
+      .querySelectorAll(".floating-button, .ia-chat-container")
+      .forEach((el) => {
+        el.classList.toggle("practiq-assistant-drawer-hidden", hidden);
+        if (hidden) {
+          el.setAttribute("aria-hidden", "true");
+        } else {
+          el.removeAttribute("aria-hidden");
+        }
+      });
+  }
+
+  function applyDrawerVisibility() {
+    if (!assistant) return;
+    const shouldHide = drawerOpen.value && window.innerWidth <= 920;
+    if (shouldHide) {
+      assistant.close();
+      assistant.showButton();
+      requestAnimationFrame(() => setAssistantDrawerHidden(true));
+    } else {
+      setAssistantDrawerHidden(false);
+      assistant.showButton();
+    }
   }
 
   function mountAssistant() {
@@ -150,6 +185,7 @@
     });
 
     activeToken = token;
+    applyDrawerVisibility();
   }
 
   watch(
@@ -184,7 +220,40 @@
     },
   );
 
+  function handleDrawerToggle(e: Event) {
+    const customEvent = e as CustomEvent<{ open: boolean }>;
+    drawerOpen.value = !!customEvent.detail.open;
+    applyDrawerVisibility();
+  }
+
+  onMounted(() => {
+    window.addEventListener(
+      "student-drawer-toggled",
+      handleDrawerToggle as EventListener,
+    );
+  });
+
   onBeforeUnmount(() => {
+    window.removeEventListener(
+      "student-drawer-toggled",
+      handleDrawerToggle as EventListener,
+    );
     destroyAssistant();
   });
 </script>
+
+<style>
+  .floating-button,
+  .ia-chat-container {
+    transition:
+      opacity 0.2s ease,
+      transform 0.22s ease;
+  }
+
+  .floating-button.practiq-assistant-drawer-hidden,
+  .ia-chat-container.practiq-assistant-drawer-hidden {
+    opacity: 0 !important;
+    pointer-events: none !important;
+    transform: translateY(18px) !important;
+  }
+</style>

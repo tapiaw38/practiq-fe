@@ -1,5 +1,5 @@
 <script setup lang="ts">
-  import { ref, computed, onMounted } from "vue";
+  import { ref, computed, onMounted, onUnmounted } from "vue";
   import { useRouter } from "vue-router";
   import { useAuthStore } from "@/stores/authStore";
   import StudentLayout from "@/layouts/StudentLayout.vue";
@@ -136,7 +136,19 @@
     return "";
   });
 
+  function handleDrawerToggle(e: Event) {
+    const customEvent = e as CustomEvent<{ open: boolean }>;
+    if (customEvent.detail.open) {
+      showAssistant.value = false;
+    }
+  }
+
   onMounted(async () => {
+    window.addEventListener(
+      "student-drawer-toggled",
+      handleDrawerToggle as EventListener,
+    );
+
     if (!authStore.profile) {
       try {
         const profile = await loadProfile();
@@ -182,6 +194,13 @@
     } finally {
       loading.value = false;
     }
+  });
+
+  onUnmounted(() => {
+    window.removeEventListener(
+      "student-drawer-toggled",
+      handleDrawerToggle as EventListener,
+    );
   });
 
   function practiceSheets(courseId: string) {

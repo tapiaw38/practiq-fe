@@ -113,6 +113,12 @@
     },
   );
 
+  watch(navOpen, (open) => {
+    window.dispatchEvent(
+      new CustomEvent("student-drawer-toggled", { detail: { open } }),
+    );
+  });
+
   onMounted(() => {
     window.addEventListener("resize", syncDesktopState);
   });
@@ -920,7 +926,7 @@
       position: fixed;
       inset: 0;
       background: var(--surface-scrim);
-      z-index: 34;
+      z-index: 250;
     }
 
     .sidebar {
@@ -932,7 +938,7 @@
       height: calc(100vh - 24px);
       transform: translateX(-110%);
       transition: transform 0.24s ease;
-      z-index: 40;
+      z-index: 260;
     }
 
     .sidebar--open {
