@@ -418,7 +418,9 @@
         <!-- Metrics row -->
         <section class="metrics-row">
           <div class="metric-card">
-            <div class="metric-card__icon metric-card__icon--fire">🔥</div>
+            <div class="metric-card__icon metric-card__icon--fire">
+              <img src="@/assets/burn.png" alt="" class="metric-icon-img" />
+            </div>
             <div>
               <div class="metric-card__value">{{ streakDays }}</div>
               <div class="metric-card__label">Racha</div>
@@ -426,7 +428,9 @@
           </div>
 
           <div class="metric-card">
-            <div class="metric-card__icon metric-card__icon--star">⭐</div>
+            <div class="metric-card__icon metric-card__icon--star">
+              <img src="@/assets/stars.png" alt="" class="metric-icon-img" />
+            </div>
             <div>
               <div class="metric-card__value">{{ totalCorrect }}</div>
               <div class="metric-card__label">Aciertos</div>
@@ -434,7 +438,9 @@
           </div>
 
           <div class="metric-card metric-card--goal">
-            <div class="metric-card__icon metric-card__icon--goal">🎯</div>
+            <div class="metric-card__icon metric-card__icon--goal">
+              <img src="@/assets/target.png" alt="" class="metric-icon-img" />
+            </div>
             <div class="metric-goal-body">
               <div class="metric-goal-top">
                 <span class="metric-card__label">Precisión global</span>
@@ -690,6 +696,12 @@
     place-items: center;
     font-size: 22px;
     flex-shrink: 0;
+  }
+
+  .metric-icon-img {
+    width: 32px;
+    height: 32px;
+    object-fit: contain;
   }
 
   .metric-card__icon--fire {
