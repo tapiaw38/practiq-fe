@@ -750,7 +750,7 @@
         </div>
         <div class="header-right">
           <div class="streak-chip">
-            <span>🔥</span>
+            <img src="@/assets/burn.png" alt="" class="streak-icon" />
             <div>
               <div class="streak-val">{{ streakCount }}</div>
               <div class="streak-lbl">racha</div>
@@ -883,7 +883,8 @@
                       Dificultad {{ pse.exercise.difficulty }}
                     </span>
                     <span class="time-display"
-                      >⏱ {{ formatDuration(timers[pse.exercise.id] || 0) }}</span
+                      >⏱
+                      {{ formatDuration(timers[pse.exercise.id] || 0) }}</span
                     >
                     <span v-if="hints[pse.exercise.id]" class="hint-count">
                       💡 {{ hints[pse.exercise.id] }} pista{{
@@ -1297,6 +1298,13 @@
     border-radius: var(--radius-lg);
     background: var(--gradient-brand-soft);
     border: 1.5px solid rgba(var(--practiq-violet-rgb), 0.1);
+  }
+
+  .streak-icon {
+    width: 24px;
+    height: 24px;
+    object-fit: contain;
+    flex-shrink: 0;
   }
 
   .streak-val {

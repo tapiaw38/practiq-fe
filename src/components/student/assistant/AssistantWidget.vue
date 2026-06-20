@@ -147,7 +147,9 @@
   }
 
   function getCSSVar(name: string): string {
-    return getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+    return getComputedStyle(document.documentElement)
+      .getPropertyValue(name)
+      .trim();
   }
 
   function mountAssistant() {
