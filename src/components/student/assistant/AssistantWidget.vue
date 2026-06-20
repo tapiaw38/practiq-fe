@@ -146,12 +146,20 @@
     }
   }
 
+  function getCSSVar(name: string): string {
+    return getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+  }
+
   function mountAssistant() {
     const token = authStore.token;
     if (!token || !isEnabled.value) return;
     if (assistant && activeToken === token) return;
 
     destroyAssistant();
+
+    const primaryColor = getCSSVar("--practiq-violet");
+    const backgroundColor = getCSSVar("--surface-card");
+    const textColor = getCSSVar("--text-primary");
 
     assistant = createAssistant({
       apiBaseUrl: proxyBaseUrl,
@@ -166,21 +174,21 @@
       getStructuredContext: getAssistantStructuredContext,
       buttonOptions: {
         avatarUrl: robotAvatarUrl,
-        backgroundColor: "#ffffff",
-        color: "#123c52",
+        backgroundColor: backgroundColor,
+        color: primaryColor,
         size: "large",
       },
       theme: {
-        primaryColor: "#123c52",
-        textColor: "#16394c",
-        backgroundColor: "#ffffff",
-        userMessageBgColor: "#123c52",
+        primaryColor: primaryColor,
+        textColor: textColor,
+        backgroundColor: backgroundColor,
+        userMessageBgColor: primaryColor,
         userMessageTextColor: "#ffffff",
-        assistantMessageBgColor: "#eef7fb",
-        assistantMessageTextColor: "#16394c",
-        inputBorderColor: "#cfe4ee",
-        inputBgColor: "#ffffff",
-        inputTextColor: "#16394c",
+        assistantMessageBgColor: getCSSVar("--surface-elevated"),
+        assistantMessageTextColor: textColor,
+        inputBorderColor: getCSSVar("--surface-border"),
+        inputBgColor: backgroundColor,
+        inputTextColor: textColor,
       },
     });
 
