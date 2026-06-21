@@ -4,6 +4,7 @@
   import { useAuthStore } from "@/stores/authStore";
   import StudentLayout from "@/layouts/StudentLayout.vue";
   import Skeleton from "@/components/ui/Skeleton.vue";
+  import DrawingCanvas from "@/components/ui/DrawingCanvas.vue";
   import { useNotebook } from "@/composables/useNotebook";
   import type { Notebook, NotebookPage } from "@/types";
   import {
@@ -24,22 +25,16 @@
   const currentPageIndex = ref(0);
 
   // Drawing state
-  const answerCanvas = ref<HTMLCanvasElement | null>(null);
+  const canvasRef = ref<InstanceType<typeof DrawingCanvas> | null>(null);
   const tool = ref<"pen" | "eraser">("pen");
   const penColor = ref("#1e1e2e");
   const penSize = ref(3);
-  const isDrawing = ref(false);
-  const undoStack = ref<ImageData[]>([]);
-
-  // Text state
-  const textAnswer = ref("");
 
   // Save state
   const saveStatus = ref<"saving" | "saved" | "">("");
 
   // Per-page canvas snapshots
   const canvasSnapshots = ref<Record<string, string>>({});
-  const textAnswers = ref<Record<string, string>>({});
 
   const pages = computed(() => notebook.value?.pages || []);
   const currentPage = computed<NotebookPage | null>(
@@ -47,12 +42,6 @@
   );
   const studentId = computed(
     () => authStore.profile?.id || authStore.authUser?.id || "",
-  );
-
-  const penCursor = `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24'%3E%3Cpath fill='%231e1e2e' d='M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04a1 1 0 0 0 0-1.41l-2.34-2.34a1 1 0 0 0-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z'/%3E%3C/svg%3E") 0 24, crosshair`;
-  const eraserCursor = `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='20' height='20' viewBox='0 0 20 20'%3E%3Ccircle cx='10' cy='10' r='8' fill='none' stroke='%23666' stroke-width='1.5'/%3E%3C/svg%3E") 10 10, cell`;
-  const canvasCursor = computed(() =>
-    tool.value === "eraser" ? eraserCursor : penCursor,
   );
 
   function hasSubmission(page: NotebookPage) {
@@ -67,13 +56,10 @@
       for (const page of pages.value) {
         if (page.submission?.canvas_data)
           canvasSnapshots.value[page.id] = page.submission.canvas_data;
-        if (page.submission?.answer_text)
-          textAnswers.value[page.id] = page.submission.answer_text;
       }
     } finally {
       loading.value = false;
       await nextTick();
-      initCanvas();
       registerAssistantHooks();
     }
   });
@@ -84,139 +70,8 @@
 
   watch(currentPageIndex, async () => {
     await nextTick();
-    initCanvas();
     registerAssistantHooks();
-    if (currentPage.value) {
-      textAnswer.value = textAnswers.value[currentPage.value.id] || "";
-    }
   });
-
-  function drawNotebookBackground(
-    ctx: CanvasRenderingContext2D,
-    w: number,
-    h: number,
-  ) {
-    // Fondo crema
-    ctx.fillStyle = "#fafaf7";
-    ctx.fillRect(0, 0, w, h);
-    // Línea de margen roja
-    ctx.strokeStyle = "rgba(239,68,68,0.25)";
-    ctx.lineWidth = 1.5;
-    ctx.beginPath();
-    ctx.moveTo(56, 0);
-    ctx.lineTo(56, h);
-    ctx.stroke();
-    // Líneas horizontales
-    ctx.strokeStyle = "rgba(124,58,237,0.1)";
-    ctx.lineWidth = 1;
-    for (let y = 32; y < h; y += 32) {
-      ctx.beginPath();
-      ctx.moveTo(0, y);
-      ctx.lineTo(w, y);
-      ctx.stroke();
-    }
-  }
-
-  function initCanvas() {
-    const canvas = answerCanvas.value;
-    if (!canvas || !currentPage.value) return;
-
-    const doInit = () => {
-      const w = canvas.offsetWidth || 1200;
-      const h = canvas.offsetHeight || 600;
-      canvas.width = w;
-      canvas.height = h;
-      const ctx = canvas.getContext("2d")!;
-      drawNotebookBackground(ctx, w, h);
-      undoStack.value = [];
-
-      const snap = currentPage.value?.id
-        ? canvasSnapshots.value[currentPage.value.id]
-        : null;
-      if (snap) {
-        const img = new Image();
-        img.onload = () => ctx.drawImage(img, 0, 0, w, h);
-        img.src = snap;
-      }
-    };
-
-    // Esperar un frame para que el canvas tenga dimensiones reales
-    requestAnimationFrame(doInit);
-  }
-
-  function getCtx() {
-    return answerCanvas.value?.getContext("2d") ?? null;
-  }
-
-  function getPoint(e: MouseEvent) {
-    const canvas = answerCanvas.value!;
-    const rect = canvas.getBoundingClientRect();
-    return {
-      x: (e.clientX - rect.left) * (canvas.width / rect.width),
-      y: (e.clientY - rect.top) * (canvas.height / rect.height),
-    };
-  }
-
-  function startDraw(e: MouseEvent) {
-    const ctx = getCtx();
-    if (!ctx || !answerCanvas.value) return;
-    undoStack.value.push(
-      ctx.getImageData(
-        0,
-        0,
-        answerCanvas.value.width,
-        answerCanvas.value.height,
-      ),
-    );
-    isDrawing.value = true;
-    const { x, y } = getPoint(e);
-    ctx.beginPath();
-    ctx.moveTo(x, y);
-  }
-
-  function draw(e: MouseEvent) {
-    if (!isDrawing.value) return;
-    const ctx = getCtx();
-    if (!ctx) return;
-    const { x, y } = getPoint(e);
-    ctx.globalCompositeOperation =
-      tool.value === "eraser" ? "destination-out" : "source-over";
-    ctx.strokeStyle = penColor.value;
-    ctx.lineWidth = tool.value === "eraser" ? penSize.value * 4 : penSize.value;
-    ctx.lineCap = "round";
-    ctx.lineJoin = "round";
-    ctx.lineTo(x, y);
-    ctx.stroke();
-  }
-
-  function endDraw() {
-    isDrawing.value = false;
-    getCtx()?.beginPath();
-  }
-
-  function startDrawTouch(e: TouchEvent) {
-    const t = e.touches[0];
-    startDraw({ clientX: t.clientX, clientY: t.clientY } as MouseEvent);
-  }
-
-  function drawTouch(e: TouchEvent) {
-    const t = e.touches[0];
-    draw({ clientX: t.clientX, clientY: t.clientY } as MouseEvent);
-  }
-
-  function undoDraw() {
-    const ctx = getCtx();
-    if (!ctx || !answerCanvas.value || undoStack.value.length === 0) return;
-    ctx.putImageData(undoStack.value.pop()!, 0, 0);
-  }
-
-  function clearCanvas() {
-    const canvas = answerCanvas.value;
-    const ctx = getCtx();
-    if (!canvas || !ctx) return;
-    undoStack.value = [];
-    drawNotebookBackground(ctx, canvas.width, canvas.height);
-  }
 
   function getReviewBoxClass(submission: { ai_is_correct?: boolean }) {
     if (submission.ai_is_correct === true) return "ai-review-box--success";
@@ -239,8 +94,20 @@
   }
 
   function captureCanvas(): string {
-    const source = answerCanvas.value;
-    if (!source) return "";
+    const pageId = currentPage.value?.id || "";
+    const dataUrl = canvasSnapshots.value[pageId] || "";
+    if (!dataUrl) return "";
+
+    // Create temp canvas to process the image
+    const source = document.createElement("canvas");
+    const img = new Image();
+    img.src = dataUrl;
+    if (!img.complete) return dataUrl; // If image not loaded, return as-is
+    source.width = img.width;
+    source.height = img.height;
+    const sourceCtx = source.getContext("2d");
+    if (!sourceCtx) return dataUrl;
+    sourceCtx.drawImage(img, 0, 0);
 
     const scale = 2.5;
     const temp = document.createElement("canvas");
@@ -481,7 +348,6 @@
     try {
       const pageId = currentPage.value.id;
       const data = captureCanvas();
-      canvasSnapshots.value[pageId] = data;
 
       const start = await saveSubmissionAsync(pageId, { canvas_data: data });
       const jobId = start.job_id;
@@ -646,10 +512,10 @@
                 >
                   <i class="pi pi-times-circle"></i>
                 </button>
-                <button class="tool-btn" @click="undoDraw" title="Deshacer">
+                <button class="tool-btn" @click="canvasRef?.undo()" title="Deshacer">
                   <i class="pi pi-undo"></i>
                 </button>
-                <button class="tool-btn" @click="clearCanvas" title="Limpiar">
+                <button class="tool-btn" @click="canvasRef?.clear()" title="Limpiar">
                   <i class="pi pi-trash"></i>
                 </button>
                 <input
@@ -669,18 +535,14 @@
               </div>
             </div>
 
-            <canvas
-              ref="answerCanvas"
-              class="answer-canvas"
-              :style="{ cursor: canvasCursor }"
-              @mousedown="startDraw"
-              @mousemove="draw"
-              @mouseup="endDraw"
-              @mouseleave="endDraw"
-              @touchstart.prevent="startDrawTouch"
-              @touchmove.prevent="drawTouch"
-              @touchend="endDraw"
-            ></canvas>
+            <DrawingCanvas
+              ref="canvasRef"
+              v-model="canvasSnapshots[currentPage.id]"
+              :height="300"
+              :tool="tool"
+              :pen-size="penSize"
+              :pen-color="penColor"
+            />
           </section>
 
           <!-- Save bar -->
@@ -1103,6 +965,16 @@
     display: block;
     touch-action: none;
     box-shadow: 0 2px 12px rgba(var(--practiq-violet-rgb), 0.06);
+    background-color: var(--surface-bg-soft);
+    background-image:
+      linear-gradient(90deg, transparent 56px, rgba(var(--color-error-rgb), 0.25) 56px, rgba(var(--color-error-rgb), 0.25) 57.5px, transparent 57.5px),
+      repeating-linear-gradient(
+        transparent,
+        transparent 31px,
+        rgba(var(--practiq-violet-rgb), 0.1) 31px,
+        rgba(var(--practiq-violet-rgb), 0.1) 32px
+      );
+    background-repeat: no-repeat, repeat;
   }
 
   .answer-textarea {

@@ -4,6 +4,7 @@
   import { useAuthStore } from "@/stores/authStore";
   import StudentLayout from "@/layouts/StudentLayout.vue";
   import Skeleton from "@/components/ui/Skeleton.vue";
+  import DrawingCanvas from "@/components/ui/DrawingCanvas.vue";
   import { usePracticeSheet } from "@/composables/usePracticeSheet";
   import { useProgress } from "@/composables/useProgress";
   import type { PracticeSheet, SubmitResult, TopicProgress } from "@/types";
@@ -41,11 +42,7 @@
   const hints = ref<Record<string, number>>({});
 
   // Canvas — multiple refs, one per exercise
-  const canvasRefs: Record<string, HTMLCanvasElement | null> = {};
-  const initializedIds = new Set<string>();
-  const undoStacks: Record<string, ImageData[]> = {};
-  const isDrawingMap: Record<string, boolean> = {};
-  const lastPos: Record<string, { x: number; y: number }> = {};
+  const canvasRefs: Record<string, InstanceType<typeof DrawingCanvas> | null> = {};
   const tool = ref<"pen" | "eraser">("pen");
   const penColor = ref(cssVar("--text-primary", "#1e293b"));
   const penSize = ref(3);
@@ -206,130 +203,22 @@
 
   // Canvas
 
-  function setCanvasRef(id: string, el: HTMLCanvasElement | null) {
-    if (!el) {
-      canvasRefs[id] = null;
-      initializedIds.delete(id);
-      return;
-    }
+  function setCanvasRef(id: string, el: InstanceType<typeof DrawingCanvas> | null) {
     canvasRefs[id] = el;
-    if (!initializedIds.has(id)) {
-      initializedIds.add(id);
-      initCanvas(id, el);
-    }
-  }
-
-  function drawBackground(ctx: CanvasRenderingContext2D, w: number, h: number) {
-    ctx.fillStyle = cssVar("--surface-bg-soft", "#fafaf7");
-    ctx.fillRect(0, 0, w, h);
-    // Red margin line
-    ctx.strokeStyle = `rgba(${cssVar("--color-error-rgb", "239, 68, 68")}, 0.25)`;
-    ctx.lineWidth = 1.5;
-    ctx.beginPath();
-    ctx.moveTo(56, 0);
-    ctx.lineTo(56, h);
-    ctx.stroke();
-    // Horizontal ruled lines
-    ctx.strokeStyle = `rgba(${cssVar("--practiq-violet-rgb", "124, 58, 237")}, 0.1)`;
-    ctx.lineWidth = 1;
-    for (let y = 32; y < h; y += 32) {
-      ctx.beginPath();
-      ctx.moveTo(0, y);
-      ctx.lineTo(w, y);
-      ctx.stroke();
-    }
-  }
-
-  function initCanvas(id: string, canvas: HTMLCanvasElement) {
-    requestAnimationFrame(() => {
-      const w = canvas.offsetWidth || 600;
-      const h = canvas.offsetHeight || 280;
-      canvas.width = w;
-      canvas.height = h;
-      const ctx = canvas.getContext("2d")!;
-      drawBackground(ctx, w, h);
-      undoStacks[id] = [];
-    });
-  }
-
-  function getPos(e: MouseEvent, canvas: HTMLCanvasElement) {
-    const rect = canvas.getBoundingClientRect();
-    return {
-      x: (e.clientX - rect.left) * (canvas.width / rect.width),
-      y: (e.clientY - rect.top) * (canvas.height / rect.height),
-    };
-  }
-
-  function startDrawing(e: MouseEvent, id: string, idx: number) {
-    const canvas = canvasRefs[id];
-    if (!canvas) return;
-    const ctx = canvas.getContext("2d")!;
-    if (!undoStacks[id]) undoStacks[id] = [];
-    undoStacks[id].push(ctx.getImageData(0, 0, canvas.width, canvas.height));
-    isDrawingMap[id] = true;
-    activeCanvasId.value = id;
-    currentIdx.value = idx;
-    const pos = getPos(e, canvas);
-    lastPos[id] = pos;
-    ctx.beginPath();
-    ctx.moveTo(pos.x, pos.y);
-  }
-
-  function draw(e: MouseEvent, id: string) {
-    if (!isDrawingMap[id]) return;
-    const canvas = canvasRefs[id];
-    if (!canvas) return;
-    const ctx = canvas.getContext("2d")!;
-    const pos = getPos(e, canvas);
-    ctx.globalCompositeOperation =
-      tool.value === "eraser" ? "destination-out" : "source-over";
-    ctx.strokeStyle = penColor.value;
-    ctx.lineWidth = tool.value === "eraser" ? penSize.value * 4 : penSize.value;
-    ctx.lineCap = "round";
-    ctx.lineJoin = "round";
-    ctx.lineTo(pos.x, pos.y);
-    ctx.stroke();
-    lastPos[id] = pos;
-  }
-
-  function stopDrawing(id: string) {
-    if (!isDrawingMap[id]) return;
-    isDrawingMap[id] = false;
-    const canvas = canvasRefs[id];
-    if (!canvas) return;
-    canvas.getContext("2d")!.beginPath();
-    answers.value[id].answer = canvas.toDataURL("image/png");
-  }
-
-  function startDrawingTouch(e: TouchEvent, id: string, idx: number) {
-    const t = e.touches[0];
-    startDrawing(
-      { clientX: t.clientX, clientY: t.clientY } as MouseEvent,
-      id,
-      idx,
-    );
-  }
-
-  function drawTouch(e: TouchEvent, id: string) {
-    const t = e.touches[0];
-    draw({ clientX: t.clientX, clientY: t.clientY } as MouseEvent, id);
   }
 
   function undoActive() {
     const id = activeCanvasId.value;
     if (!id) return;
     const canvas = canvasRefs[id];
-    const stack = undoStacks[id];
-    if (!canvas || !stack || stack.length === 0) return;
-    canvas.getContext("2d")!.putImageData(stack.pop()!, 0, 0);
+    if (!canvas) return;
+    canvas.undo();
   }
 
   function clearCanvas(id: string) {
     const canvas = canvasRefs[id];
     if (!canvas) return;
-    const ctx = canvas.getContext("2d")!;
-    undoStacks[id] = [];
-    drawBackground(ctx, canvas.width, canvas.height);
+    canvas.clear();
     answers.value[id].answer = "";
   }
 
@@ -420,9 +309,8 @@
 
     for (const pse of sheet.value.exercises || []) {
       const exerciseId = pse.exercise.id;
-      const canvas = canvasRefs[exerciseId];
       draftData[exerciseId] = {
-        canvasData: canvas ? canvas.toDataURL("image/png") : "",
+        canvasData: answers.value[exerciseId]?.answer || "",
         keyboardAnswer: keyboardAnswers.value[exerciseId] || "",
         timestamp: Date.now(),
       };
@@ -483,28 +371,12 @@
           keyboardAnswers.value[exerciseId] = draft.keyboardAnswer;
         }
 
-        // Restore canvas data
-        const exercise = sheet.value?.exercises.find(
-          (pse) => pse.exercise.id === exerciseId,
-        )?.exercise;
-        if (draft.canvasData && exercise && exerciseUsesCanvas(exercise.type)) {
-          const canvas = canvasRefs[exerciseId];
-          if (canvas) {
-            const img = new Image();
-            img.onload = () => {
-              const ctx = canvas.getContext("2d");
-              if (ctx) {
-                ctx.clearRect(0, 0, canvas.width, canvas.height);
-                ctx.drawImage(img, 0, 0);
-                // Update answers record
-                answers.value[exerciseId] = {
-                  ...answers.value[exerciseId],
-                  answer: draft.canvasData,
-                };
-              }
-            };
-            img.src = draft.canvasData;
-          }
+        // Restore canvas data via v-model
+        if (draft.canvasData) {
+          answers.value[exerciseId] = {
+            ...answers.value[exerciseId],
+            answer: draft.canvasData,
+          };
         }
       }
 
@@ -526,10 +398,26 @@
   }
 
   function buildCanvasDataForOCR(exerciseId: string) {
-    const source = canvasRefs[exerciseId];
-    if (!source) {
-      return answers.value[exerciseId]?.answer || "";
+    const dataUrl = answers.value[exerciseId]?.answer || "";
+    if (!dataUrl || !dataUrl.startsWith("data:image/")) {
+      return "";
     }
+
+    // Create temp canvas from dataURL
+    const source = document.createElement("canvas");
+    const sourceImg = new Image();
+    sourceImg.src = dataUrl;
+
+    // If image not yet loaded, return original
+    if (!sourceImg.complete) {
+      return dataUrl;
+    }
+
+    source.width = sourceImg.width || 600;
+    source.height = sourceImg.height || 240;
+    const sourceCtx = source.getContext("2d");
+    if (!sourceCtx) return dataUrl;
+    sourceCtx.drawImage(sourceImg, 0, 0);
 
     const scale = 2;
     const out = document.createElement("canvas");
@@ -537,7 +425,7 @@
     out.height = Math.max(1, Math.floor(source.height * scale));
     const ctx = out.getContext("2d");
     if (!ctx) {
-      return answers.value[exerciseId]?.answer || "";
+      return dataUrl;
     }
 
     ctx.fillStyle = cssVar("--surface-card", "#ffffff");
@@ -984,25 +872,21 @@
                         <i class="pi pi-trash"></i> Limpiar
                       </button>
                     </div>
-                    <canvas
+                    <DrawingCanvas
                       :ref="
                         (el) =>
                           setCanvasRef(
                             pse.exercise.id,
-                            el as HTMLCanvasElement | null,
+                            el as InstanceType<typeof DrawingCanvas> | null,
                           )
                       "
-                      class="ex-canvas"
-                      @mousedown="startDrawing($event, pse.exercise.id, idx)"
-                      @mousemove="draw($event, pse.exercise.id)"
-                      @mouseup="stopDrawing(pse.exercise.id)"
-                      @mouseleave="stopDrawing(pse.exercise.id)"
-                      @touchstart.prevent="
-                        startDrawingTouch($event, pse.exercise.id, idx)
-                      "
-                      @touchmove.prevent="drawTouch($event, pse.exercise.id)"
-                      @touchend="stopDrawing(pse.exercise.id)"
-                    ></canvas>
+                      v-model="answers[pse.exercise.id].answer"
+                      :height="240"
+                      :tool="tool"
+                      :pen-size="penSize"
+                      :pen-color="penColor"
+                      @click="setActiveExercise(pse.exercise.id, idx)"
+                    />
                   </div>
                 </div>
               </div>
@@ -1718,6 +1602,16 @@
     touch-action: none;
     cursor: crosshair;
     box-shadow: var(--shadow-card);
+    background-color: var(--surface-bg-soft);
+    background-image:
+      linear-gradient(90deg, transparent 56px, rgba(var(--color-error-rgb), 0.25) 56px, rgba(var(--color-error-rgb), 0.25) 57.5px, transparent 57.5px),
+      repeating-linear-gradient(
+        transparent,
+        transparent 31px,
+        rgba(var(--practiq-violet-rgb), 0.1) 31px,
+        rgba(var(--practiq-violet-rgb), 0.1) 32px
+      );
+    background-repeat: no-repeat, repeat;
   }
 
   /* Sticky footer */
