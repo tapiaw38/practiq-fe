@@ -87,7 +87,9 @@
     isDrawing.value = false;
     const canvas = canvasRef.value;
     if (!canvas) return;
-    canvas.getContext("2d")!.beginPath();
+    const ctx = canvas.getContext("2d")!;
+    ctx.globalCompositeOperation = "source-over"; // Reset after eraser
+    ctx.beginPath();
     emit("update:modelValue", canvas.toDataURL("image/png"));
   }
 
@@ -130,6 +132,7 @@
       const canvas = canvasRef.value;
       if (!canvas) return;
       const ctx = canvas.getContext("2d")!;
+      ctx.globalCompositeOperation = "source-over"; // Ensure normal mode
 
       if (!newVal) {
         // Clear canvas if modelValue is empty
@@ -139,6 +142,7 @@
         // Load new image when modelValue changes
         const img = new Image();
         img.onload = () => {
+          ctx.globalCompositeOperation = "source-over"; // Ensure normal mode
           ctx.clearRect(0, 0, canvas.width, canvas.height);
           ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
           undoStack.value = [];
