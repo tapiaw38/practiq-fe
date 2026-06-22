@@ -1,6 +1,9 @@
 <script setup lang="ts">
   import { ref, watch, onMounted } from "vue";
-  import type { DrawingCanvasProps, DrawingCanvasEmits } from "./DrawingCanvas.types";
+  import type {
+    DrawingCanvasProps,
+    DrawingCanvasEmits,
+  } from "./DrawingCanvas.types";
 
   const props = withDefaults(defineProps<DrawingCanvasProps>(), {
     modelValue: "",
@@ -71,6 +74,9 @@
     ctx.lineWidth = props.tool === "eraser" ? props.penSize * 4 : props.penSize;
     ctx.lineCap = "round";
     ctx.lineJoin = "round";
+
+    ctx.beginPath();
+    ctx.moveTo(lastPos.value.x, lastPos.value.y);
     ctx.lineTo(pos.x, pos.y);
     ctx.stroke();
     lastPos.value = pos;
@@ -177,7 +183,8 @@
     cursor: crosshair;
     box-shadow: var(--shadow-card);
     background-color: var(--surface-bg-soft);
-    background-image: linear-gradient(
+    background-image:
+      linear-gradient(
         90deg,
         transparent 56px,
         rgba(var(--color-error-rgb), 0.25) 56px,
