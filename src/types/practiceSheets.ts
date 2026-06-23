@@ -35,6 +35,14 @@ export interface SubmitInput {
   attempts: AttemptInput[];
 }
 
+export interface ExerciseResult {
+  exercise_id: string;
+  is_correct: boolean;
+  student_answer: string;
+  correct_answer: string;
+  ai_feedback?: string;
+}
+
 export interface SubmitResult {
   score: number;
   correct: number;
@@ -45,6 +53,7 @@ export interface SubmitResult {
   should_level_up: boolean;
   should_repeat: boolean;
   next_level: number;
+  exercise_results: ExerciseResult[];
 }
 
 export interface SubmitJobStart {

@@ -26,6 +26,16 @@
     renderEquation,
   } from "@/composables/useContentRenderer";
   import MathFieldEditor from "@/components/ui/MathFieldEditor.vue";
+  import { useConfetti } from "@/composables/useConfetti";
+  import { useSound } from "@/composables/useSound";
+  import { useCuriosities } from "@/composables/useCuriosities";
+  import AiLoadingModal from "@/components/student/ai/AiLoadingModal.vue";
+  import {
+    loadingMessages,
+    levelUpMessages,
+    encourageMessages,
+    randomMessage,
+  } from "@/utils/motivationalMessages";
 
   const route = useRoute();
   const router = useRouter();
@@ -33,12 +43,37 @@
   const authStore = useAuthStore();
   const { loadPracticeSheet, submitPracticeSheetAsync, loadSubmitJob } =
     usePracticeSheet();
+  const { fireLevelUp } = useConfetti();
+  const { play: playSound } = useSound();
+  const { curiosities, fetchCuriosities } = useCuriosities();
+  const curiosityIndex = ref(0);
 
   const sheet = ref<PracticeSheet | null>(null);
   const loading = ref(true);
   const submitted = ref(false);
   const submitting = ref(false);
   const result = ref<SubmitResult | null>(null);
+  const showAllErrors = ref(false);
+
+  const incorrectResults = computed(() =>
+    result.value?.exercise_results?.filter((r) => !r.is_correct) ?? []
+  );
+
+  const visibleErrors = computed(() =>
+    showAllErrors.value ? incorrectResults.value : incorrectResults.value.slice(0, 3)
+  );
+
+  const hiddenErrorsCount = computed(() =>
+    Math.max(0, incorrectResults.value.length - 3)
+  );
+
+  function formatStudentAnswer(answer: string): string {
+    if (!answer || answer.trim() === "") return "(vacío)";
+    if (answer.toUpperCase() === "UNREADABLE") return "(no se pudo leer)";
+    if (answer.startsWith("data:image/")) return "(no se pudo leer)";
+    return answer;
+  }
+
   const answers = ref<Record<string, string>>({});
 
   // Modal states
@@ -48,6 +83,8 @@
   const showSuccessModal = ref(false);
   const testStarted = ref(false);
   let warningShown = false;
+  const loadingMessage = ref(randomMessage(loadingMessages));
+  let loadingMsgInterval: ReturnType<typeof setInterval> | null = null;
 
   // Canvas state
   const canvasRefs: Record<string, InstanceType<typeof DrawingCanvas> | null> = {};
@@ -177,6 +214,10 @@
       for (const ex of exercises.value) {
         answers.value[ex.exercise.id] = "";
       }
+      // Fetch curiosities for loading screen
+      if (sheet.value.course_id) {
+        fetchCuriosities(sheet.value.course_id);
+      }
       // Timer starts when user clicks "Comenzar" in instructions modal
     } finally {
       loading.value = false;
@@ -185,6 +226,7 @@
 
   onUnmounted(() => {
     if (timer) clearInterval(timer);
+    if (loadingMsgInterval) clearInterval(loadingMsgInterval);
     if ((window as any).__practiqAssistantHookSource === "level-test") {
       delete window.__practiqAssistantCapture;
       delete window.__practiqAssistantContext;
@@ -206,10 +248,24 @@
     if (ok) router.back();
   }
 
+  function getNextCuriosity(): string {
+    if (curiosities.value.length > 0) {
+      const msg = curiosities.value[curiosityIndex.value % curiosities.value.length];
+      curiosityIndex.value++;
+      return `💡 ${msg}`;
+    }
+    return randomMessage(loadingMessages);
+  }
+
   async function submit() {
     if (submitting.value) return;
     submitting.value = true;
     if (timer) clearInterval(timer);
+
+    loadingMessage.value = getNextCuriosity();
+    loadingMsgInterval = setInterval(() => {
+      loadingMessage.value = getNextCuriosity();
+    }, 3000);
 
     const elapsedSeconds = TEST_DURATION_SECONDS - timeLeft.value;
     const perExerciseSeconds = exercises.value.length
@@ -251,16 +307,25 @@
       if (!result.value) {
         throw new Error("No se recibió resultado de evaluación");
       }
+      showAllErrors.value = false;
       submitted.value = true;
 
-      // Show success modal if passed
+      // Fire celebration based on result
       if (result.value.should_level_up) {
         showSuccessModal.value = true;
+        fireLevelUp();
+        playSound("levelup");
+      } else {
+        playSound("incorrect");
       }
     } catch (err) {
       console.error(err);
     } finally {
       submitting.value = false;
+      if (loadingMsgInterval) {
+        clearInterval(loadingMsgInterval);
+        loadingMsgInterval = null;
+      }
     }
   }
 
@@ -706,8 +771,9 @@
         <div class="test-footer">
           <span class="footer-hint">{{ unansweredCount }} sin responder</span>
           <button class="btn-submit" :disabled="submitting" @click="submit">
-            <i class="pi pi-send"></i>
-            {{ submitting ? "Evaluando con IA..." : "Entregar prueba" }}
+            <i v-if="!submitting" class="pi pi-send"></i>
+            <span v-else class="spinner"></span>
+            Entregar prueba
           </button>
         </div>
       </template>
@@ -768,8 +834,40 @@
 
           <p class="result-rec">{{ result.recommendation }}</p>
 
-          <div v-if="result.ai_feedback" class="result-ai-feedback">
-            <strong>Comentario del Asistente:</strong> {{ result.ai_feedback }}
+          <!-- Per-exercise feedback (only errors) -->
+          <div v-if="incorrectResults.length === 0 && result.exercise_results?.length" class="all-correct-badge">
+            ✅ ¡Todas las respuestas correctas!
+          </div>
+
+          <div v-else-if="incorrectResults.length > 0" class="exercise-results-section">
+            <div class="exercise-results-list" :class="{ 'exercise-results-list--expanded': showAllErrors }">
+              <div
+                v-for="exResult in visibleErrors"
+                :key="exResult.exercise_id"
+                class="exercise-result-item exercise-result--incorrect"
+              >
+                <div class="exercise-result-icon">❌</div>
+                <div class="exercise-result-content">
+                  <div class="exercise-result-answers">
+                    <span class="answer-label">Tu respuesta:</span>
+                    <span class="answer-student">{{ formatStudentAnswer(exResult.student_answer) }}</span>
+                    <span class="answer-label">Correcta:</span>
+                    <span class="answer-correct">{{ exResult.correct_answer }}</span>
+                  </div>
+                  <div v-if="exResult.ai_feedback && !exResult.ai_feedback.includes('UNREADABLE')" class="exercise-result-feedback">
+                    {{ exResult.ai_feedback }}
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <button
+              v-if="hiddenErrorsCount > 0 && !showAllErrors"
+              class="btn-show-more"
+              @click="showAllErrors = true"
+            >
+              Ver {{ hiddenErrorsCount }} error{{ hiddenErrorsCount > 1 ? 'es' : '' }} más
+            </button>
           </div>
 
           <div class="result-actions">
@@ -791,6 +889,13 @@
       </div>
     </div>
   </StudentLayout>
+
+  <AiLoadingModal
+    :show="submitting"
+    badge-label="IA evaluando"
+    title="Evaluando prueba"
+    :message="loadingMessage"
+  />
 
   <ConfirmModal v-bind="confirmState" @confirm="onConfirm" @cancel="onCancel" />
 
@@ -1460,6 +1565,99 @@
     text-align: left;
   }
 
+  /* Exercise results */
+  .all-correct-badge {
+    width: 100%;
+    padding: 14px 16px;
+    border-radius: var(--radius-lg);
+    background: var(--fill-success-subtle);
+    color: var(--color-success-dark, #166534);
+    font-weight: 600;
+    text-align: center;
+  }
+
+  .exercise-results-section {
+    width: 100%;
+  }
+
+  .exercise-results-list {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  .exercise-results-list--expanded {
+    max-height: 250px;
+    overflow-y: auto;
+  }
+
+  .exercise-result-item {
+    display: flex;
+    gap: 10px;
+    padding: 12px;
+    border-radius: var(--radius-lg);
+    text-align: left;
+  }
+
+  .exercise-result--incorrect {
+    background: var(--fill-error-subtle, #fef2f2);
+  }
+
+  .exercise-result-icon {
+    font-size: 1.1rem;
+    flex-shrink: 0;
+  }
+
+  .exercise-result-content {
+    flex: 1;
+    font-size: 0.85rem;
+  }
+
+  .exercise-result-answers {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px 8px;
+    margin-bottom: 6px;
+  }
+
+  .answer-label {
+    color: var(--text-muted);
+    font-size: 0.75rem;
+  }
+
+  .answer-student {
+    color: var(--color-error, #dc2626);
+    font-weight: 600;
+  }
+
+  .answer-correct {
+    color: var(--color-success, #16a34a);
+    font-weight: 600;
+  }
+
+  .exercise-result-feedback {
+    color: var(--text-secondary);
+    line-height: 1.4;
+  }
+
+  .btn-show-more {
+    margin-top: 8px;
+    width: 100%;
+    padding: 10px;
+    border: 1px dashed var(--border-color);
+    border-radius: var(--radius-md);
+    background: transparent;
+    color: var(--text-secondary);
+    font-size: 0.85rem;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+
+  .btn-show-more:hover {
+    background: var(--surface-subtle);
+    color: var(--text-primary);
+  }
+
   .result-actions {
     display: flex;
     gap: 12px;
@@ -1831,5 +2029,18 @@
     .btn-retry {
       text-align: center;
     }
+  }
+
+  .spinner {
+    width: 16px;
+    height: 16px;
+    border: 2px solid rgba(255, 255, 255, 0.3);
+    border-top-color: white;
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+  }
+
+  @keyframes spin {
+    to { transform: rotate(360deg); }
   }
 </style>

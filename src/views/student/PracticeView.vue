@@ -21,6 +21,16 @@
     renderEquation,
   } from "@/composables/useContentRenderer";
   import MathFieldEditor from "@/components/ui/MathFieldEditor.vue";
+  import { useConfetti } from "@/composables/useConfetti";
+  import { useSound } from "@/composables/useSound";
+  import { useCuriosities } from "@/composables/useCuriosities";
+  import AiLoadingModal from "@/components/student/ai/AiLoadingModal.vue";
+  import {
+    loadingMessages,
+    successMessages,
+    encourageMessages,
+    randomMessage,
+  } from "@/utils/motivationalMessages";
 
   const route = useRoute();
   const router = useRouter();
@@ -28,7 +38,11 @@
   const { loadCourseProgress } = useProgress();
   const { loadPracticeSheet, submitPracticeSheetAsync, loadSubmitJob } =
     usePracticeSheet();
+  const { fireSuccess } = useConfetti();
+  const { play: playSound } = useSound();
+  const { curiosities, fetchCuriosities } = useCuriosities();
   const sheetId = route.params.id as string;
+  const curiosityIndex = ref(0);
 
   const sheet = ref<PracticeSheet | null>(null);
   const loading = ref(true);
@@ -52,8 +66,31 @@
   const showResults = ref(false);
   const submitting = ref(false);
   const result = ref<SubmitResult | null>(null);
+  const showAllErrors = ref(false);
+
+  const incorrectResults = computed(() =>
+    result.value?.exercise_results?.filter((r) => !r.is_correct) ?? []
+  );
+
+  const visibleErrors = computed(() =>
+    showAllErrors.value ? incorrectResults.value : incorrectResults.value.slice(0, 3)
+  );
+
+  const hiddenErrorsCount = computed(() =>
+    Math.max(0, incorrectResults.value.length - 3)
+  );
+
+  function formatStudentAnswer(answer: string): string {
+    if (!answer || answer.trim() === "") return "(vacío)";
+    if (answer.toUpperCase() === "UNREADABLE") return "(no se pudo leer)";
+    if (answer.startsWith("data:image/")) return "(no se pudo leer)";
+    return answer;
+  }
+
   const hasDraft = ref(false);
   const showRestoreModal = ref(false);
+  const loadingMessage = ref(randomMessage(loadingMessages));
+  let loadingMsgInterval: ReturnType<typeof setInterval> | null = null;
 
   function cssVar(name: string, fallback: string, depth = 0): string {
     if (typeof window === "undefined") return fallback;
@@ -129,6 +166,11 @@
       startTimer();
       loadTopicProgress();
 
+      // Fetch curiosities for loading screen
+      if (sheet.value.course_id) {
+        fetchCuriosities(sheet.value.course_id);
+      }
+
       // Check for saved draft after canvases are initialized
       setTimeout(() => {
         checkForDraft();
@@ -140,6 +182,7 @@
 
   onUnmounted(() => {
     clearInterval(timerInterval);
+    if (loadingMsgInterval) clearInterval(loadingMsgInterval);
     if ((window as any).__practiqAssistantHookSource === "practice") {
       delete window.__practiqAssistantCapture;
       delete window.__practiqAssistantContext;
@@ -224,8 +267,23 @@
 
   // Submit
 
+  function getNextCuriosity(): string {
+    if (curiosities.value.length > 0) {
+      const msg = curiosities.value[curiosityIndex.value % curiosities.value.length];
+      curiosityIndex.value++;
+      return `💡 ${msg}`;
+    }
+    return randomMessage(loadingMessages);
+  }
+
   async function submitAnswers() {
     submitting.value = true;
+    showSubmitConfirm.value = false;
+    loadingMessage.value = getNextCuriosity();
+    loadingMsgInterval = setInterval(() => {
+      loadingMessage.value = getNextCuriosity();
+    }, 3000);
+
     try {
       const attempts =
         sheet.value?.exercises.map((pse) => {
@@ -234,7 +292,7 @@
           if (exerciseUsesCanvas(pse.exercise.type)) {
             return {
               exercise_id: exerciseId,
-              answer_text: data?.answer || "",
+              answer_text: "",
               canvas_data: data?.answer?.startsWith("data:image/")
                 ? buildCanvasDataForOCR(exerciseId)
                 : "",
@@ -272,13 +330,26 @@
         throw new Error("No se recibió resultado de evaluación");
       }
       showSubmitConfirm.value = false;
+      showAllErrors.value = false;
       showResults.value = true;
       loadTopicProgress();
-      clearDraft(); // Clear draft on successful submit
+      clearDraft();
+
+      // Fire celebration based on result
+      if (result.value.score >= 70) {
+        fireSuccess();
+        playSound("correct");
+      } else {
+        playSound("incorrect");
+      }
     } catch (err) {
       console.error(err);
     } finally {
       submitting.value = false;
+      if (loadingMsgInterval) {
+        clearInterval(loadingMsgInterval);
+        loadingMsgInterval = null;
+      }
     }
   }
 
@@ -637,7 +708,10 @@
           </span>
         </div>
         <div class="header-right">
-          <div class="streak-chip">
+          <div
+            class="streak-chip"
+            :class="{ 'streak-chip--active': streakCount > 0 }"
+          >
             <img src="@/assets/burn.png" alt="" class="streak-icon" />
             <div>
               <div class="streak-val">{{ streakCount }}</div>
@@ -955,11 +1029,34 @@
             @click.self="closeSubmitConfirm()"
           >
             <div class="modal-box">
-              <h3 class="modal-title">Revisar y enviar</h3>
-              <p class="submit-copy">
-                Respondiste <strong>{{ answeredCount }}</strong> de
-                <strong>{{ totalCount }}</strong> ejercicios. ¿Deseas enviar tus
-                respuestas?
+              <div class="practice-submit-header">
+                <div class="practice-submit-badge practice-submit-badge--quiet">
+                  <i class="pi pi-send"></i>
+                  <span>Enviar práctica</span>
+                </div>
+                <h3 class="modal-title">Revisar y enviar</h3>
+                <p class="submit-copy practice-submit-copy">
+                  Respondiste <strong>{{ answeredCount }}</strong> de
+                  <strong>{{ totalCount }}</strong> ejercicios.
+                </p>
+              </div>
+              <div class="practice-submit-summary">
+                <div class="practice-submit-summary-item">
+                  <span class="practice-submit-summary-value">
+                    {{ answeredCount }}
+                  </span>
+                  <span class="practice-submit-summary-label">Listas</span>
+                </div>
+                <div class="practice-submit-summary-divider"></div>
+                <div class="practice-submit-summary-item">
+                  <span class="practice-submit-summary-value">
+                    {{ totalCount - answeredCount }}
+                  </span>
+                  <span class="practice-submit-summary-label">Faltan</span>
+                </div>
+              </div>
+              <p class="practice-submit-question">
+                ¿Deseas enviar tus respuestas para que IA las evalúe?
               </p>
               <div class="modal-actions">
                 <button
@@ -974,14 +1071,20 @@
                   :disabled="submitting"
                   @click="submitAnswers"
                 >
-                  <span v-if="submitting" class="spinner"></span>
-                  {{ submitting ? "Evaluando con IA..." : "Enviar respuestas" }}
+                  Enviar respuestas
                 </button>
               </div>
             </div>
           </div>
         </Transition>
       </Teleport>
+
+      <AiLoadingModal
+        :show="submitting"
+        title="Revisando respuestas"
+        :message="loadingMessage"
+        footnote="No cierres esta ventana"
+      />
 
       <!-- Results modal -->
       <Teleport to="body">
@@ -996,11 +1099,9 @@
                 </div>
                 <h3 class="results-title">
                   {{
-                    result.score >= 90
-                      ? "¡Excelente!"
-                      : result.score >= 70
-                        ? "¡Buen trabajo!"
-                        : "¡Sigue practicando!"
+                    result.score >= 70
+                      ? randomMessage(successMessages)
+                      : randomMessage(encourageMessages)
                   }}
                 </h3>
               </div>
@@ -1032,22 +1133,47 @@
               </div>
               <div class="results-recommendation">
                 <div class="rec-icon">
-                  {{
-                    result.should_level_up
-                      ? "⬆️"
-                      : result.should_repeat
-                        ? "🔄"
-                        : "▶️"
-                  }}
+                  {{ result.should_repeat ? "🔄" : "▶️" }}
                 </div>
                 <p>{{ result.recommendation }}</p>
               </div>
-              <div v-if="result.ai_feedback" class="results-ai-feedback">
-                <strong>Comentario IA:</strong> {{ result.ai_feedback }}
+
+              <!-- Per-exercise feedback (only errors) -->
+              <div v-if="incorrectResults.length === 0 && result.exercise_results?.length" class="all-correct-badge">
+                ✅ ¡Todas las respuestas correctas!
               </div>
-              <div v-if="result.should_level_up" class="level-up-badge">
-                🎉 ¡Subiste al Nivel {{ result.next_level }}!
+
+              <div v-else-if="incorrectResults.length > 0" class="exercise-results-section">
+                <div class="exercise-results-list" :class="{ 'exercise-results-list--expanded': showAllErrors }">
+                  <div
+                    v-for="exResult in visibleErrors"
+                    :key="exResult.exercise_id"
+                    class="exercise-result-item exercise-result--incorrect"
+                  >
+                    <div class="exercise-result-icon">❌</div>
+                    <div class="exercise-result-content">
+                      <div class="exercise-result-answers">
+                        <span class="answer-label">Tu respuesta:</span>
+                        <span class="answer-student">{{ formatStudentAnswer(exResult.student_answer) }}</span>
+                        <span class="answer-label">Correcta:</span>
+                        <span class="answer-correct">{{ exResult.correct_answer }}</span>
+                      </div>
+                      <div v-if="exResult.ai_feedback && !exResult.ai_feedback.includes('UNREADABLE')" class="exercise-result-feedback">
+                        {{ exResult.ai_feedback }}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <button
+                  v-if="hiddenErrorsCount > 0 && !showAllErrors"
+                  class="btn-show-more"
+                  @click="showAllErrors = true"
+                >
+                  Ver {{ hiddenErrorsCount }} error{{ hiddenErrorsCount > 1 ? 'es' : '' }} más
+                </button>
               </div>
+
               <div class="modal-actions">
                 <button class="btn btn-secondary" @click="router.back()">
                   Volver al inicio
@@ -1182,6 +1308,32 @@
     border-radius: var(--radius-lg);
     background: var(--gradient-brand-soft);
     border: 1.5px solid rgba(var(--practiq-violet-rgb), 0.1);
+    transition: all 0.3s ease;
+  }
+
+  .streak-chip--active {
+    background: linear-gradient(135deg, #ff6b35, #f7931e);
+    border-color: rgba(255, 107, 53, 0.3);
+    box-shadow: none;
+    animation: none;
+  }
+
+  .streak-chip--active .streak-val {
+    color: white;
+    font-size: 1.3rem;
+  }
+
+  .streak-chip--active .streak-lbl {
+    color: rgba(255, 255, 255, 0.85);
+  }
+
+  .streak-chip--active .streak-icon {
+    animation: flame-dance 0.5s ease-in-out infinite alternate;
+  }
+
+  @keyframes flame-dance {
+    from { transform: scale(1) rotate(-3deg); }
+    to { transform: scale(1.1) rotate(3deg); }
   }
 
   .streak-icon {
@@ -1709,6 +1861,61 @@
     margin-bottom: 20px;
   }
 
+  .practice-submit-header {
+    display: grid;
+    gap: 10px;
+    justify-items: start;
+  }
+
+  .practice-submit-copy {
+    margin-bottom: 0;
+    max-width: 42ch;
+  }
+
+  .practice-submit-summary {
+    display: grid;
+    grid-template-columns: 1fr auto 1fr;
+    align-items: center;
+    gap: 12px;
+    padding: 14px 16px;
+    border-radius: var(--radius-xl);
+    background: var(--surface-bg-soft);
+    border: 1px solid rgba(var(--practiq-violet-rgb), 0.1);
+  }
+
+  .practice-submit-summary-item {
+    display: grid;
+    gap: 2px;
+    text-align: center;
+  }
+
+  .practice-submit-summary-value {
+    font-size: 1.4rem;
+    font-weight: 800;
+    color: var(--text-primary);
+    line-height: 1;
+  }
+
+  .practice-submit-summary-label {
+    font-size: 0.75rem;
+    color: var(--text-secondary);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    font-weight: 700;
+  }
+
+  .practice-submit-summary-divider {
+    width: 1px;
+    height: 38px;
+    background: rgba(var(--practiq-violet-rgb), 0.14);
+  }
+
+  .practice-submit-question {
+    margin: 0;
+    color: var(--text-secondary);
+    font-size: 0.92rem;
+  }
+
   .results-box {
     max-width: 520px;
   }
@@ -1768,14 +1975,98 @@
     font-size: 0.9rem;
   }
 
-  .level-up-badge {
+  /* Exercise results */
+  .all-correct-badge {
     margin-top: 12px;
-    padding: 12px 16px;
+    padding: 14px 16px;
     border-radius: var(--radius-lg);
     background: var(--fill-success-subtle);
-    color: var(--color-success-dark);
-    font-weight: 700;
+    color: var(--color-success-dark, #166534);
+    font-weight: 600;
     text-align: center;
+  }
+
+  .exercise-results-section {
+    margin-top: 12px;
+    width: 100%;
+  }
+
+  .exercise-results-list {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  .exercise-results-list--expanded {
+    max-height: 250px;
+    overflow-y: auto;
+  }
+
+  .exercise-result-item {
+    display: flex;
+    gap: 10px;
+    padding: 12px;
+    border-radius: var(--radius-lg);
+    text-align: left;
+  }
+
+  .exercise-result--incorrect {
+    background: var(--fill-error-subtle, #fef2f2);
+  }
+
+  .exercise-result-icon {
+    font-size: 1.1rem;
+    flex-shrink: 0;
+  }
+
+  .exercise-result-content {
+    flex: 1;
+    font-size: 0.85rem;
+  }
+
+  .exercise-result-answers {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px 8px;
+    margin-bottom: 6px;
+  }
+
+  .answer-label {
+    color: var(--text-muted);
+    font-size: 0.75rem;
+  }
+
+  .answer-student {
+    color: var(--color-error, #dc2626);
+    font-weight: 600;
+  }
+
+  .answer-correct {
+    color: var(--color-success, #16a34a);
+    font-weight: 600;
+  }
+
+  .exercise-result-feedback {
+    color: var(--text-secondary);
+    line-height: 1.4;
+  }
+
+  .btn-show-more {
+    margin-top: 8px;
+    width: 100%;
+    padding: 10px;
+    border: 1px dashed var(--border-color);
+    border-radius: var(--radius-md);
+    background: transparent;
+    color: var(--text-secondary);
+    font-size: 0.85rem;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+
+  .btn-show-more:hover {
+    background: var(--surface-subtle);
+    color: var(--text-primary);
   }
 
   /* Responsive */

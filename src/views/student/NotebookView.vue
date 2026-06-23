@@ -13,12 +13,21 @@
   } from "@/utils/assistantExerciseContext";
   import { formatAIFeedback, formatRelativeTime } from "@/utils/formatters";
   import { renderContent } from "@/composables/useContentRenderer";
+  import { useConfetti } from "@/composables/useConfetti";
+  import { useSound } from "@/composables/useSound";
+  import { useCuriosities } from "@/composables/useCuriosities";
+  import AiLoadingModal from "@/components/student/ai/AiLoadingModal.vue";
+  import { loadingMessages, randomMessage } from "@/utils/motivationalMessages";
 
   const route = useRoute();
   const router = useRouter();
   const authStore = useAuthStore();
   const { loadNotebook, saveSubmissionAsync, loadSubmissionJob } =
     useNotebook();
+  const { fireCorrect } = useConfetti();
+  const { play: playSound } = useSound();
+  const { curiosities, fetchCuriosities } = useCuriosities();
+  const curiosityIndex = ref(0);
 
   const notebook = ref<Notebook | null>(null);
   const loading = ref(true);
@@ -32,6 +41,8 @@
 
   // Save state
   const saveStatus = ref<"saving" | "saved" | "">("");
+  const loadingMessage = ref(randomMessage(loadingMessages));
+  let loadingMsgInterval: ReturnType<typeof setInterval> | null = null;
 
   // Per-page canvas snapshots
   const canvasSnapshots = ref<Record<string, string>>({});
@@ -57,6 +68,10 @@
         if (page.submission?.canvas_data)
           canvasSnapshots.value[page.id] = page.submission.canvas_data;
       }
+      // Fetch curiosities for loading screen
+      if (notebook.value.course_id) {
+        fetchCuriosities(notebook.value.course_id);
+      }
     } finally {
       loading.value = false;
       await nextTick();
@@ -66,6 +81,7 @@
 
   onUnmounted(() => {
     unregisterAssistantHooks();
+    if (loadingMsgInterval) clearInterval(loadingMsgInterval);
   });
 
   watch(currentPageIndex, async () => {
@@ -342,9 +358,23 @@
     delete (window as any).__practiqAssistantHookSource;
   }
 
+  function getNextCuriosity(): string {
+    if (curiosities.value.length > 0) {
+      const msg = curiosities.value[curiosityIndex.value % curiosities.value.length];
+      curiosityIndex.value++;
+      return `💡 ${msg}`;
+    }
+    return randomMessage(loadingMessages);
+  }
+
   async function saveAndNext() {
     if (!currentPage.value || saveStatus.value === "saving") return;
     saveStatus.value = "saving";
+    loadingMessage.value = getNextCuriosity();
+    loadingMsgInterval = setInterval(() => {
+      loadingMessage.value = getNextCuriosity();
+    }, 3000);
+
     try {
       const pageId = currentPage.value.id;
       const data = captureCanvas();
@@ -368,12 +398,27 @@
       saveStatus.value = "saved";
       const notebookId = route.params.id as string;
       notebook.value = await loadNotebook(notebookId, studentId.value);
+
+      // Check if submission was correct and celebrate
+      const updatedPage = pages.value.find((p) => p.id === pageId);
+      if (updatedPage?.submission?.ai_is_correct === true) {
+        fireCorrect();
+        playSound("correct");
+      } else if (updatedPage?.submission?.ai_is_correct === false) {
+        playSound("incorrect");
+      }
+
       setTimeout(() => {
         saveStatus.value = "";
       }, 2000);
     } catch (err) {
       console.error(err);
       saveStatus.value = "";
+    } finally {
+      if (loadingMsgInterval) {
+        clearInterval(loadingMsgInterval);
+        loadingMsgInterval = null;
+      }
     }
   }
 
@@ -657,7 +702,7 @@
                   v-if="saveStatus === 'saving'"
                   class="pi pi-spin pi-spinner"
                 ></i>
-                {{ saveStatus === "saving" ? "Analizando..." : "Guardar" }}
+                Guardar
               </button>
               <button
                 class="btn-nav"
@@ -672,6 +717,13 @@
       </template>
     </div>
   </StudentLayout>
+
+  <AiLoadingModal
+    :show="saveStatus === 'saving'"
+    badge-label="IA evaluando"
+    title="Evaluando con IA"
+    :message="loadingMessage"
+  />
 </template>
 
 <style scoped>
