@@ -386,12 +386,28 @@
 
   // Helpers
 
+  const AI_TIMEOUT_MS = 120000;
+
   function authHeaders(contentType?: string): Record<string, string> {
     const h: Record<string, string> = {};
     if (contentType) h["Content-Type"] = contentType;
     const token = authStore.token;
     if (token) h["Authorization"] = `Bearer ${token}`;
     return h;
+  }
+
+  async function fetchWithTimeout(
+    url: string,
+    options: RequestInit,
+    timeoutMs = AI_TIMEOUT_MS,
+  ): Promise<Response> {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+    try {
+      return await fetch(url, { ...options, signal: controller.signal });
+    } finally {
+      clearTimeout(timeoutId);
+    }
   }
 
   function escapeHtml(s: string) {
@@ -627,7 +643,7 @@
   // API
 
   async function createConversation(title: string) {
-    const res = await fetch(`${API_BASE}/conversation/`, {
+    const res = await fetchWithTimeout(`${API_BASE}/conversation/`, {
       method: "POST",
       headers: authHeaders("application/json"),
       body: JSON.stringify({ title }),
@@ -656,7 +672,7 @@
         fd.has("image_content"),
       ),
     );
-    const res = await fetch(url, {
+    const res = await fetchWithTimeout(url, {
       method: "POST",
       headers: authHeaders(),
       body: fd,
