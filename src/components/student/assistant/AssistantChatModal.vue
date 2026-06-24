@@ -522,6 +522,14 @@
     };
   }
 
+  function getStudentGrade(): string {
+    const ctx = props.studentContext;
+    if (ctx?.courses?.length) {
+      return ctx.courses[0].grade || "";
+    }
+    return "";
+  }
+
   function buildContext(): string {
     const ctx = props.studentContext;
     const lines: string[] = [];
@@ -588,10 +596,15 @@
     hasImageAttachment: boolean,
   ): string {
     const trimmedMessage = message.trim();
+    const grade = getStudentGrade();
+    const gradeInstruction = grade
+      ? `El estudiante es de ${grade}. Usa los contenidos curriculares y documentos de ${grade} para responder.`
+      : "";
     return [
       "POLITICA OBLIGATORIA:",
       "No des respuestas finales ni resuelvas completamente ejercicios evaluables.",
       "Da solo pistas, explicaciones breves, preguntas guia o el siguiente paso.",
+      gradeInstruction,
       "Si existe contexto estructurado de Practiq, usalo para ubicar curso, hoja y numero de ejercicio.",
       hasImageAttachment
         ? [
@@ -862,9 +875,14 @@
   async function generateExercise(topic: string) {
     pizarronTopic.value = topic;
     pizState.value = "generating";
+    const grade = getStudentGrade();
+    const gradeContext = grade
+      ? `El estudiante es de ${grade}. Usa los contenidos curriculares de ${grade} para generar el ejercicio.`
+      : "";
     try {
       const prompt = [
         "MODO PIZARRÓN - GENERACIÓN DE EJERCICIO:",
+        gradeContext,
         `Genera un ejercicio claro, bien estructurado y resolvible manualmente sobre el tema: "${topic}".`,
         "Requisitos:",
         "- Máximo 1 ejercicios numerados",
@@ -876,7 +894,7 @@
         "- Adapta la dificultad al nivel del alumno según el contexto enviado",
         "- Usa lenguaje simple, adecuado para niños",
         "Responde solo con los ejercicios, sin introducciones.",
-      ].join("\n");
+      ].filter(Boolean).join("\n");
 
       const fd = new FormData();
       fd.append("content", prompt);
@@ -907,8 +925,13 @@
         blobSize: blob.size,
         blobType: blob.type,
       });
+      const grade = getStudentGrade();
+      const gradeContext = grade
+        ? `El estudiante es de ${grade}. Evalúa considerando los contenidos curriculares de ${grade}.`
+        : "";
       const prompt = [
         "MODO PIZARRÓN - EVALUACIÓN DE RESPUESTA:",
+        gradeContext,
         "El alumno ha resuelto el ejercicio anterior en su lienzo. Analiza la imagen adjunta y:",
         "1. Identifica lo que escribió o dibujó",
         "2. Evalúa si la respuesta es correcta o no",
@@ -916,7 +939,7 @@
         "4. Si está bien resuelto, felicítalo brevemente",
         "Responde en español con un tono amigable y educativo.",
         "IMPORTANTE: La retroalimentación es para un niño. Sé breve, claro y usa palabras simples y fáciles de entender.",
-      ].join("\n");
+      ].filter(Boolean).join("\n");
 
       const fd = new FormData();
       fd.append("content", prompt);
