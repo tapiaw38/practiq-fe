@@ -598,7 +598,7 @@
     const trimmedMessage = message.trim();
     const grade = getStudentGrade();
     const gradeInstruction = grade
-      ? `El estudiante es de ${grade}. Usa los contenidos curriculares y documentos de ${grade} para responder.`
+      ? `El estudiante es de ${grade}. Usa los contenidos de los documentos de ${grade} para responder.`
       : "";
     return [
       "POLITICA OBLIGATORIA:",
@@ -877,7 +877,7 @@
     pizState.value = "generating";
     const grade = getStudentGrade();
     const gradeContext = grade
-      ? `El estudiante es de ${grade}. Usa los contenidos curriculares de ${grade} para generar el ejercicio.`
+      ? `El estudiante es de ${grade}. Usa los contenidos de los documentos de ${grade} para generar el ejercicio.`
       : "";
     try {
       const prompt = [
@@ -927,7 +927,7 @@
       });
       const grade = getStudentGrade();
       const gradeContext = grade
-        ? `El estudiante es de ${grade}. Evalúa considerando los contenidos curriculares de ${grade}.`
+        ? `El estudiante es de ${grade}. Evalúa considerando los contenidos de los documentos de ${grade}.`
         : "";
       const prompt = [
         "MODO PIZARRÓN - EVALUACIÓN DE RESPUESTA:",
