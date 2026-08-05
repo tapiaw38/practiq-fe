@@ -170,6 +170,7 @@
       title: "Asistente",
       placeholder: "Pregúntale al asistente…",
       initialMessage: "Hola, soy tu asistente. ¿Tienes alguna duda?",
+      searchImages: false,
       audioInput: true,
       audioAnswers: true,
       getImageAttachment: getAssistantCanvasAttachment,

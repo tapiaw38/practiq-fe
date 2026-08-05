@@ -70,6 +70,19 @@
                   <i class="pi pi-pencil"></i> Tu respuesta
                   <div class="acm-canvas-tools">
                     <button
+                      v-for="color in canvasColors"
+                      :key="color.value"
+                      class="acm-color-btn"
+                      :class="{
+                        'acm-color-btn--active':
+                          activeTool === 'pen' && activeColor === color.value,
+                      }"
+                      :style="{ '--canvas-color': color.value }"
+                      :title="`Color ${color.label}`"
+                      :aria-label="`Seleccionar color ${color.label}`"
+                      @click="selectCanvasColor(color.value)"
+                    ></button>
+                    <button
                       class="acm-tool-btn"
                       :class="{ 'acm-tool-btn--active': activeTool === 'pen' }"
                       title="Lápiz"
@@ -339,6 +352,14 @@
   // Canvas
   const canvasEl = ref<HTMLCanvasElement | null>(null);
   const activeTool = ref<"pen" | "eraser">("pen");
+  const activeColor = ref("#1f2937");
+  const canvasColors = [
+    { value: "#1f2937", label: "negro" },
+    { value: "#dc2626", label: "rojo" },
+    { value: "#16a34a", label: "verde" },
+    { value: "#2563eb", label: "azul" },
+    { value: "#f59e0b", label: "amarillo" },
+  ];
   let isDrawing = false;
   let lastX = 0;
   let lastY = 0;
@@ -961,7 +982,8 @@
       fd.append("content", prompt);
       fd.append("context", buildContext());
       fd.append("image_content", blob, "student_canvas.png");
-      const reply = await postFormData(fd, true);
+      // Canvas evaluation needs Vision analysis, not course-image search.
+      const reply = await postFormData(fd, false);
       if (reply) feedbackHtml.value = reply;
       pizState.value = "feedback";
     } catch {
@@ -1069,9 +1091,14 @@
       ctx.lineWidth = 24;
     } else {
       ctx.globalCompositeOperation = "source-over";
-      ctx.strokeStyle = cssVar("--acm-canvas-ink", "CanvasText");
+      ctx.strokeStyle = activeColor.value;
       ctx.lineWidth = 2.5;
     }
+  }
+
+  function selectCanvasColor(color: string) {
+    activeColor.value = color;
+    activeTool.value = "pen";
   }
 
   function onCanvasDown(e: MouseEvent) {
@@ -1502,6 +1529,27 @@
     display: flex;
     gap: 4px;
     margin-left: auto;
+    align-items: center;
+  }
+
+  .acm-color-btn {
+    width: 18px;
+    height: 18px;
+    padding: 0;
+    border: 2px solid var(--surface-card);
+    border-radius: 50%;
+    background: var(--canvas-color);
+    box-shadow: 0 0 0 1px var(--surface-border);
+    cursor: pointer;
+    transition: var(--transition-fast);
+  }
+
+  .acm-color-btn:hover {
+    transform: scale(1.15);
+  }
+
+  .acm-color-btn--active {
+    box-shadow: 0 0 0 2px var(--practiq-violet), 0 0 0 3px var(--surface-card);
   }
 
   .acm-tool-btn {
