@@ -310,12 +310,20 @@
       </div>
     </Transition>
   </Teleport>
+
+  <AiLoadingModal
+    :show="pizState === 'evaluating'"
+    badge-label="IA evaluando"
+    title="Revisando tu respuesta"
+    message="Estoy mirando tu lienzo y preparando una devolución para vos…"
+  />
 </template>
 
 <script setup lang="ts">
   import { ref, computed, watch, nextTick, onBeforeUnmount } from "vue";
   import { useAuthStore } from "@/stores/authStore";
   import { renderContent } from "@/composables/useContentRenderer";
+  import AiLoadingModal from "@/components/student/ai/AiLoadingModal.vue";
   import type {
     AssistantChatModalEmits,
     AssistantChatModalProps,
