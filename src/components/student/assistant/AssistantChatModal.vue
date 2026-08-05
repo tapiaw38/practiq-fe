@@ -386,7 +386,7 @@
 
   // Helpers
 
-  const AI_TIMEOUT_MS = 120000;
+  const AI_TIMEOUT_MS = 300000;
 
   function authHeaders(contentType?: string): Record<string, string> {
     const h: Record<string, string> = {};
