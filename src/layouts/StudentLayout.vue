@@ -822,8 +822,8 @@
   .footer-bell :deep(.bell-panel) {
     top: auto;
     bottom: calc(100% + 10px);
-    right: 0;
-    left: auto;
+    left: 0;
+    right: auto;
   }
 
   .icon-btn {
