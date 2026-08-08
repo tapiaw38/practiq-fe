@@ -59,6 +59,8 @@ export const usePracticeSheet = () => {
       level?: number;
       sheet_type?: string;
       test_style?: string;
+      /** RFC 3339 UTC string; empty clears the schedule. */
+      scheduled_at?: string;
       exercise_ids: string[];
     },
   ) => {
@@ -90,6 +92,8 @@ export const usePracticeSheet = () => {
       level?: number;
       sheet_type?: string;
       test_style?: string;
+      /** RFC 3339 UTC string; empty clears the schedule. */
+      scheduled_at?: string;
       exercise_ids?: string[];
     },
   ) => {

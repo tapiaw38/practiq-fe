@@ -5,9 +5,11 @@
   import StudentLayout from "@/layouts/StudentLayout.vue";
   import Skeleton from "@/components/ui/Skeleton.vue";
   import DrawingCanvas from "@/components/ui/DrawingCanvas.vue";
+  import AttachmentAnswer from "@/components/student/exercises/AttachmentAnswer.vue";
   import { usePracticeSheet } from "@/composables/usePracticeSheet";
   import { useProgress } from "@/composables/useProgress";
   import type { PracticeSheet, SubmitResult, TopicProgress } from "@/types";
+  import type { UploadedFile } from "@/services/uploads/uploadService";
   import {
     composeAssistantWorkImage,
     extractTeacherImageDataUrl,
@@ -52,6 +54,11 @@
     Record<string, { answer: string; timeStart: number; hints: number }>
   >({});
   const keyboardAnswers = ref<Record<string, string>>({});
+  const attachments = ref<Record<string, UploadedFile | null>>({});
+
+  function setAttachment(exerciseId: string, value: UploadedFile | null) {
+    attachments.value = { ...attachments.value, [exerciseId]: value };
+  }
   const timers = ref<Record<string, number>>({});
   const hints = ref<Record<string, number>>({});
 
@@ -68,8 +75,16 @@
   const result = ref<SubmitResult | null>(null);
   const showAllErrors = ref(false);
 
+  // A file awaiting the teacher comes back with is_correct=false; showing it
+  // as an error would be a lie, so it gets its own bucket.
   const incorrectResults = computed(() =>
-    result.value?.exercise_results?.filter((r) => !r.is_correct) ?? []
+    result.value?.exercise_results?.filter(
+      (r) => !r.is_correct && !r.needs_teacher_review,
+    ) ?? []
+  );
+
+  const pendingResults = computed(() =>
+    result.value?.exercise_results?.filter((r) => r.needs_teacher_review) ?? []
   );
 
   const visibleErrors = computed(() =>
@@ -289,6 +304,19 @@
         sheet.value?.exercises.map((pse) => {
           const exerciseId = pse.exercise.id;
           const data = answers.value[exerciseId];
+          if (pse.exercise.type === "attachment") {
+            const uploaded = attachments.value[exerciseId];
+            return {
+              exercise_id: exerciseId,
+              answer_text: "",
+              canvas_data: "",
+              attachment_url: uploaded?.url ?? "",
+              attachment_name: uploaded?.filename ?? "",
+              attachment_content_type: uploaded?.content_type ?? "",
+              time_spent_seconds: timers.value[exerciseId] || 0,
+              hints_used: data?.hints || 0,
+            };
+          }
           if (exerciseUsesCanvas(pse.exercise.type)) {
             return {
               exercise_id: exerciseId,
@@ -907,6 +935,20 @@
                     ></textarea>
                   </div>
 
+                  <!-- File / audio submission -->
+                  <div
+                    v-else-if="pse.exercise.type === 'attachment'"
+                    class="attachment-answer-wrap"
+                  >
+                    <AttachmentAnswer
+                      :exercise="pse.exercise"
+                      :model-value="attachments[pse.exercise.id] ?? null"
+                      @update:model-value="
+                        (value) => setAttachment(pse.exercise.id, value)
+                      "
+                    />
+                  </div>
+
                   <!-- Equation answer mode -->
                   <div
                     v-else-if="pse.exercise.type === 'equation'"
@@ -1138,8 +1180,15 @@
                 <p>{{ result.recommendation }}</p>
               </div>
 
+              <div v-if="pendingResults.length" class="pending-review-badge">
+                <i class="pi pi-clock"></i>
+                {{ pendingResults.length === 1
+                  ? "Tu entrega quedó esperando la corrección del docente."
+                  : `${pendingResults.length} entregas quedaron esperando la corrección del docente.` }}
+              </div>
+
               <!-- Per-exercise feedback (only errors) -->
-              <div v-if="incorrectResults.length === 0 && result.exercise_results?.length" class="all-correct-badge">
+              <div v-if="incorrectResults.length === 0 && result.exercise_results?.length && !pendingResults.length" class="all-correct-badge">
                 ✅ ¡Todas las respuestas correctas!
               </div>
 
@@ -1976,6 +2025,17 @@
   }
 
   /* Exercise results */
+  .pending-review-badge {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-top: 16px;
+    padding: 14px 16px;
+    border-radius: var(--radius-lg, 14px);
+    background: var(--color-warning-bg, rgba(245, 158, 11, 0.12));
+    color: var(--text-primary);
+    font-weight: 600;
+  }
   .all-correct-badge {
     margin-top: 12px;
     padding: 14px 16px;

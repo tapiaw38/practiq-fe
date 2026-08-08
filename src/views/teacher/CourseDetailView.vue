@@ -22,6 +22,7 @@
   import { useLevel } from "@/composables/useLevel";
   import type {
     Topic,
+    AttachmentKind,
     Exercise,
     Material,
     PracticeSheet,
@@ -29,6 +30,7 @@
     CourseLevelsResponse,
   } from "@/types";
   import { parseExerciseMetadata } from "@/utils/assistantExerciseContext";
+  import { ATTACHMENT_KINDS, acceptedKinds } from "@/utils/attachments";
   import { renderContent } from "@/composables/useContentRenderer";
 
   const route = useRoute();
@@ -119,6 +121,7 @@
     level: 1,
     sheet_type: "practice",
     test_style: "keyboard",
+    scheduled_at: "",
     exercise_ids: [] as string[],
   });
   const editSheetExercises = ref<Exercise[]>([]);
@@ -138,6 +141,8 @@
     metadata: "{}",
     teacher_image: "",
     options: ["", "", "", ""],
+    // Attachment exercises: which file families the student may upload.
+    accept: [] as AttachmentKind[],
   });
 
   const newTopic = reactive({ title: "", description: "", order_index: 0 });
@@ -150,6 +155,8 @@
     metadata: "{}",
     teacher_image: "",
     options: ["", "", "", ""],
+    // Attachment exercises: which file families the student may upload.
+    accept: [] as AttachmentKind[],
   });
   const newMaterial = reactive({
     title: "",
@@ -162,6 +169,8 @@
     level: 1,
     sheet_type: "practice",
     test_style: "keyboard",
+    // datetime-local value in the teacher's timezone; converted on submit.
+    scheduled_at: "",
     exercise_ids: [] as string[],
   });
   const newNotebook = reactive({ title: "", description: "", level: 1 });
@@ -320,14 +329,34 @@
     materials.value = res || [];
   }
 
+  // The browser gives local time ("2026-09-01T14:30"); the API stores UTC.
+  // Only level tests carry a schedule, so switching back to practice clears it.
+  function toUtcISO(localValue: string, sheetType: string) {
+    if (sheetType !== "level_test" || !localValue) return "";
+    const parsed = new Date(localValue);
+    return Number.isNaN(parsed.getTime()) ? "" : parsed.toISOString();
+  }
+
+  function toLocalInput(isoValue?: string) {
+    if (!isoValue) return "";
+    const date = new Date(isoValue);
+    if (Number.isNaN(date.getTime())) return "";
+    const pad = (n: number) => String(n).padStart(2, "0");
+    return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
+  }
+
   async function createSheet() {
-    await createPracticeSheet(courseId, { ...newSheet });
+    await createPracticeSheet(courseId, {
+      ...newSheet,
+      scheduled_at: toUtcISO(newSheet.scheduled_at, newSheet.sheet_type),
+    });
     showSheetModal.value = false;
     newSheet.title = "";
     newSheet.topic_id = "";
     newSheet.level = 1;
     newSheet.sheet_type = "practice";
     newSheet.test_style = "keyboard";
+    newSheet.scheduled_at = "";
     newSheet.exercise_ids = [];
     sheetExercises.value = [];
     await loadSheetsPage(courseId, 1);
@@ -379,6 +408,7 @@
     newSheet.level = level;
     newSheet.sheet_type = "practice";
     newSheet.test_style = "keyboard";
+    newSheet.scheduled_at = "";
     newSheet.topic_id = selectedTopicId.value;
     loadSheetExercises(newSheet.topic_id);
     showSheetModal.value = true;
@@ -387,6 +417,7 @@
   function openLevelTestForLevel(level: number) {
     newSheet.level = level;
     newSheet.sheet_type = "level_test";
+    newSheet.scheduled_at = "";
     newSheet.topic_id = selectedTopicId.value;
     loadSheetExercises(newSheet.topic_id);
     showSheetModal.value = true;
@@ -437,6 +468,7 @@
     editSheet.level = sheet.level ?? 1;
     editSheet.sheet_type = sheet.sheet_type || "practice";
     editSheet.test_style = sheet.test_style || "keyboard";
+    editSheet.scheduled_at = toLocalInput(sheet.scheduled_at);
     editSheet.exercise_ids = (sheet.exercises || []).map((e) => e.exercise.id);
     await loadEditSheetExercises(editSheet.topic_id);
     showEditSheetModal.value = true;
@@ -463,6 +495,7 @@
       level: editSheet.level,
       sheet_type: editSheet.sheet_type,
       test_style: editSheet.test_style,
+      scheduled_at: toUtcISO(editSheet.scheduled_at, editSheet.sheet_type),
       exercise_ids: editSheet.exercise_ids,
     });
     showEditSheetModal.value = false;
@@ -511,6 +544,9 @@
     }
     if (type === "canvas") {
       return "Escribe la consigna completa que verá el alumno...";
+    }
+    if (type === "attachment") {
+      return "Describí qué tiene que entregar el alumno...";
     }
     if (type === "multiple_choice") {
       return "¿Cuánto es 12 + 5 + 8?";
@@ -567,6 +603,14 @@
     }
     const rest = { ...parsed };
     delete rest.options;
+    if (form.type === "attachment") {
+      // Empty means "any supported file"; the API enforces the whitelist.
+      if (form.accept.length) rest.accept = [...form.accept];
+      else delete rest.accept;
+      delete rest.teacher_image;
+      return JSON.stringify(rest);
+    }
+    delete rest.accept;
     if (form.type === "handwritten") {
       const canvasImage = canvasKind ? captureTeacherCanvas(canvasKind) : "";
       rest.teacher_image = canvasImage || form.teacher_image;
@@ -885,7 +929,30 @@
                   <option value="multiple_choice">Opción múltiple</option>
                   <option value="canvas">Canvas/Dibujo</option>
                   <option value="handwritten">Escrito a mano</option>
+                  <option value="attachment">📎 Entrega de archivo</option>
                 </select>
+              </div>
+              <div v-if="newExercise.type === 'attachment'" class="form-group">
+                <label class="form-label">Formatos aceptados</label>
+                <div class="accept-options">
+                  <label
+                    v-for="option in ATTACHMENT_KINDS"
+                    :key="option.value"
+                    class="accept-option"
+                  >
+                    <input
+                      v-model="newExercise.accept"
+                      type="checkbox"
+                      :value="option.value"
+                    />
+                    {{ option.label }}
+                  </label>
+                </div>
+                <small class="field-hint">
+                  Sin marcar ninguno se acepta cualquier formato soportado. El
+                  audio y las imágenes los corrige la IA; los PDF y documentos
+                  quedan para tu revisión.
+                </small>
               </div>
               <div class="form-group">
                 <label class="form-label">Pregunta *</label>
@@ -1164,6 +1231,21 @@
                   <option value="canvas">✏️ Hoja (dibujar)</option>
                 </select>
               </div>
+              <div
+                v-if="newSheet.sheet_type === 'level_test'"
+                class="form-group"
+              >
+                <label class="form-label">Fecha y hora de la prueba</label>
+                <input
+                  v-model="newSheet.scheduled_at"
+                  type="datetime-local"
+                  class="form-input"
+                />
+                <small class="form-hint">
+                  Los alumnos reciben una notificación y no pueden rendirla
+                  antes de esa fecha. Dejalo vacío para habilitarla siempre.
+                </small>
+              </div>
               <div class="form-group">
                 <label class="form-label">Nivel</label>
                 <input
@@ -1259,6 +1341,21 @@
                   <option value="canvas">✏️ Hoja (dibujar)</option>
                 </select>
               </div>
+              <div
+                v-if="editSheet.sheet_type === 'level_test'"
+                class="form-group"
+              >
+                <label class="form-label">Fecha y hora de la prueba</label>
+                <input
+                  v-model="editSheet.scheduled_at"
+                  type="datetime-local"
+                  class="form-input"
+                />
+                <small class="form-hint">
+                  Los alumnos reciben una notificación y no pueden rendirla
+                  antes de esa fecha. Dejalo vacío para habilitarla siempre.
+                </small>
+              </div>
               <div class="form-group">
                 <label class="form-label">Nivel</label>
                 <input
@@ -1334,7 +1431,30 @@
                   <option value="multiple_choice">Opción múltiple</option>
                   <option value="canvas">Canvas/Dibujo</option>
                   <option value="handwritten">Escrito a mano</option>
+                  <option value="attachment">📎 Entrega de archivo</option>
                 </select>
+              </div>
+              <div v-if="editExercise.type === 'attachment'" class="form-group">
+                <label class="form-label">Formatos aceptados</label>
+                <div class="accept-options">
+                  <label
+                    v-for="option in ATTACHMENT_KINDS"
+                    :key="option.value"
+                    class="accept-option"
+                  >
+                    <input
+                      v-model="editExercise.accept"
+                      type="checkbox"
+                      :value="option.value"
+                    />
+                    {{ option.label }}
+                  </label>
+                </div>
+                <small class="field-hint">
+                  Sin marcar ninguno se acepta cualquier formato soportado. El
+                  audio y las imágenes los corrige la IA; los PDF y documentos
+                  quedan para tu revisión.
+                </small>
               </div>
               <div class="form-group">
                 <label class="form-label">Pregunta *</label>
@@ -1721,6 +1841,26 @@
     gap: 12px;
     justify-content: flex-end;
     margin-top: 24px;
+  }
+  .accept-options {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+  }
+  .accept-option {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: var(--text-sm);
+    color: var(--text-primary);
+    cursor: pointer;
+  }
+  .form-hint {
+    display: block;
+    margin-top: 6px;
+    color: var(--text-secondary);
+    font-size: var(--text-xs);
+    line-height: 1.4;
   }
   /* Tablet landscape */
   @media (max-width: 1024px) {
