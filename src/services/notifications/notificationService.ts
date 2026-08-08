@@ -8,6 +8,7 @@ export interface INotificationService {
   }): Promise<{ data: NotificationList }>;
   markRead(id: string): Promise<{ data: OperationResult }>;
   markAllRead(): Promise<{ data: OperationResult }>;
+  remove(id: string): Promise<{ data: OperationResult }>;
 }
 
 export class NotificationService implements INotificationService {
@@ -33,6 +34,11 @@ export class NotificationService implements INotificationService {
 
   async markAllRead(): Promise<{ data: OperationResult }> {
     const { data } = await this.api.post("/notifications/read-all");
+    return data;
+  }
+
+  async remove(id: string): Promise<{ data: OperationResult }> {
+    const { data } = await this.api.delete(`/notifications/${id}`);
     return data;
   }
 }

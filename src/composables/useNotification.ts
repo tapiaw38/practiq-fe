@@ -41,12 +41,24 @@ export const useNotification = () => {
     }
   };
 
+  // Deletes server-side: dropping it only from the local list would bring it
+  // back on the next load, since the row would still be there.
   const dismissNotification = async (id: string) => {
-    const target = notifications.value.find((n) => n.id === id);
-    if (!target) return;
-    await markRead(id);
-    if (target.read) {
-      notifications.value = notifications.value.filter((n) => n.id !== id);
+    const index = notifications.value.findIndex((n) => n.id === id);
+    if (index === -1) return;
+
+    const removed = notifications.value[index];
+    notifications.value = notifications.value.filter((n) => n.id !== id);
+    if (!removed.read) unreadCount.value = Math.max(0, unreadCount.value - 1);
+
+    try {
+      await service.remove(id);
+    } catch {
+      // Put it back where it was so the list keeps its order.
+      const restored = [...notifications.value];
+      restored.splice(index, 0, removed);
+      notifications.value = restored;
+      if (!removed.read) unreadCount.value += 1;
     }
   };
 
