@@ -15,7 +15,7 @@ export const useNotification = () => {
   const loadNotifications = async () => {
     loading.value = true;
     try {
-      const { data } = await service.list({ limit: 30 });
+      const { data } = await service.list({ unreadOnly: true, limit: 30 });
       notifications.value = data.notifications;
       unreadCount.value = data.unread_count;
     } catch {
@@ -41,6 +41,15 @@ export const useNotification = () => {
     }
   };
 
+  const dismissNotification = async (id: string) => {
+    const target = notifications.value.find((n) => n.id === id);
+    if (!target) return;
+    await markRead(id);
+    if (target.read) {
+      notifications.value = notifications.value.filter((n) => n.id !== id);
+    }
+  };
+
   const markAllRead = async () => {
     if (!unreadCount.value) return;
     const previous = notifications.value.map((n) => n.read);
@@ -61,6 +70,7 @@ export const useNotification = () => {
     loading,
     loadNotifications,
     markRead,
+    dismissNotification,
     markAllRead,
   };
 };

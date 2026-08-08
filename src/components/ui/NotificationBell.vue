@@ -10,7 +10,7 @@
     unreadCount,
     loading,
     loadNotifications,
-    markRead,
+    dismissNotification,
     markAllRead,
   } = useNotification();
 
@@ -40,7 +40,7 @@
   }
 
   async function openNotification(notification: AppNotification) {
-    await markRead(notification.id);
+    await dismissNotification(notification.id);
     open.value = false;
     if (
       notification.resource_type === "practice_sheet" &&
