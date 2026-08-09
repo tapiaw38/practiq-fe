@@ -15,6 +15,8 @@ export interface AttemptReview {
   attachment_content_type?: string;
   answer_text?: string;
   ai_feedback?: string;
+  /** The assistant's suggestion. Never the grade — the teacher decides. */
+  ai_is_correct?: boolean;
   teacher_is_correct?: boolean;
   teacher_feedback?: string;
   teacher_reviewed_at?: string;

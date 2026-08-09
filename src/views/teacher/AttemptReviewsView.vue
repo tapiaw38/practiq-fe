@@ -83,8 +83,9 @@
           <div class="page-kicker">Corrección</div>
           <h1 class="page-title">Entregas por revisar</h1>
           <p class="page-subtitle">
-            Archivos que la IA no pudo corregir (PDF y documentos, o audios que
-            no se entendieron). Tu corrección define la nota del ejercicio.
+            La IA corrige las entregas que puede leer para que el alumno siga
+            practicando. Acá ves las que no pudo corregir, y activando el filtro
+            también las que ya corrigió — podés cambiarles la nota cuando quieras.
           </p>
         </div>
         <label class="toggle-reviewed">
@@ -93,13 +94,17 @@
             type="checkbox"
             @change="load"
           />
-          Ver también las corregidas
+          Ver también las ya corregidas
         </label>
       </div>
 
       <p v-if="loading" class="muted">Cargando…</p>
       <p v-else-if="!reviews.length" class="muted">
-        No hay entregas pendientes.
+        {{
+          includeReviewed
+            ? "Todavía no hay entregas con archivo en tus cursos."
+            : "No hay entregas esperando tu corrección."
+        }}
       </p>
 
       <div v-else class="reviews-list">
@@ -125,7 +130,17 @@
               class="review-tag"
               :class="item.teacher_is_correct ? 'review-tag--ok' : 'review-tag--no'"
             >
-              {{ item.teacher_is_correct ? "Correcta" : "Incorrecta" }}
+              {{ item.teacher_is_correct ? "Correcta" : "Incorrecta" }} · vos
+            </span>
+            <span
+              v-else-if="item.ai_is_correct !== undefined"
+              class="review-tag"
+              :class="item.ai_is_correct ? 'review-tag--ok' : 'review-tag--no'"
+            >
+              {{ item.ai_is_correct ? "Correcta" : "Incorrecta" }} · IA
+            </span>
+            <span v-else class="review-tag review-tag--pending">
+              Sin corregir
             </span>
           </header>
 
@@ -143,9 +158,16 @@
             <span class="review-file-type">{{ item.attachment_content_type }}</span>
           </a>
 
-          <p v-if="item.ai_feedback" class="review-ai">
-            <i class="pi pi-sparkles"></i> {{ item.ai_feedback }}
-          </p>
+          <div v-if="item.ai_feedback || item.ai_is_correct !== undefined" class="review-ai">
+            <div class="review-ai-head">
+              <i class="pi pi-sparkles"></i>
+              <span>Corrección de la IA</span>
+            </div>
+            <p v-if="item.ai_feedback" class="review-ai-text">{{ item.ai_feedback }}</p>
+            <small class="review-ai-note">
+              Si no coincidís, tu corrección reemplaza esta nota.
+            </small>
+          </div>
 
           <template v-if="!item.teacher_reviewed_at">
             <textarea
@@ -286,6 +308,11 @@
     color: var(--red-600, #b91c1c);
   }
 
+  .review-tag--pending {
+    background: var(--color-warning-bg, rgba(245, 158, 11, 0.14));
+    color: var(--text-primary);
+  }
+
   .review-question {
     margin: 12px 0;
     color: var(--text-primary);
@@ -312,7 +339,36 @@
     font-size: var(--text-xs);
   }
 
-  .review-ai,
+  .review-ai {
+    margin: 12px 0 0;
+    padding: 10px 12px;
+    border-radius: 12px;
+    background: var(--surface-elevated);
+    border: 1px solid var(--surface-elevated-strong);
+  }
+
+  .review-ai-head {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: var(--text-xs);
+    font-weight: 700;
+    color: var(--practiq-violet);
+  }
+
+  .review-ai-text {
+    margin: 6px 0 0;
+    font-size: var(--text-sm);
+    color: var(--text-primary);
+  }
+
+  .review-ai-note {
+    display: block;
+    margin-top: 6px;
+    color: var(--text-secondary);
+    font-size: var(--text-xs);
+  }
+
   .review-teacher-feedback {
     margin: 10px 0 0;
     font-size: var(--text-sm);
