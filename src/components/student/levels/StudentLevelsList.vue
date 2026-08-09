@@ -1,4 +1,5 @@
 <script setup lang="ts">
+  import type { LevelSheetSummary } from "@/types";
   import type {
     StudentLevelsListEmits,
     StudentLevelsListProps,
@@ -6,6 +7,19 @@
 
   defineProps<StudentLevelsListProps>();
   const emit = defineEmits<StudentLevelsListEmits>();
+
+  // The server rejects an early attempt too; this only keeps the UI honest.
+  const isScheduled = (sheet?: LevelSheetSummary | null) =>
+    !!sheet?.scheduled_at && new Date(sheet.scheduled_at) > new Date();
+
+  const formatSchedule = (value: string) =>
+    new Date(value).toLocaleString("es-AR", {
+      weekday: "long",
+      day: "numeric",
+      month: "long",
+      hour: "2-digit",
+      minute: "2-digit",
+    });
 </script>
 
 <template>
@@ -95,6 +109,8 @@
           </div>
           <button
             class="lc-item lc-item--test lc-item--test-big"
+            :class="{ 'lc-item--scheduled': isScheduled(level.level_test) }"
+            :disabled="isScheduled(level.level_test)"
             @click="emit('openLevelTest', level.level_test!)"
           >
             <div class="lc-item-info">
@@ -106,14 +122,27 @@
                 }}
                 · 75% para avanzar
               </span>
+              <span
+                v-if="level.level_test.scheduled_at"
+                class="lc-item-schedule"
+              >
+                <i class="pi pi-calendar-clock"></i>
+                {{ formatSchedule(level.level_test.scheduled_at) }}
+              </span>
             </div>
             <div class="test-cta">
-              {{
-                level.level === data.current_level
-                  ? "Rendir prueba"
-                  : "Ver prueba"
-              }}
-              <i class="pi pi-arrow-right"></i>
+              <template v-if="isScheduled(level.level_test)">
+                <i class="pi pi-lock"></i>
+                Disponible en la fecha
+              </template>
+              <template v-else>
+                {{
+                  level.level === data.current_level
+                    ? "Rendir prueba"
+                    : "Ver prueba"
+                }}
+                <i class="pi pi-arrow-right"></i>
+              </template>
             </div>
           </button>
         </div>
@@ -299,6 +328,19 @@
   }
   .lc-item-meta,
   .lc-empty,
+  .lc-item--scheduled {
+    opacity: 0.65;
+    cursor: not-allowed;
+  }
+  .lc-item-schedule {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    margin-top: 4px;
+    font-size: var(--text-xs);
+    font-weight: 700;
+    color: var(--practiq-violet);
+  }
   .lc-locked-hint {
     color: var(--text-secondary);
     font-size: var(--text-sm);

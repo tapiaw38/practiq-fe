@@ -6,6 +6,7 @@
   import { useLevel } from "@/composables/useLevel";
   import ChangePasswordModal from "@/components/auth/ChangePasswordModal.vue";
   import SetPasswordModal from "@/components/auth/SetPasswordModal.vue";
+  import NotificationBell from "@/components/ui/NotificationBell.vue";
   import type { LevelData } from "@/types";
 
   interface CourseNavItem {
@@ -144,7 +145,10 @@
         <img src="@/assets/logo.png" class="topbar-logo" alt="Practiq" />
       </div>
 
-      <div class="topbar-avatar">{{ userInitial }}</div>
+      <div class="topbar-right">
+        <NotificationBell />
+        <div class="topbar-avatar">{{ userInitial }}</div>
+      </div>
     </header>
 
     <div v-if="navOpen" class="drawer-backdrop" @click="navOpen = false"></div>
@@ -328,6 +332,8 @@
           </div>
         </div>
         <div class="footer-actions">
+          <!-- Desktop entry point: the topbar bell only shows on mobile. -->
+          <NotificationBell class="footer-bell" />
           <button
             class="icon-btn"
             type="button"
@@ -798,6 +804,26 @@
     align-items: center;
     gap: 6px;
     flex-shrink: 0;
+  }
+
+  .topbar-right {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+
+  /* Match the sibling icon buttons in the sidebar footer. */
+  .footer-bell :deep(.bell-btn) {
+    width: 36px;
+    height: 36px;
+  }
+
+  /* Footer bell sits at bottom of viewport; keep panel fully visible. */
+  .footer-bell :deep(.bell-panel) {
+    top: auto;
+    bottom: calc(100% + 10px);
+    left: 0;
+    right: auto;
   }
 
   .icon-btn {

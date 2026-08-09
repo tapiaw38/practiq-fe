@@ -3,7 +3,11 @@ export type ExerciseType =
   | "handwritten"
   | "open_text"
   | "equation"
-  | "canvas";
+  | "canvas"
+  | "attachment";
+
+/** File families an attachment exercise can accept. */
+export type AttachmentKind = "audio" | "pdf" | "image" | "doc";
 
 export interface Exercise {
   id: string;

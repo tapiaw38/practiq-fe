@@ -109,6 +109,12 @@ const router = createRouter({
       meta: { requiresAuth: true, profileType: "teacher" },
     },
     {
+      path: "/teacher/attempt-reviews",
+      name: "teacher-attempt-reviews",
+      component: () => import("@/views/teacher/AttemptReviewsView.vue"),
+      meta: { requiresAuth: true, profileType: "teacher" },
+    },
+    {
       path: "/teacher/notebook-reviews",
       name: "teacher-notebook-reviews",
       component: () => import("@/views/teacher/NotebookReviewView.vue"),

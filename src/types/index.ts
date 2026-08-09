@@ -1,6 +1,7 @@
 export * from "./ai";
 export * from "./assistant";
 export * from "./assignments";
+export * from "./attemptReviews";
 export * from "./auth";
 export * from "./courses";
 export * from "./exercises";
@@ -8,6 +9,7 @@ export * from "./grades";
 export * from "./levels";
 export * from "./materials";
 export * from "./notebooks";
+export * from "./notifications";
 export * from "./operation";
 export * from "./practiceSheets";
 export * from "./profile";

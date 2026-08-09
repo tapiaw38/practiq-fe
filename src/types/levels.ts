@@ -9,6 +9,8 @@ export interface LevelSheetSummary {
   level: number;
   sheet_type: PracticeSheetType;
   test_style: PracticeSheetTestStyle;
+  /** UTC ISO string. Absent when the sheet has no scheduled date. */
+  scheduled_at?: string;
   exercises: number;
 }
 

@@ -18,6 +18,8 @@ export interface PracticeSheet {
   level: number;
   sheet_type: PracticeSheetType;
   test_style: PracticeSheetTestStyle;
+  /** UTC ISO string. Absent when the sheet can be taken at any time. */
+  scheduled_at?: string;
   created_by: string;
   created_at: string;
   exercises: PracticeSheetExercise[];
@@ -41,6 +43,8 @@ export interface ExerciseResult {
   student_answer: string;
   correct_answer: string;
   ai_feedback?: string;
+  /** The assistant could not grade this file; a teacher will. */
+  needs_teacher_review?: boolean;
 }
 
 export interface SubmitResult {
@@ -52,6 +56,8 @@ export interface SubmitResult {
   ai_feedback?: string;
   should_level_up: boolean;
   should_repeat: boolean;
+  /** Every answer is awaiting the teacher, so there is no score to act on. */
+  pending_review?: boolean;
   next_level: number;
   exercise_results: ExerciseResult[];
 }

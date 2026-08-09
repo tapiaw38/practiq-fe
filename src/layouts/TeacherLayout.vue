@@ -103,6 +103,15 @@
           <span>Cuadernos</span>
         </RouterLink>
         <RouterLink
+          to="/teacher/attempt-reviews"
+          class="nav-item"
+          active-class="nav-item-active"
+          @click="navOpen = false"
+        >
+          <span class="nav-icon"><i class="pi pi-paperclip"></i></span>
+          <span>Entregas</span>
+        </RouterLink>
+        <RouterLink
           to="/teacher/strategies"
           class="nav-item"
           active-class="nav-item-active"
