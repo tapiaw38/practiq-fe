@@ -623,6 +623,12 @@
               activeExercise.type === "handwritten" && activeTeacherImage
                 ? "teacher_image_attachment"
                 : "text",
+            student_answer: (() => {
+              const canvasAnswer = answers.value[activeExercise.id]?.answer || "";
+              if (canvasAnswer && !canvasAnswer.startsWith("data:image/")) return canvasAnswer;
+              return keyboardAnswers.value[activeExercise.id] || "";
+            })(),
+            has_student_image: (answers.value[activeExercise.id]?.answer || "").startsWith("data:image/"),
             metadata_summary: JSON.stringify(
               summarizeExerciseMetadata(activeExercise) || {},
             ),
