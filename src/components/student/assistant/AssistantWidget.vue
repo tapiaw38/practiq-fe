@@ -167,6 +167,7 @@
       apiBaseUrl: proxyBaseUrl,
       authToken: token,
       authMode: "bearer",
+      conversationStorageKey: authStore.profile?.id,
       title: "Asistente",
       placeholder: "Pregúntale al asistente…",
       initialMessage: "Hola, soy tu asistente. ¿Tienes alguna duda?",
