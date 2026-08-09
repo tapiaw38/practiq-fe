@@ -12,7 +12,6 @@
     watch,
   } from "vue";
   import { useRoute } from "vue-router";
-  import robotAvatarUrl from "@/assets/robot.png";
   import { useAuthStore } from "@/stores/authStore";
   import { createAssistant, type Assistant } from "practiq-assistant-package";
 
@@ -177,11 +176,15 @@
       getImageAttachment: getAssistantCanvasAttachment,
       getStructuredContext: getAssistantStructuredContext,
       buttonOptions: {
-        avatarUrl: robotAvatarUrl,
         backgroundColor: backgroundColor,
         color: primaryColor,
         size: "large",
       },
+      quickActions: [
+        { label: "💡 Pista", prompt: "Dame una pista sin revelar la respuesta." },
+        { label: "🧩 Explicame", prompt: "Explicame paso a paso usando el ejercicio actual." },
+        { label: "✓ Revisá", prompt: "Revisá mi respuesta actual y ayudame a mejorarla." },
+      ],
       theme: {
         primaryColor: primaryColor,
         textColor: textColor,
