@@ -4,6 +4,7 @@
   import TeacherLayout from "@/layouts/TeacherLayout.vue";
   import ConfirmModal from "@/components/ui/ConfirmModal.vue";
   import MathFieldEditor from "@/components/ui/MathFieldEditor.vue";
+  import FileUploadField from "@/components/ui/FileUploadField.vue";
   import ExercisesList from "@/components/teacher/exercises/ExercisesList.vue";
   import CourseLevelsPanel from "@/components/teacher/levels/CourseLevelsPanel.vue";
   import MaterialsList from "@/components/teacher/materials/MaterialsList.vue";
@@ -162,6 +163,8 @@
     title: "",
     type: "text" as Material["type"],
     extracted_text: "",
+    // URL returned by the upload endpoint; empty for text-only materials.
+    file_url: "",
   });
   const newSheet = reactive({
     title: "",
@@ -323,8 +326,12 @@
   }
 
   async function createMaterial() {
-    await createMaterialService(courseId, newMaterial);
+    await createMaterialService(courseId, { ...newMaterial });
     showMaterialModal.value = false;
+    newMaterial.title = "";
+    newMaterial.type = "text";
+    newMaterial.extracted_text = "";
+    newMaterial.file_url = "";
     const res = await loadMaterials(courseId);
     materials.value = res || [];
   }
@@ -1110,6 +1117,17 @@
                   <option value="video">Video</option>
                   <option value="worksheet">Hoja de trabajo</option>
                 </select>
+              </div>
+              <div v-if="newMaterial.type !== 'text'" class="form-group">
+                <label class="form-label">Archivo</label>
+                <FileUploadField
+                  v-model="newMaterial.file_url"
+                  folder="materials"
+                  label="Subir archivo"
+                />
+                <small class="field-hint">
+                  Los alumnos del curso pueden abrirlo desde su vista del curso.
+                </small>
               </div>
               <div class="form-group">
                 <label class="form-label">Contenido</label>

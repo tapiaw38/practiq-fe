@@ -9,17 +9,25 @@ export interface UploadedFile {
 }
 
 export interface IUploadService {
-  upload(file: File | Blob, filename?: string): Promise<UploadedFile>;
+  upload(
+    file: File | Blob,
+    filename?: string,
+    folder?: string,
+  ): Promise<UploadedFile>;
 }
 
 export class UploadService implements IUploadService {
   constructor(private readonly api: AxiosInstance) {}
 
-  async upload(file: File | Blob, filename?: string): Promise<UploadedFile> {
+  async upload(
+    file: File | Blob,
+    filename?: string,
+    folder = "attachments",
+  ): Promise<UploadedFile> {
     const form = new FormData();
     const name = filename ?? (file instanceof File ? file.name : "archivo");
     form.append("file", file, name);
-    form.append("folder", "attachments");
+    form.append("folder", folder);
 
     const { data } = await this.api.post("/uploads", form, {
       // Let the browser set the multipart boundary.
