@@ -177,6 +177,15 @@
       audioAnswers: true,
       getImageAttachment: getAssistantCanvasAttachment,
       getStructuredContext: getAssistantStructuredContext,
+      visibility: {
+        includeViews: [
+          "student-practice",
+          "student-level-test",
+          "student-notebook",
+        ],
+        excludeViews: [],
+        getCurrentView: () => String(route.name || ""),
+      },
       buttonOptions: {
         backgroundColor: backgroundColor,
         color: primaryColor,
@@ -234,6 +243,7 @@
       window.dispatchEvent(new CustomEvent("practiq:assistant:route-change"));
       assistant?.refreshContext();
       assistant?.resetConversation();
+      assistant?.refreshVisibility();
     },
   );
 
