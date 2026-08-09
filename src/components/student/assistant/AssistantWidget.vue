@@ -19,6 +19,7 @@
   const route = useRoute();
 
   const proxyBaseUrl = `${import.meta.env.VITE_PRACTIQ_API_URL || "http://localhost:8083"}/api/assistant-proxy`;
+  const copilotBaseUrl = `${import.meta.env.VITE_PRACTIQ_API_URL || "http://localhost:8083"}/api/ai/copilot`;
 
   let assistant: Assistant | null = null;
   let activeToken: string | null = null;
@@ -164,6 +165,7 @@
 
     assistant = createAssistant({
       apiBaseUrl: proxyBaseUrl,
+      copilotBaseUrl,
       authToken: token,
       authMode: "bearer",
       conversationStorageKey: authStore.profile?.id,
