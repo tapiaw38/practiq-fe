@@ -166,6 +166,8 @@
 
   function setActiveExercise(exerciseId: string) {
     activeId.value = exerciseId;
+    const index = exercises.value.findIndex((item) => item.exercise.id === exerciseId);
+    window.dispatchEvent(new CustomEvent("practiq:assistant:active-context", { detail: { label: index >= 0 ? `Ejercicio ${index + 1}` : "" } }));
   }
 
   function exerciseUsesCanvas(exerciseType: string) {
