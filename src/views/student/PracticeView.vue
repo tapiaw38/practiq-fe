@@ -226,7 +226,7 @@
 
   function setActiveExercise(exerciseId: string, idx: number) {
     currentIdx.value = idx;
-    window.dispatchEvent(new CustomEvent("practiq:assistant:active-context", { detail: { label: `Ejercicio ${idx + 1}` } }));
+    window.dispatchEvent(new CustomEvent("practiq:assistant:active-context", { detail: { label: `E${idx + 1}` } }));
     if (
       exerciseUsesCanvas(sheet.value?.exercises?.[idx]?.exercise.type || "")
     ) {
