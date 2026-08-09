@@ -280,6 +280,12 @@
     answers.value[id].answer = "";
   }
 
+  function requestAssistantHelp() {
+    window.dispatchEvent(new CustomEvent("practiq:assistant:prompt", {
+      detail: { prompt: "Ayudame con el ejercicio actual. Dame una pista sin resolverlo." },
+    }));
+  }
+
   // Submit
 
   function getNextCuriosity(): string {
@@ -862,6 +868,12 @@
                 </div>
                 <div class="ex-body">
                   <div class="ex-meta">
+                    <button
+                      class="exercise-assistant-trigger"
+                      type="button"
+                      title="Pedir ayuda con este ejercicio"
+                      @click.stop="requestAssistantHelp"
+                    >🤖 Ayuda</button>
                     <span
                       class="difficulty-pill"
                       :style="{
@@ -2191,5 +2203,15 @@
       justify-content: center;
       font-size: 0.9rem;
     }
+  }
+  .exercise-assistant-trigger {
+    margin-left: auto;
+    border: 0;
+    border-radius: 999px;
+    padding: 4px 8px;
+    background: color-mix(in srgb, var(--practiq-violet) 12%, transparent);
+    color: var(--practiq-violet);
+    cursor: pointer;
+    font-size: 0.72rem;
   }
 </style>

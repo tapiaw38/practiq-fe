@@ -241,11 +241,17 @@
     applyDrawerVisibility();
   }
 
+  function handleAssistantPrompt(e: Event) {
+    const prompt = (e as CustomEvent<{ prompt?: string }>).detail?.prompt;
+    if (prompt) assistant?.prompt(prompt);
+  }
+
   onMounted(() => {
     window.addEventListener(
       "student-drawer-toggled",
       handleDrawerToggle as EventListener,
     );
+    window.addEventListener("practiq:assistant:prompt", handleAssistantPrompt as EventListener);
   });
 
   onBeforeUnmount(() => {
@@ -253,6 +259,7 @@
       "student-drawer-toggled",
       handleDrawerToggle as EventListener,
     );
+    window.removeEventListener("practiq:assistant:prompt", handleAssistantPrompt as EventListener);
     destroyAssistant();
   });
 </script>
