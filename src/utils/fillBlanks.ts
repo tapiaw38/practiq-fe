@@ -154,6 +154,28 @@ export function deserializeAnswer(value?: string): Record<number, string> {
   }
 }
 
+/** Safe assistant view of puzzle state. Never exposes configured answers. */
+export function buildFillBlanksAssistantContext(
+  exercise: Pick<Exercise, "question" | "metadata">,
+  serializedAnswer?: string,
+) {
+  const config = parseFillBlanksConfig(exercise);
+  const placements = deserializeAnswer(serializedAnswer);
+  const ids = blankIdsIn(exercise.question);
+  return {
+    interaction: "tap_option_then_blank",
+    statement: exercise.question,
+    layout: config.layout,
+    blanks: ids.map((id) => ({
+      id,
+      status: placements[id] ? "filled" : "empty",
+      value: placements[id] || "",
+    })),
+    // Options are visible to the student. Answers stay only on the backend.
+    available_options: buildOptions(config),
+  };
+}
+
 export function buildCorrectAnswer(blanks: FillBlank[]): string {
   const placements: Record<number, string> = {};
   for (const blank of blanks) {

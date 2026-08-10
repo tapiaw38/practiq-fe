@@ -33,6 +33,7 @@
   import { useSound } from "@/composables/useSound";
   import { useCuriosities } from "@/composables/useCuriosities";
   import AiLoadingModal from "@/components/student/ai/AiLoadingModal.vue";
+  import { buildFillBlanksAssistantContext } from "@/utils/fillBlanks";
   import {
     loadingMessages,
     levelUpMessages,
@@ -476,9 +477,31 @@
               activeExercise.type === "handwritten" && activeTeacherImage
                 ? "teacher_image_attachment"
                 : "text",
-            metadata_summary: JSON.stringify(
-              summarizeExerciseMetadata(activeExercise) || {},
-            ),
+            student_answer:
+              activeExercise.type === "fill_blanks"
+                ? buildFillBlanksAssistantContext(
+                    activeExercise,
+                    answers.value[activeExercise.id] || "",
+                  ).blanks
+                    .filter((blank) => blank.value)
+                    .map((blank) => `Hueco ${blank.id}: ${blank.value}`)
+                    .join(", ")
+                : answers.value[activeExercise.id] || "",
+            student_answer_raw:
+              activeExercise.type === "fill_blanks"
+                ? answers.value[activeExercise.id] || ""
+                : "",
+            puzzle:
+              activeExercise.type === "fill_blanks"
+                ? buildFillBlanksAssistantContext(
+                    activeExercise,
+                    answers.value[activeExercise.id] || "",
+                  )
+                : null,
+            metadata_summary:
+              activeExercise.type === "fill_blanks"
+                ? ""
+                : JSON.stringify(summarizeExerciseMetadata(activeExercise) || {}),
           }
         : null,
       exercise_list: exercises.value.map((item, idx) => ({

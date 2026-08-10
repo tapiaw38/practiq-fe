@@ -28,6 +28,7 @@
   import { useSound } from "@/composables/useSound";
   import { useCuriosities } from "@/composables/useCuriosities";
   import AiLoadingModal from "@/components/student/ai/AiLoadingModal.vue";
+  import { buildFillBlanksAssistantContext } from "@/utils/fillBlanks";
   import {
     loadingMessages,
     successMessages,
@@ -608,7 +609,7 @@
       sheet_id: sheet.value.id,
       sheet_title: sheet.value.title,
       level: sheet.value.level,
-      response_mode: "canvas",
+      response_mode: activeExercise?.type === "fill_blanks" ? "fill_blanks" : "canvas",
       exercise_count: sheet.value.exercises.length,
       active_exercise: activeExercise
         ? {
@@ -628,12 +629,33 @@
             student_answer: (() => {
               const canvasAnswer = answers.value[activeExercise.id]?.answer || "";
               if (canvasAnswer && !canvasAnswer.startsWith("data:image/")) return canvasAnswer;
+              if (activeExercise.type === "fill_blanks") {
+                return buildFillBlanksAssistantContext(
+                  activeExercise,
+                  keyboardAnswers.value[activeExercise.id] || "",
+                ).blanks
+                  .filter((blank) => blank.value)
+                  .map((blank) => `Hueco ${blank.id}: ${blank.value}`)
+                  .join(", ");
+              }
               return keyboardAnswers.value[activeExercise.id] || "";
             })(),
+            student_answer_raw:
+              activeExercise.type === "fill_blanks"
+                ? keyboardAnswers.value[activeExercise.id] || ""
+                : "",
+            puzzle:
+              activeExercise.type === "fill_blanks"
+                ? buildFillBlanksAssistantContext(
+                    activeExercise,
+                    keyboardAnswers.value[activeExercise.id] || "",
+                  )
+                : null,
             has_student_image: (answers.value[activeExercise.id]?.answer || "").startsWith("data:image/"),
-            metadata_summary: JSON.stringify(
-              summarizeExerciseMetadata(activeExercise) || {},
-            ),
+            metadata_summary:
+              activeExercise.type === "fill_blanks"
+                ? ""
+                : JSON.stringify(summarizeExerciseMetadata(activeExercise) || {}),
           }
         : null,
       exercise_list: sheet.value.exercises.map((pse, idx) => ({
