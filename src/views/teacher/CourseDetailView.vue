@@ -1,6 +1,7 @@
 <script setup lang="ts">
   import { computed, ref, reactive, onMounted, watch, nextTick } from "vue";
   import { useRoute, useRouter } from "vue-router";
+  import { useToast } from "primevue/usetoast";
   import TeacherLayout from "@/layouts/TeacherLayout.vue";
   import ConfirmModal from "@/components/ui/ConfirmModal.vue";
   import MathFieldEditor from "@/components/ui/MathFieldEditor.vue";
@@ -32,10 +33,19 @@
   } from "@/types";
   import { parseExerciseMetadata } from "@/utils/assistantExerciseContext";
   import { ATTACHMENT_KINDS, acceptedKinds } from "@/utils/attachments";
+  import {
+    buildCorrectAnswer,
+    buildOptions,
+    parseFillBlanksConfig,
+    validateFillBlanks,
+    type FillBlanksConfig,
+  } from "@/utils/fillBlanks";
+  import FillBlanksEditor from "@/components/teacher/exercises/FillBlanksEditor.vue";
   import { renderContent } from "@/composables/useContentRenderer";
 
   const route = useRoute();
   const router = useRouter();
+  const toast = useToast();
   const courseId = route.params.id as string;
   const { confirmState, showConfirm, onConfirm, onCancel } = useConfirm();
   const {
@@ -144,6 +154,8 @@
     options: ["", "", "", ""],
     // Attachment exercises: which file families the student may upload.
     accept: [] as AttachmentKind[],
+    // Fill-in-the-blanks: blanks come from the statement, options include distractors.
+    fillBlanks: { blanks: [], distractors: [], layout: "text" } as FillBlanksConfig,
   });
 
   const newTopic = reactive({ title: "", description: "", order_index: 0 });
@@ -158,6 +170,8 @@
     options: ["", "", "", ""],
     // Attachment exercises: which file families the student may upload.
     accept: [] as AttachmentKind[],
+    // Fill-in-the-blanks: blanks come from the statement, options include distractors.
+    fillBlanks: { blanks: [], distractors: [], layout: "text" } as FillBlanksConfig,
   });
   const newMaterial = reactive({
     title: "",
@@ -317,6 +331,7 @@
   }
 
   async function createExercise() {
+    if (!ensureExerciseIsValid(newExercise)) return;
     await createExerciseService(
       selectedTopicId.value,
       buildExercisePayload(newExercise, "new"),
@@ -516,6 +531,23 @@
     await loadSheetsPage(courseId, sheetsPage.value);
   }
 
+  // Blocks saving an exercise the student could not solve: a fill_blanks with
+  // no blanks, or with a blank nobody answered.
+  function ensureExerciseIsValid(form: typeof newExercise) {
+    if (form.type !== "fill_blanks") return true;
+    const problem = validateFillBlanks(form.question, form.fillBlanks);
+    if (problem) {
+      toast.add({
+        severity: "warn",
+        summary: "Revisá el ejercicio",
+        detail: problem,
+        life: 4000,
+      });
+      return false;
+    }
+    return true;
+  }
+
   function openEditExercise(ex: Exercise) {
     editingExerciseId.value = ex.id;
     editExercise.question = ex.question;
@@ -526,6 +558,10 @@
     editExercise.metadata = ex.metadata || "{}";
     editExercise.teacher_image = getMetadataTeacherImage(ex.metadata);
     setExerciseOptions(editExercise, getMetadataOptions(ex.metadata));
+    // Per-type configuration lives in metadata; without this the editor opens
+    // empty and saving wipes what the teacher had set.
+    editExercise.accept = acceptedKinds(ex);
+    editExercise.fillBlanks = parseFillBlanksConfig(ex);
     showEditExerciseModal.value = true;
     if (editExercise.type === "handwritten") {
       nextTick(() => initTeacherCanvas("edit", editExercise.teacher_image));
@@ -534,6 +570,7 @@
 
   async function saveExerciseEdit() {
     if (!editingExerciseId.value) return;
+    if (!ensureExerciseIsValid(editExercise)) return;
     await updateExerciseService(
       editingExerciseId.value,
       buildExercisePayload(editExercise, "edit"),
@@ -610,6 +647,14 @@
     }
     const rest = { ...parsed };
     delete rest.options;
+    if (form.type === "fill_blanks") {
+      return JSON.stringify({
+        ...rest,
+        blanks: form.fillBlanks.blanks,
+        options: buildOptions(form.fillBlanks),
+        layout: form.fillBlanks.layout,
+      });
+    }
     if (form.type === "attachment") {
       // Empty means "any supported file"; the API enforces the whitelist.
       if (form.accept.length) rest.accept = [...form.accept];
@@ -636,7 +681,10 @@
         form.question.trim() ||
         (form.type === "handwritten" ? "Ejercicio manuscrito" : form.question),
       type: form.type,
-      correct_answer: form.correct_answer,
+      correct_answer:
+        form.type === "fill_blanks"
+          ? buildCorrectAnswer(form.fillBlanks.blanks)
+          : form.correct_answer,
       explanation: form.explanation,
       difficulty: form.difficulty,
       metadata: buildExerciseMetadata(form, canvasKind),
@@ -651,6 +699,8 @@
     form.difficulty = 1;
     form.metadata = "{}";
     form.teacher_image = "";
+    form.accept = [];
+    form.fillBlanks = { blanks: [], distractors: [], layout: "text" };
     setExerciseOptions(form, []);
     clearTeacherCanvas("new");
   }
@@ -937,7 +987,16 @@
                   <option value="canvas">Canvas/Dibujo</option>
                   <option value="handwritten">Escrito a mano</option>
                   <option value="attachment">📎 Entrega de archivo</option>
+                  <option value="fill_blanks">🧩 Completar huecos</option>
                 </select>
+              </div>
+              <div v-if="newExercise.type === 'fill_blanks'" class="form-group">
+                <label class="form-label">Huecos y opciones</label>
+                <FillBlanksEditor
+                  v-model="newExercise.fillBlanks"
+                  :statement="newExercise.question"
+                  @insert-blank="(marker) => (newExercise.question += marker)"
+                />
               </div>
               <div v-if="newExercise.type === 'attachment'" class="form-group">
                 <label class="form-label">Formatos aceptados</label>
@@ -1450,7 +1509,16 @@
                   <option value="canvas">Canvas/Dibujo</option>
                   <option value="handwritten">Escrito a mano</option>
                   <option value="attachment">📎 Entrega de archivo</option>
+                  <option value="fill_blanks">🧩 Completar huecos</option>
                 </select>
+              </div>
+              <div v-if="editExercise.type === 'fill_blanks'" class="form-group">
+                <label class="form-label">Huecos y opciones</label>
+                <FillBlanksEditor
+                  v-model="editExercise.fillBlanks"
+                  :statement="editExercise.question"
+                  @insert-blank="(marker) => (editExercise.question += marker)"
+                />
               </div>
               <div v-if="editExercise.type === 'attachment'" class="form-group">
                 <label class="form-label">Formatos aceptados</label>

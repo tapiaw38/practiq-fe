@@ -6,6 +6,7 @@
   import ConfirmModal from "@/components/ui/ConfirmModal.vue";
   import DrawingCanvas from "@/components/ui/DrawingCanvas.vue";
   import AttachmentAnswer from "@/components/student/exercises/AttachmentAnswer.vue";
+  import FillBlanksAnswer from "@/components/student/exercises/FillBlanksAnswer.vue";
   import { useConfirm } from "@/composables/useConfirm";
   import { usePracticeSheet } from "@/composables/usePracticeSheet";
   import { useAuthStore } from "@/stores/authStore";
@@ -740,6 +741,20 @@
                   class="ex-input"
                   placeholder="Escribe la opción correcta..."
                   @keydown.enter="focusNext(idx)"
+                />
+              </div>
+
+              <!-- Fill in the blanks -->
+              <div
+                v-else-if="ex.exercise.type === 'fill_blanks'"
+                class="fill-blanks-wrap"
+              >
+                <FillBlanksAnswer
+                  :exercise="ex.exercise"
+                  :model-value="answers[ex.exercise.id] || ''"
+                  @update:model-value="
+                    (value) => (answers[ex.exercise.id] = value)
+                  "
                 />
               </div>
 

@@ -6,6 +6,7 @@
   import Skeleton from "@/components/ui/Skeleton.vue";
   import DrawingCanvas from "@/components/ui/DrawingCanvas.vue";
   import AttachmentAnswer from "@/components/student/exercises/AttachmentAnswer.vue";
+  import FillBlanksAnswer from "@/components/student/exercises/FillBlanksAnswer.vue";
   import { usePracticeSheet } from "@/composables/usePracticeSheet";
   import { useProgress } from "@/composables/useProgress";
   import type { PracticeSheet, SubmitResult, TopicProgress } from "@/types";
@@ -952,6 +953,20 @@
                       :placeholder="getPlaceholder(pse.exercise.type)"
                       rows="4"
                     ></textarea>
+                  </div>
+
+                  <!-- Fill in the blanks -->
+                  <div
+                    v-else-if="pse.exercise.type === 'fill_blanks'"
+                    class="fill-blanks-wrap"
+                  >
+                    <FillBlanksAnswer
+                      :exercise="pse.exercise"
+                      :model-value="keyboardAnswers[pse.exercise.id] || ''"
+                      @update:model-value="
+                        (value) => (keyboardAnswers[pse.exercise.id] = value)
+                      "
+                    />
                   </div>
 
                   <!-- File / audio submission -->

@@ -4,7 +4,8 @@ export type ExerciseType =
   | "open_text"
   | "equation"
   | "canvas"
-  | "attachment";
+  | "attachment"
+  | "fill_blanks";
 
 /** File families an attachment exercise can accept. */
 export type AttachmentKind = "audio" | "pdf" | "image" | "doc";
