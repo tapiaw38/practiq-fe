@@ -699,8 +699,10 @@
               ></div>
               <div
                 v-else-if="
-                  ex.exercise.type !== 'handwritten' ||
+                  ex.exercise.type !== 'fill_blanks' &&
+                  (ex.exercise.type !== 'handwritten' ||
                   !extractTeacherImageDataUrl(ex.exercise)
+                  )
                 "
                 class="ex-question"
               >

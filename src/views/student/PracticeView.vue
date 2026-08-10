@@ -910,8 +910,10 @@
                   ></div>
                   <div
                     v-else-if="
-                      pse.exercise.type !== 'handwritten' ||
+                      pse.exercise.type !== 'fill_blanks' &&
+                      (pse.exercise.type !== 'handwritten' ||
                       !extractTeacherImageDataUrl(pse.exercise)
+                      )
                     "
                     class="ex-question"
                   >
