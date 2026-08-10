@@ -12,7 +12,6 @@
     watch,
   } from "vue";
   import { useRoute } from "vue-router";
-  import robotAvatarUrl from "@/assets/robot.png";
   import { useAuthStore } from "@/stores/authStore";
   import { createAssistant, type Assistant } from "practiq-assistant-package";
 
@@ -20,6 +19,7 @@
   const route = useRoute();
 
   const proxyBaseUrl = `${import.meta.env.VITE_PRACTIQ_API_URL || "http://localhost:8083"}/api/assistant-proxy`;
+  const copilotBaseUrl = `${import.meta.env.VITE_PRACTIQ_API_URL || "http://localhost:8083"}/api/ai/copilot`;
 
   let assistant: Assistant | null = null;
   let activeToken: string | null = null;
@@ -165,8 +165,10 @@
 
     assistant = createAssistant({
       apiBaseUrl: proxyBaseUrl,
+      copilotBaseUrl,
       authToken: token,
       authMode: "bearer",
+      conversationStorageKey: authStore.profile?.id,
       title: "Asistente",
       placeholder: "Pregúntale al asistente…",
       initialMessage: "Hola, soy tu asistente. ¿Tienes alguna duda?",
@@ -175,12 +177,25 @@
       audioAnswers: true,
       getImageAttachment: getAssistantCanvasAttachment,
       getStructuredContext: getAssistantStructuredContext,
+      visibility: {
+        includeViews: [
+          "student-practice",
+          "student-level-test",
+          "student-notebook",
+        ],
+        excludeViews: [],
+        getCurrentView: () => String(route.name || ""),
+      },
       buttonOptions: {
-        avatarUrl: robotAvatarUrl,
         backgroundColor: backgroundColor,
         color: primaryColor,
         size: "large",
       },
+      quickActions: [
+        { label: "💡 Pista", prompt: "Dame una pista sin revelar la respuesta." },
+        { label: "🧩 Explicame", prompt: "Explicame paso a paso usando el ejercicio actual." },
+        { label: "✓ Revisá", prompt: "Revisá mi respuesta actual y ayudame a mejorarla." },
+      ],
       theme: {
         primaryColor: primaryColor,
         textColor: textColor,
@@ -228,6 +243,7 @@
       window.dispatchEvent(new CustomEvent("practiq:assistant:route-change"));
       assistant?.refreshContext();
       assistant?.resetConversation();
+      assistant?.refreshVisibility();
     },
   );
 
@@ -237,11 +253,17 @@
     applyDrawerVisibility();
   }
 
+  function handleAssistantPrompt(e: Event) {
+    const prompt = (e as CustomEvent<{ prompt?: string }>).detail?.prompt;
+    if (prompt) assistant?.prompt(prompt);
+  }
+
   onMounted(() => {
     window.addEventListener(
       "student-drawer-toggled",
       handleDrawerToggle as EventListener,
     );
+    window.addEventListener("practiq:assistant:prompt", handleAssistantPrompt as EventListener);
   });
 
   onBeforeUnmount(() => {
@@ -249,6 +271,7 @@
       "student-drawer-toggled",
       handleDrawerToggle as EventListener,
     );
+    window.removeEventListener("practiq:assistant:prompt", handleAssistantPrompt as EventListener);
     destroyAssistant();
   });
 </script>
