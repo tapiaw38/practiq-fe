@@ -1235,5 +1235,22 @@
     .auth-switch {
       margin-top: 14px;
     }
+
+    /* Tap targets >= 44px en mobile */
+    .auth-switch__btn {
+      min-height: 44px;
+    }
+    .auth-form .form-input,
+    .auth-card--register .auth-form .form-input {
+      min-height: 48px;
+    }
+    .submit-btn {
+      min-height: 50px;
+    }
+    .text-link {
+      display: inline-flex;
+      align-items: center;
+      min-height: 32px;
+    }
   }
 </style>
