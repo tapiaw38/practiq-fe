@@ -2416,5 +2416,14 @@
       flex-direction: column;
       align-items: flex-start;
     }
+
+    /* Tap targets >= 44px en mobile */
+    .icon-btn {
+      width: 44px;
+      height: 44px;
+    }
+    .tab-btn {
+      min-height: 48px;
+    }
   }
 </style>

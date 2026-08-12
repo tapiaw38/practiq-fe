@@ -233,8 +233,8 @@
   .close-btn,
   .topbar-btn,
   .logout-btn {
-    width: 42px;
-    height: 42px;
+    width: 44px;
+    height: 44px;
     border: none;
     border-radius: var(--radius-lg);
     background: var(--surface-subtle);
@@ -382,8 +382,8 @@
   }
 
   .icon-btn {
-    width: 36px;
-    height: 36px;
+    width: 44px;
+    height: 44px;
     border: none;
     border-radius: var(--radius-md);
     background: var(--surface-subtle);
@@ -491,6 +491,11 @@
 
     .sidebar--open {
       transform: translateX(0);
+    }
+
+    /* Tap targets >= 44px en mobile */
+    .nav-item {
+      min-height: 52px;
     }
   }
 

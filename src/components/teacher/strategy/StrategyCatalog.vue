@@ -160,4 +160,12 @@
     color: var(--practiq-violet);
     margin-bottom: 8px;
   }
+
+  /* Tap targets >= 44px en mobile */
+  @media (max-width: 600px) {
+    .icon-btn {
+      width: 44px;
+      height: 44px;
+    }
+  }
 </style>

@@ -2249,6 +2249,38 @@
       justify-content: center;
       font-size: 0.9rem;
     }
+
+    /* Tap targets >= 44px en mobile */
+    .btn-draft,
+    .btn-submit {
+      min-height: 50px;
+    }
+
+    .btn-back {
+      width: 44px;
+      height: 44px;
+    }
+
+    .tool-btn {
+      width: 46px;
+      height: 46px;
+      font-size: 1rem;
+    }
+
+    .color-picker {
+      width: 44px;
+      height: 44px;
+    }
+
+    .choice-option {
+      min-height: 52px;
+      padding: 12px 14px;
+    }
+
+    .choice-option input {
+      width: 22px;
+      height: 22px;
+    }
   }
   .exercise-assistant-trigger {
     margin-left: auto;

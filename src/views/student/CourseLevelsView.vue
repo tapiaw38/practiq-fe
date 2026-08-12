@@ -462,5 +462,11 @@
     .lc-body {
       padding: 10px 12px;
     }
+
+    /* Tap targets >= 44px en mobile */
+    .btn-back {
+      width: 44px;
+      height: 44px;
+    }
   }
 </style>

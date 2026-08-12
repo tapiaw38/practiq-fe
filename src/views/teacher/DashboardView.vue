@@ -1322,6 +1322,27 @@
     .student-grid {
       grid-template-columns: 1fr;
     }
+    /* Tap targets >= 44px en mobile */
+    .student-card {
+      min-height: 64px;
+    }
+    .pagination-controls {
+      flex-direction: column;
+      align-items: stretch;
+      gap: 10px;
+    }
+    .pagination-controls .btn {
+      width: 100%;
+      justify-content: center;
+      min-height: 46px;
+    }
+    .pagination-info {
+      text-align: center;
+    }
+    .icon-btn {
+      width: 44px;
+      height: 44px;
+    }
   }
 
   /* Skeleton states */

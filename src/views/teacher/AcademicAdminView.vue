@@ -1784,5 +1784,14 @@
     .grade-header {
       padding: 16px;
     }
+
+    /* Tap targets >= 44px en mobile */
+    .icon-btn,
+    .icon-btn--sm,
+    .card-action-btn,
+    .modal-close {
+      width: 44px;
+      height: 44px;
+    }
   }
 </style>

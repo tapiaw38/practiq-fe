@@ -677,7 +677,7 @@
   }
 
   .welcome-btn {
-    min-height: 44px;
+    min-height: 48px;
     border-radius: var(--radius-lg);
     font-size: var(--text-md);
   }

@@ -365,9 +365,21 @@
     .lc-item {
       align-items: flex-start;
     }
-    .lc-current-indicator,
-    .test-cta {
+    .lc-current-indicator {
       display: none;
+    }
+    /* CTA visible en mobile: texto corto, no se oculta */
+    .test-cta {
+      flex-shrink: 0;
+      align-self: center;
+      font-size: var(--text-sm);
+      text-align: right;
+    }
+    .lc-item {
+      min-height: 52px;
+    }
+    .lc-item--test-big {
+      padding: 14px 16px;
     }
   }
 </style>

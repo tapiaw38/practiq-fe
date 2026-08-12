@@ -529,4 +529,7 @@ body.assistant-modal-open .floating-button {
     border-radius: var(--radius-xl) var(--radius-xl) 0 0;
     max-height: 95dvh;
   }
+
+  /* Tap target mínimo en mobile para todo botón de texto */
+  .btn { min-height: 44px; }
 }

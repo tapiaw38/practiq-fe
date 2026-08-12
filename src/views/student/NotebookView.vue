@@ -1344,6 +1344,28 @@
       text-align: center;
       order: -1;
     }
+    /* Tap targets >= 44px en mobile */
+    .btn-nav,
+    .btn-save {
+      min-height: 48px;
+    }
+    .btn-back {
+      width: 44px;
+      height: 44px;
+    }
+    .tool-btn {
+      width: 46px;
+      height: 46px;
+      font-size: 1rem;
+    }
+    .color-picker {
+      width: 44px;
+      height: 44px;
+    }
+    .page-tab {
+      min-width: 44px;
+      height: 44px;
+    }
     .ai-review-head {
       align-items: flex-start;
     }

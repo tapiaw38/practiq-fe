@@ -472,8 +472,8 @@
   .close-btn,
   .topbar-btn,
   .logout-btn {
-    width: 42px;
-    height: 42px;
+    width: 44px;
+    height: 44px;
     border: none;
     border-radius: var(--radius-lg);
     background: var(--surface-subtle);
@@ -814,8 +814,8 @@
 
   /* Match the sibling icon buttons in the sidebar footer. */
   .footer-bell :deep(.bell-btn) {
-    width: 36px;
-    height: 36px;
+    width: 44px;
+    height: 44px;
   }
 
   /* Footer bell sits at bottom of viewport; keep panel fully visible. */
@@ -827,8 +827,8 @@
   }
 
   .icon-btn {
-    width: 36px;
-    height: 36px;
+    width: 44px;
+    height: 44px;
     border: none;
     border-radius: var(--radius-md);
     background: var(--surface-subtle);
@@ -969,6 +969,17 @@
 
     .sidebar--open {
       transform: translateX(0);
+    }
+
+    /* Tap targets >= 44px en mobile */
+    .nav-item {
+      min-height: 52px;
+    }
+
+    .nav-level-row,
+    .nav-book-item,
+    .nav-course-toggle {
+      min-height: 48px;
     }
   }
 

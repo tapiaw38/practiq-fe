@@ -1936,6 +1936,23 @@
       border-right: none;
       border-bottom: 1px solid var(--surface-border);
     }
+
+    /* Tap targets >= 44px en mobile */
+    .acm-close,
+    .acm-tool-btn {
+      width: 44px;
+      height: 44px;
+    }
+
+    /* ponytail: swatches quedan 18px; el ::after da el área táctil sin romper la fila */
+    .acm-color-btn {
+      position: relative;
+    }
+    .acm-color-btn::after {
+      content: "";
+      position: absolute;
+      inset: -13px;
+    }
   }
 
   /* Markdown + Math typography */

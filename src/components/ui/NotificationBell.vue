@@ -144,8 +144,8 @@
     position: relative;
     display: grid;
     place-items: center;
-    width: 42px;
-    height: 42px;
+    width: 44px;
+    height: 44px;
     border-radius: 50%;
     border: 1px solid var(--surface-elevated-strong);
     background: var(--surface-card);

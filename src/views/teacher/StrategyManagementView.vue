@@ -540,5 +540,11 @@
       gap: 16px;
       padding: 20px;
     }
+
+    /* Tap targets >= 44px en mobile */
+    .icon-btn {
+      width: 44px;
+      height: 44px;
+    }
   }
 </style>

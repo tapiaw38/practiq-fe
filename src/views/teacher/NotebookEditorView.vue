@@ -1027,5 +1027,12 @@
     .editor-empty {
       padding: 32px;
     }
+
+    /* Tap targets >= 44px en mobile */
+    .btn-back,
+    .color-picker {
+      width: 44px;
+      height: 44px;
+    }
   }
 </style>
