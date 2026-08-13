@@ -4,6 +4,7 @@
   import StudentLayout from "@/layouts/StudentLayout.vue";
   import Skeleton from "@/components/ui/Skeleton.vue";
   import StudentLevelsList from "@/components/student/levels/StudentLevelsList.vue";
+  import FileViewer from "@/components/ui/FileViewer.vue";
   import { useCourse } from "@/composables/useCourse";
   import { useLevel } from "@/composables/useLevel";
   import { useMaterial } from "@/composables/useMaterial";
@@ -61,6 +62,13 @@
 
   function materialIcon(type: string) {
     return MATERIAL_ICONS[type] ?? "pi-file";
+  }
+
+  const viewing = ref<Material | null>(null);
+
+  /** The signed URL is the only one a browser can open; the bucket is private. */
+  function openableURL(material: Material) {
+    return material.view_url || material.file_url || "";
   }
 </script>
 
@@ -161,19 +169,25 @@
                 {{ material.extracted_text }}
               </p>
             </div>
-            <a
+            <button
               v-if="material.file_url"
+              type="button"
               class="material-open"
-              :href="material.file_url"
-              target="_blank"
-              rel="noopener"
+              @click="viewing = material"
             >
-              Abrir <i class="pi pi-external-link"></i>
-            </a>
+              Abrir <i class="pi pi-eye"></i>
+            </button>
           </li>
         </ul>
       </section>
     </div>
+
+    <FileViewer
+      :show="!!viewing"
+      :url="viewing ? openableURL(viewing) : ''"
+      :title="viewing?.title || 'Material'"
+      @close="viewing = null"
+    />
   </StudentLayout>
 </template>
 
@@ -250,6 +264,9 @@
     font-weight: 700;
     font-size: var(--text-sm);
     text-decoration: none;
+    border: none;
+    cursor: pointer;
+    font-family: inherit;
   }
   .levels-shell {
     max-width: 760px;

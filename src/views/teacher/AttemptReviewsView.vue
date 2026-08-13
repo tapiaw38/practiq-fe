@@ -2,6 +2,7 @@
   import { onMounted, ref } from "vue";
   import { useToast } from "primevue/usetoast";
   import TeacherLayout from "@/layouts/TeacherLayout.vue";
+  import FileViewer from "@/components/ui/FileViewer.vue";
   import { practiqApi } from "@/api/request/server";
   import { AttemptReviewService } from "@/services/attemptReviews/attemptReviewService";
   import type { AttemptReview } from "@/types";
@@ -73,6 +74,8 @@
   function fileLabel(item: AttemptReview) {
     return item.attachment_name || "archivo adjunto";
   }
+
+  const viewing = ref<AttemptReview | null>(null);
 </script>
 
 <template>
@@ -146,17 +149,16 @@
 
           <p class="review-question">{{ item.question }}</p>
 
-          <a
+          <button
             v-if="item.attachment_url"
+            type="button"
             class="review-file"
-            :href="item.attachment_url"
-            target="_blank"
-            rel="noopener"
+            @click="viewing = item"
           >
             <i class="pi pi-paperclip"></i>
             {{ fileLabel(item) }}
             <span class="review-file-type">{{ item.attachment_content_type }}</span>
-          </a>
+          </button>
 
           <div v-if="item.ai_feedback || item.ai_is_correct !== undefined" class="review-ai">
             <div class="review-ai-head">
@@ -201,6 +203,14 @@
         </article>
       </div>
     </div>
+
+    <FileViewer
+      :show="!!viewing"
+      :url="viewing?.attachment_view_url || viewing?.attachment_url || ''"
+      :title="viewing ? fileLabel(viewing) : 'Entrega'"
+      :content-type="viewing?.attachment_content_type || ''"
+      @close="viewing = null"
+    />
   </TeacherLayout>
 </template>
 
@@ -331,6 +341,9 @@
     font-size: var(--text-sm);
     font-weight: 600;
     text-decoration: none;
+    cursor: pointer;
+    font-family: inherit;
+    align-self: flex-start;
   }
 
   .review-file-type {

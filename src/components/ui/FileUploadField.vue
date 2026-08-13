@@ -3,6 +3,7 @@
   import { useToast } from "primevue/usetoast";
   import { practiqApi } from "@/api/request/server";
   import { UploadService } from "@/services/uploads/uploadService";
+  import FileViewer from "@/components/ui/FileViewer.vue";
 
   const props = withDefaults(
     defineProps<{
@@ -24,6 +25,11 @@
   const input = ref<HTMLInputElement | null>(null);
   const uploading = ref(false);
   const uploadedName = ref("");
+  // The bucket is private: only the signed URL the upload returns is openable.
+  // ponytail: an existing value (editing) has no signed URL, so it only shows
+  // the name. Fetch one on demand if teachers ask to preview while editing.
+  const previewUrl = ref("");
+  const showViewer = ref(false);
 
   async function onPicked(event: Event) {
     const target = event.target as HTMLInputElement;
@@ -34,6 +40,7 @@
     try {
       const uploaded = await service.upload(file, file.name, props.folder);
       uploadedName.value = uploaded.filename;
+      previewUrl.value = uploaded.preview_url ?? "";
       emit("update:modelValue", uploaded.url);
     } catch (error) {
       const message =
@@ -49,6 +56,7 @@
 
   function clear() {
     uploadedName.value = "";
+    previewUrl.value = "";
     emit("update:modelValue", "");
   }
 
@@ -67,9 +75,15 @@
   <div class="upload-field">
     <div v-if="modelValue" class="upload-current">
       <i class="pi pi-paperclip"></i>
-      <a :href="modelValue" target="_blank" rel="noopener" class="upload-link">
+      <button
+        v-if="previewUrl"
+        type="button"
+        class="upload-link"
+        @click="showViewer = true"
+      >
         {{ displayName() }}
-      </a>
+      </button>
+      <span v-else class="upload-link upload-link--plain">{{ displayName() }}</span>
       <button class="upload-remove" type="button" title="Quitar" @click="clear">
         <i class="pi pi-times"></i>
       </button>
@@ -92,6 +106,13 @@
       type="file"
       :accept="accept || undefined"
       @change="onPicked"
+    />
+
+    <FileViewer
+      :show="showViewer"
+      :url="previewUrl"
+      :title="displayName()"
+      @close="showViewer = false"
     />
   </div>
 </template>
@@ -141,6 +162,18 @@
     color: var(--practiq-violet);
     font-weight: 600;
     text-decoration: none;
+    text-align: left;
+    border: none;
+    background: none;
+    padding: 0;
+    font-family: inherit;
+    font-size: inherit;
+    cursor: pointer;
+  }
+
+  .upload-link--plain {
+    color: var(--text-primary);
+    cursor: default;
   }
 
   .upload-remove {

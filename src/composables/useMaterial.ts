@@ -50,6 +50,27 @@ export const useMaterial = () => {
     }
   };
 
+  const updateMaterial = async (id: string, params: Partial<Material>) => {
+    try {
+      const result = await store.updateMaterial(id, params);
+      toast.add({
+        severity: "success",
+        summary: "Éxito",
+        detail: "Material actualizado correctamente",
+        life: 3000,
+      });
+      return result;
+    } catch (error) {
+      toast.add({
+        severity: "error",
+        summary: "Error",
+        detail: "No se pudo actualizar el material",
+        life: 3000,
+      });
+      throw error;
+    }
+  };
+
   const deleteMaterial = async (id: string) => {
     try {
       await store.deleteMaterial(id);
@@ -75,6 +96,7 @@ export const useMaterial = () => {
     loading,
     loadMaterials,
     createMaterial,
+    updateMaterial,
     deleteMaterial,
   };
 };

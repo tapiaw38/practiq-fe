@@ -2,6 +2,8 @@ import type { AxiosInstance } from "axios";
 
 export interface UploadedFile {
   url: string;
+  /** Short-lived signed URL for opening the file; only `url` is stored. */
+  preview_url?: string;
   filename: string;
   content_type: string;
   kind: string;

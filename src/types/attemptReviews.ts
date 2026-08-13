@@ -11,6 +11,8 @@ export interface AttemptReview {
   course_id: string;
   course_title: string;
   attachment_url?: string;
+  /** Short-lived signed URL; the bucket is private, so attachment_url 403s. */
+  attachment_view_url?: string;
   attachment_name?: string;
   attachment_content_type?: string;
   answer_text?: string;

@@ -85,6 +85,7 @@
   const {
     loadMaterials,
     createMaterial: createMaterialService,
+    updateMaterial: updateMaterialService,
     deleteMaterial: deleteMaterialService,
   } = useMaterial();
   const {
@@ -180,6 +181,48 @@
     // URL returned by the upload endpoint; empty for text-only materials.
     file_url: "",
   });
+
+  // Narrows the file picker to what the backend actually accepts per type.
+  const MATERIAL_ACCEPT: Record<string, string> = {
+    pdf: "application/pdf",
+    image: "image/*",
+    video: "video/mp4,video/webm,video/ogg,video/quicktime",
+  };
+
+  function materialAccept(type: Material["type"]) {
+    return MATERIAL_ACCEPT[type] ?? "";
+  }
+
+  const showEditMaterialModal = ref(false);
+  // The update endpoint replaces every field, so the form carries them all.
+  // file_url is the canonical one, never the signed view_url.
+  const editMaterial = reactive({
+    id: "",
+    title: "",
+    type: "text" as Material["type"],
+    extracted_text: "",
+    file_url: "",
+  });
+
+  function openEditMaterial(material: Material) {
+    editMaterial.id = material.id;
+    editMaterial.title = material.title;
+    editMaterial.type = material.type;
+    editMaterial.extracted_text = material.extracted_text || "";
+    editMaterial.file_url = material.file_url || "";
+    showEditMaterialModal.value = true;
+  }
+
+  async function saveMaterial() {
+    await updateMaterialService(editMaterial.id, {
+      title: editMaterial.title,
+      extracted_text: editMaterial.extracted_text,
+      file_url: editMaterial.file_url,
+    });
+    showEditMaterialModal.value = false;
+    const res = await loadMaterials(courseId);
+    materials.value = res || [];
+  }
   const newSheet = reactive({
     title: "",
     topic_id: "",
@@ -921,6 +964,7 @@
         v-if="activeTab === 'materials'"
         :materials="materials"
         @create="showMaterialModal = true"
+        @edit="openEditMaterial"
         @delete="deleteMaterial"
       />
 
@@ -1183,6 +1227,7 @@
                   v-model="newMaterial.file_url"
                   folder="materials"
                   label="Subir archivo"
+                  :accept="materialAccept(newMaterial.type)"
                 />
                 <small class="field-hint">
                   Los alumnos del curso pueden abrirlo desde su vista del curso.
@@ -1206,6 +1251,58 @@
                   Cancelar
                 </button>
                 <button type="submit" class="btn btn-primary">Agregar</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      </Transition>
+    </Teleport>
+
+    <!-- Edit Material Modal -->
+    <Teleport to="body">
+      <Transition name="fade">
+        <div
+          v-if="showEditMaterialModal"
+          class="modal-overlay"
+          @click.self="showEditMaterialModal = false"
+        >
+          <div class="modal-box">
+            <h3 class="modal-title">Editar Material</h3>
+            <form @submit.prevent="saveMaterial">
+              <div class="form-group">
+                <label class="form-label">Título *</label>
+                <input
+                  v-model="editMaterial.title"
+                  class="form-input"
+                  required
+                />
+              </div>
+              <div v-if="editMaterial.type !== 'text'" class="form-group">
+                <label class="form-label">Archivo</label>
+                <FileUploadField
+                  v-model="editMaterial.file_url"
+                  folder="materials"
+                  label="Reemplazar archivo"
+                  :accept="materialAccept(editMaterial.type)"
+                />
+              </div>
+              <div class="form-group">
+                <label class="form-label">Contenido</label>
+                <textarea
+                  v-model="editMaterial.extracted_text"
+                  class="form-textarea"
+                  rows="4"
+                ></textarea>
+              </div>
+              <div class="modal-actions">
+                <button
+                  type="button"
+                  class="btn btn-secondary"
+                  @click="showEditMaterialModal = false"
+                >
+                  Cancelar
+                </button>
+                <button type="submit" class="btn btn-primary">Guardar</button>
               </div>
             </form>
           </div>
