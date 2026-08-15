@@ -1270,6 +1270,13 @@
 
     .filter-group {
       width: 100%;
+      min-width: 0;
+    }
+
+    .filter-select,
+    .filter-input {
+      width: 100%;
+      min-height: 46px;
     }
 
     .submission-header {
@@ -1282,6 +1289,16 @@
 
     .correctness-toggle {
       flex-direction: column;
+    }
+
+    .submission-actions {
+      flex-direction: column;
+    }
+
+    .submission-actions > * {
+      width: 100%;
+      justify-content: center;
+      min-height: 44px;
     }
   }
 </style>

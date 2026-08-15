@@ -314,4 +314,14 @@
     border-color: rgba(var(--practiq-violet-rgb), 0.35);
     transform: translateY(-1px);
   }
+
+  @media (max-width: 640px) {
+    /* auto-fit deja 2 columnas apretadas antes de caer a 1. */
+    .courses-grid {
+      grid-template-columns: 1fr;
+    }
+    .btn-levels {
+      min-height: 48px;
+    }
+  }
 </style>

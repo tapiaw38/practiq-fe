@@ -988,11 +988,23 @@
       grid-template-columns: 1fr;
       grid-template-rows: auto 1fr;
     }
+    /* En fila: una lista vertical de páginas empuja el canvas fuera de pantalla. */
     .pages-sidebar {
       border-right: none;
       border-bottom: 1px solid var(--surface-border);
-      max-height: 220px;
-      overflow-y: auto;
+      flex-direction: row;
+      overflow-x: auto;
+      overflow-y: hidden;
+    }
+    .pages-sidebar > * {
+      flex-shrink: 0;
+    }
+    .sidebar-title {
+      align-self: center;
+    }
+    .sidebar-item {
+      width: 170px;
+      min-height: 48px;
     }
     .editor-main {
       padding: 16px;
@@ -1011,9 +1023,6 @@
     .editor-header .btn-primary {
       width: 100%;
       justify-content: center;
-    }
-    .pages-sidebar {
-      max-height: 160px;
     }
     .page-meta-bar {
       flex-direction: column;

@@ -415,4 +415,20 @@
   .muted {
     color: var(--text-secondary);
   }
+
+  @media (max-width: 640px) {
+    .review-actions {
+      flex-direction: column;
+    }
+    .review-actions > * {
+      width: 100%;
+      justify-content: center;
+      min-height: 46px;
+    }
+    /* El checkbox nativo queda muy por debajo del target de 44px. */
+    .toggle-reviewed input[type="checkbox"] {
+      width: 20px;
+      height: 20px;
+    }
+  }
 </style>

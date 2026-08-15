@@ -789,8 +789,8 @@
                       :key="a.id"
                       :class="a.is_correct ? 'row--correct' : 'row--incorrect'"
                     >
-                      <td>{{ i + 1 }}</td>
-                      <td class="answer-cell">
+                      <td data-label="#">{{ i + 1 }}</td>
+                      <td class="answer-cell" data-label="Respuesta">
                         <template v-if="getAttemptImageSrc(a)">
                           <button
                             class="btn btn-secondary btn-sm"
@@ -803,7 +803,7 @@
                           {{ a.answer_text || "—" }}
                         </template>
                       </td>
-                      <td>
+                      <td data-label="Correcto">
                         <span
                           class="result-chip"
                           :class="
@@ -815,11 +815,17 @@
                           {{ a.is_correct ? "Sí" : "No" }}
                         </span>
                       </td>
-                      <td>{{ formatAIFeedback(a.ai_feedback) }}</td>
-                      <td>{{ (a.score * 100).toFixed(0) }}%</td>
-                      <td>{{ a.time_spent_seconds }}</td>
-                      <td>{{ a.hints_used }}</td>
-                      <td>{{ formatDate(a.created_at) }}</td>
+                      <td data-label="Comentario IA">
+                        {{ formatAIFeedback(a.ai_feedback) }}
+                      </td>
+                      <td data-label="Puntaje">
+                        {{ (a.score * 100).toFixed(0) }}%
+                      </td>
+                      <td data-label="Tiempo (s)">
+                        {{ a.time_spent_seconds }}
+                      </td>
+                      <td data-label="Pistas">{{ a.hints_used }}</td>
+                      <td data-label="Fecha">{{ formatDate(a.created_at) }}</td>
                     </tr>
                   </tbody>
                 </table>
@@ -2424,6 +2430,53 @@
     }
     .tab-btn {
       min-height: 48px;
+      flex-shrink: 0;
+    }
+
+    /* 8 columnas no entran: cada intento pasa a tarjeta con la
+       cabecera como etiqueta (mismo patron que .data-table en AdminUsersView). */
+    .attempts-table-wrap {
+      overflow: visible;
+    }
+    .attempts-table thead {
+      display: none;
+    }
+    .attempts-table,
+    .attempts-table tbody,
+    .attempts-table tr,
+    .attempts-table td {
+      display: block;
+      width: 100%;
+    }
+    .attempts-table tbody {
+      display: grid;
+      gap: 10px;
+    }
+    .attempts-table tbody tr {
+      padding: 12px;
+      border: 1px solid rgba(var(--surface-border-rgb), 0.16);
+      border-radius: var(--radius-xl);
+      background: var(--surface-card);
+      box-shadow: var(--shadow-sm);
+    }
+    .attempts-table td {
+      display: grid;
+      grid-template-columns: minmax(92px, 34%) 1fr;
+      gap: 10px;
+      align-items: start;
+      padding: 8px 0;
+      border-bottom: 1px solid rgba(var(--surface-border-rgb), 0.1);
+    }
+    .attempts-table td:last-child {
+      border-bottom: none;
+    }
+    .attempts-table td::before {
+      content: attr(data-label);
+      color: var(--text-secondary);
+      font-size: var(--text-xs);
+      font-weight: 800;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
     }
   }
 </style>

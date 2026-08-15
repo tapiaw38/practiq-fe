@@ -152,6 +152,8 @@
     difficulty: 1,
     metadata: "{}",
     teacher_image: "",
+    // Image/audio/video shown with the statement, for any exercise type.
+    media_url: "",
     options: ["", "", "", ""],
     // Attachment exercises: which file families the student may upload.
     accept: [] as AttachmentKind[],
@@ -168,6 +170,8 @@
     difficulty: 1,
     metadata: "{}",
     teacher_image: "",
+    // Image/audio/video shown with the statement, for any exercise type.
+    media_url: "",
     options: ["", "", "", ""],
     // Attachment exercises: which file families the student may upload.
     accept: [] as AttachmentKind[],
@@ -191,6 +195,14 @@
 
   function materialAccept(type: Material["type"]) {
     return MATERIAL_ACCEPT[type] ?? "";
+  }
+
+  /**
+   * A failed upload leaves file_url empty, and saving anyway produces a
+   * material the student sees listed but cannot open.
+   */
+  function missingMaterialFile(form: { type: Material["type"]; file_url: string }) {
+    return form.type !== "text" && !form.file_url;
   }
 
   const showEditMaterialModal = ref(false);
@@ -600,6 +612,7 @@
     editExercise.difficulty = ex.difficulty ?? 1;
     editExercise.metadata = ex.metadata || "{}";
     editExercise.teacher_image = getMetadataTeacherImage(ex.metadata);
+    editExercise.media_url = getMetadataMediaURL(ex.metadata);
     setExerciseOptions(editExercise, getMetadataOptions(ex.metadata));
     // Per-type configuration lives in metadata; without this the editor opens
     // empty and saving wipes what the teacher had set.
@@ -668,6 +681,11 @@
       : "";
   }
 
+  function getMetadataMediaURL(metadata?: string) {
+    const value = parseExerciseMetadata(metadata)?.media_url;
+    return typeof value === "string" ? value : "";
+  }
+
   function setExerciseOptions(
     form: typeof newExercise | typeof editExercise,
     options: string[],
@@ -682,6 +700,10 @@
     canvasKind?: TeacherCanvasKind,
   ) {
     const parsed = parseExerciseMetadata(form.metadata) || {};
+    // Statement media is orthogonal to the type, so it survives every branch
+    // below (each one copies `parsed`) instead of being re-added in each.
+    if (form.media_url) parsed.media_url = form.media_url;
+    else delete parsed.media_url;
     if (form.type === "multiple_choice") {
       const options = form.options
         .map((option) => option.trim())
@@ -742,6 +764,7 @@
     form.difficulty = 1;
     form.metadata = "{}";
     form.teacher_image = "";
+    form.media_url = "";
     form.accept = [];
     form.fillBlanks = { blanks: [], distractors: [], layout: "text" };
     setExerciseOptions(form, []);
@@ -1123,6 +1146,19 @@
                 </div>
               </div>
               <div class="form-group">
+                <label class="form-label">Material del enunciado</label>
+                <FileUploadField
+                  v-model="newExercise.media_url"
+                  folder="exercises"
+                  label="Subir imagen o audio"
+                  accept="image/*,audio/*"
+                />
+                <small class="field-hint">
+                  Opcional. El alumno y el asistente lo reciben junto a la
+                  consigna. Máximo 20 MB.
+                </small>
+              </div>
+              <div class="form-group">
                 <label class="form-label">Respuesta correcta</label>
                 <template v-if="newExercise.type === 'equation'">
                   <MathFieldEditor
@@ -1222,14 +1258,18 @@
                 </select>
               </div>
               <div v-if="newMaterial.type !== 'text'" class="form-group">
-                <label class="form-label">Archivo</label>
+                <label class="form-label">Archivo *</label>
                 <FileUploadField
                   v-model="newMaterial.file_url"
                   folder="materials"
                   label="Subir archivo"
                   :accept="materialAccept(newMaterial.type)"
                 />
-                <small class="field-hint">
+                <small v-if="missingMaterialFile(newMaterial)" class="field-hint field-hint--error">
+                  Subí el archivo antes de guardar; si la subida falló, el
+                  material quedaría sin nada que abrir.
+                </small>
+                <small v-else class="field-hint">
                   Los alumnos del curso pueden abrirlo desde su vista del curso.
                 </small>
               </div>
@@ -1250,7 +1290,13 @@
                 >
                   Cancelar
                 </button>
-                <button type="submit" class="btn btn-primary">Agregar</button>
+                <button
+                  type="submit"
+                  class="btn btn-primary"
+                  :disabled="missingMaterialFile(newMaterial)"
+                >
+                  Agregar
+                </button>
               </div>
             </form>
           </div>
@@ -1278,13 +1324,17 @@
                 />
               </div>
               <div v-if="editMaterial.type !== 'text'" class="form-group">
-                <label class="form-label">Archivo</label>
+                <label class="form-label">Archivo *</label>
                 <FileUploadField
                   v-model="editMaterial.file_url"
                   folder="materials"
                   label="Reemplazar archivo"
                   :accept="materialAccept(editMaterial.type)"
                 />
+                <small v-if="missingMaterialFile(editMaterial)" class="field-hint field-hint--error">
+                  Este material no tiene archivo: el alumno lo ve listado pero
+                  no puede abrirlo.
+                </small>
               </div>
               <div class="form-group">
                 <label class="form-label">Contenido</label>
@@ -1302,7 +1352,13 @@
                 >
                   Cancelar
                 </button>
-                <button type="submit" class="btn btn-primary">Guardar</button>
+                <button
+                  type="submit"
+                  class="btn btn-primary"
+                  :disabled="missingMaterialFile(editMaterial)"
+                >
+                  Guardar
+                </button>
               </div>
             </form>
           </div>
@@ -1701,6 +1757,19 @@
                 </div>
               </div>
               <div class="form-group">
+                <label class="form-label">Material del enunciado</label>
+                <FileUploadField
+                  v-model="editExercise.media_url"
+                  folder="exercises"
+                  label="Subir imagen o audio"
+                  accept="image/*,audio/*"
+                />
+                <small class="field-hint">
+                  Opcional. El alumno y el asistente lo reciben junto a la
+                  consigna. Máximo 20 MB.
+                </small>
+              </div>
+              <div class="form-group">
                 <label class="form-label">Respuesta correcta</label>
                 <template v-if="editExercise.type === 'equation'">
                   <MathFieldEditor
@@ -1970,6 +2039,10 @@
     font-size: var(--text-sm);
     color: var(--text-secondary);
   }
+  .field-hint--error {
+    color: var(--color-error);
+    font-weight: 600;
+  }
   .math-preview {
     margin-top: 10px;
     padding: 12px 14px;
@@ -2072,6 +2145,9 @@
     }
     .tab {
       padding: 9px 12px;
+      /* Sin esto las 7 tabs se comprimen en vez de scrollear. */
+      min-height: 44px;
+      flex-shrink: 0;
     }
     .modal-actions {
       flex-direction: column-reverse;

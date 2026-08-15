@@ -102,6 +102,11 @@
     return resolved;
   }
 
+  function getAssistantMediaAttachments() {
+    const capture = window.__practiqAssistantMediaAttachments;
+    return typeof capture === "function" ? capture() : [];
+  }
+
   const isEnabled = computed(() =>
     Boolean(
       authStore.isAuthenticated &&
@@ -176,6 +181,7 @@
       audioInput: true,
       audioAnswers: true,
       getImageAttachment: getAssistantCanvasAttachment,
+      getMediaAttachments: getAssistantMediaAttachments,
       getStructuredContext: getAssistantStructuredContext,
       visibility: {
         includeViews: [

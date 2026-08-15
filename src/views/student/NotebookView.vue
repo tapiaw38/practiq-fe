@@ -5,6 +5,7 @@
   import StudentLayout from "@/layouts/StudentLayout.vue";
   import Skeleton from "@/components/ui/Skeleton.vue";
   import DrawingCanvas from "@/components/ui/DrawingCanvas.vue";
+  import ColorPalette from "@/components/ui/ColorPalette.vue";
   import { useNotebook } from "@/composables/useNotebook";
   import type { Notebook, NotebookPage } from "@/types";
   import {
@@ -563,12 +564,7 @@
                 <button class="tool-btn" @click="canvasRef?.clear()" title="Limpiar">
                   <i class="pi pi-trash"></i>
                 </button>
-                <input
-                  type="color"
-                  v-model="penColor"
-                  class="color-picker"
-                  title="Color"
-                />
+                <ColorPalette v-model="penColor" />
                 <input
                   type="range"
                   v-model.number="penSize"
@@ -994,16 +990,6 @@
     border-color: var(--practiq-violet);
   }
 
-  .color-picker {
-    width: 34px;
-    height: 34px;
-    border-radius: var(--radius-sm);
-    border: 1.5px solid rgba(var(--practiq-violet-rgb), 0.15);
-    padding: 2px;
-    cursor: pointer;
-    background: none;
-  }
-
   .size-slider {
     width: 80px;
     accent-color: var(--practiq-violet);
@@ -1357,10 +1343,6 @@
       width: 46px;
       height: 46px;
       font-size: 1rem;
-    }
-    .color-picker {
-      width: 44px;
-      height: 44px;
     }
     .page-tab {
       min-width: 44px;
