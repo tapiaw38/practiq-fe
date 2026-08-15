@@ -9,7 +9,7 @@
   import AttachmentAnswer from "@/components/student/exercises/AttachmentAnswer.vue";
   import ExerciseMedia from "@/components/ui/ExerciseMedia.vue";
   import FillBlanksAnswer from "@/components/student/exercises/FillBlanksAnswer.vue";
-  import { useConfirm } from "@/composables/useConfirm";
+  import { useLeaveWarning } from "@/composables/useLeaveWarning";
   import { usePracticeSheet } from "@/composables/usePracticeSheet";
   import { useAuthStore } from "@/stores/authStore";
   import type { UploadedFile } from "@/services/uploads/uploadService";
@@ -47,7 +47,9 @@
 
   const route = useRoute();
   const router = useRouter();
-  const { confirmState, showConfirm, onConfirm, onCancel } = useConfirm();
+  const { leaveConfirmState, onLeaveConfirm, onLeaveCancel, leave } = useLeaveWarning(
+    () => testStarted.value && !submitted.value,
+  );
   const authStore = useAuthStore();
   const { loadPracticeSheet, submitPracticeSheetAsync, loadSubmitJob } =
     usePracticeSheet();
@@ -265,12 +267,7 @@
   }
 
   async function confirmExit() {
-    const ok = await showConfirm("¿Salir de la prueba?", {
-      description: "Tu progreso no se guardará.",
-      confirmLabel: "Salir",
-      danger: false,
-    });
-    if (ok) router.back();
+    await leave(() => router.back());
   }
 
   function getNextCuriosity(): string {
@@ -1008,7 +1005,11 @@
     :message="loadingMessage"
   />
 
-  <ConfirmModal v-bind="confirmState" @confirm="onConfirm" @cancel="onCancel" />
+  <ConfirmModal
+    v-bind="leaveConfirmState"
+    @confirm="onLeaveConfirm"
+    @cancel="onLeaveCancel"
+  />
 
   <!-- Instructions Modal (before test) -->
   <Teleport to="body">

@@ -4,9 +4,11 @@
   import { useAuthStore } from "@/stores/authStore";
   import StudentLayout from "@/layouts/StudentLayout.vue";
   import Skeleton from "@/components/ui/Skeleton.vue";
+  import ConfirmModal from "@/components/ui/ConfirmModal.vue";
   import DrawingCanvas from "@/components/ui/DrawingCanvas.vue";
   import ColorPalette from "@/components/ui/ColorPalette.vue";
   import { useNotebook } from "@/composables/useNotebook";
+  import { useLeaveWarning } from "@/composables/useLeaveWarning";
   import type { Notebook, NotebookPage } from "@/types";
   import {
     composeAssistantWorkImage,
@@ -23,6 +25,9 @@
   const route = useRoute();
   const router = useRouter();
   const authStore = useAuthStore();
+  const { leaveConfirmState, onLeaveConfirm, onLeaveCancel } = useLeaveWarning(
+    () => hasPendingWork.value || saveStatus.value === "saving",
+  );
   const { loadNotebook, saveSubmissionAsync, loadSubmissionJob } =
     useNotebook();
   const { fireCorrect } = useConfetti();
@@ -47,6 +52,14 @@
 
   // Per-page canvas snapshots
   const canvasSnapshots = ref<Record<string, string>>({});
+  const savedCanvasSnapshots = ref<Record<string, string>>({});
+
+  const hasPendingWork = computed(() =>
+    Object.entries(canvasSnapshots.value).some(
+      ([pageId, canvas]) =>
+        (canvas || "") !== (savedCanvasSnapshots.value[pageId] || ""),
+    ),
+  );
 
   const pages = computed(() => notebook.value?.pages || []);
   const currentPage = computed<NotebookPage | null>(
@@ -69,6 +82,7 @@
         if (page.submission?.canvas_data)
           canvasSnapshots.value[page.id] = page.submission.canvas_data;
       }
+      savedCanvasSnapshots.value = { ...canvasSnapshots.value };
       // Fetch curiosities for loading screen
       if (notebook.value.course_id) {
         fetchCuriosities(notebook.value.course_id);
@@ -399,6 +413,10 @@
       saveStatus.value = "saved";
       const notebookId = route.params.id as string;
       notebook.value = await loadNotebook(notebookId, studentId.value);
+      savedCanvasSnapshots.value = {
+        ...savedCanvasSnapshots.value,
+        [pageId]: canvasSnapshots.value[pageId] || "",
+      };
 
       // Check if submission was correct and celebrate
       const updatedPage = pages.value.find((p) => p.id === pageId);
@@ -719,6 +737,11 @@
     badge-label="IA evaluando"
     title="Evaluando con IA"
     :message="loadingMessage"
+  />
+  <ConfirmModal
+    v-bind="leaveConfirmState"
+    @confirm="onLeaveConfirm"
+    @cancel="onLeaveCancel"
   />
 </template>
 

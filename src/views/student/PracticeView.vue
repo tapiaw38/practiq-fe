@@ -4,12 +4,14 @@
   import { useAuthStore } from "@/stores/authStore";
   import StudentLayout from "@/layouts/StudentLayout.vue";
   import Skeleton from "@/components/ui/Skeleton.vue";
+  import ConfirmModal from "@/components/ui/ConfirmModal.vue";
   import DrawingCanvas from "@/components/ui/DrawingCanvas.vue";
   import ColorPalette from "@/components/ui/ColorPalette.vue";
   import AttachmentAnswer from "@/components/student/exercises/AttachmentAnswer.vue";
   import ExerciseMedia from "@/components/ui/ExerciseMedia.vue";
   import FillBlanksAnswer from "@/components/student/exercises/FillBlanksAnswer.vue";
   import { usePracticeSheet } from "@/composables/usePracticeSheet";
+  import { useLeaveWarning } from "@/composables/useLeaveWarning";
   import { useProgress } from "@/composables/useProgress";
   import type { PracticeSheet, SubmitResult, TopicProgress } from "@/types";
   import type { UploadedFile } from "@/services/uploads/uploadService";
@@ -43,6 +45,9 @@
   const route = useRoute();
   const router = useRouter();
   const authStore = useAuthStore();
+  const { leaveConfirmState, onLeaveConfirm, onLeaveCancel } = useLeaveWarning(
+    () => hasPendingWork.value,
+  );
   const { loadCourseProgress } = useProgress();
   const { loadPracticeSheet, submitPracticeSheetAsync, loadSubmitJob } =
     usePracticeSheet();
@@ -82,6 +87,15 @@
   const submitting = ref(false);
   const result = ref<SubmitResult | null>(null);
   const showAllErrors = ref(false);
+
+  const hasPendingWork = computed(() =>
+    !result.value &&
+    (hasDraft.value ||
+      submitting.value ||
+      Object.values(answers.value).some((item) => !!item?.answer) ||
+      Object.values(keyboardAnswers.value).some((answer) => !!answer?.trim()) ||
+      Object.values(attachments.value).some(Boolean)),
+  );
 
   // A file awaiting the teacher comes back with is_correct=false; showing it
   // as an error would be a lie, so it gets its own bucket.
@@ -1314,6 +1328,11 @@
       </Teleport>
     </div>
   </StudentLayout>
+  <ConfirmModal
+    v-bind="leaveConfirmState"
+    @confirm="onLeaveConfirm"
+    @cancel="onLeaveCancel"
+  />
 </template>
 
 <style scoped>
