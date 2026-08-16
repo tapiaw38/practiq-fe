@@ -7,6 +7,8 @@ export interface IAttemptReviewService {
     attemptId: string,
     params: { is_correct: boolean; feedback?: string },
   ): Promise<{ data: OperationResult }>;
+  /** The handwritten statement, fetched only when the teacher opens it. */
+  statementImage(attemptId: string): Promise<{ data: { image: string } }>;
 }
 
 export class AttemptReviewService implements IAttemptReviewService {
@@ -24,6 +26,13 @@ export class AttemptReviewService implements IAttemptReviewService {
     params: { is_correct: boolean; feedback?: string },
   ): Promise<{ data: OperationResult }> {
     const { data } = await this.api.post(`/attempt-reviews/${attemptId}`, params);
+    return data;
+  }
+
+  async statementImage(attemptId: string): Promise<{ data: { image: string } }> {
+    const { data } = await this.api.get(
+      `/attempt-reviews/${attemptId}/statement-image`,
+    );
     return data;
   }
 }

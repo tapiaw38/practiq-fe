@@ -12,6 +12,8 @@ export interface AttemptReview {
   sheet_type?: string;
   course_id: string;
   course_title: string;
+  /** True when the exercise has a handwritten statement to fetch on demand. */
+  has_teacher_image?: boolean;
   /** Signed URL of the canvas the student drew, when the answer was drawn. */
   image_view_url?: string;
   attachment_url?: string;

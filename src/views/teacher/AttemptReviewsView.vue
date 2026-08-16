@@ -96,6 +96,46 @@
   }
 
   const viewing = ref<AttemptReview | null>(null);
+
+  // The image viewer is shared by the student's canvas, the statement media and
+  // the handwritten statement, so it holds a plain url/title instead of a row.
+  const preview = ref<{ url: string; title: string } | null>(null);
+  const loadingStatement = ref<string | null>(null);
+
+  function openPreview(url: string, title: string) {
+    preview.value = { url, title };
+  }
+
+  /**
+   * The handwritten statement is not in the list payload — a base64 canvas per
+   * row would make the queue several megabytes — so it is fetched here.
+   */
+  async function openStatementImage(item: AttemptReview) {
+    if (loadingStatement.value) return;
+    loadingStatement.value = item.attempt_id;
+    try {
+      const { data } = await service.statementImage(item.attempt_id);
+      if (!data.image) {
+        toast.add({
+          severity: "info",
+          summary: "Sin consigna",
+          detail: "Este ejercicio no tiene una consigna escrita a mano.",
+          life: 3000,
+        });
+        return;
+      }
+      openPreview(data.image, "Consigna del docente");
+    } catch {
+      toast.add({
+        severity: "error",
+        summary: "Error",
+        detail: "No se pudo cargar la consigna",
+        life: 3000,
+      });
+    } finally {
+      loadingStatement.value = null;
+    }
+  }
 </script>
 
 <template>
@@ -169,39 +209,65 @@
 
           <p class="review-question">{{ item.question }}</p>
 
-          <div v-if="item.statement_media_view_url" class="review-statement-media">
-            <span>Material del enunciado</span>
-            <ExerciseMedia :url="item.statement_media_view_url" />
-          </div>
+          <!-- One compact row of thumbnails: this is a triage queue, and a
+               full-size canvas per card made it impossible to skim. Each one
+               opens in the viewer. -->
+          <div class="review-thumbs">
+            <button
+              v-if="item.has_teacher_image"
+              type="button"
+              class="review-thumb review-thumb--action"
+              :disabled="loadingStatement === item.attempt_id"
+              @click="openStatementImage(item)"
+            >
+              <i
+                :class="
+                  loadingStatement === item.attempt_id
+                    ? 'pi pi-spin pi-spinner'
+                    : 'pi pi-pencil'
+                "
+              ></i>
+              <span>Consigna</span>
+            </button>
 
-          <div class="review-answer">
-            <div class="review-answer-head">
-              <i class="pi pi-pencil"></i>
-              <span>Respuesta del alumno</span>
-            </div>
+            <button
+              v-if="item.statement_media_view_url"
+              type="button"
+              class="review-thumb"
+              @click="openPreview(item.statement_media_view_url, 'Material del enunciado')"
+            >
+              <img :src="item.statement_media_view_url" alt="" />
+              <span>Enunciado</span>
+            </button>
 
-            <img
+            <button
               v-if="item.image_view_url"
-              :src="item.image_view_url"
-              class="review-answer-image"
-              alt="Lo que resolvió el alumno"
-            />
-
-            <p
-              v-if="answerText(item)"
-              class="review-answer-text"
-              :class="{ 'review-answer-text--none': isUnreadable(item) }"
+              type="button"
+              class="review-thumb"
+              @click="openPreview(item.image_view_url, 'Respuesta del alumno')"
             >
-              {{ answerText(item) }}
-            </p>
+              <img :src="item.image_view_url" alt="" />
+              <span>Respuesta</span>
+            </button>
 
-            <p
-              v-else-if="!item.image_view_url && !item.attachment_url"
-              class="review-answer-text review-answer-text--none"
+            <button
+              v-if="item.attachment_url"
+              type="button"
+              class="review-thumb review-thumb--action"
+              @click="viewing = item"
             >
-              El alumno no dejó nada escrito.
-            </p>
+              <i class="pi pi-paperclip"></i>
+              <span>{{ fileLabel(item) }}</span>
+            </button>
           </div>
+
+          <p
+            v-if="answerText(item)"
+            class="review-answer-text"
+            :class="{ 'review-answer-text--none': isUnreadable(item) }"
+          >
+            {{ answerText(item) }}
+          </p>
 
           <button
             v-if="item.attachment_url"
@@ -269,6 +335,14 @@
         </article>
       </div>
     </div>
+
+    <FileViewer
+      :show="!!preview"
+      :url="preview?.url || ''"
+      :title="preview?.title || 'Imagen'"
+      content-type="image/png"
+      @close="preview = null"
+    />
 
     <FileViewer
       :show="!!viewing"
@@ -409,28 +483,7 @@
     margin-bottom: 0;
   }
 
-  .review-file {
-    display: inline-flex;
-    align-items: center;
-    gap: 8px;
-    padding: 8px 12px;
-    border-radius: 12px;
-    background: var(--surface-elevated);
-    border: 1px solid var(--surface-elevated-strong);
-    color: var(--practiq-violet);
-    font-size: var(--text-sm);
-    font-weight: 600;
-    text-decoration: none;
-    cursor: pointer;
-    font-family: inherit;
-    align-self: flex-start;
-  }
 
-  .review-file-type {
-    color: var(--text-secondary);
-    font-weight: 400;
-    font-size: var(--text-xs);
-  }
 
   .review-ai {
     margin: 12px 0 0;
@@ -518,35 +571,60 @@
     font-weight: 600;
   }
 
-  .review-answer {
+  .review-thumbs {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
     margin-top: 12px;
-    padding: 12px 14px;
-    border-radius: 14px;
+  }
+
+  .review-thumb {
+    display: grid;
+    gap: 4px;
+    justify-items: center;
+    width: 96px;
+    padding: 8px;
+    border-radius: 12px;
     border: 1px solid var(--surface-elevated-strong);
     background: var(--surface-elevated);
-  }
-
-  .review-answer-head {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    margin-bottom: 8px;
     color: var(--text-secondary);
     font-size: var(--text-xs);
-    font-weight: 800;
-    text-transform: uppercase;
-    letter-spacing: 0.04em;
+    font-weight: 700;
+    cursor: pointer;
+    transition: var(--transition-fast);
   }
 
-  .review-answer-image {
-    display: block;
+  .review-thumb:hover:not(:disabled) {
+    border-color: var(--practiq-violet);
+    color: var(--practiq-violet);
+  }
+
+  .review-thumb:disabled {
+    opacity: 0.6;
+    cursor: progress;
+  }
+
+  .review-thumb img {
     width: 100%;
-    max-height: 320px;
-    /* contain: cropping a student's working makes it unreadable. */
+    height: 56px;
+    /* contain: a cropped preview of a child's working is unreadable. */
     object-fit: contain;
-    border-radius: 10px;
+    border-radius: 8px;
     background: var(--surface-card);
-    border: 1px solid var(--surface-border);
+  }
+
+  .review-thumb--action {
+    place-content: center;
+    min-height: 84px;
+    font-size: 18px;
+  }
+
+  .review-thumb span {
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: var(--text-xs);
   }
 
   .review-answer-text {
