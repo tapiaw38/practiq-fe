@@ -396,13 +396,17 @@
       submitted.value = true;
       pendingSubmitJobId.value = null;
 
-      // Fire celebration based on result
-      if (result.value.should_level_up) {
-        showSuccessModal.value = true;
-        fireLevelUp();
-        playSound("levelup");
-      } else {
-        playSound("incorrect");
+      // Same as the practice sheet: while answers wait for the teacher there is
+      // no verdict, and sounding "incorrect" told the student they failed a
+      // test nobody had corrected yet.
+      if (!result.value.pending_review) {
+        if (result.value.should_level_up) {
+          showSuccessModal.value = true;
+          fireLevelUp();
+          playSound("levelup");
+        } else {
+          playSound("incorrect");
+        }
       }
     } catch (err) {
       console.error(err);
@@ -963,17 +967,27 @@
         <div
           class="result-card"
           :class="
-            result.should_level_up ? 'result-card--pass' : 'result-card--fail'
+            result.pending_review
+              ? 'result-card--pending'
+              : result.should_level_up
+                ? 'result-card--pass'
+                : 'result-card--fail'
           "
         >
           <div class="result-icon">
-            {{ result.should_level_up ? "🏆" : "📚" }}
+            {{ result.pending_review ? "⏳" : result.should_level_up ? "🏆" : "📚" }}
           </div>
           <h2 class="result-heading">
-            {{ result.should_level_up ? "¡Aprobaste!" : "No pasaste esta vez" }}
+            {{
+              result.pending_review
+                ? "Esperando corrección"
+                : result.should_level_up
+                  ? "¡Aprobaste!"
+                  : "No pasaste esta vez"
+            }}
           </h2>
 
-          <div class="score-ring">
+          <div v-if="!result.pending_review" class="score-ring">
             <svg viewBox="0 0 120 120" class="ring-svg">
               <circle
                 cx="60"
@@ -1008,7 +1022,7 @@
             </div>
           </div>
 
-          <div v-if="result.should_level_up" class="level-up-badge">
+          <div v-if="!result.pending_review && result.should_level_up" class="level-up-badge">
             Nivel {{ result.next_level }} desbloqueado 🎉
           </div>
 
@@ -1665,6 +1679,10 @@
   }
   .result-card--fail {
     border-color: rgba(var(--color-warning-rgb), 0.3);
+  }
+  /* Awaiting the teacher: neither passed nor failed. */
+  .result-card--pending {
+    border-color: rgba(var(--color-info-rgb), 0.3);
   }
 
   .result-icon {

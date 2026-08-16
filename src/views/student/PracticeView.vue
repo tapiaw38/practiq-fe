@@ -459,12 +459,16 @@
       loadTopicProgress();
       clearDraft();
 
-      // Fire celebration based on result
-      if (result.value.score >= 70) {
-        fireSuccess();
-        playSound("correct");
-      } else {
-        playSound("incorrect");
+      // Nothing was graded yet: the score is a placeholder while the teacher
+      // reviews the delivery. Reacting to it told the student they failed
+      // before anyone had looked at their work.
+      if (!result.value.pending_review) {
+        if (result.value.score >= 70) {
+          fireSuccess();
+          playSound("correct");
+        } else {
+          playSound("incorrect");
+        }
       }
     } catch (err) {
       console.error(err);
@@ -1314,18 +1318,26 @@
               <div class="results-header">
                 <div class="results-emoji">
                   {{
-                    result.score >= 90 ? "🏆" : result.score >= 70 ? "🌟" : "💪"
+                    result.pending_review
+                      ? "⏳"
+                      : result.score >= 90
+                        ? "🏆"
+                        : result.score >= 70
+                          ? "🌟"
+                          : "💪"
                   }}
                 </div>
                 <h3 class="results-title">
                   {{
-                    result.score >= 70
-                      ? randomMessage(successMessages)
-                      : randomMessage(encourageMessages)
+                    result.pending_review
+                      ? "Esperando corrección"
+                      : result.score >= 70
+                        ? randomMessage(successMessages)
+                        : randomMessage(encourageMessages)
                   }}
                 </h3>
               </div>
-              <div class="results-stats">
+              <div v-if="!result.pending_review" class="results-stats">
                 <div class="stat-card">
                   <div
                     class="stat-value"
@@ -1351,18 +1363,20 @@
                   <div class="stat-label">Dominio</div>
                 </div>
               </div>
-              <div class="results-recommendation">
+              <div v-if="!result.pending_review" class="results-recommendation">
                 <div class="rec-icon">
                   {{ result.should_repeat ? "🔄" : "▶️" }}
                 </div>
                 <p>{{ result.recommendation }}</p>
               </div>
 
-              <div v-if="pendingResults.length" class="pending-review-badge">
+              <div v-if="result.pending_review" class="pending-review-badge">
                 <i class="pi pi-clock"></i>
                 {{ pendingResults.length === 1
                   ? "Tu entrega quedó esperando la corrección del docente."
-                  : `${pendingResults.length} entregas quedaron esperando la corrección del docente.` }}
+                  : pendingResults.length > 1
+                    ? `${pendingResults.length} entregas quedaron esperando la corrección del docente.`
+                    : "Tu entrega quedó esperando la corrección del docente." }}
               </div>
 
               <!-- Per-exercise feedback (only errors) -->
