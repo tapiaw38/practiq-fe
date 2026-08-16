@@ -1,5 +1,5 @@
 <script setup lang="ts">
-  import { computed, onMounted, ref } from "vue";
+  import { computed, onBeforeUnmount, onMounted, ref } from "vue";
   import TeacherLayout from "@/layouts/TeacherLayout.vue";
   import Skeleton from "@/components/ui/Skeleton.vue";
   import { useAssignment } from "@/composables/useAssignment";
@@ -8,6 +8,28 @@
   import { useProfile } from "@/composables/useProfile";
   import { useAuthStore } from "@/stores/authStore";
   import type { AssignedUser, AuthApiUser, Grade, UserProfile } from "@/types";
+
+  const VIEW_KEY = "admin-users-view";
+  const viewMode = ref<"table" | "cards">(
+    localStorage.getItem(VIEW_KEY) === "cards" ? "cards" : "table",
+  );
+
+  function setViewMode(mode: "table" | "cards") {
+    viewMode.value = mode;
+    localStorage.setItem(VIEW_KEY, mode);
+  }
+
+  // Below this width the table cannot fit, so cards are forced whatever the
+  // toggle says. Tracked here rather than duplicated in CSS so the card layout
+  // has a single definition.
+  const narrowQuery = window.matchMedia("(max-width: 720px)");
+  const isNarrow = ref(narrowQuery.matches);
+  const onNarrowChange = (event: MediaQueryListEvent) =>
+    (isNarrow.value = event.matches);
+  narrowQuery.addEventListener("change", onNarrowChange);
+  onBeforeUnmount(() => narrowQuery.removeEventListener("change", onNarrowChange));
+
+  const showCards = computed(() => isNarrow.value || viewMode.value === "cards");
 
   type UserRow = {
     user: AuthApiUser;
@@ -389,6 +411,30 @@
         </div>
 
         <section class="toolbar-card">
+          <div class="view-toggle" role="group" aria-label="Cambiar vista">
+            <button
+              type="button"
+              class="view-btn"
+              :class="{ 'view-btn--active': viewMode === 'table' }"
+              :aria-pressed="viewMode === 'table'"
+              title="Vista de tabla"
+              aria-label="Vista de tabla"
+              @click="setViewMode('table')"
+            >
+              <i class="pi pi-list"></i>
+            </button>
+            <button
+              type="button"
+              class="view-btn"
+              :class="{ 'view-btn--active': viewMode === 'cards' }"
+              :aria-pressed="viewMode === 'cards'"
+              title="Vista de tarjetas"
+              aria-label="Vista de tarjetas"
+              @click="setViewMode('cards')"
+            >
+              <i class="pi pi-th-large"></i>
+            </button>
+          </div>
           <div class="search-box">
             <i class="pi pi-search"></i>
             <input
@@ -460,7 +506,7 @@
             </div>
           </div>
 
-          <table class="data-table">
+          <table class="data-table" :class="{ 'data-table--cards': showCards }">
             <thead>
               <tr>
                 <th>Nombre</th>
@@ -524,7 +570,7 @@
             </div>
           </div>
 
-          <table class="data-table">
+          <table class="data-table" :class="{ 'data-table--cards': showCards }">
             <thead>
               <tr>
                 <th>Nombre</th>
@@ -575,7 +621,7 @@
             </div>
           </div>
 
-          <table class="data-table">
+          <table class="data-table" :class="{ 'data-table--cards': showCards }">
             <thead>
               <tr>
                 <th>Nombre</th>
@@ -1360,6 +1406,93 @@
     }
   }
 
+  /* Card layout, shared by the manual toggle and the narrow-screen fallback.
+     Extracted from the media query below so both entry points stay identical
+     instead of drifting apart. */
+  .data-table--cards {
+    overflow: visible;
+  }
+  .data-table--cards thead {
+    display: none;
+  }
+  .data-table--cards,
+  .data-table--cards tbody,
+  .data-table--cards tr,
+  .data-table--cards td {
+    display: block;
+    width: 100%;
+  }
+  .data-table--cards tbody {
+    display: grid;
+    gap: 10px;
+  }
+  .data-table--cards tbody tr {
+    padding: 12px;
+    border: 1px solid rgba(var(--surface-border-rgb), 0.16);
+    border-radius: var(--radius-xl);
+    background: var(--surface-card);
+    box-shadow: var(--shadow-sm);
+  }
+  .data-table--cards td {
+    display: grid;
+    grid-template-columns: minmax(92px, 34%) 1fr;
+    gap: 10px;
+    align-items: start;
+    padding: 8px 0;
+    border-bottom: 1px solid rgba(var(--surface-border-rgb), 0.1);
+  }
+  .data-table--cards td:last-child {
+    border-bottom: none;
+  }
+  .data-table--cards td::before {
+    content: attr(data-label);
+    color: var(--text-secondary);
+    font-size: var(--text-xs);
+    font-weight: 800;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+  }
+  .data-table--cards .cell-center,
+  .data-table--cards .cell-actions {
+    text-align: left;
+  }
+  .data-table--cards .cell-actions .btn {
+    width: 100%;
+    justify-content: center;
+  }
+
+  .view-toggle {
+    display: flex;
+    gap: 4px;
+    padding: 4px;
+    border-radius: var(--radius-lg);
+    background: var(--surface-elevated);
+    border: 1px solid var(--surface-elevated-strong);
+    flex-shrink: 0;
+  }
+
+  .view-btn {
+    display: grid;
+    place-items: center;
+    width: 34px;
+    height: 34px;
+    border: none;
+    border-radius: var(--radius-md, 8px);
+    background: transparent;
+    color: var(--text-secondary);
+    cursor: pointer;
+    transition: var(--transition-fast);
+  }
+
+  .view-btn:hover {
+    color: var(--practiq-violet);
+  }
+
+  .view-btn--active {
+    background: var(--fill-primary-soft);
+    color: var(--practiq-violet);
+  }
+
   @media (max-width: 720px) {
     .toolbar-card {
       align-items: stretch;
@@ -1370,56 +1503,10 @@
     .filter-chip {
       flex: 1 1 calc(50% - 6px);
     }
-    .data-table {
-      overflow: visible;
-    }
-    .data-table thead {
+    /* Below this width the table cannot fit whatever the toggle says, so the
+       card layout is forced. The rules live in .data-table--cards above. */
+    .view-toggle {
       display: none;
-    }
-    .data-table,
-    .data-table tbody,
-    .data-table tr,
-    .data-table td {
-      display: block;
-      width: 100%;
-    }
-    .data-table tbody {
-      display: grid;
-      gap: 10px;
-    }
-    .data-table tbody tr {
-      padding: 12px;
-      border: 1px solid rgba(var(--surface-border-rgb), 0.16);
-      border-radius: var(--radius-xl);
-      background: var(--surface-card);
-      box-shadow: var(--shadow-sm);
-    }
-    .data-table td {
-      display: grid;
-      grid-template-columns: minmax(92px, 34%) 1fr;
-      gap: 10px;
-      align-items: start;
-      padding: 8px 0;
-      border-bottom: 1px solid rgba(var(--surface-border-rgb), 0.1);
-    }
-    .data-table td:last-child {
-      border-bottom: none;
-    }
-    .data-table td::before {
-      content: attr(data-label);
-      color: var(--text-secondary);
-      font-size: var(--text-xs);
-      font-weight: 800;
-      letter-spacing: 0.04em;
-      text-transform: uppercase;
-    }
-    .cell-center,
-    .cell-actions {
-      text-align: left;
-    }
-    .cell-actions .btn {
-      width: 100%;
-      justify-content: center;
     }
     .modal-backdrop {
       padding: 10px;
