@@ -7,6 +7,7 @@
   import ConfirmModal from "@/components/ui/ConfirmModal.vue";
   import DrawingCanvas from "@/components/ui/DrawingCanvas.vue";
   import ColorPalette from "@/components/ui/ColorPalette.vue";
+  import { BASE_COLORS } from "@/utils/palette";
   import { useNotebook } from "@/composables/useNotebook";
   import { useLeaveWarning } from "@/composables/useLeaveWarning";
   import type { Notebook, NotebookPage } from "@/types";
@@ -42,7 +43,7 @@
   // Drawing state
   const canvasRef = ref<InstanceType<typeof DrawingCanvas> | null>(null);
   const tool = ref<"pen" | "eraser">("pen");
-  const penColor = ref("#1e1e2e");
+  const penColor = ref(BASE_COLORS[0].value);
   const penSize = ref(3);
 
   // Save state

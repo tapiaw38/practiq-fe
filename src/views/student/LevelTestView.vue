@@ -6,6 +6,7 @@
   import ConfirmModal from "@/components/ui/ConfirmModal.vue";
   import DrawingCanvas from "@/components/ui/DrawingCanvas.vue";
   import ColorPalette from "@/components/ui/ColorPalette.vue";
+  import { BASE_COLORS } from "@/utils/palette";
   import AttachmentAnswer from "@/components/student/exercises/AttachmentAnswer.vue";
   import ExerciseMedia from "@/components/ui/ExerciseMedia.vue";
   import FillBlanksAnswer from "@/components/student/exercises/FillBlanksAnswer.vue";
@@ -115,7 +116,7 @@
   const tool = ref<"pen" | "eraser">("pen");
   // Matches the palette's first swatch so one is selected from the start; the
   // theme's text colour is not one of the ink options.
-  const penColor = ref("#1e1e2e");
+  const penColor = ref(BASE_COLORS[0].value);
   const penSize = ref(3);
 
   function cssVar(name: string, fallback: string, depth = 0): string {

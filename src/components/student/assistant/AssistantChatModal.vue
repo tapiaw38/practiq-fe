@@ -94,19 +94,12 @@
                 <div class="acm-piz-panel-label">
                   <i class="pi pi-pencil"></i> Tu respuesta
                   <div class="acm-canvas-tools">
-                    <button
-                      v-for="color in canvasColors"
-                      :key="color.value"
-                      class="acm-color-btn"
-                      :class="{
-                        'acm-color-btn--active':
-                          activeTool === 'pen' && activeColor === color.value,
-                      }"
-                      :style="{ '--canvas-color': color.value }"
-                      :title="`Color ${color.label}`"
-                      :aria-label="`Seleccionar color ${color.label}`"
-                      @click="selectCanvasColor(color.value)"
-                    ></button>
+                    <ColorPalette
+                      :model-value="activeColor"
+                      compact
+                      @update:model-value="selectCanvasColor"
+                    />
+
                     <button
                       class="acm-tool-btn"
                       :class="{ 'acm-tool-btn--active': activeTool === 'pen' }"
@@ -359,6 +352,8 @@
   import { useAuthStore } from "@/stores/authStore";
   import { renderContent } from "@/composables/useContentRenderer";
   import { parseAssistantReply, type AssistantReply } from "@/utils/assistantReply";
+  import ColorPalette from "@/components/ui/ColorPalette.vue";
+  import { BASE_COLORS } from "@/utils/palette";
   import AiLoadingModal from "@/components/student/ai/AiLoadingModal.vue";
   import type {
     AssistantChatModalEmits,
@@ -410,14 +405,7 @@
   // Canvas
   const canvasEl = ref<HTMLCanvasElement | null>(null);
   const activeTool = ref<"pen" | "eraser">("pen");
-  const activeColor = ref("#1f2937");
-  const canvasColors = [
-    { value: "#1f2937", label: "negro" },
-    { value: "#dc2626", label: "rojo" },
-    { value: "#16a34a", label: "verde" },
-    { value: "#2563eb", label: "azul" },
-    { value: "#f59e0b", label: "amarillo" },
-  ];
+  const activeColor = ref(BASE_COLORS[0].value);
   let isDrawing = false;
   let lastX = 0;
   let lastY = 0;
@@ -1659,25 +1647,14 @@
     align-items: center;
   }
 
-  .acm-color-btn {
-    width: 18px;
-    height: 18px;
-    padding: 0;
-    border: 2px solid var(--surface-card);
-    border-radius: 50%;
-    background: var(--canvas-color);
-    box-shadow: 0 0 0 1px var(--surface-border);
-    cursor: pointer;
-    transition: var(--transition-fast);
-  }
 
-  .acm-color-btn:hover {
-    transform: scale(1.15);
-  }
 
-  .acm-color-btn--active {
-    box-shadow: 0 0 0 2px var(--practiq-violet), 0 0 0 3px var(--surface-card);
-  }
+
+
+
+
+
+
 
   .acm-tool-btn {
     width: 30px;
@@ -2061,16 +2038,6 @@
     .acm-tool-btn {
       width: 44px;
       height: 44px;
-    }
-
-    /* ponytail: swatches quedan 18px; el ::after da el área táctil sin romper la fila */
-    .acm-color-btn {
-      position: relative;
-    }
-    .acm-color-btn::after {
-      content: "";
-      position: absolute;
-      inset: -13px;
     }
   }
 
