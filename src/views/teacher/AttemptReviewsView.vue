@@ -1,5 +1,5 @@
 <script setup lang="ts">
-  import { onMounted, ref } from "vue";
+  import { onMounted, reactive, ref, watch } from "vue";
   import { useToast } from "primevue/usetoast";
   import TeacherLayout from "@/layouts/TeacherLayout.vue";
   import FileViewer from "@/components/ui/FileViewer.vue";
@@ -14,17 +14,37 @@
 
   const reviews = ref<AttemptReview[]>([]);
   const loading = ref(true);
-  const includeReviewed = ref(false);
+  const hasMore = ref(false);
+  const page = ref(1);
+  const PAGE_SIZE = 20;
+
+  // Course and student narrow a queue that mixes every course a teacher runs.
+  // sheetType is the one specific to this screen: a level test holds the
+  // student's promotion until it is corrected, so those are worth isolating.
+  const filters = reactive({
+    courseId: "",
+    studentId: "",
+    sheetType: "",
+    reviewed: "unreviewed",
+  });
   const saving = ref<string | null>(null);
   const feedback = ref<Record<string, string>>({});
 
   onMounted(load);
 
-  async function load() {
+  async function load(target = page.value) {
     loading.value = true;
     try {
-      const { data } = await service.list(includeReviewed.value);
-      reviews.value = data;
+      const result = await service.list({
+        ...filters,
+        limit: PAGE_SIZE,
+        offset: (target - 1) * PAGE_SIZE,
+      });
+      reviews.value = result.data;
+      hasMore.value = result.has_more;
+      // Only after the fetch resolves: advancing first left the counter on a
+      // page whose rows never loaded.
+      page.value = target;
     } catch {
       toast.add({
         severity: "error",
@@ -73,6 +93,26 @@
       saving.value = null;
     }
   }
+
+  function applyFilters() {
+    load(1);
+  }
+
+  const courses = ref<{ id: string; title: string }[]>([]);
+  const students = ref<{ id: string; name: string }[]>([]);
+
+  /** Options come from the queue itself: no extra request, and it can only
+      offer values that actually have deliveries waiting. */
+  watch(reviews, (rows) => {
+    const byCourse = new Map<string, string>();
+    const byStudent = new Map<string, string>();
+    for (const row of rows) {
+      if (row.course_id) byCourse.set(row.course_id, row.course_title || row.course_id);
+      if (row.student_id) byStudent.set(row.student_id, row.student_name || row.student_id);
+    }
+    if (!filters.courseId) courses.value = [...byCourse].map(([id, title]) => ({ id, title }));
+    if (!filters.studentId) students.value = [...byStudent].map(([id, name]) => ({ id, name }));
+  });
 
   function formatDate(value: string) {
     return new Date(value).toLocaleString("es-AR", {
@@ -147,26 +187,58 @@
           <h1 class="page-title">Entregas por revisar</h1>
           <p class="page-subtitle">
             La IA corrige las entregas que puede leer para que el alumno siga
-            practicando. Acá ves las que no pudo corregir, y activando el filtro
-            también las que ya corrigió — podés cambiarles la nota cuando quieras.
+            practicando. Acá ves las que no pudo corregir. Podés cambiar la nota
+            de una ya corregida cuando quieras.
           </p>
         </div>
-        <label class="toggle-reviewed">
-          <input
-            v-model="includeReviewed"
-            type="checkbox"
-            @change="load"
-          />
-          Ver también las ya corregidas
+      </div>
+
+      <div class="filters-bar">
+        <label class="filter-field">
+          <span>Estado</span>
+          <select v-model="filters.reviewed" class="form-select" @change="applyFilters">
+            <option value="unreviewed">Sin corregir</option>
+            <option value="reviewed">Ya corregidas</option>
+            <option value="">Todas</option>
+          </select>
+        </label>
+
+        <label class="filter-field">
+          <span>Tipo</span>
+          <select v-model="filters.sheetType" class="form-select" @change="applyFilters">
+            <option value="">Todas</option>
+            <option value="level_test">Pruebas de nivel</option>
+            <option value="practice">Prácticas</option>
+          </select>
+        </label>
+
+        <label class="filter-field">
+          <span>Curso</span>
+          <select v-model="filters.courseId" class="form-select" @change="applyFilters">
+            <option value="">Todos</option>
+            <option v-for="course in courses" :key="course.id" :value="course.id">
+              {{ course.title }}
+            </option>
+          </select>
+        </label>
+
+        <label class="filter-field">
+          <span>Alumno</span>
+          <select v-model="filters.studentId" class="form-select" @change="applyFilters">
+            <option value="">Todos</option>
+            <option v-for="student in students" :key="student.id" :value="student.id">
+              {{ student.name }}
+            </option>
+          </select>
         </label>
       </div>
 
       <p v-if="loading" class="muted">Cargando…</p>
       <p v-else-if="!reviews.length" class="muted">
         {{
-          includeReviewed
-            ? "Todavía no hay entregas con archivo en tus cursos."
-            : "No hay entregas esperando tu corrección."
+          filters.reviewed === "unreviewed"
+            ? "No hay entregas esperando tu corrección."
+            : "No hay entregas para este filtro."
         }}
       </p>
 
@@ -280,16 +352,21 @@
             <span class="review-file-type">{{ item.attachment_content_type }}</span>
           </button>
 
-          <div v-if="item.ai_feedback || item.ai_is_correct !== undefined" class="review-ai">
-            <div class="review-ai-head">
+          <!-- Collapsed by default: the AI note is context, not the decision
+               the teacher came to make, and expanded it doubled the card. -->
+          <details
+            v-if="item.ai_feedback || item.ai_is_correct !== undefined"
+            class="review-ai"
+          >
+            <summary class="review-ai-head">
               <i class="pi pi-sparkles"></i>
               <span>Corrección de la IA</span>
-            </div>
+            </summary>
             <p v-if="item.ai_feedback" class="review-ai-text">{{ item.ai_feedback }}</p>
             <small class="review-ai-note">
               Si no coincidís, tu corrección reemplaza esta nota.
             </small>
-          </div>
+          </details>
 
           <p v-if="item.teacher_feedback" class="review-teacher-feedback">
             {{ item.teacher_feedback }}
@@ -333,6 +410,26 @@
             </button>
           </div>
         </article>
+      </div>
+
+      <div v-if="!loading && (page > 1 || hasMore)" class="pagination-controls">
+        <button
+          class="btn btn-secondary"
+          :disabled="page === 1"
+          @click="load(page - 1)"
+        >
+          <i class="pi pi-chevron-left"></i>
+          Anterior
+        </button>
+        <span class="pagination-info">Página {{ page }}</span>
+        <button
+          class="btn btn-secondary"
+          :disabled="!hasMore"
+          @click="load(page + 1)"
+        >
+          Siguiente
+          <i class="pi pi-chevron-right"></i>
+        </button>
       </div>
     </div>
 
@@ -394,15 +491,6 @@
     max-width: 60ch;
   }
 
-  .toggle-reviewed {
-    display: inline-flex;
-    align-items: center;
-    gap: 8px;
-    font-size: var(--text-sm);
-    color: var(--text-secondary);
-    white-space: nowrap;
-    cursor: pointer;
-  }
 
   .reviews-list {
     display: flex;
@@ -496,6 +584,9 @@
   .review-ai-head {
     display: flex;
     align-items: center;
+    gap: 6px;
+    display: flex;
+    align-items: center;
     gap: 8px;
     font-size: var(--text-xs);
     font-weight: 700;
@@ -571,6 +662,68 @@
     font-weight: 600;
   }
 
+  .filters-bar {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    gap: 10px;
+    margin: 14px 0 18px;
+  }
+
+  .filter-field {
+    display: grid;
+    gap: 4px;
+    min-width: 0;
+  }
+
+  .filter-field > span {
+    color: var(--text-secondary);
+    font-size: var(--text-xs);
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+  }
+
+  .pagination-controls {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    margin-top: 16px;
+    padding: 12px 16px;
+    background: var(--surface-elevated);
+    border: 1px solid var(--surface-elevated-strong);
+    border-radius: var(--radius-xl);
+  }
+
+  .pagination-info {
+    color: var(--text-secondary);
+    font-size: var(--text-sm);
+    font-weight: 700;
+  }
+
+  /* summary carries the marker; without this it also keeps the default
+     triangle and the row reads as two bullets. */
+  .review-ai > summary {
+    cursor: pointer;
+    list-style: none;
+  }
+
+  .review-ai > summary::-webkit-details-marker {
+    display: none;
+  }
+
+  .review-ai > summary::after {
+    content: "\e902";
+    font-family: "primeicons";
+    margin-left: auto;
+    font-size: 11px;
+    transition: transform 0.2s;
+  }
+
+  .review-ai[open] > summary::after {
+    transform: rotate(180deg);
+  }
+
   .review-thumbs {
     display: flex;
     flex-wrap: wrap;
@@ -643,6 +796,48 @@
   }
 
   @media (max-width: 640px) {
+    .reviews-page {
+      padding: 16px 14px 32px;
+    }
+
+    .page-header {
+      flex-direction: column;
+      align-items: flex-start;
+      gap: 10px;
+    }
+
+    /* Two per row: one column wastes the width, four squeeze the labels. */
+    .filters-bar {
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+    }
+
+    .review-card {
+      padding: 14px;
+    }
+
+    /* The meta line ran past the card and pushed the layout sideways. */
+    .review-meta,
+    .review-question {
+      overflow-wrap: anywhere;
+    }
+
+    .review-head {
+      flex-direction: column;
+      align-items: flex-start;
+      gap: 8px;
+    }
+
+    /* Thumbnails share the row instead of wrapping one per line. */
+    .review-thumbs {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(84px, 1fr));
+    }
+
+    .review-thumb {
+      width: auto;
+    }
+
     .review-actions {
       flex-direction: column;
     }
@@ -651,10 +846,24 @@
       justify-content: center;
       min-height: 46px;
     }
-    /* El checkbox nativo queda muy por debajo del target de 44px. */
-    .toggle-reviewed input[type="checkbox"] {
-      width: 20px;
-      height: 20px;
+
+    .pagination-controls {
+      flex-wrap: wrap;
+      justify-content: center;
+      gap: 10px;
+      padding: 12px;
+    }
+
+    .pagination-info {
+      order: -1;
+      width: 100%;
+      text-align: center;
+    }
+
+    .pagination-controls .btn {
+      flex: 1;
+      min-height: 44px;
+      justify-content: center;
     }
   }
 </style>
