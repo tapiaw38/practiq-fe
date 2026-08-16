@@ -175,6 +175,7 @@
         await updateCourseService(editingCourse.value.id, {
           title: courseForm.title,
           description: courseForm.description,
+          grade_id: selectedGrade.value.id,
           subject_id: courseForm.subjectId,
           subject: subjectName,
           level: courseForm.level,

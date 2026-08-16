@@ -4,10 +4,15 @@
   import { useAuthStore } from "@/stores/authStore";
   import StudentLayout from "@/layouts/StudentLayout.vue";
   import Skeleton from "@/components/ui/Skeleton.vue";
+  import ConfirmModal from "@/components/ui/ConfirmModal.vue";
   import DrawingCanvas from "@/components/ui/DrawingCanvas.vue";
+  import ColorPalette from "@/components/ui/ColorPalette.vue";
+  import { BASE_COLORS } from "@/utils/palette";
   import AttachmentAnswer from "@/components/student/exercises/AttachmentAnswer.vue";
+  import ExerciseMedia from "@/components/ui/ExerciseMedia.vue";
   import FillBlanksAnswer from "@/components/student/exercises/FillBlanksAnswer.vue";
   import { usePracticeSheet } from "@/composables/usePracticeSheet";
+  import { useLeaveWarning } from "@/composables/useLeaveWarning";
   import { useProgress } from "@/composables/useProgress";
   import type { PracticeSheet, SubmitResult, TopicProgress } from "@/types";
   import type { UploadedFile } from "@/services/uploads/uploadService";
@@ -17,6 +22,8 @@
     parseExerciseMetadata,
     pickBestStudentImage,
     summarizeExerciseMetadata,
+    statementMediaAudioAttachment,
+    statementMediaPreviewDataURL,
   } from "@/utils/assistantExerciseContext";
   import { formatDuration } from "@/utils/formatters";
   import {
@@ -39,6 +46,9 @@
   const route = useRoute();
   const router = useRouter();
   const authStore = useAuthStore();
+  const { leaveConfirmState, onLeaveConfirm, onLeaveCancel } = useLeaveWarning(
+    () => hasPendingWork.value,
+  );
   const { loadCourseProgress } = useProgress();
   const { loadPracticeSheet, submitPracticeSheetAsync, loadSubmitJob } =
     usePracticeSheet();
@@ -67,7 +77,9 @@
   // Canvas — multiple refs, one per exercise
   const canvasRefs: Record<string, InstanceType<typeof DrawingCanvas> | null> = {};
   const tool = ref<"pen" | "eraser">("pen");
-  const penColor = ref(cssVar("--text-primary", "#1e293b"));
+  // Matches the palette's first swatch so one is selected from the start; the
+  // theme's text colour is not one of the ink options.
+  const penColor = ref(BASE_COLORS[0].value);
   const penSize = ref(3);
   const activeCanvasId = ref("");
 
@@ -76,6 +88,15 @@
   const submitting = ref(false);
   const result = ref<SubmitResult | null>(null);
   const showAllErrors = ref(false);
+
+  const hasPendingWork = computed(() =>
+    !result.value &&
+    (hasDraft.value ||
+      submitting.value ||
+      Object.values(answers.value).some((item) => !!item?.answer) ||
+      Object.values(keyboardAnswers.value).some((answer) => !!answer?.trim()) ||
+      Object.values(attachments.value).some(Boolean)),
+  );
 
   // A file awaiting the teacher comes back with is_correct=false; showing it
   // as an error would be a lie, so it gets its own bucket.
@@ -203,6 +224,7 @@
     if ((window as any).__practiqAssistantHookSource === "practice") {
       delete window.__practiqAssistantCapture;
       delete window.__practiqAssistantContext;
+      delete window.__practiqAssistantMediaAttachments;
       delete (window as any).__practiqAssistantHookSource;
     }
   });
@@ -590,6 +612,11 @@
     );
   }
 
+  function assistantMediaPath(exerciseId: string) {
+    if (!sheet.value?.id || !exerciseId) return "";
+    return `/practice-sheets/${encodeURIComponent(sheet.value.id)}/exercises/${encodeURIComponent(exerciseId)}/assistant-media`;
+  }
+
   (window as any).__practiqAssistantHookSource = "practice";
 
   window.__practiqAssistantContext = () => {
@@ -622,6 +649,7 @@
                 ? "[consigna manuscrita en imagen adjunta]"
                 : activeExercise.question,
             has_teacher_image: !!activeTeacherImage,
+            has_statement_media: !!activeExercise.media_view_url,
             question_source:
               activeExercise.type === "handwritten" && activeTeacherImage
                 ? "teacher_image_attachment"
@@ -694,7 +722,9 @@
       buildCanvasDataForOCR(exerciseId),
       answers.value[exerciseId]?.answer,
     ]);
-    const teacherDataUrl = extractTeacherImageDataUrl(exercise);
+    const teacherDataUrl =
+      (await statementMediaPreviewDataURL(exercise, assistantMediaPath(exerciseId))) ||
+      extractTeacherImageDataUrl(exercise);
     const dataUrl = await composeAssistantWorkImage({
       teacherDataUrl,
       studentDataUrl,
@@ -711,6 +741,15 @@
         ? "image/png"
         : "image/jpeg",
     };
+  };
+
+  window.__practiqAssistantMediaAttachments = async () => {
+    const exerciseId = getAssistantExerciseId();
+    const exerciseIndex = getAssistantExerciseIndex(exerciseId);
+    const exercise =
+      exerciseIndex >= 0 ? sheet.value?.exercises[exerciseIndex]?.exercise : null;
+    const audio = await statementMediaAudioAttachment(exercise, assistantMediaPath(exerciseId));
+    return audio ? [audio] : [];
   };
 
   function closeSubmitConfirm() {
@@ -860,13 +899,7 @@
                 <i class="pi pi-undo"></i>
               </button>
               <div class="tool-sep"></div>
-              <input
-                type="color"
-                v-model="penColor"
-                class="color-picker"
-                title="Color"
-                aria-label="Color del lápiz"
-              />
+              <ColorPalette v-model="penColor" />
               <input
                 type="range"
                 v-model.number="penSize"
@@ -947,6 +980,7 @@
                     class="teacher-handwritten-image"
                     alt="Consigna manuscrita del profesor"
                   />
+                  <ExerciseMedia :url="pse.exercise.media_view_url" />
 
                   <!-- Keyboard mode input -->
                   <div
@@ -1295,6 +1329,11 @@
       </Teleport>
     </div>
   </StudentLayout>
+  <ConfirmModal
+    v-bind="leaveConfirmState"
+    @confirm="onLeaveConfirm"
+    @cancel="onLeaveCancel"
+  />
 </template>
 
 <style scoped>
@@ -1561,16 +1600,6 @@
     height: 28px;
     background: rgba(var(--practiq-violet-rgb), 0.15);
     margin: 0 4px;
-  }
-
-  .color-picker {
-    width: 34px;
-    height: 34px;
-    border-radius: var(--radius-sm);
-    border: 1.5px solid rgba(var(--practiq-violet-rgb), 0.15);
-    padding: 2px;
-    cursor: pointer;
-    background: none;
   }
 
   .size-slider {
@@ -2265,11 +2294,6 @@
       width: 46px;
       height: 46px;
       font-size: 1rem;
-    }
-
-    .color-picker {
-      width: 44px;
-      height: 44px;
     }
 
     .choice-option {

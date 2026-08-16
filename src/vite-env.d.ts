@@ -26,6 +26,10 @@ interface PractiqAssistantCaptureResult {
   contentType?: string
 }
 
+interface PractiqAssistantMediaAttachment extends PractiqAssistantCaptureResult {
+  field: "voice_content"
+}
+
 type PractiqAssistantStructuredContextValue =
   | string
   | number
@@ -47,4 +51,7 @@ interface Window {
     | PractiqAssistantStructuredContext
     | Promise<PractiqAssistantStructuredContext | null>
     | null
+  __practiqAssistantMediaAttachments?: () =>
+    | PractiqAssistantMediaAttachment[]
+    | Promise<PractiqAssistantMediaAttachment[]>
 }

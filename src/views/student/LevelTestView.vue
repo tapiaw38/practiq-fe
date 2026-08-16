@@ -5,9 +5,12 @@
   import Skeleton from "@/components/ui/Skeleton.vue";
   import ConfirmModal from "@/components/ui/ConfirmModal.vue";
   import DrawingCanvas from "@/components/ui/DrawingCanvas.vue";
+  import ColorPalette from "@/components/ui/ColorPalette.vue";
+  import { BASE_COLORS } from "@/utils/palette";
   import AttachmentAnswer from "@/components/student/exercises/AttachmentAnswer.vue";
+  import ExerciseMedia from "@/components/ui/ExerciseMedia.vue";
   import FillBlanksAnswer from "@/components/student/exercises/FillBlanksAnswer.vue";
-  import { useConfirm } from "@/composables/useConfirm";
+  import { useLeaveWarning } from "@/composables/useLeaveWarning";
   import { usePracticeSheet } from "@/composables/usePracticeSheet";
   import { useAuthStore } from "@/stores/authStore";
   import type { UploadedFile } from "@/services/uploads/uploadService";
@@ -22,6 +25,8 @@
     parseExerciseMetadata,
     pickBestStudentImage,
     summarizeExerciseMetadata,
+    statementMediaAudioAttachment,
+    statementMediaPreviewDataURL,
   } from "@/utils/assistantExerciseContext";
   import { formatDuration } from "@/utils/formatters";
   import {
@@ -43,7 +48,9 @@
 
   const route = useRoute();
   const router = useRouter();
-  const { confirmState, showConfirm, onConfirm, onCancel } = useConfirm();
+  const { leaveConfirmState, onLeaveConfirm, onLeaveCancel, leave } = useLeaveWarning(
+    () => testStarted.value && !submitted.value,
+  );
   const authStore = useAuthStore();
   const { loadPracticeSheet, submitPracticeSheetAsync, loadSubmitJob } =
     usePracticeSheet();
@@ -107,7 +114,9 @@
   const canvasData = ref<Record<string, string>>({});
   const activeId = ref<string>("");
   const tool = ref<"pen" | "eraser">("pen");
-  const penColor = ref(cssVar("--text-primary", "#1e293b"));
+  // Matches the palette's first swatch so one is selected from the start; the
+  // theme's text colour is not one of the ink options.
+  const penColor = ref(BASE_COLORS[0].value);
   const penSize = ref(3);
 
   function cssVar(name: string, fallback: string, depth = 0): string {
@@ -248,6 +257,7 @@
     if ((window as any).__practiqAssistantHookSource === "level-test") {
       delete window.__practiqAssistantCapture;
       delete window.__practiqAssistantContext;
+      delete window.__practiqAssistantMediaAttachments;
       delete (window as any).__practiqAssistantHookSource;
     }
   });
@@ -258,12 +268,7 @@
   }
 
   async function confirmExit() {
-    const ok = await showConfirm("¿Salir de la prueba?", {
-      description: "Tu progreso no se guardará.",
-      confirmLabel: "Salir",
-      danger: false,
-    });
-    if (ok) router.back();
+    await leave(() => router.back());
   }
 
   function getNextCuriosity(): string {
@@ -441,6 +446,11 @@
     return exercises.value.findIndex((item) => item.exercise.id === exerciseId);
   }
 
+  function assistantMediaPath(exerciseId: string) {
+    if (!sheet.value?.id || !exerciseId) return "";
+    return `/practice-sheets/${encodeURIComponent(sheet.value.id)}/exercises/${encodeURIComponent(exerciseId)}/assistant-media`;
+  }
+
   (window as any).__practiqAssistantHookSource = "level-test";
 
   window.__practiqAssistantContext = () => {
@@ -473,6 +483,7 @@
                 ? "[consigna manuscrita en imagen adjunta]"
                 : activeExercise.question,
             has_teacher_image: !!activeTeacherImage,
+            has_statement_media: !!activeExercise.media_view_url,
             question_source:
               activeExercise.type === "handwritten" && activeTeacherImage
                 ? "teacher_image_attachment"
@@ -533,13 +544,17 @@
     const exerciseIndex = getAssistantExerciseIndex(exerciseId);
     const exercise =
       exerciseIndex >= 0 ? exercises.value[exerciseIndex]?.exercise : null;
-    if (!exercise || !exerciseUsesCanvas(exercise.type)) return null;
+    if (!exercise) return null;
 
-    const studentDataUrl = await pickBestStudentImage([
-      buildCanvasDataForOCR(exerciseId),
-      canvasData.value[exerciseId],
-    ]);
-    const teacherDataUrl = extractTeacherImageDataUrl(exercise);
+    const studentDataUrl = exerciseUsesCanvas(exercise.type)
+      ? await pickBestStudentImage([
+          buildCanvasDataForOCR(exerciseId),
+          canvasData.value[exerciseId],
+        ])
+      : "";
+    const teacherDataUrl =
+      (await statementMediaPreviewDataURL(exercise, assistantMediaPath(exerciseId))) ||
+      extractTeacherImageDataUrl(exercise);
     const dataUrl = await composeAssistantWorkImage({
       teacherDataUrl,
       studentDataUrl,
@@ -556,6 +571,15 @@
         ? "image/png"
         : "image/jpeg",
     };
+  };
+
+  window.__practiqAssistantMediaAttachments = async () => {
+    const exerciseId = getAssistantExerciseId();
+    const exerciseIndex = getAssistantExerciseIndex(exerciseId);
+    const exercise =
+      exerciseIndex >= 0 ? exercises.value[exerciseIndex]?.exercise : null;
+    const audio = await statementMediaAudioAttachment(exercise, assistantMediaPath(exerciseId));
+    return audio ? [audio] : [];
   };
 
   function retry() {
@@ -683,13 +707,7 @@
             <i class="pi pi-undo"></i>
           </button>
           <div class="tool-sep"></div>
-          <input
-            type="color"
-            v-model="penColor"
-            class="color-picker"
-            title="Color"
-            aria-label="Color del lápiz"
-          />
+          <ColorPalette v-model="penColor" />
           <input
             type="range"
             v-model.number="penSize"
@@ -737,6 +755,7 @@
                 class="teacher-handwritten-image"
                 alt="Consigna manuscrita del profesor"
               />
+              <ExerciseMedia :url="ex.exercise.media_view_url" />
 
               <!-- Multiple choice -->
               <div
@@ -987,7 +1006,11 @@
     :message="loadingMessage"
   />
 
-  <ConfirmModal v-bind="confirmState" @confirm="onConfirm" @cancel="onCancel" />
+  <ConfirmModal
+    v-bind="leaveConfirmState"
+    @confirm="onLeaveConfirm"
+    @cancel="onLeaveCancel"
+  />
 
   <!-- Instructions Modal (before test) -->
   <Teleport to="body">
@@ -1273,16 +1296,6 @@
     height: 28px;
     background: rgba(var(--practiq-violet-rgb), 0.15);
     margin: 0 4px;
-  }
-
-  .color-picker {
-    width: 34px;
-    height: 34px;
-    border-radius: var(--radius-sm);
-    border: 1.5px solid rgba(var(--practiq-violet-rgb), 0.15);
-    padding: 2px;
-    cursor: pointer;
-    background: none;
   }
 
   .size-slider {
@@ -2142,11 +2155,6 @@
       width: 46px;
       height: 46px;
       font-size: 1rem;
-    }
-
-    .color-picker {
-      width: 44px;
-      height: 44px;
     }
 
     .choice-option {

@@ -1,8 +1,11 @@
 <script setup lang="ts">
+  import { ref } from "vue";
   import {
     renderEquation,
     renderInlineEquation,
   } from "@/composables/useContentRenderer";
+  import FileViewer from "@/components/ui/FileViewer.vue";
+  import type { Exercise } from "@/types";
   import type {
     ExercisesListEmits,
     ExercisesListProps,
@@ -10,6 +13,17 @@
 
   defineProps<ExercisesListProps>();
   const emit = defineEmits<ExercisesListEmits>();
+
+  // Statement media opens in a modal: the list is dense enough without players
+  // inline, and audio only needs somewhere to hit play.
+  const preview = ref<{ url: string; title: string } | null>(null);
+
+  function openPreview(exercise: Exercise) {
+    preview.value = {
+      url: exercise.media_view_url ?? "",
+      title: exercise.question || "Material del enunciado",
+    };
+  }
 
   const diffColor = (difficulty: number) => {
     if (difficulty <= 3) return "var(--color-success-bg)";
@@ -87,6 +101,15 @@
           </div>
         </div>
         <div class="item-actions">
+          <button
+            v-if="exercise.media_view_url"
+            class="btn btn-ghost btn-sm"
+            title="Ver material del enunciado"
+            aria-label="Ver material del enunciado"
+            @click="openPreview(exercise)"
+          >
+            <i class="pi pi-play-circle"></i>
+          </button>
           <button class="btn btn-ghost btn-sm" @click="emit('edit', exercise)">
             <i class="pi pi-pencil"></i>
           </button>
@@ -99,6 +122,13 @@
         </div>
       </div>
     </div>
+
+    <FileViewer
+      :show="!!preview"
+      :url="preview?.url"
+      :title="preview?.title"
+      @close="preview = null"
+    />
   </div>
 </template>
 

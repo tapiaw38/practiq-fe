@@ -1,6 +1,19 @@
 import type { Exercise } from "@/types";
+import { practiqApi } from "@/api/request/server";
+import { fileKind } from "@/utils/fileKind";
 
 type JsonRecord = Record<string, unknown>;
+
+export type AssistantMediaAttachment = {
+  dataUrl: string;
+  filename: string;
+  contentType: string;
+  field: "voice_content";
+};
+
+// Base64 expands media by roughly one third. Keep browser-generated payloads
+// below the assistant proxy's 25 MiB cap.
+const maxAssistantMediaBytes = 18 << 20;
 
 const teacherImageKeys = [
   "teacher_image",
@@ -69,6 +82,12 @@ export function summarizeExerciseMetadata(
   const summary: JsonRecord = {};
 
   for (const [key, value] of Object.entries(metadata)) {
+    // The bucket is private, so the raw URL is noise the assistant cannot use.
+    // It still gets told the statement has media attached.
+    if (key === "media_url") {
+      if (value) summary[key] = "[statement_media]";
+      continue;
+    }
     if (teacherImageKeys.includes(key)) {
       summary[key] = isDataUrlImage(value) ? "[teacher_image_data_url]" : value;
       continue;
@@ -81,6 +100,65 @@ export function summarizeExerciseMetadata(
   }
 
   return Object.keys(summary).length > 0 ? summary : null;
+}
+
+async function fetchStatementMedia(url: string, assistantMediaPath?: string): Promise<Blob | null> {
+  try {
+    if (assistantMediaPath) {
+      const response = await practiqApi.get<Blob>(assistantMediaPath, {
+        responseType: "blob",
+      });
+      const blob = response.data;
+      return blob.size > 0 && blob.size <= maxAssistantMediaBytes ? blob : null;
+    }
+    const response = await fetch(url);
+    if (!response.ok) return null;
+    const blob = await response.blob();
+    return blob.size > 0 && blob.size <= maxAssistantMediaBytes ? blob : null;
+  } catch {
+    return null;
+  }
+}
+
+async function blobToDataURL(blob: Blob): Promise<string> {
+  return await new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(typeof reader.result === "string" ? reader.result : "");
+    reader.onerror = () => reject(reader.error);
+    reader.readAsDataURL(blob);
+  });
+}
+
+// Only statement images have a Gillie Vision channel. Videos are not accepted
+// for new exercises until a supported video-analysis flow exists.
+export async function statementMediaPreviewDataURL(
+  exercise?: Pick<Exercise, "media_view_url"> | null,
+  assistantMediaPath?: string,
+): Promise<string> {
+  const url = exercise?.media_view_url || "";
+  const kind = fileKind(url);
+  if (!url || kind !== "image") return "";
+  const blob = await fetchStatementMedia(url, assistantMediaPath);
+  if (!blob) return "";
+  return blobToDataURL(blob);
+}
+
+export async function statementMediaAudioAttachment(
+  exercise?: Pick<Exercise, "media_view_url"> | null,
+  assistantMediaPath?: string,
+): Promise<AssistantMediaAttachment | null> {
+  const url = exercise?.media_view_url || "";
+  if (!url || fileKind(url) !== "audio") return null;
+  const blob = await fetchStatementMedia(url, assistantMediaPath);
+  if (!blob) return null;
+  const contentType = blob.type.startsWith("audio/") ? blob.type : "audio/mpeg";
+  const extension = contentType.includes("ogg") ? "ogg" : contentType.includes("wav") ? "wav" : contentType.includes("webm") ? "webm" : contentType.includes("mp4") ? "m4a" : "mp3";
+  return {
+    dataUrl: await blobToDataURL(blob),
+    filename: `enunciado.${extension}`,
+    contentType,
+    field: "voice_content",
+  };
 }
 
 export async function loadImageFromDataUrl(

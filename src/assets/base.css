@@ -66,6 +66,19 @@
   --surface-overlay: rgba(0, 0, 0, 0.4);
   --surface-card-border: #e8ecf1;
 
+  /* Compatibility aliases. Keep legacy component tokens bound to the
+     semantic palette so a missing token cannot silently invalidate CSS. */
+  --border-color: var(--surface-border);
+  --border-default: var(--surface-border);
+  --border-subtle: var(--surface-border);
+  --border-strong: #cbd5e1;
+  --surface-base: var(--surface-bg);
+  --surface-ground: var(--surface-card);
+  --fill-error-subtle: var(--color-error-bg);
+  --green-600: var(--color-success);
+  --red-500: var(--color-error);
+  --red-600: var(--color-error-dark);
+
   /* Text */
   --text-heading: #182136;
   --text-primary: #1e293b;

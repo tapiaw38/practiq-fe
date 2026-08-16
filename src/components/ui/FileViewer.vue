@@ -1,5 +1,6 @@
 <script setup lang="ts">
   import { computed, onBeforeUnmount, watch } from "vue";
+  import { fileKind } from "@/utils/fileKind";
 
   const props = withDefaults(
     defineProps<{
@@ -15,51 +16,7 @@
 
   const emit = defineEmits<{ (e: "close"): void }>();
 
-  const EXTENSION_KINDS: Record<string, Kind> = {
-    pdf: "pdf",
-    png: "image",
-    jpg: "image",
-    jpeg: "image",
-    gif: "image",
-    webp: "image",
-    svg: "image",
-    mp4: "video",
-    webm: "video",
-    ogv: "video",
-    mov: "video",
-    mp3: "audio",
-    wav: "audio",
-    ogg: "audio",
-    m4a: "audio",
-    txt: "text",
-  };
-
-  type Kind = "pdf" | "image" | "video" | "audio" | "text" | "download";
-
-  /** The path, minus the signature query a presigned URL carries. */
-  function extensionOf(url: string): string {
-    try {
-      const path = new URL(url, window.location.origin).pathname;
-      return path.split(".").pop()?.toLowerCase() ?? "";
-    } catch {
-      return "";
-    }
-  }
-
-  const kind = computed<Kind>(() => {
-    const byExtension = EXTENSION_KINDS[extensionOf(props.url)];
-    if (byExtension) return byExtension;
-
-    const type = props.contentType.split(";")[0].trim().toLowerCase();
-    if (type === "application/pdf") return "pdf";
-    if (type.startsWith("image/")) return "image";
-    if (type.startsWith("video/")) return "video";
-    if (type.startsWith("audio/")) return "audio";
-    if (type === "text/plain") return "text";
-
-    // Office documents have no native viewer; offer the download instead.
-    return "download";
-  });
+  const kind = computed(() => fileKind(props.url, props.contentType));
 
   function close() {
     emit("close");

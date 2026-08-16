@@ -4,8 +4,12 @@
   import { useAuthStore } from "@/stores/authStore";
   import StudentLayout from "@/layouts/StudentLayout.vue";
   import Skeleton from "@/components/ui/Skeleton.vue";
+  import ConfirmModal from "@/components/ui/ConfirmModal.vue";
   import DrawingCanvas from "@/components/ui/DrawingCanvas.vue";
+  import ColorPalette from "@/components/ui/ColorPalette.vue";
+  import { BASE_COLORS } from "@/utils/palette";
   import { useNotebook } from "@/composables/useNotebook";
+  import { useLeaveWarning } from "@/composables/useLeaveWarning";
   import type { Notebook, NotebookPage } from "@/types";
   import {
     composeAssistantWorkImage,
@@ -22,6 +26,9 @@
   const route = useRoute();
   const router = useRouter();
   const authStore = useAuthStore();
+  const { leaveConfirmState, onLeaveConfirm, onLeaveCancel } = useLeaveWarning(
+    () => hasPendingWork.value || saveStatus.value === "saving",
+  );
   const { loadNotebook, saveSubmissionAsync, loadSubmissionJob } =
     useNotebook();
   const { fireCorrect } = useConfetti();
@@ -36,7 +43,7 @@
   // Drawing state
   const canvasRef = ref<InstanceType<typeof DrawingCanvas> | null>(null);
   const tool = ref<"pen" | "eraser">("pen");
-  const penColor = ref("#1e1e2e");
+  const penColor = ref(BASE_COLORS[0].value);
   const penSize = ref(3);
 
   // Save state
@@ -46,6 +53,14 @@
 
   // Per-page canvas snapshots
   const canvasSnapshots = ref<Record<string, string>>({});
+  const savedCanvasSnapshots = ref<Record<string, string>>({});
+
+  const hasPendingWork = computed(() =>
+    Object.entries(canvasSnapshots.value).some(
+      ([pageId, canvas]) =>
+        (canvas || "") !== (savedCanvasSnapshots.value[pageId] || ""),
+    ),
+  );
 
   const pages = computed(() => notebook.value?.pages || []);
   const currentPage = computed<NotebookPage | null>(
@@ -68,6 +83,7 @@
         if (page.submission?.canvas_data)
           canvasSnapshots.value[page.id] = page.submission.canvas_data;
       }
+      savedCanvasSnapshots.value = { ...canvasSnapshots.value };
       // Fetch curiosities for loading screen
       if (notebook.value.course_id) {
         fetchCuriosities(notebook.value.course_id);
@@ -398,6 +414,10 @@
       saveStatus.value = "saved";
       const notebookId = route.params.id as string;
       notebook.value = await loadNotebook(notebookId, studentId.value);
+      savedCanvasSnapshots.value = {
+        ...savedCanvasSnapshots.value,
+        [pageId]: canvasSnapshots.value[pageId] || "",
+      };
 
       // Check if submission was correct and celebrate
       const updatedPage = pages.value.find((p) => p.id === pageId);
@@ -563,12 +583,7 @@
                 <button class="tool-btn" @click="canvasRef?.clear()" title="Limpiar">
                   <i class="pi pi-trash"></i>
                 </button>
-                <input
-                  type="color"
-                  v-model="penColor"
-                  class="color-picker"
-                  title="Color"
-                />
+                <ColorPalette v-model="penColor" />
                 <input
                   type="range"
                   v-model.number="penSize"
@@ -723,6 +738,11 @@
     badge-label="IA evaluando"
     title="Evaluando con IA"
     :message="loadingMessage"
+  />
+  <ConfirmModal
+    v-bind="leaveConfirmState"
+    @confirm="onLeaveConfirm"
+    @cancel="onLeaveCancel"
   />
 </template>
 
@@ -992,16 +1012,6 @@
     background: var(--practiq-violet);
     color: var(--color-on-primary);
     border-color: var(--practiq-violet);
-  }
-
-  .color-picker {
-    width: 34px;
-    height: 34px;
-    border-radius: var(--radius-sm);
-    border: 1.5px solid rgba(var(--practiq-violet-rgb), 0.15);
-    padding: 2px;
-    cursor: pointer;
-    background: none;
   }
 
   .size-slider {
@@ -1357,10 +1367,6 @@
       width: 46px;
       height: 46px;
       font-size: 1rem;
-    }
-    .color-picker {
-      width: 44px;
-      height: 44px;
     }
     .page-tab {
       min-width: 44px;

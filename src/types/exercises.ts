@@ -20,5 +20,11 @@ export interface Exercise {
   explanation?: string;
   difficulty: number;
   metadata?: string;
+  /**
+   * Short-lived signed URL for the media attached to the statement. The API
+   * builds it from the canonical URL kept in `metadata.media_url`, which is
+   * the one that gets written back on edit.
+   */
+  media_view_url?: string;
   created_at: string;
 }

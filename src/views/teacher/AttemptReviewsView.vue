@@ -3,6 +3,7 @@
   import { useToast } from "primevue/usetoast";
   import TeacherLayout from "@/layouts/TeacherLayout.vue";
   import FileViewer from "@/components/ui/FileViewer.vue";
+  import ExerciseMedia from "@/components/ui/ExerciseMedia.vue";
   import { practiqApi } from "@/api/request/server";
   import { AttemptReviewService } from "@/services/attemptReviews/attemptReviewService";
   import type { AttemptReview } from "@/types";
@@ -148,6 +149,11 @@
           </header>
 
           <p class="review-question">{{ item.question }}</p>
+
+          <div v-if="item.statement_media_view_url" class="review-statement-media">
+            <span>Material del enunciado</span>
+            <ExerciseMedia :url="item.statement_media_view_url" />
+          </div>
 
           <button
             v-if="item.attachment_url"
@@ -329,6 +335,20 @@
     font-weight: 600;
   }
 
+  .review-statement-media {
+    margin: 12px 0;
+    padding: 12px;
+    border-radius: var(--radius-md);
+    background: var(--surface-bg-soft);
+    color: var(--text-secondary);
+    font-size: var(--text-sm);
+    font-weight: 700;
+  }
+
+  .review-statement-media :deep(.exercise-media) {
+    margin-bottom: 0;
+  }
+
   .review-file {
     display: inline-flex;
     align-items: center;
@@ -414,5 +434,21 @@
 
   .muted {
     color: var(--text-secondary);
+  }
+
+  @media (max-width: 640px) {
+    .review-actions {
+      flex-direction: column;
+    }
+    .review-actions > * {
+      width: 100%;
+      justify-content: center;
+      min-height: 46px;
+    }
+    /* El checkbox nativo queda muy por debajo del target de 44px. */
+    .toggle-reviewed input[type="checkbox"] {
+      width: 20px;
+      height: 20px;
+    }
   }
 </style>
