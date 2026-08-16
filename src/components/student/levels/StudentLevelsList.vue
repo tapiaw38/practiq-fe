@@ -8,9 +8,16 @@
   defineProps<StudentLevelsListProps>();
   const emit = defineEmits<StudentLevelsListEmits>();
 
-  // The server rejects an early attempt too; this only keeps the UI honest.
+  // The server rejects an out-of-window attempt too; this only keeps the UI
+  // honest. Mirrors sheetWindowState on the backend.
   const isScheduled = (sheet?: LevelSheetSummary | null) =>
     !!sheet?.scheduled_at && new Date(sheet.scheduled_at) > new Date();
+
+  const isExpired = (sheet?: LevelSheetSummary | null) =>
+    !!sheet?.available_until && new Date(sheet.available_until) < new Date();
+
+  const isClosed = (sheet?: LevelSheetSummary | null) =>
+    isScheduled(sheet) || isExpired(sheet);
 
   const formatSchedule = (value: string) =>
     new Date(value).toLocaleString("es-AR", {
@@ -109,8 +116,8 @@
           </div>
           <button
             class="lc-item lc-item--test lc-item--test-big"
-            :class="{ 'lc-item--scheduled': isScheduled(level.level_test) }"
-            :disabled="isScheduled(level.level_test)"
+            :class="{ 'lc-item--scheduled': isClosed(level.level_test) }"
+            :disabled="isClosed(level.level_test)"
             @click="emit('openLevelTest', level.level_test!)"
           >
             <div class="lc-item-info">
@@ -128,10 +135,17 @@
               >
                 <i class="pi pi-calendar-clock"></i>
                 {{ formatSchedule(level.level_test.scheduled_at) }}
+                <template v-if="level.level_test.available_until">
+                  — hasta {{ formatSchedule(level.level_test.available_until) }}
+                </template>
               </span>
             </div>
             <div class="test-cta">
-              <template v-if="isScheduled(level.level_test)">
+              <template v-if="isExpired(level.level_test)">
+                <i class="pi pi-clock"></i>
+                Plazo vencido
+              </template>
+              <template v-else-if="isScheduled(level.level_test)">
                 <i class="pi pi-lock"></i>
                 Disponible en la fecha
               </template>

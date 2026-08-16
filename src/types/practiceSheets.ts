@@ -20,6 +20,8 @@ export interface PracticeSheet {
   test_style: PracticeSheetTestStyle;
   /** UTC ISO string. Absent when the sheet can be taken at any time. */
   scheduled_at?: string;
+  /** UTC ISO string. Absent means the sheet stays open once it opens. */
+  available_until?: string;
   created_by: string;
   created_at: string;
   exercises: PracticeSheetExercise[];

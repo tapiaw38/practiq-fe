@@ -135,6 +135,7 @@
     sheet_type: "practice",
     test_style: "keyboard",
     scheduled_at: "",
+    available_until: "",
     exercise_ids: [] as string[],
   });
   const editSheetExercises = ref<Exercise[]>([]);
@@ -245,6 +246,7 @@
     test_style: "keyboard",
     // datetime-local value in the teacher's timezone; converted on submit.
     scheduled_at: "",
+    available_until: "",
     exercise_ids: [] as string[],
   });
   const newNotebook = reactive({ title: "", description: "", level: 1 });
@@ -459,6 +461,7 @@
     await createPracticeSheet(courseId, {
       ...newSheet,
       scheduled_at: toUtcISO(newSheet.scheduled_at, newSheet.sheet_type),
+      available_until: toUtcISO(newSheet.available_until, newSheet.sheet_type),
     });
     showSheetModal.value = false;
     newSheet.title = "";
@@ -467,6 +470,7 @@
     newSheet.sheet_type = "practice";
     newSheet.test_style = "keyboard";
     newSheet.scheduled_at = "";
+    newSheet.available_until = "";
     newSheet.exercise_ids = [];
     sheetExercises.value = [];
     await loadSheetsPage(courseId, 1);
@@ -519,6 +523,7 @@
     newSheet.sheet_type = "practice";
     newSheet.test_style = "keyboard";
     newSheet.scheduled_at = "";
+    newSheet.available_until = "";
     newSheet.topic_id = selectedTopicId.value;
     loadSheetExercises(newSheet.topic_id);
     showSheetModal.value = true;
@@ -528,6 +533,7 @@
     newSheet.level = level;
     newSheet.sheet_type = "level_test";
     newSheet.scheduled_at = "";
+    newSheet.available_until = "";
     newSheet.topic_id = selectedTopicId.value;
     loadSheetExercises(newSheet.topic_id);
     showSheetModal.value = true;
@@ -579,6 +585,7 @@
     editSheet.sheet_type = sheet.sheet_type || "practice";
     editSheet.test_style = sheet.test_style || "keyboard";
     editSheet.scheduled_at = toLocalInput(sheet.scheduled_at);
+    editSheet.available_until = toLocalInput(sheet.available_until);
     editSheet.exercise_ids = (sheet.exercises || []).map((e) => e.exercise.id);
     await loadEditSheetExercises(editSheet.topic_id);
     showEditSheetModal.value = true;
@@ -606,6 +613,7 @@
       sheet_type: editSheet.sheet_type,
       test_style: editSheet.test_style,
       scheduled_at: toUtcISO(editSheet.scheduled_at, editSheet.sheet_type),
+      available_until: toUtcISO(editSheet.available_until, editSheet.sheet_type),
       exercise_ids: editSheet.exercise_ids,
     });
     showEditSheetModal.value = false;
@@ -1514,6 +1522,23 @@
                   antes de esa fecha. Dejalo vacío para habilitarla siempre.
                 </small>
               </div>
+              <div
+                v-if="newSheet.sheet_type === 'level_test'"
+                class="form-group"
+              >
+                <label class="form-label">Cierre (opcional)</label>
+                <input
+                  v-model="newSheet.available_until"
+                  :min="newSheet.scheduled_at || undefined"
+                  :disabled="!newSheet.scheduled_at"
+                  type="datetime-local"
+                  class="form-input"
+                />
+                <small class="form-hint">
+                  Elegí primero la fecha de la prueba. Después de esta fecha ya
+                  no pueden rendirla; vacío queda sin plazo.
+                </small>
+              </div>
               <div class="form-group">
                 <label class="form-label">Nivel</label>
                 <input
@@ -1622,6 +1647,23 @@
                 <small class="form-hint">
                   Los alumnos reciben una notificación y no pueden rendirla
                   antes de esa fecha. Dejalo vacío para habilitarla siempre.
+                </small>
+              </div>
+              <div
+                v-if="editSheet.sheet_type === 'level_test'"
+                class="form-group"
+              >
+                <label class="form-label">Cierre (opcional)</label>
+                <input
+                  v-model="editSheet.available_until"
+                  :min="editSheet.scheduled_at || undefined"
+                  :disabled="!editSheet.scheduled_at"
+                  type="datetime-local"
+                  class="form-input"
+                />
+                <small class="form-hint">
+                  Elegí primero la fecha de la prueba. Después de esta fecha ya
+                  no pueden rendirla; vacío queda sin plazo.
                 </small>
               </div>
               <div class="form-group">

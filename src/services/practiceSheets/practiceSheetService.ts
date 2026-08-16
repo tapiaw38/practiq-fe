@@ -19,6 +19,8 @@ export interface IPracticeSheetService {
       test_style?: string;
       /** RFC 3339 UTC string; empty clears the schedule. */
       scheduled_at?: string;
+      /** RFC 3339 UTC string; empty leaves the window open. */
+      available_until?: string;
       exercise_ids: string[];
     },
   ): Promise<{ data: PracticeSheet }>;
@@ -34,6 +36,8 @@ export interface IPracticeSheetService {
       test_style?: string;
       /** RFC 3339 UTC string; empty clears the schedule. */
       scheduled_at?: string;
+      /** RFC 3339 UTC string; empty leaves the window open. */
+      available_until?: string;
       exercise_ids?: string[];
     },
   ): Promise<{ data: PracticeSheet }>;
@@ -60,6 +64,8 @@ export class PracticeSheetService implements IPracticeSheetService {
       test_style?: string;
       /** RFC 3339 UTC string; empty clears the schedule. */
       scheduled_at?: string;
+      /** RFC 3339 UTC string; empty leaves the window open. */
+      available_until?: string;
       exercise_ids: string[];
     },
   ): Promise<{ data: PracticeSheet }> {
@@ -90,6 +96,8 @@ export class PracticeSheetService implements IPracticeSheetService {
       test_style?: string;
       /** RFC 3339 UTC string; empty clears the schedule. */
       scheduled_at?: string;
+      /** RFC 3339 UTC string; empty leaves the window open. */
+      available_until?: string;
       exercise_ids?: string[];
     },
   ): Promise<{ data: PracticeSheet }> {

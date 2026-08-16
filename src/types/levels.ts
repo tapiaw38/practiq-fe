@@ -11,6 +11,8 @@ export interface LevelSheetSummary {
   test_style: PracticeSheetTestStyle;
   /** UTC ISO string. Absent when the sheet has no scheduled date. */
   scheduled_at?: string;
+  /** UTC ISO string. Absent means the sheet stays open once it opens. */
+  available_until?: string;
   exercises: number;
 }
 
