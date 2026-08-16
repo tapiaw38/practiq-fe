@@ -385,7 +385,7 @@
 
       <template v-else>
         <!-- Welcome banner -->
-        <section class="welcome-banner">
+        <section class="welcome-banner anim-rise">
           <div class="welcome-copy">
             <div class="welcome-kicker">Tu práctica de hoy</div>
             <h1 class="welcome-title">Hola, {{ firstName }}.</h1>
@@ -435,7 +435,7 @@
         </section>
 
         <!-- Metrics row -->
-        <section class="metrics-row">
+        <section class="metrics-row anim-stagger">
           <div class="metric-card">
             <div class="metric-card__icon metric-card__icon--fire">
               <img src="@/assets/burn.png" alt="" class="metric-icon-img" />
@@ -478,7 +478,7 @@
         </section>
 
         <!-- Progress section -->
-        <section v-if="groupedProgress.length > 0" class="mastery-section">
+        <section v-if="groupedProgress.length > 0" class="mastery-section anim-rise">
           <div class="section-head">
             <div>
               <div class="section-kicker">Resumen rápido</div>
@@ -486,7 +486,7 @@
             </div>
           </div>
 
-          <div class="mastery-grid">
+          <div class="mastery-grid anim-stagger">
             <article
               v-for="p in groupedProgress"
               :key="p.topic_id"

@@ -571,3 +571,39 @@ body.assistant-modal-open .floating-button {
   /* Tap target mínimo en mobile para todo botón de texto */
   .btn { min-height: 44px; }
 }
+
+/* ── Movimiento reducido ─────────────────────────────────────────────
+   Last block in the file so it wins on source order.
+
+   Kids with vestibular disorders or ADHD are a real part of this app's
+   audience, and for them background motion is hostile, not delightful.
+   When the OS asks for reduced motion, everything lands at its final state
+   immediately.
+
+   Durations go to near-zero rather than `animation: none` so anything
+   waiting on a transitionend/animationend event still fires. Delays are
+   zeroed too: a staggered element uses `backwards` fill, so a surviving
+   delay would leave it invisible until its turn came. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-delay: 0ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    transition-delay: 0ms !important;
+    scroll-behavior: auto !important;
+  }
+
+  /* A frozen spinner is a broken loading indicator, not a calmer one. It
+     keeps turning, just slower. `.pi-spin` is included because PrimeIcons
+     ships its own reduce rule that stops it dead, and it is the loader used
+     inside buttons all over the app. */
+  .spinner,
+  .spinner-violet,
+  .pi-spin {
+    animation-duration: 1.2s !important;
+    animation-iteration-count: infinite !important;
+  }
+}
