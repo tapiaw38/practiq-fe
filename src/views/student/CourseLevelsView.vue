@@ -22,6 +22,24 @@
   const courseTitle = ref("");
   const materials = ref<Material[]>([]);
 
+  // Text materials carry no file, so the "Abrir" button never shows for them
+  // and the two-line clamp left long ones unreadable. This expands in place.
+  const expanded = ref<Set<string>>(new Set());
+
+  /** Roughly two clamped lines; below that there is nothing hidden to reveal. */
+  const CLAMP_CHARS = 120;
+
+  function canExpand(material: Material) {
+    return (material.extracted_text?.length ?? 0) > CLAMP_CHARS;
+  }
+
+  function toggleExpanded(id: string) {
+    const next = new Set(expanded.value);
+    if (next.has(id)) next.delete(id);
+    else next.add(id);
+    expanded.value = next;
+  }
+
   onMounted(async () => {
     try {
       const [levelsRes, courseRes, materialsRes] = await Promise.allSettled([
@@ -165,9 +183,22 @@
             </span>
             <div class="material-body">
               <div class="material-name">{{ material.title }}</div>
-              <p v-if="material.extracted_text" class="material-text">
+              <p
+                v-if="material.extracted_text"
+                class="material-text"
+                :class="{ 'material-text--open': expanded.has(material.id) }"
+              >
                 {{ material.extracted_text }}
               </p>
+              <button
+                v-if="canExpand(material)"
+                type="button"
+                class="material-more"
+                :aria-expanded="expanded.has(material.id)"
+                @click="toggleExpanded(material.id)"
+              >
+                {{ expanded.has(material.id) ? "Ver menos" : "Ver más" }}
+              </button>
             </div>
             <button
               v-if="material.file_url"
@@ -251,6 +282,23 @@
     line-clamp: 2;
     -webkit-box-orient: vertical;
     overflow: hidden;
+  }
+  .material-text--open {
+    display: block;
+    -webkit-line-clamp: none;
+    line-clamp: none;
+    overflow: visible;
+  }
+  .material-more {
+    margin-top: 4px;
+    padding: 4px 0;
+    min-height: 32px;
+    border: none;
+    background: none;
+    color: var(--practiq-violet);
+    font-size: var(--text-sm);
+    font-weight: 700;
+    cursor: pointer;
   }
   .material-open {
     display: inline-flex;

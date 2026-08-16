@@ -82,6 +82,17 @@
     lastPos.value = pos;
   }
 
+  // Every stroke emits the canvas back to the parent, which writes it into the
+  // prop. Without remembering what we sent, the watcher below treats our own
+  // echo as an external change, reloads the image and wipes the undo stack —
+  // so undo only ever went back one stroke.
+  let lastEmitted = "";
+
+  function emitCanvas(value: string) {
+    lastEmitted = value;
+    emit("update:modelValue", value);
+  }
+
   function stopDrawing() {
     if (!isDrawing.value) return;
     isDrawing.value = false;
@@ -90,7 +101,7 @@
     const ctx = canvas.getContext("2d")!;
     ctx.globalCompositeOperation = "source-over"; // Reset after eraser
     ctx.beginPath();
-    emit("update:modelValue", canvas.toDataURL("image/png"));
+    emitCanvas(canvas.toDataURL("image/png"));
   }
 
   function startDrawingTouch(e: TouchEvent) {
@@ -114,7 +125,7 @@
     const ctx = canvas?.getContext("2d");
     if (!ctx || !canvas || undoStack.value.length === 0) return;
     ctx.putImageData(undoStack.value.pop()!, 0, 0);
-    emit("update:modelValue", canvas.toDataURL("image/png"));
+    emitCanvas(canvas.toDataURL("image/png"));
   }
 
   function clear() {
@@ -123,14 +134,22 @@
     const ctx = canvas.getContext("2d")!;
     undoStack.value = [];
     ctx.clearRect(0, 0, canvas.width, canvas.height);
-    emit("update:modelValue", "");
+    emitCanvas("");
   }
+
+  // Bumped on every load request so a slow image that resolves after a newer
+  // one cannot paint over it.
+  let loadToken = 0;
 
   watch(
     () => props.modelValue,
     (newVal, oldVal) => {
       const canvas = canvasRef.value;
       if (!canvas) return;
+      // Our own echo: the canvas already shows this, and reloading it would
+      // throw away the undo history.
+      if (newVal === lastEmitted) return;
+
       const ctx = canvas.getContext("2d")!;
       ctx.globalCompositeOperation = "source-over"; // Ensure normal mode
 
@@ -140,8 +159,10 @@
         undoStack.value = [];
       } else if (newVal !== oldVal && newVal.startsWith("data:image/")) {
         // Load new image when modelValue changes
+        const token = ++loadToken;
         const img = new Image();
         img.onload = () => {
+          if (token !== loadToken) return;
           ctx.globalCompositeOperation = "source-over"; // Ensure normal mode
           ctx.clearRect(0, 0, canvas.width, canvas.height);
           ctx.drawImage(img, 0, 0, canvas.width, canvas.height);

@@ -1,6 +1,7 @@
 <script setup lang="ts">
   import { ref, computed, onMounted, onUnmounted } from "vue";
   import { useRoute, useRouter } from "vue-router";
+  import { useToast } from "primevue/usetoast";
   import { useAuthStore } from "@/stores/authStore";
   import StudentLayout from "@/layouts/StudentLayout.vue";
   import Skeleton from "@/components/ui/Skeleton.vue";
@@ -43,6 +44,7 @@
     randomMessage,
   } from "@/utils/motivationalMessages";
 
+  const toast = useToast();
   const route = useRoute();
   const router = useRouter();
   const authStore = useAuthStore();
@@ -67,6 +69,17 @@
   >({});
   const keyboardAnswers = ref<Record<string, string>>({});
   const attachments = ref<Record<string, UploadedFile | null>>({});
+
+  // Ids with an upload still in flight; submitting now would deliver the
+  // exercise without its file.
+  const uploadingAttachments = ref<Set<string>>(new Set());
+
+  function setUploading(exerciseId: string, value: boolean) {
+    const next = new Set(uploadingAttachments.value);
+    if (value) next.add(exerciseId);
+    else next.delete(exerciseId);
+    uploadingAttachments.value = next;
+  }
 
   function setAttachment(exerciseId: string, value: UploadedFile | null) {
     attachments.value = { ...attachments.value, [exerciseId]: value };
@@ -242,6 +255,12 @@
     const exercise = sheet.value?.exercises?.find(
       (pse) => pse.exercise.id === exerciseId,
     )?.exercise;
+    // An uploaded file is an answer: without this the exercise stayed marked
+    // as pending and the student got warned about unanswered work they had
+    // already delivered.
+    if (exercise?.type === "attachment") {
+      return !!attachments.value[exerciseId];
+    }
     if (exercise && exerciseUsesCanvas(exercise.type)) {
       return !!answers.value[exerciseId]?.answer;
     }
@@ -258,7 +277,19 @@
     }
   }
 
+  // Types with their own answer widget are never drawn on, not even in a
+  // canvas-style sheet. Without this the submit path treated a fill_blanks or
+  // attachment answer as a drawing and sent an empty answer_text, discarding
+  // what the student had already completed.
+  const OWN_INPUT_TYPES = new Set([
+    "multiple_choice",
+    "fill_blanks",
+    "attachment",
+    "equation",
+  ]);
+
   function exerciseUsesCanvas(exerciseType: string) {
+    if (OWN_INPUT_TYPES.has(exerciseType)) return false;
     return (
       isCanvasMode.value ||
       exerciseType === "handwritten" ||
@@ -323,6 +354,16 @@
   }
 
   async function submitAnswers() {
+    if (uploadingAttachments.value.size > 0) {
+      toast.add({
+        severity: "warn",
+        summary: "Esperá un momento",
+        detail: "Todavía se está subiendo un archivo. Se enviaría sin él.",
+        life: 3500,
+      });
+      return;
+    }
+
     submitting.value = true;
     showSubmitConfirm.value = false;
     loadingMessage.value = getNextCuriosity();
@@ -434,7 +475,14 @@
 
     const draftData: Record<
       string,
-      { canvasData: string; keyboardAnswer: string; timestamp: number }
+      {
+        canvasData: string;
+        keyboardAnswer: string;
+        // The uploaded file itself already lives in storage; keeping its
+        // metadata is enough to restore the answer after a reload.
+        attachment: UploadedFile | null;
+        timestamp: number;
+      }
     > = {};
 
     for (const pse of sheet.value.exercises || []) {
@@ -442,6 +490,7 @@
       draftData[exerciseId] = {
         canvasData: answers.value[exerciseId]?.answer || "",
         keyboardAnswer: keyboardAnswers.value[exerciseId] || "",
+        attachment: attachments.value[exerciseId] ?? null,
         timestamp: Date.now(),
       };
     }
@@ -507,6 +556,10 @@
             ...answers.value[exerciseId],
             answer: draft.canvasData,
           };
+        }
+
+        if (draft.attachment?.url) {
+          setAttachment(exerciseId, draft.attachment);
         }
       }
 
@@ -1038,6 +1091,7 @@
                       @update:model-value="
                         (value) => setAttachment(pse.exercise.id, value)
                       "
+                      @update:uploading="(v: boolean) => setUploading(pse.exercise.id, v)"
                     />
                   </div>
 
@@ -1195,14 +1249,14 @@
               <div class="modal-actions">
                 <button
                   class="btn btn-secondary"
-                  :disabled="submitting"
+                  :disabled="submitting || uploadingAttachments.size > 0"
                   @click="closeSubmitConfirm()"
                 >
                   Cancelar
                 </button>
                 <button
                   class="btn btn-primary"
-                  :disabled="submitting"
+                  :disabled="submitting || uploadingAttachments.size > 0"
                   @click="submitAnswers"
                 >
                   Enviar respuestas

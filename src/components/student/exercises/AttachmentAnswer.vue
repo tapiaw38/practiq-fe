@@ -1,5 +1,5 @@
 <script setup lang="ts">
-  import { computed, onUnmounted, ref } from "vue";
+  import { computed, onUnmounted, ref, watch } from "vue";
   import { useToast } from "primevue/usetoast";
   import { practiqApi } from "@/api/request/server";
   import { UploadService } from "@/services/uploads/uploadService";
@@ -13,6 +13,7 @@
   }>();
   const emit = defineEmits<{
     (e: "update:modelValue", value: UploadedFile | null): void;
+    (e: "update:uploading", value: boolean): void;
   }>();
 
   const toast = useToast();
@@ -20,8 +21,15 @@
 
   const fileInput = ref<HTMLInputElement | null>(null);
   const uploading = ref(false);
+
   const recording = ref(false);
   const recordedSeconds = ref(0);
+
+  // Recording has no uploaded file yet either. Keep the parent blocked from
+  // the moment recording starts until its resulting audio upload finishes.
+  watch([uploading, recording], () => {
+    emit("update:uploading", uploading.value || recording.value);
+  });
 
   let mediaRecorder: MediaRecorder | null = null;
   let chunks: Blob[] = [];
@@ -102,11 +110,13 @@
       if (event.data.size) chunks.push(event.data);
     };
     mediaRecorder.onstop = async () => {
-      recording.value = false;
       stopTracks();
       const type = mediaRecorder?.mimeType || "audio/webm";
       const blob = new Blob(chunks, { type });
       if (blob.size) await upload(blob, "grabacion.webm");
+      // `upload()` becomes busy before its first await, so this transition
+      // never briefly enables submission between recording and upload.
+      recording.value = false;
     };
 
     mediaRecorder.start();

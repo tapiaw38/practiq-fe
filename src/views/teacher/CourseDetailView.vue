@@ -36,6 +36,7 @@
   import {
     buildCorrectAnswer,
     buildOptions,
+    pruneFillBlanks,
     parseFillBlanksConfig,
     validateFillBlanks,
     type FillBlanksConfig,
@@ -226,6 +227,7 @@
   }
 
   async function saveMaterial() {
+    if (uploadInFlight(editMaterialUpload)) return;
     await updateMaterialService(editMaterial.id, {
       title: editMaterial.title,
       extracted_text: editMaterial.extracted_text,
@@ -395,7 +397,35 @@
     resetExerciseForm(newExercise);
   }
 
+  const newMaterialUpload = ref<InstanceType<typeof FileUploadField> | null>(null);
+  const editMaterialUpload = ref<InstanceType<typeof FileUploadField> | null>(null);
+
+  /**
+   * Saving mid-upload stored a material with an empty file_url — listed for
+   * the student but impossible to open.
+   */
+  function uploadInFlight(field: typeof newMaterialUpload) {
+    if (!field.value?.uploading) return false;
+    toast.add({
+      severity: "warn",
+      summary: "Esperá un momento",
+      detail: "El archivo se está subiendo todavía.",
+      life: 3500,
+    });
+    return true;
+  }
+
+  // Switching the type only hides the upload field; without this the URL of a
+  // file picked under the previous type stays in the form and gets saved, so a
+  // text material ends up carrying a file the student is offered to open.
+  // Only the create form can change type — editing keeps whatever it was.
+  watch(
+    () => newMaterial.type,
+    () => (newMaterial.file_url = ""),
+  );
+
   async function createMaterial() {
+    if (uploadInFlight(newMaterialUpload)) return;
     await createMaterialService(courseId, { ...newMaterial });
     showMaterialModal.value = false;
     newMaterial.title = "";
@@ -713,11 +743,12 @@
     const rest = { ...parsed };
     delete rest.options;
     if (form.type === "fill_blanks") {
+      const config = pruneFillBlanks(form.fillBlanks, form.question);
       return JSON.stringify({
         ...rest,
-        blanks: form.fillBlanks.blanks,
-        options: buildOptions(form.fillBlanks),
-        layout: form.fillBlanks.layout,
+        blanks: config.blanks,
+        options: buildOptions(config),
+        layout: config.layout,
       });
     }
     if (form.type === "attachment") {
@@ -748,7 +779,7 @@
       type: form.type,
       correct_answer:
         form.type === "fill_blanks"
-          ? buildCorrectAnswer(form.fillBlanks.blanks)
+          ? buildCorrectAnswer(pruneFillBlanks(form.fillBlanks, form.question).blanks)
           : form.correct_answer,
       explanation: form.explanation,
       difficulty: form.difficulty,
@@ -1260,6 +1291,7 @@
               <div v-if="newMaterial.type !== 'text'" class="form-group">
                 <label class="form-label">Archivo *</label>
                 <FileUploadField
+                  ref="newMaterialUpload"
                   v-model="newMaterial.file_url"
                   folder="materials"
                   label="Subir archivo"
@@ -1326,6 +1358,7 @@
               <div v-if="editMaterial.type !== 'text'" class="form-group">
                 <label class="form-label">Archivo *</label>
                 <FileUploadField
+                  ref="editMaterialUpload"
                   v-model="editMaterial.file_url"
                   folder="materials"
                   label="Reemplazar archivo"

@@ -41,9 +41,18 @@
     if (saving.value) return;
     saving.value = item.attempt_id;
     try {
+      const feedbackWasEdited = Object.prototype.hasOwnProperty.call(
+        feedback.value,
+        item.attempt_id,
+      );
+      // A blank field means "unchanged" until the teacher edits it. Sending
+      // undefined reached Go as an empty string and erased prior feedback.
+      const feedbackValue = feedbackWasEdited
+        ? feedback.value[item.attempt_id].trim()
+        : (item.teacher_feedback ?? "");
       await service.review(item.attempt_id, {
         is_correct: isCorrect,
-        feedback: feedback.value[item.attempt_id]?.trim() || undefined,
+        feedback: feedbackValue,
       });
       toast.add({
         severity: "success",
@@ -177,35 +186,43 @@
             </small>
           </div>
 
-          <template v-if="!item.teacher_reviewed_at">
-            <textarea
-              v-model="feedback[item.attempt_id]"
-              class="review-feedback"
-              rows="2"
-              placeholder="Devolución para el alumno (opcional)"
-            ></textarea>
-            <div class="review-actions">
-              <button
-                class="btn btn-ghost btn-danger"
-                type="button"
-                :disabled="saving === item.attempt_id"
-                @click="review(item, false)"
-              >
-                <i class="pi pi-times"></i> Incorrecta
-              </button>
-              <button
-                class="btn btn-primary"
-                type="button"
-                :disabled="saving === item.attempt_id"
-                @click="review(item, true)"
-              >
-                <i class="pi pi-check"></i> Correcta
-              </button>
-            </div>
-          </template>
-          <p v-else-if="item.teacher_feedback" class="review-teacher-feedback">
+          <p v-if="item.teacher_feedback" class="review-teacher-feedback">
             {{ item.teacher_feedback }}
           </p>
+
+          <!-- Also shown once reviewed: the page promises the teacher can
+               change the grade whenever they want, and hiding the buttons
+               after the first correction made that untrue. -->
+          <textarea
+            v-model="feedback[item.attempt_id]"
+            class="review-feedback"
+            rows="2"
+            :placeholder="
+              item.teacher_reviewed_at
+                ? 'Cambiar la devolución (opcional)'
+                : 'Devolución para el alumno (opcional)'
+            "
+          ></textarea>
+          <div class="review-actions">
+            <button
+              class="btn btn-ghost btn-danger"
+              type="button"
+              :disabled="saving === item.attempt_id"
+              @click="review(item, false)"
+            >
+              <i class="pi pi-times"></i>
+              {{ item.teacher_reviewed_at ? "Marcar incorrecta" : "Incorrecta" }}
+            </button>
+            <button
+              class="btn btn-primary"
+              type="button"
+              :disabled="saving === item.attempt_id"
+              @click="review(item, true)"
+            >
+              <i class="pi pi-check"></i>
+              {{ item.teacher_reviewed_at ? "Marcar correcta" : "Correcta" }}
+            </button>
+          </div>
         </article>
       </div>
     </div>

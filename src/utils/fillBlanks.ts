@@ -176,6 +176,21 @@ export function buildFillBlanksAssistantContext(
   };
 }
 
+/**
+ * Drops blanks whose marker is no longer in the statement. Removing a `{{n}}`
+ * leaves its entry behind in the config, and nothing else catches it:
+ * `validateFillBlanks` only checks that every statement id has an answer, not
+ * that every stored blank still exists. The leftovers ended up in the correct
+ * answer and in the option pool as a choice that matched no blank.
+ */
+export function pruneFillBlanks(
+  config: FillBlanksConfig,
+  statement: string,
+): FillBlanksConfig {
+  const ids = new Set(blankIdsIn(statement));
+  return { ...config, blanks: config.blanks.filter((blank) => ids.has(blank.id)) };
+}
+
 export function buildCorrectAnswer(blanks: FillBlank[]): string {
   const placements: Record<number, string> = {};
   for (const blank of blanks) {

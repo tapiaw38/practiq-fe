@@ -625,12 +625,20 @@
     };
   }
 
+  /**
+   * The grade to tell the assistant the student is in. Taking `courses[0]`
+   * asserted the first course's grade for every question, which is wrong as
+   * soon as the student is enrolled across grades. When they disagree there is
+   * no right answer, so it says nothing rather than something false — the
+   * prompt just drops the grade line.
+   */
   function getStudentGrade(): string {
-    const ctx = props.studentContext;
-    if (ctx?.courses?.length) {
-      return ctx.courses[0].grade || "";
-    }
-    return "";
+    const grades = new Set(
+      (props.studentContext?.courses ?? [])
+        .map((course) => course.grade)
+        .filter(Boolean),
+    );
+    return grades.size === 1 ? [...grades][0] : "";
   }
 
   function buildContext(): string {

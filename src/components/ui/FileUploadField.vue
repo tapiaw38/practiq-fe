@@ -24,6 +24,10 @@
 
   const input = ref<HTMLInputElement | null>(null);
   const uploading = ref(false);
+
+  // The parent form has to know: saving mid-upload stored a material with an
+  // empty file_url, which the student sees listed but cannot open.
+  defineExpose({ uploading });
   const uploadedName = ref("");
   // The bucket is private: only the signed URL the upload returns is openable.
   // ponytail: an existing value (editing) has no signed URL, so it only shows

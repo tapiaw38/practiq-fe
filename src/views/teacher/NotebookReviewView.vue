@@ -61,13 +61,17 @@
     return result;
   });
 
+  /** Any of these is enough to query the server; a course is not required. */
+  const hasScope = () =>
+    !!(filters.courseId || filters.gradeId || filters.subjectId);
+
   onMounted(async () => {
     await Promise.all([
       loadCoursesData(),
       loadGrades(),
       loadSubjects(),
     ]);
-    if (filters.courseId || filters.gradeId || filters.subjectId) {
+    if (hasScope()) {
       if (filters.courseId) {
         await loadStudentsForCourse();
       }
@@ -84,7 +88,11 @@
         clearTimeout(searchDebounceTimer);
       }
       searchDebounceTimer = setTimeout(() => {
-        if (filters.courseId) {
+        // Searching swaps to the unpaginated set and hides the pager, so this
+        // has to refetch for every scope. Limiting it to courseId left a
+        // grade- or subject-scoped search filtering only the loaded page,
+        // with matches on later pages unreachable and no sign they existed.
+        if (hasScope()) {
           loadSubmissions(1);
         }
       }, 300);
@@ -101,8 +109,11 @@
   }
 
   async function loadSubmissions(page = 1) {
-    if (!filters.courseId && !filters.gradeId && !filters.subjectId) {
+    if (!hasScope()) {
       submissions.value = [];
+      // Clearing the filters emptied the list but left the counter wherever
+      // the teacher had paged to, so the next scope opened on a stale page.
+      submissionsPage.value = 1;
       loading.value = false;
       return;
     }

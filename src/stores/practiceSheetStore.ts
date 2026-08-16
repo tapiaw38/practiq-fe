@@ -26,23 +26,41 @@ export const usePracticeSheetStore = (service: IPracticeSheetService) =>
       params?: { limit?: number; offset?: number },
     ) => {
       loading.value = true;
+      // No limit means "everything for this course" (the dashboard and the
+      // progress view rely on it); only a paged call gets the probe row.
+      const limit = params?.limit;
       try {
-        const response = await service.list(courseId, params);
-        practiceSheets.value = response.data;
-        hasMore.value = response.data.length >= (params?.limit ?? pageSize.value);
-        return response.data;
+        const response = await service.list(
+          courseId,
+          limit ? { ...params, limit: limit + 1 } : params,
+        );
+        if (!limit) {
+          practiceSheets.value = response.data;
+          hasMore.value = false;
+          return response.data;
+        }
+        // One row past the page: a full page is not proof there is a next one,
+        // and `length >= limit` lit up "Siguiente" on an exact multiple,
+        // sending the user to an empty page.
+        const page = response.data.slice(0, limit);
+        practiceSheets.value = page;
+        hasMore.value = response.data.length > limit;
+        return page;
       } finally {
         loading.value = false;
       }
     };
 
     const loadPage = async (courseId: string, page: number) => {
-      currentPage.value = page;
       const offset = (page - 1) * pageSize.value;
-      return fetchPracticeSheets(courseId, {
+      const data = await fetchPracticeSheets(courseId, {
         limit: pageSize.value,
         offset,
       });
+      // Only after the fetch resolves: advancing first left the counter on a
+      // page whose rows never loaded when the request failed.
+      currentPage.value = page;
+      return data;
     };
 
     const nextPage = async (courseId: string) => {
