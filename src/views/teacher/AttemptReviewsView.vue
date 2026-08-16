@@ -186,9 +186,7 @@
           <div class="page-kicker">Corrección</div>
           <h1 class="page-title">Entregas por revisar</h1>
           <p class="page-subtitle">
-            La IA corrige las entregas que puede leer para que el alumno siga
-            practicando. Acá ves las que no pudo corregir. Podés cambiar la nota
-            de una ya corregida cuando quieras.
+            Las que la IA no pudo corregir. Podés cambiar cualquier nota después.
           </p>
         </div>
       </div>
