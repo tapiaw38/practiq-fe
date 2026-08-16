@@ -913,11 +913,31 @@
       width: 100%;
       justify-content: center;
     }
+    /* Racha and Aciertos stay side by side: they are two short numbers, and
+       one per row pushed the courses off the first screen. The goal card keeps
+       the full width because it carries a progress bar. */
     .metrics-row {
-      grid-template-columns: 1fr;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
     }
     .metric-card--goal {
-      grid-column: auto;
+      grid-column: 1 / -1;
+    }
+    .metric-card {
+      gap: 10px;
+      padding: 14px;
+      min-width: 0;
+    }
+    .metric-card__icon {
+      width: 38px;
+      height: 38px;
+      font-size: 18px;
+    }
+    /* The label is the part that would overflow a half-width card. */
+    .metric-card__label {
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
     }
     .mastery-grid {
       grid-template-columns: 1fr;
