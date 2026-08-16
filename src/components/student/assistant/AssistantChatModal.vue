@@ -288,55 +288,24 @@
 
             <!-- Input row -->
             <div class="acm-input-area">
-              <!-- ORAL: big mic button -->
-              <template v-if="mode === 'oral'">
-                <div class="acm-oral-input">
-                  <button
-                    class="acm-mic-big"
-                    :class="{ 'acm-mic-big--recording': isRecording }"
-                    :disabled="responding"
-                    @mousedown.prevent="startRecording"
-                    @mouseup.prevent="stopRecording"
-                    @touchstart.prevent="startRecording"
-                    @touchend.prevent="stopRecording"
-                    @mouseleave="isRecording ? stopRecording() : undefined"
-                  >
-                    <i
-                      :class="
-                        isRecording ? 'pi pi-stop-circle' : 'pi pi-microphone'
-                      "
-                    ></i>
-                  </button>
-                  <p class="acm-oral-tip">
-                    {{
-                      isRecording
-                        ? "🔴 Grabando… suelta para enviar"
-                        : "Mantén presionado para grabar"
-                    }}
-                  </p>
-                </div>
-              </template>
+              <textarea
+                ref="inputEl"
+                v-model="draft"
+                class="acm-textarea"
+                :placeholder="inputPlaceholder"
+                rows="1"
+                :disabled="responding"
+                @keydown.enter.exact.prevent="sendText"
+                @input="autoResize"
+              ></textarea>
 
-              <!-- ESCRITA / PIZARRÓN-idle: textarea + buttons -->
-              <template v-else>
-                <textarea
-                  ref="inputEl"
-                  v-model="draft"
-                  class="acm-textarea"
-                  :placeholder="inputPlaceholder"
-                  rows="1"
-                  :disabled="responding"
-                  @keydown.enter.exact.prevent="sendText"
-                  @input="autoResize"
-                ></textarea>
-
+              <template v-if="!draft.trim()">
                 <button
-                  v-if="mode === 'pizarron'"
                   class="acm-send acm-send--mic"
                   :class="{ 'acm-send--recording': isRecording }"
                   :disabled="responding"
-                  title="Mantén presionado para decir el tema"
-                  aria-label="Grabar el tema con la voz"
+                  title="Mantén presionado para grabar audio"
+                  aria-label="Grabar mensaje de audio"
                   @mousedown.prevent="startRecording"
                   @mouseup.prevent="stopRecording"
                   @touchstart.prevent="startRecording"
@@ -349,7 +318,9 @@
                     "
                   ></i>
                 </button>
+              </template>
 
+              <template v-else>
                 <button
                   class="acm-send"
                   :disabled="!draft.trim() || responding"
@@ -489,7 +460,7 @@
   const inputPlaceholder = computed(() =>
     mode.value === "pizarron"
       ? "¿Qué tema quieres practicar? (ej: ecuaciones de segundo grado)"
-      : "Escribe tu pregunta… (Enter para enviar)",
+      : "Escribe o mantén el micrófono para hablar…",
   );
 
   // Helpers
