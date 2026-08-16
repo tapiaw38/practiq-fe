@@ -269,12 +269,32 @@
 
   function setActiveExercise(exerciseId: string, idx: number) {
     currentIdx.value = idx;
-    window.dispatchEvent(new CustomEvent("practiq:assistant:active-context", { detail: { label: `E${idx + 1}` } }));
-    if (
-      exerciseUsesCanvas(sheet.value?.exercises?.[idx]?.exercise.type || "")
-    ) {
-      activeCanvasId.value = exerciseId;
-    }
+    // Clearing matters as much as setting: this only ever got assigned on
+    // canvas exercises and was never reset, so after visiting a canvas one it
+    // kept winning inside getAssistantExerciseId(). Selecting a text exercise
+    // then showed "E3" while the assistant was handed E1.
+    activeCanvasId.value = exerciseUsesCanvas(
+      sheet.value?.exercises?.[idx]?.exercise.type || "",
+    )
+      ? exerciseId
+      : "";
+    publishAssistantLabel();
+  }
+
+  /**
+   * The badge and the context the assistant receives must come from the same
+   * resolver. They used to be computed independently — the label from the
+   * clicked index, the context from getAssistantExerciseId() — and any
+   * disagreement between them showed up as the assistant explaining a
+   * different exercise than the one it named.
+   */
+  function publishAssistantLabel() {
+    const index = getAssistantExerciseIndex(getAssistantExerciseId());
+    window.dispatchEvent(
+      new CustomEvent("practiq:assistant:active-context", {
+        detail: { label: index >= 0 ? `E${index + 1}` : "" },
+      }),
+    );
   }
 
   // Types with their own answer widget are never drawn on, not even in a
@@ -645,16 +665,21 @@
   }
 
   function getAssistantExerciseId() {
+    // What the student currently has selected wins. The fallbacks below used
+    // to come first, so "the first exercise with a drawing" (usually E1) beat
+    // the actual selection and the assistant explained the wrong one.
+    const selected = sheet.value?.exercises?.[currentIdx.value]?.exercise.id;
+    if (selected) return selected;
+
     if (activeCanvasId.value) {
       return activeCanvasId.value;
     }
 
-    const answeredId = Object.entries(answers.value).find(([, data]) =>
-      data.answer?.startsWith("data:image/"),
-    )?.[0];
-    if (answeredId) return answeredId;
-
-    return sheet.value?.exercises?.[currentIdx.value]?.exercise.id || "";
+    return (
+      Object.entries(answers.value).find(([, data]) =>
+        data.answer?.startsWith("data:image/"),
+      )?.[0] || ""
+    );
   }
 
   function getAssistantExerciseIndex(exerciseId: string) {
