@@ -160,6 +160,12 @@
       }
       lastEmitted = null;
 
+      // Bumped on every external change, not just when loading an image: the
+      // clearing branch used to leave the token untouched, so an image still
+      // decoding from the previous page passed its check and painted itself
+      // onto the empty page the student had just switched to.
+      const token = ++loadToken;
+
       const ctx = canvas.getContext("2d")!;
       ctx.globalCompositeOperation = "source-over"; // Ensure normal mode
 
@@ -169,7 +175,6 @@
         undoStack.value = [];
       } else if (newVal !== oldVal && newVal.startsWith("data:image/")) {
         // Load new image when modelValue changes
-        const token = ++loadToken;
         const img = new Image();
         img.onload = () => {
           if (token !== loadToken) return;

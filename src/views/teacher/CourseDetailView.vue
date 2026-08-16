@@ -454,6 +454,20 @@
     return Number.isNaN(parsed.getTime()) ? "" : parsed.toISOString();
   }
 
+  /**
+   * A closing date only means anything alongside an opening one. Clearing the
+   * start disables the input but left its value in the form, so the sheet was
+   * saved as "habilitada siempre" and students hit isExpired anyway.
+   */
+  function closingUtcISO(form: {
+    scheduled_at: string;
+    available_until: string;
+    sheet_type: string;
+  }) {
+    if (!form.scheduled_at) return "";
+    return toUtcISO(form.available_until, form.sheet_type);
+  }
+
   function toLocalInput(isoValue?: string) {
     if (!isoValue) return "";
     const date = new Date(isoValue);
@@ -466,7 +480,7 @@
     await createPracticeSheet(courseId, {
       ...newSheet,
       scheduled_at: toUtcISO(newSheet.scheduled_at, newSheet.sheet_type),
-      available_until: toUtcISO(newSheet.available_until, newSheet.sheet_type),
+      available_until: closingUtcISO(newSheet),
     });
     showSheetModal.value = false;
     newSheet.title = "";
@@ -618,7 +632,7 @@
       sheet_type: editSheet.sheet_type,
       test_style: editSheet.test_style,
       scheduled_at: toUtcISO(editSheet.scheduled_at, editSheet.sheet_type),
-      available_until: toUtcISO(editSheet.available_until, editSheet.sheet_type),
+      available_until: closingUtcISO(editSheet),
       exercise_ids: editSheet.exercise_ids,
     });
     showEditSheetModal.value = false;
