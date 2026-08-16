@@ -201,17 +201,55 @@
 /* Progress bar */
 .progress-bar {
   height: 8px;
-  background: var(--surface-hover);
+  /* Un poco mas oscuro que --surface-hover: sobre una tarjeta clara ese gris
+     casi no se distinguia del fondo y la barra vacia no se leia. */
+  background: rgba(var(--surface-border-rgb), 0.35);
   border-radius: 100px;
   overflow: hidden;
 }
 
 .progress-fill {
   height: 100%;
-  background: linear-gradient(90deg, var(--practiq-violet), var(--practiq-violet-light));
+  /* Arranca en el violeta oscuro: el gradiente hacia el claro perdia contra
+     el track en los primeros porcentajes, justo donde mas importa leerlo. */
+  background: linear-gradient(90deg, var(--practiq-violet-dark), var(--practiq-violet));
   border-radius: 100px;
   transition: width 0.5s ease;
+  /* Grows from empty on first paint so progress reads as something earned.
+     scaleX instead of width: the width is set inline per component, and
+     transform composites without triggering layout on every frame. */
+  transform-origin: left;
+  animation: progress-grow 700ms cubic-bezier(0.22, 0.61, 0.36, 1);
 }
+
+@keyframes progress-grow {
+  from { transform: scaleX(0); }
+}
+
+/* ── Entrada escalonada ──────────────────────────────────────────────
+   `.anim-stagger` on a container fades its direct children in one after
+   another. `.anim-rise` does the same for a single element.
+   `backwards` fill is what makes the delay work: without it every element
+   paints fully visible and then jumps to opacity 0 when its turn starts. */
+@keyframes rise-in {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+}
+
+.anim-rise,
+.anim-stagger > * {
+  animation: rise-in 380ms cubic-bezier(0.22, 0.61, 0.36, 1) backwards;
+}
+
+/* Past the 6th child the cascade stops paying off and just delays content. */
+.anim-stagger > *:nth-child(1) { animation-delay: 0ms; }
+.anim-stagger > *:nth-child(2) { animation-delay: 60ms; }
+.anim-stagger > *:nth-child(3) { animation-delay: 120ms; }
+.anim-stagger > *:nth-child(4) { animation-delay: 180ms; }
+.anim-stagger > *:nth-child(5) { animation-delay: 240ms; }
+.anim-stagger > *:nth-child(n + 6) { animation-delay: 300ms; }
 
 /* Utility */
 .text-muted { color: var(--text-muted); }
