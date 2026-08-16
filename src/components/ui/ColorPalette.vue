@@ -244,8 +244,22 @@
       height: 34px;
     }
 
+    /* Anchoring to the trigger (right: 0) pushed the panel off the left edge
+       whenever the toolbar sits near the side of the screen, so it opened
+       half out of view. On a phone it becomes a sheet pinned to both edges:
+       it cannot be clipped wherever the trigger happens to be. */
     .pop {
-      grid-template-columns: repeat(5, 1fr);
+      position: fixed;
+      left: 12px;
+      right: 12px;
+      bottom: 12px;
+      top: auto;
+      width: auto;
+      max-width: none;
+      grid-template-columns: repeat(auto-fit, minmax(34px, 1fr));
+      justify-items: center;
+      padding: 14px;
+      z-index: 60;
     }
 
     /* Compact belongs to a dense canvas toolbar. Use the real visible button

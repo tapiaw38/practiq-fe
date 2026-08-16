@@ -328,7 +328,9 @@
   box-shadow: var(--shadow-lg);
   padding: 32px;
   width: 100%;
-  max-width: 480px;
+  /* 480px left forms taller than wide, and squeezed a two-column .form-row
+     into ~200px per field. */
+  max-width: 560px;
   max-height: 90vh;
   overflow-y: auto;
 }
