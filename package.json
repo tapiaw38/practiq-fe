@@ -4,7 +4,8 @@
   "private": true,
   "scripts": {
     "dev": "vite",
-    "build": "vue-tsc -b && vite build",
+    "check:css-tokens": "node scripts/check-css-tokens.mjs",
+    "build": "npm run check:css-tokens && vue-tsc -b && vite build",
     "preview": "vite preview"
   },
   "dependencies": {

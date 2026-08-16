@@ -5,6 +5,8 @@ export interface AttemptReview {
   exercise_id: string;
   question: string;
   exercise_type: string;
+  /** Signed statement image/audio that requires manual correction. */
+  statement_media_view_url?: string;
   practice_sheet_id?: string;
   practice_sheet_title?: string;
   sheet_type?: string;

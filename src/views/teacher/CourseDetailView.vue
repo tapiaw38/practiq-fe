@@ -1155,7 +1155,7 @@
                 />
                 <small class="field-hint">
                   Opcional. El alumno y el asistente lo reciben junto a la
-                  consigna. Máximo 20 MB.
+                  consigna. Máximo 50 MB.
                 </small>
               </div>
               <div class="form-group">
@@ -1766,7 +1766,7 @@
                 />
                 <small class="field-hint">
                   Opcional. El alumno y el asistente lo reciben junto a la
-                  consigna. Máximo 20 MB.
+                  consigna. Máximo 50 MB.
                 </small>
               </div>
               <div class="form-group">
