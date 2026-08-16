@@ -25,9 +25,22 @@
   const input = ref<HTMLInputElement | null>(null);
   const uploading = ref(false);
 
+  // Bumped to disown an upload still in flight. Clearing the URL is not
+  // enough: the request keeps going and its late result would emit a file
+  // that belongs to the previous type, so a material could be saved as an
+  // image carrying a PDF.
+  let uploadGeneration = 0;
+
+  function cancelUpload() {
+    uploadGeneration += 1;
+    uploading.value = false;
+    uploadedName.value = "";
+    previewUrl.value = "";
+  }
+
   // The parent form has to know: saving mid-upload stored a material with an
   // empty file_url, which the student sees listed but cannot open.
-  defineExpose({ uploading });
+  defineExpose({ uploading, cancelUpload });
   const uploadedName = ref("");
   // The bucket is private: only the signed URL the upload returns is openable.
   // ponytail: an existing value (editing) has no signed URL, so it only shows
@@ -41,18 +54,22 @@
     if (!file) return;
 
     uploading.value = true;
+    const generation = ++uploadGeneration;
     try {
       const uploaded = await service.upload(file, file.name, props.folder);
+      // Disowned while it was in flight: dropping the result is the point.
+      if (generation !== uploadGeneration) return;
       uploadedName.value = uploaded.filename;
       previewUrl.value = uploaded.preview_url ?? "";
       emit("update:modelValue", uploaded.url);
     } catch (error) {
+      if (generation !== uploadGeneration) return;
       const message =
         (error as { response?: { data?: { message?: string } } })?.response?.data
           ?.message ?? "No se pudo subir el archivo";
       toast.add({ severity: "error", summary: "Error", detail: message, life: 4000 });
     } finally {
-      uploading.value = false;
+      if (generation === uploadGeneration) uploading.value = false;
       // Allow re-picking the same file after clearing.
       target.value = "";
     }

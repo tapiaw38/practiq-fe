@@ -406,6 +406,7 @@
       }
     } catch (err) {
       console.error(err);
+      const errorMessage = err instanceof Error ? err.message : "";
       // A job id means the API accepted the test. Keep it frozen and make the
       // next click poll that same job instead of submitting a duplicate.
       if (!submitted.value && !pendingSubmitJobId.value) {
@@ -414,7 +415,9 @@
           severity: "error",
           summary: "No se pudo enviar",
           detail:
-            timeLeft.value > 0
+            errorMessage === "this level test was already submitted"
+              ? "Esta prueba ya fue enviada. Pedile a tu docente una nueva oportunidad."
+              : timeLeft.value > 0
               ? "Revisá tu conexión y volvé a intentar. El tiempo sigue corriendo."
               : "Se acabó el tiempo y no pudimos enviar la prueba. Avisale a tu docente.",
           life: 5000,
@@ -1012,7 +1015,7 @@
           <p class="result-rec">{{ result.recommendation }}</p>
 
           <!-- Per-exercise feedback (only errors) -->
-          <div v-if="pendingResults.length" class="pending-review-badge">
+          <div v-if="result.pending_review" class="pending-review-badge">
             <i class="pi pi-clock"></i>
             Tu entrega quedó esperando la corrección del docente.
           </div>

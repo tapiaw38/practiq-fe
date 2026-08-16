@@ -426,7 +426,12 @@
   // Only the create form can change type — editing keeps whatever it was.
   watch(
     () => newMaterial.type,
-    () => (newMaterial.file_url = ""),
+    () => {
+      newMaterial.file_url = "";
+      // Clearing the URL leaves a running upload alive; without this its late
+      // result lands on the newly selected type.
+      newMaterialUpload.value?.cancelUpload();
+    },
   );
 
   async function createMaterial() {
@@ -755,6 +760,10 @@
     const rest = { ...parsed };
     delete rest.options;
     if (form.type === "fill_blanks") {
+      // Both student views render any teacher image they find, whatever the
+      // type. Converting a handwritten exercise used to keep it, so the old
+      // prompt showed up next to the new statement — and reached the assistant.
+      delete rest.teacher_image;
       const config = pruneFillBlanks(form.fillBlanks, form.question);
       return JSON.stringify({
         ...rest,

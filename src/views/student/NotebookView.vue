@@ -292,10 +292,17 @@
       dataUrlLength: dataUrl.length,
     });
 
+    // The capture is produced as PNG, but this used to declare JPEG. An
+    // integration that validates or decodes by the declared type rejects or
+    // misreads it, so the label follows the payload instead of a constant.
+    const mime = dataUrl.slice(5, dataUrl.indexOf(";")) || "image/png";
+    const extension = mime.split("/")[1] || "png";
+    const page = currentPage.value.page_number || currentPageIndex.value + 1;
+
     return {
       dataUrl,
-      filename: `notebook-page-${currentPage.value.page_number || currentPageIndex.value + 1}.jpg`,
-      contentType: "image/jpeg",
+      filename: `notebook-page-${page}.${extension}`,
+      contentType: mime,
     };
   };
 

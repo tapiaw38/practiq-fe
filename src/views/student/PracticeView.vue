@@ -108,7 +108,11 @@
       submitting.value ||
       Object.values(answers.value).some((item) => !!item?.answer) ||
       Object.values(keyboardAnswers.value).some((answer) => !!answer?.trim()) ||
-      Object.values(attachments.value).some(Boolean)),
+      Object.values(attachments.value).some(Boolean) ||
+      // An upload in flight is work too: it is the student's first action on
+      // an attachment exercise, and until it resolves `attachments` is still
+      // empty, so leaving now dropped the answer with no warning.
+      uploadingAttachments.value.size > 0),
   );
 
   // A file awaiting the teacher comes back with is_correct=false; showing it
@@ -487,7 +491,10 @@
   // Draft Save/Restore
 
   function getDraftKey(): string {
-    return `practiq-draft-${sheetId}`;
+    // Scoped to the account: with only the sheet id, two students sharing a
+    // browser restored each other's draft — including the attachment metadata,
+    // so the second one submitted the first one's upload URL.
+    return `practiq-draft-${authStore.profile?.id ?? "anon"}-${sheetId}`;
   }
 
   function saveDraft() {
