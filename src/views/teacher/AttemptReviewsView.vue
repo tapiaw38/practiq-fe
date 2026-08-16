@@ -81,6 +81,16 @@
     });
   }
 
+  /** The OCR marker is not an answer; saying so beats showing "UNREADABLE". */
+  function isUnreadable(item: AttemptReview) {
+    return (item.answer_text || "").trim().toUpperCase() === "UNREADABLE";
+  }
+
+  function answerText(item: AttemptReview) {
+    if (isUnreadable(item)) return "No se pudo leer lo que escribió.";
+    return (item.answer_text || "").trim();
+  }
+
   function fileLabel(item: AttemptReview) {
     return item.attachment_name || "archivo adjunto";
   }
@@ -164,6 +174,35 @@
             <ExerciseMedia :url="item.statement_media_view_url" />
           </div>
 
+          <div class="review-answer">
+            <div class="review-answer-head">
+              <i class="pi pi-pencil"></i>
+              <span>Respuesta del alumno</span>
+            </div>
+
+            <img
+              v-if="item.image_view_url"
+              :src="item.image_view_url"
+              class="review-answer-image"
+              alt="Lo que resolvió el alumno"
+            />
+
+            <p
+              v-if="answerText(item)"
+              class="review-answer-text"
+              :class="{ 'review-answer-text--none': isUnreadable(item) }"
+            >
+              {{ answerText(item) }}
+            </p>
+
+            <p
+              v-else-if="!item.image_view_url && !item.attachment_url"
+              class="review-answer-text review-answer-text--none"
+            >
+              El alumno no dejó nada escrito.
+            </p>
+          </div>
+
           <button
             v-if="item.attachment_url"
             type="button"
@@ -193,15 +232,19 @@
           <!-- Also shown once reviewed: the page promises the teacher can
                change the grade whenever they want, and hiding the buttons
                after the first correction made that untrue. -->
+          <label class="review-feedback-label">
+            {{
+              item.teacher_reviewed_at
+                ? "Cambiar la devolución"
+                : "Devolución para el alumno"
+            }}
+            <span>(opcional)</span>
+          </label>
           <textarea
             v-model="feedback[item.attempt_id]"
             class="review-feedback"
             rows="2"
-            :placeholder="
-              item.teacher_reviewed_at
-                ? 'Cambiar la devolución (opcional)'
-                : 'Devolución para el alumno (opcional)'
-            "
+            placeholder="Contale en qué puede mejorar…"
           ></textarea>
           <div class="review-actions">
             <button
@@ -427,7 +470,7 @@
 
   .review-feedback {
     width: 100%;
-    margin-top: 12px;
+    margin-top: 6px;
     padding: 10px 12px;
     border-radius: 12px;
     border: 1px solid var(--surface-elevated-strong);
@@ -445,8 +488,76 @@
     margin-top: 12px;
   }
 
-  .btn-danger {
-    color: var(--red-500, #dc2626);
+  /* Marking an answer wrong is a verdict, not a destructive action: a solid
+     red button read as "delete" and shouted louder than the positive one.
+     Outlined instead — and the previous rule set red text over the global
+     red fill, which made the label invisible. */
+  .review-actions .btn-danger {
+    background: transparent;
+    color: var(--color-error-dark, #b91c1c);
+    border: 1.5px solid var(--color-error, #dc2626);
+  }
+
+  .review-actions .btn-danger:hover:not(:disabled) {
+    background: var(--color-error-bg);
+  }
+
+  .review-feedback-label {
+    display: block;
+    margin-top: 14px;
+    color: var(--text-secondary);
+    font-size: var(--text-xs);
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+  }
+
+  .review-feedback-label span {
+    text-transform: none;
+    letter-spacing: 0;
+    font-weight: 600;
+  }
+
+  .review-answer {
+    margin-top: 12px;
+    padding: 12px 14px;
+    border-radius: 14px;
+    border: 1px solid var(--surface-elevated-strong);
+    background: var(--surface-elevated);
+  }
+
+  .review-answer-head {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-bottom: 8px;
+    color: var(--text-secondary);
+    font-size: var(--text-xs);
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+  }
+
+  .review-answer-image {
+    display: block;
+    width: 100%;
+    max-height: 320px;
+    /* contain: cropping a student's working makes it unreadable. */
+    object-fit: contain;
+    border-radius: 10px;
+    background: var(--surface-card);
+    border: 1px solid var(--surface-border);
+  }
+
+  .review-answer-text {
+    margin: 8px 0 0;
+    color: var(--text-primary);
+    white-space: pre-wrap;
+  }
+
+  .review-answer-text--none {
+    color: var(--text-secondary);
+    font-style: italic;
   }
 
   .muted {

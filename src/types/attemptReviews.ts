@@ -12,6 +12,8 @@ export interface AttemptReview {
   sheet_type?: string;
   course_id: string;
   course_title: string;
+  /** Signed URL of the canvas the student drew, when the answer was drawn. */
+  image_view_url?: string;
   attachment_url?: string;
   /** Short-lived signed URL; the bucket is private, so attachment_url 403s. */
   attachment_view_url?: string;
