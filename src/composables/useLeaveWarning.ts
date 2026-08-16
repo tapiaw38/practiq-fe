@@ -1,5 +1,5 @@
 import { onMounted, onUnmounted } from "vue";
-import { onBeforeRouteLeave } from "vue-router";
+import { onBeforeRouteLeave, onBeforeRouteUpdate } from "vue-router";
 import { useConfirm } from "./useConfirm";
 
 /** Protects in-progress student work from accidental navigation. */
@@ -19,14 +19,20 @@ export function useLeaveWarning(hasPendingWork: () => boolean) {
       danger: false,
     });
 
-  onBeforeRouteLeave(async () => {
+  const confirmNavigation = async () => {
     if (allowNextNavigation) {
       allowNextNavigation = false;
       return true;
     }
     if (!hasPendingWork()) return true;
     return askToLeave();
-  });
+  };
+
+  // Changing only :id (for example practice A → practice B through browser
+  // history) reuses the same route record, so Vue Router runs update guards
+  // instead of leave guards. Both paths must protect unsent work.
+  onBeforeRouteLeave(confirmNavigation);
+  onBeforeRouteUpdate(confirmNavigation);
 
   // Browser security rules only allow its native dialog on reload/close.
   const onBeforeUnload = (event: BeforeUnloadEvent) => {

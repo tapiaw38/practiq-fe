@@ -1,7 +1,7 @@
 <template>
   <Teleport to="body">
     <Transition name="acm-fade">
-      <div v-if="show" class="acm-overlay" @click.self="$emit('close')">
+      <div v-if="show" class="acm-overlay" @click.self="requestClose">
         <div class="acm-modal" role="dialog" aria-label="Asistente de práctica">
           <!-- ── Header ── -->
           <div class="acm-header">
@@ -39,7 +39,7 @@
               </button>
               <button
                 class="acm-close"
-                @click="$emit('close')"
+                @click="requestClose"
                 aria-label="Cerrar"
               >
                 <i class="pi pi-times"></i>
@@ -339,6 +339,12 @@
     </Transition>
   </Teleport>
 
+  <ConfirmModal
+    v-bind="leaveConfirmState"
+    @confirm="onLeaveConfirm"
+    @cancel="onLeaveCancel"
+  />
+
   <AiLoadingModal
     :show="pizState === 'evaluating'"
     badge-label="IA evaluando"
@@ -353,6 +359,8 @@
   import { renderContent } from "@/composables/useContentRenderer";
   import { parseAssistantReply, type AssistantReply } from "@/utils/assistantReply";
   import ColorPalette from "@/components/ui/ColorPalette.vue";
+  import ConfirmModal from "@/components/ui/ConfirmModal.vue";
+  import { useLeaveWarning } from "@/composables/useLeaveWarning";
   import { BASE_COLORS } from "@/utils/palette";
   import AiLoadingModal from "@/components/student/ai/AiLoadingModal.vue";
   import type {
@@ -362,7 +370,7 @@
   import type { AssistantMode, AssistantMessage, PizarronState } from "@/types";
 
   const props = defineProps<AssistantChatModalProps>();
-  defineEmits<AssistantChatModalEmits>();
+  const emit = defineEmits<AssistantChatModalEmits>();
 
   const authStore = useAuthStore();
   const API_BASE = `${import.meta.env.VITE_PRACTIQ_API_URL || "http://localhost:8083"}/api/assistant-proxy`;
@@ -401,6 +409,9 @@
   const feedbackAudio = ref("");
   const pizarronTopic = ref("");
   const recordingError = ref("");
+  // Ink on the canvas that has not been evaluated yet. Tracked with a flag
+  // instead of sampling pixels: a stroke sets it, clearing resets it.
+  const hasDrawing = ref(false);
 
   // Canvas
   const canvasEl = ref<HTMLCanvasElement | null>(null);
@@ -1072,6 +1083,7 @@
 
   function resetPizarron() {
     pizState.value = "idle";
+    hasDrawing.value = false;
     exerciseHtml.value = "";
     exerciseAudio.value = "";
     feedbackHtml.value = "";
@@ -1197,11 +1209,31 @@
     ctx.moveTo(lastX, lastY);
     ctx.lineTo(x, y);
     ctx.stroke();
+    hasDrawing.value = true;
     [lastX, lastY] = [x, y];
   }
 
   function onCanvasUp() {
     isDrawing = false;
+  }
+
+  const hasPendingWork = computed(
+    () =>
+      (pizState.value === "drawing" && hasDrawing.value) ||
+      pizState.value === "generating" ||
+      pizState.value === "evaluating" ||
+      responding.value,
+  );
+
+  const { leaveConfirmState, onLeaveConfirm, onLeaveCancel, leave } =
+    useLeaveWarning(() => hasPendingWork.value);
+
+  /** Closing throws the drawing away, so it asks first. */
+  function requestClose() {
+    leave(() => {
+      resetPizarron();
+      emit("close");
+    });
   }
 
   function onTouchStart(e: TouchEvent) {
@@ -1221,6 +1253,7 @@
     ctx.moveTo(lastX, lastY);
     ctx.lineTo(x, y);
     ctx.stroke();
+    hasDrawing.value = true;
     [lastX, lastY] = [x, y];
   }
 
@@ -1229,6 +1262,7 @@
   }
 
   function clearCanvas() {
+    hasDrawing.value = false;
     const canvas = canvasEl.value;
     if (!canvas) return;
     const ctx = getCtx();
