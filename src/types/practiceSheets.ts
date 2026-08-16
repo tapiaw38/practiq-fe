@@ -29,6 +29,10 @@ export interface AttemptInput {
   exercise_id: string;
   answer_text: string;
   canvas_data?: string;
+  /** Uploaded answer file. The backend verifies it belongs to this student. */
+  attachment_url?: string;
+  attachment_name?: string;
+  attachment_content_type?: string;
   time_spent_seconds: number;
   hints_used: number;
 }

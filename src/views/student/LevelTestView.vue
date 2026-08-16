@@ -65,6 +65,9 @@
   const loading = ref(true);
   const submitted = ref(false);
   const submitting = ref(false);
+  // Once the API accepted a submission, retries must poll this same job. A
+  // network failure while polling must never create a second test attempt.
+  const pendingSubmitJobId = ref<string | null>(null);
   const result = ref<SubmitResult | null>(null);
   const showAllErrors = ref(false);
 
@@ -333,38 +336,41 @@
       ? Math.round(elapsedSeconds / exercises.value.length)
       : 0;
 
-    const attempts = exercises.value.map((ex) => {
-      if (ex.exercise.type === "attachment") {
-        const uploaded = attachments.value[ex.exercise.id];
-        return {
-          exercise_id: ex.exercise.id,
-          answer_text: "",
-          canvas_data: "",
-          attachment_url: uploaded?.url ?? "",
-          attachment_name: uploaded?.filename ?? "",
-          attachment_content_type: uploaded?.content_type ?? "",
-          time_spent_seconds: perExerciseSeconds,
-          hints_used: 0,
-        };
-      }
-      return {
-        exercise_id: ex.exercise.id,
-        answer_text: exerciseUsesCanvas(ex.exercise.type)
-          ? ""
-          : answers.value[ex.exercise.id] || "",
-        canvas_data: exerciseUsesCanvas(ex.exercise.type)
-          ? buildCanvasDataForOCR(ex.exercise.id)
-          : "",
-        time_spent_seconds: perExerciseSeconds,
-        hints_used: 0,
-      };
-    });
-
     try {
-      const start = await submitPracticeSheetAsync(sheet.value!.id, {
-        attempts,
-      });
-      const jobId = start.job_id;
+      if (!pendingSubmitJobId.value) {
+        const attempts = exercises.value.map((ex) => {
+          if (ex.exercise.type === "attachment") {
+            const uploaded = attachments.value[ex.exercise.id];
+            return {
+              exercise_id: ex.exercise.id,
+              answer_text: "",
+              canvas_data: "",
+              attachment_url: uploaded?.url ?? "",
+              attachment_name: uploaded?.filename ?? "",
+              attachment_content_type: uploaded?.content_type ?? "",
+              time_spent_seconds: perExerciseSeconds,
+              hints_used: 0,
+            };
+          }
+          return {
+            exercise_id: ex.exercise.id,
+            answer_text: exerciseUsesCanvas(ex.exercise.type)
+              ? ""
+              : answers.value[ex.exercise.id] || "",
+            canvas_data: exerciseUsesCanvas(ex.exercise.type)
+              ? buildCanvasDataForOCR(ex.exercise.id)
+              : "",
+            time_spent_seconds: perExerciseSeconds,
+            hints_used: 0,
+          };
+        });
+        const start = await submitPracticeSheetAsync(sheet.value!.id, {
+          attempts,
+        });
+        pendingSubmitJobId.value = start.job_id;
+      }
+
+      const jobId = pendingSubmitJobId.value;
       let jobDone = false;
 
       while (!jobDone) {
@@ -374,6 +380,9 @@
           continue;
         }
         if (job.status === "failed") {
+          // Backend completed this job with an error. It is safe to let the
+          // student submit again, unlike a transport error while polling.
+          pendingSubmitJobId.value = null;
           throw new Error(job.message || "No se pudo evaluar la prueba");
         }
         result.value = job.result?.data || null;
@@ -385,6 +394,7 @@
       }
       showAllErrors.value = false;
       submitted.value = true;
+      pendingSubmitJobId.value = null;
 
       // Fire celebration based on result
       if (result.value.should_level_up) {
@@ -396,6 +406,28 @@
       }
     } catch (err) {
       console.error(err);
+      // A job id means the API accepted the test. Keep it frozen and make the
+      // next click poll that same job instead of submitting a duplicate.
+      if (!submitted.value && !pendingSubmitJobId.value) {
+        if (timeLeft.value > 0) startTimer();
+        toast.add({
+          severity: "error",
+          summary: "No se pudo enviar",
+          detail:
+            timeLeft.value > 0
+              ? "Revisá tu conexión y volvé a intentar. El tiempo sigue corriendo."
+              : "Se acabó el tiempo y no pudimos enviar la prueba. Avisale a tu docente.",
+          life: 5000,
+        });
+      } else if (!submitted.value) {
+        toast.add({
+          severity: "warn",
+          summary: "Envío recibido",
+          detail:
+            "No pudimos consultar la evaluación. Volvé a intentarlo para ver el resultado.",
+          life: 5000,
+        });
+      }
     } finally {
       submitting.value = false;
       if (loadingMsgInterval) {
@@ -916,9 +948,9 @@
         <div class="test-footer">
           <span class="footer-hint">{{ unansweredCount }} sin responder</span>
           <button class="btn-submit" :disabled="submitting || uploadingAttachments.size > 0" @click="submit">
-            <i v-if="!submitting" class="pi pi-send"></i>
+            <i v-if="!submitting" :class="pendingSubmitJobId ? 'pi pi-refresh' : 'pi pi-send'"></i>
             <span v-else class="spinner"></span>
-            Entregar prueba
+            {{ pendingSubmitJobId ? "Consultar evaluación" : "Entregar prueba" }}
           </button>
         </div>
       </template>

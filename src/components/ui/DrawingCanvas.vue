@@ -86,7 +86,9 @@
   // prop. Without remembering what we sent, the watcher below treats our own
   // echo as an external change, reloads the image and wipes the undo stack —
   // so undo only ever went back one stroke.
-  let lastEmitted = "";
+  // null once consumed: the marker is only valid for the single echo that
+  // follows the emit.
+  let lastEmitted: string | null = null;
 
   function emitCanvas(value: string) {
     lastEmitted = value;
@@ -147,8 +149,16 @@
       const canvas = canvasRef.value;
       if (!canvas) return;
       // Our own echo: the canvas already shows this, and reloading it would
-      // throw away the undo history.
-      if (newVal === lastEmitted) return;
+      // throw away the undo history. Consumed right away — a later identical
+      // value is a real change. Keeping it armed meant that after clearing a
+      // page (marker = ""), moving to another empty page also matched, the
+      // canvas was never cleared, and the previous page's drawing stayed on
+      // screen and got emitted into the wrong page.
+      if (lastEmitted !== null && newVal === lastEmitted) {
+        lastEmitted = null;
+        return;
+      }
+      lastEmitted = null;
 
       const ctx = canvas.getContext("2d")!;
       ctx.globalCompositeOperation = "source-over"; // Ensure normal mode

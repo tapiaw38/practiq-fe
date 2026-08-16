@@ -388,6 +388,7 @@
   }
 
   async function createExercise() {
+    if (uploadInFlight(newExerciseUpload)) return;
     if (!ensureExerciseIsValid(newExercise)) return;
     await createExerciseService(
       selectedTopicId.value,
@@ -397,6 +398,8 @@
     resetExerciseForm(newExercise);
   }
 
+  const newExerciseUpload = ref<InstanceType<typeof FileUploadField> | null>(null);
+  const editExerciseUpload = ref<InstanceType<typeof FileUploadField> | null>(null);
   const newMaterialUpload = ref<InstanceType<typeof FileUploadField> | null>(null);
   const editMaterialUpload = ref<InstanceType<typeof FileUploadField> | null>(null);
 
@@ -656,6 +659,7 @@
 
   async function saveExerciseEdit() {
     if (!editingExerciseId.value) return;
+    if (uploadInFlight(editExerciseUpload)) return;
     if (!ensureExerciseIsValid(editExercise)) return;
     await updateExerciseService(
       editingExerciseId.value,
@@ -1179,6 +1183,7 @@
               <div class="form-group">
                 <label class="form-label">Material del enunciado</label>
                 <FileUploadField
+                  ref="newExerciseUpload"
                   v-model="newExercise.media_url"
                   folder="exercises"
                   label="Subir imagen o audio"
@@ -1792,6 +1797,7 @@
               <div class="form-group">
                 <label class="form-label">Material del enunciado</label>
                 <FileUploadField
+                  ref="editExerciseUpload"
                   v-model="editExercise.media_url"
                   folder="exercises"
                   label="Subir imagen o audio"
