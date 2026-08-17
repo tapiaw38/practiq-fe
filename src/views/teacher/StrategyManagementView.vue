@@ -188,7 +188,7 @@
       <template v-if="loading">
         <section class="content-section">
           <div class="section-header">
-            <div>
+            <div style="display: flex; flex-direction: column; gap: 8px">
               <Skeleton width="180px" height="24px" />
               <Skeleton width="320px" height="14px" />
             </div>

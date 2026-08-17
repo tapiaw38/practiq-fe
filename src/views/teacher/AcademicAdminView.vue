@@ -289,7 +289,7 @@
         </aside>
         <main class="ac-main">
           <div class="main-header">
-            <div>
+            <div style="display: flex; flex-direction: column; gap: 8px">
               <Skeleton width="100px" height="14px" />
               <Skeleton width="180px" height="28px" />
             </div>

@@ -460,7 +460,7 @@
         <div v-if="loading" class="skeleton-tables">
           <div class="panel-card">
             <div class="panel-head">
-              <div>
+              <div style="display: flex; flex-direction: column; gap: 8px">
                 <Skeleton width="80px" height="12px" />
                 <Skeleton width="140px" height="24px" />
               </div>
@@ -477,7 +477,7 @@
           </div>
           <div class="panel-card">
             <div class="panel-head">
-              <div>
+              <div style="display: flex; flex-direction: column; gap: 8px">
                 <Skeleton width="70px" height="12px" />
                 <Skeleton width="160px" height="24px" />
               </div>

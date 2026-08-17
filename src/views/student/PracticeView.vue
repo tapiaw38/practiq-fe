@@ -1007,7 +1007,7 @@
               class="ex-num-skel"
             />
             <div class="ex-body ex-body--skeleton">
-              <div class="ex-meta" style="margin-bottom: 8px">
+              <div class="ex-meta">
                 <Skeleton variant="badge" width="90px" />
                 <Skeleton width="50px" height="14px" />
               </div>
@@ -1866,7 +1866,7 @@
     gap: 10px;
   }
   .ex-body--skeleton {
-    gap: 0; /* Using individual margins for better control */
+    gap: 12px;
   }
 
   .ex-meta {

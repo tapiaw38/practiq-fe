@@ -426,7 +426,7 @@
             class="summary-card summary-card--skeleton"
           >
             <Skeleton variant="circle" size="34px" />
-            <div>
+            <div style="display: flex; flex-direction: column; gap: 6px">
               <Skeleton width="50px" height="22px" />
               <Skeleton width="100px" height="14px" />
             </div>
@@ -450,7 +450,7 @@
         <!-- Progress grid skeleton -->
         <div class="tab-content">
           <div class="tab-section-head">
-            <div>
+            <div style="display: flex; flex-direction: column; gap: 8px">
               <Skeleton width="80px" height="12px" />
               <Skeleton width="160px" height="24px" />
             </div>

@@ -146,10 +146,6 @@
     background-size: 200% 100%;
     animation: skeleton-shimmer 1.5s ease-in-out infinite;
     border-radius: var(--radius-sm, 4px);
-    margin-bottom: 6px;
-  }
-  .skeleton:last-child {
-    margin-bottom: 0;
   }
 
   .skeleton--text {
