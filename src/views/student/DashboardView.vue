@@ -262,7 +262,7 @@
         <!-- Metrics skeleton -->
         <section class="metrics-row">
           <div
-            v-for="i in 3"
+            v-for="i in 2"
             :key="i"
             class="metric-card metric-card--skeleton"
           >
@@ -270,6 +270,18 @@
             <div>
               <Skeleton width="50px" height="24px" />
               <Skeleton width="60px" height="14px" />
+            </div>
+          </div>
+          <!-- La tercera columna es 1fr: sin el cuerpo ancho de la tarjeta de
+               precisión el placeholder queda pegado a la izquierda. -->
+          <div class="metric-card metric-card--goal metric-card--skeleton">
+            <Skeleton variant="circle" size="40px" />
+            <div class="metric-goal-body" style="gap: 0">
+              <div class="metric-goal-top">
+                <Skeleton width="110px" height="14px" />
+                <Skeleton width="60px" height="14px" />
+              </div>
+              <Skeleton width="100%" height="8px" rounded />
             </div>
           </div>
         </section>
