@@ -268,6 +268,10 @@
     try {
       sheet.value = await loadPracticeSheet(sheetId);
       loadTeacherImages();
+      // Publish where the student starts. Nothing else does it now: the label
+      // used to be published by the hover handler on every exercise card, and
+      // showing one exercise at a time removed those.
+      publishAssistantLabel();
 
       for (const pse of sheet.value.exercises ?? []) {
         answers.value[pse.exercise.id] = {

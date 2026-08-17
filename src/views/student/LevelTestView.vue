@@ -333,6 +333,11 @@
     try {
       sheet.value = await loadPracticeSheet(id);
       loadTeacherImages();
+      // Publish where the student starts. Nothing else does it now: the label
+      // used to be published by the hover handler on every exercise card, and
+      // showing one exercise at a time removed those.
+      const first = exercises.value[0]?.exercise.id;
+      if (first) setActiveExercise(first);
       for (const ex of exercises.value) {
         answers.value[ex.exercise.id] = "";
       }
@@ -568,6 +573,13 @@
   }
 
   function getAssistantExerciseId() {
+    // The exercise on screen wins. The fallbacks below used to come first, and
+    // "the first exercise with a drawing" is usually E1, so the assistant
+    // answered about an exercise the student was not looking at. The practice
+    // screen had the same bug and was fixed; this one was missed.
+    const visible = exercises.value[currentIdx.value]?.exercise.id;
+    if (visible) return visible;
+
     if (activeId.value) {
       return activeId.value;
     }
