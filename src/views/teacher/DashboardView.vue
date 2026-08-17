@@ -273,7 +273,7 @@
       <div v-if="loading" class="stats-strip stats-strip--skeleton">
         <div class="stat-item" v-for="i in 4" :key="i">
           <Skeleton variant="circle" size="34px" />
-          <div>
+          <div style="display: flex; flex-direction: column; gap: 6px">
             <Skeleton width="40px" height="20px" />
             <Skeleton width="60px" height="12px" />
           </div>

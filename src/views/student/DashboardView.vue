@@ -277,7 +277,7 @@
         <!-- Progress skeleton -->
         <section class="mastery-section">
           <div class="section-head">
-            <div>
+            <div style="display: flex; flex-direction: column; gap: 8px">
               <Skeleton width="100px" height="12px" />
               <Skeleton width="180px" height="24px" />
             </div>
@@ -304,7 +304,7 @@
         <!-- Courses skeleton -->
         <section class="courses-section">
           <div class="section-head">
-            <div>
+            <div style="display: flex; flex-direction: column; gap: 8px">
               <Skeleton width="80px" height="12px" />
               <Skeleton width="140px" height="24px" />
             </div>

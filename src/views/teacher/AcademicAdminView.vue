@@ -300,7 +300,14 @@
               :key="i"
               class="course-tile course-tile--skeleton"
             >
-              <div class="course-tile__top">
+              <div
+                class="course-tile__top"
+                style="
+                  display: flex;
+                  align-items: center;
+                  justify-content: space-between;
+                "
+              >
                 <Skeleton width="70px" height="20px" rounded />
                 <Skeleton width="24px" height="24px" variant="circle" />
               </div>
