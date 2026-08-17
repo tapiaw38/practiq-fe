@@ -2,7 +2,7 @@
   import { computed, onMounted, onUnmounted, ref, reactive, watch } from "vue";
   import { useRoute, useRouter } from "vue-router";
   import { useAuthStore } from "@/stores/authStore";
-  import { useCourse } from "@/composables/useCourse";
+  import { useDashboard } from "@/composables/useDashboard";
   import { useLevel } from "@/composables/useLevel";
   import ChangePasswordModal from "@/components/auth/ChangePasswordModal.vue";
   import SetPasswordModal from "@/components/auth/SetPasswordModal.vue";
@@ -20,7 +20,7 @@
   const route = useRoute();
   const router = useRouter();
   const authStore = useAuthStore();
-  const { loadCourses } = useCourse();
+  const { loadDashboard } = useDashboard();
   const { loadCourseLevels } = useLevel();
   const profile = computed(() => authStore.profile);
   const userInitial = computed(
@@ -75,14 +75,22 @@
     if (!open || coursesData.value.length) return;
     loadingCourses.value = true;
     try {
-      const courses = await loadCourses("student");
-      coursesData.value = (courses || []).map((c) => ({
-        id: c.id,
+      // The home already read these, so opening this list from there costs
+      // nothing. It used to call `/courses?role=student` again, which answered
+      // with grade ids, subject ids and descriptions to draw a title.
+      const dashboard = await loadDashboard();
+      coursesData.value = (dashboard.courses || []).map((c) => ({
+        id: c.course_id,
         title: c.title,
-        currentLevel: 1,
+        // The level the student is on, which the badge shows. It used to start
+        // at 1 for every course until the levels call came back and corrected
+        // it, so the sidebar briefly claimed everyone was on level 1.
+        currentLevel: c.current_level,
         levels: [],
         loading: false,
       }));
+    } catch {
+      coursesData.value = [];
     } finally {
       loadingCourses.value = false;
     }

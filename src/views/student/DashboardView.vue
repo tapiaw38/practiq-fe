@@ -3,23 +3,20 @@
   import { useRouter } from "vue-router";
   import { useAuthStore } from "@/stores/authStore";
   import { useToast } from "primevue/usetoast";
-  import { practiqApi } from "@/api/request/server";
-  import {
-    DashboardService,
-    type CourseSummary,
-  } from "@/services/dashboard/dashboardService";
+  import type { CourseSummary } from "@/services/dashboard/dashboardService";
   import StudentLayout from "@/layouts/StudentLayout.vue";
   import AssistantChatModal from "@/components/student/assistant/AssistantChatModal.vue";
   import Skeleton from "@/components/ui/Skeleton.vue";
   import StudentCoursesGrid from "@/components/student/dashboard/StudentCoursesGrid.vue";
   import { useProfile } from "@/composables/useProfile";
+  import { useDashboard } from "@/composables/useDashboard";
   import type { TopicProgress } from "@/types";
 
   const router = useRouter();
   const authStore = useAuthStore();
   const { loadProfile } = useProfile();
   const toast = useToast();
-  const dashboardService = new DashboardService(practiqApi);
+  const { refreshDashboard } = useDashboard();
 
   const progress = ref<TopicProgress[]>([]);
   const summaries = ref<CourseSummary[]>([]);
@@ -135,7 +132,9 @@
       // One request for the whole screen. This used to be about eighteen calls
       // five round trips deep — courses, then sheets, notebooks and levels once
       // per course — and the latency of those trips was the wait, not the work.
-      const { data } = await dashboardService.get();
+      // Always read: this screen shows progress and a streak that practising
+      // changes. The sidebar reuses whatever this leaves behind.
+      const data = await refreshDashboard();
 
       summaries.value = data.courses || [];
       progress.value = data.progress || [];
