@@ -983,7 +983,7 @@
             :class="{ 'streak-chip--active': streakCount > 0 }"
           >
             <img src="@/assets/burn.png" alt="" class="streak-icon" />
-            <div>
+            <div class="streak-text">
               <div class="streak-val">{{ streakCount }}</div>
               <div class="streak-lbl">racha</div>
             </div>
@@ -1640,10 +1640,10 @@
   }
 
   .streak-chip {
-    display: flex;
+    display: inline-flex;
     align-items: center;
     gap: 8px;
-    padding: 10px 16px;
+    padding: 8px 14px;
     border-radius: var(--radius-lg);
     background: var(--gradient-brand-soft);
     border: 1.5px solid rgba(var(--practiq-violet-rgb), 0.1);
@@ -1659,7 +1659,7 @@
 
   .streak-chip--active .streak-val {
     color: white;
-    font-size: 1.3rem;
+    font-size: 1.15rem;
   }
 
   .streak-chip--active .streak-lbl {
@@ -1671,15 +1671,25 @@
   }
 
   @keyframes flame-dance {
-    from { transform: scale(1) rotate(-3deg); }
-    to { transform: scale(1.1) rotate(3deg); }
+    from { transform: scale(1) rotate(-2deg); }
+    to { transform: scale(1.06) rotate(2deg); }
   }
 
   .streak-icon {
-    width: 24px;
-    height: 24px;
+    width: 22px;
+    height: 22px;
     object-fit: contain;
     flex-shrink: 0;
+    /* ponytail: transform-origin bottom so el fuego "crece" desde la base */
+    transform-origin: 50% 100%;
+  }
+
+  .streak-text {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 1px;
+    line-height: 1;
   }
 
   .streak-val {
@@ -1690,7 +1700,8 @@
   }
 
   .streak-lbl {
-    font-size: 0.72rem;
+    font-size: 0.7rem;
+    line-height: 1;
     color: var(--text-secondary);
   }
 
@@ -2434,23 +2445,54 @@
 
   @media (max-width: 680px) {
     .practice-shell {
-      padding: 16px 14px 80px;
+      padding: 16px 10px 80px;
     }
     .practice-header {
-      padding: 16px;
+      padding: 16px 14px;
       flex-wrap: wrap;
     }
     .header-right {
       width: 100%;
       justify-content: flex-end;
     }
+    .streak-chip {
+      padding: 6px 12px;
+      gap: 6px;
+    }
+    .streak-icon {
+      width: 18px;
+      height: 18px;
+    }
+    .streak-chip--active .streak-val {
+      font-size: 1rem;
+    }
     .results-stats {
       grid-template-columns: 1fr;
     }
 
+    /* El número en columna propia comía ~48px de ancho útil. En mobile queda
+       en la misma fila que los badges y el resto del ejercicio va full width.
+       ponytail: grid + display:contents en vez de duplicar markup. */
     .ex-card {
       padding: 14px 12px;
+      display: grid;
+      grid-template-columns: auto 1fr;
       gap: 10px;
+      align-items: center;
+    }
+
+    .ex-card > .ex-body {
+      display: contents;
+    }
+
+    .ex-card > .ex-body > :not(.ex-meta) {
+      grid-column: 1 / -1;
+    }
+
+    .ex-num {
+      width: 28px;
+      height: 28px;
+      font-size: 0.82rem;
     }
 
     .ex-canvas {
