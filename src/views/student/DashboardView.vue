@@ -2,30 +2,30 @@
   import { ref, computed, onMounted, onUnmounted } from "vue";
   import { useRouter } from "vue-router";
   import { useAuthStore } from "@/stores/authStore";
+  import { useToast } from "primevue/usetoast";
+  import { practiqApi } from "@/api/request/server";
+  import {
+    DashboardService,
+    type CourseSummary,
+  } from "@/services/dashboard/dashboardService";
   import StudentLayout from "@/layouts/StudentLayout.vue";
   import AssistantChatModal from "@/components/student/assistant/AssistantChatModal.vue";
   import Skeleton from "@/components/ui/Skeleton.vue";
   import StudentCoursesGrid from "@/components/student/dashboard/StudentCoursesGrid.vue";
-  import { useCourse } from "@/composables/useCourse";
-  import { useProgress } from "@/composables/useProgress";
-  import { usePracticeSheet } from "@/composables/usePracticeSheet";
-  import { useNotebook } from "@/composables/useNotebook";
-  import { useLevel } from "@/composables/useLevel";
   import { useProfile } from "@/composables/useProfile";
-  import type { PracticeSheet, TopicProgress, Notebook } from "@/types";
+  import type { TopicProgress } from "@/types";
 
   const router = useRouter();
   const authStore = useAuthStore();
-  const { courses, loadCourses } = useCourse();
-  const { loadMyProgress } = useProgress();
-  const { loadPracticeSheets } = usePracticeSheet();
-  const { loadNotebooks } = useNotebook();
-  const { loadCourseLevels } = useLevel();
   const { loadProfile } = useProfile();
+  const toast = useToast();
+  const dashboardService = new DashboardService(practiqApi);
+
   const progress = ref<TopicProgress[]>([]);
-  const courseSheets = ref<Record<string, PracticeSheet[]>>({});
-  const courseNotebooks = ref<Record<string, Notebook[]>>({});
-  const courseCurrentLevel = ref<Record<string, number>>({});
+  const summaries = ref<CourseSummary[]>([]);
+  // Computed by the API through the domain rule, so a streak the student
+  // already broke is not shown.
+  const streakFromApi = ref(0);
   const dismissedReviewCards = ref<Record<string, boolean>>(
     loadDismissedReviewCards(),
   );
@@ -64,13 +64,8 @@
   const currentTopic = computed(
     () => groupedProgress.value[0]?.topic_title || "—",
   );
-  const currentLevel = computed(() => {
-    const levels = Object.values(courseCurrentLevel.value);
-    return levels.length ? levels[0] : 1;
-  });
-  const streakDays = computed(
-    () => Math.max(...groupedProgress.value.map((p) => p.streak_days), 0) || 0,
-  );
+  const currentLevel = computed(() => summaries.value[0]?.current_level ?? 1);
+  const streakDays = computed(() => streakFromApi.value);
   const averageMastery = computed(() => {
     if (!groupedProgress.value.length) return 0;
     return (
@@ -79,11 +74,7 @@
     );
   });
   const totalSheets = computed(() =>
-    Object.values(courseSheets.value).reduce(
-      (acc, items) =>
-        acc + items.filter((s) => s.sheet_type !== "level_test").length,
-      0,
-    ),
+    summaries.value.reduce((acc, s) => acc + s.practice_sheets, 0),
   );
   const totalCorrect = computed(() =>
     groupedProgress.value.reduce((acc, item) => acc + item.correct_attempts, 0),
@@ -102,11 +93,11 @@
 
   const assistantContext = computed(() => ({
     studentName: authStore.profile?.name,
-    courses: courses.value.map((c) => ({
+    courses: summaries.value.map((c) => ({
       title: c.title,
-      subject: c.subject_name || c.subject || "",
-      grade: c.grade_name || "",
-      currentLevel: courseCurrentLevel.value[c.id] ?? 1,
+      subject: c.subject,
+      grade: "",
+      currentLevel: c.current_level,
     })),
     topicProgress: groupedProgress.value.map((p) => ({
       topic: p.topic_title,
@@ -115,26 +106,9 @@
       streak: p.streak_days,
     })),
   }));
-  const featuredSheetId = computed(() => {
-    // 1. If we have a last practiced sheet ID from backend, verify it exists and use it
-    if (lastPracticedSheetId.value) {
-      for (const course of courses.value) {
-        const sheets = courseSheets.value[course.id] || [];
-        const found = sheets.find((s) => s.id === lastPracticedSheetId.value);
-        if (found) return found.id;
-      }
-    }
-
-    // 2. Fallback: find first practice sheet (not level test) in first course
-    for (const course of courses.value) {
-      const sheets = (courseSheets.value[course.id] || []).filter(
-        (s) => s.sheet_type !== "level_test",
-      );
-      if (sheets.length > 0) return sheets[0].id;
-    }
-
-    return "";
-  });
+  // The API already resolves this, and it only offers a sheet whose course is
+  // still active, so the local verification it used to do is redundant.
+  const featuredSheetId = computed(() => lastPracticedSheetId.value);
 
   function handleDrawerToggle(e: Event) {
     const customEvent = e as CustomEvent<{ open: boolean }>;
@@ -149,48 +123,31 @@
       handleDrawerToggle as EventListener,
     );
 
+    // Not awaited: the home does not need the profile to render, and blocking
+    // on it added a whole round trip before anything else even started.
     if (!authStore.profile) {
-      try {
-        const profile = await loadProfile();
-        authStore.setProfile(profile);
-      } catch {}
+      loadProfile()
+        .then((profile) => authStore.setProfile(profile))
+        .catch(() => undefined);
     }
 
     try {
-      const [coursesRes, progressRes] = await Promise.allSettled([
-        loadCourses("student"),
-        loadMyProgress(),
-      ]);
+      // One request for the whole screen. This used to be about eighteen calls
+      // five round trips deep — courses, then sheets, notebooks and levels once
+      // per course — and the latency of those trips was the wait, not the work.
+      const { data } = await dashboardService.get();
 
-      if (coursesRes.status === "fulfilled") {
-        await Promise.all(
-          courses.value.map(async (c) => {
-            try {
-              const sheets = await loadPracticeSheets(c.id);
-              courseSheets.value[c.id] = sheets || [];
-            } catch {
-              courseSheets.value[c.id] = [];
-            }
-            try {
-              courseNotebooks.value[c.id] = await loadNotebooks(c.id);
-            } catch {
-              courseNotebooks.value[c.id] = [];
-            }
-            try {
-              const lvRes = await loadCourseLevels(c.id);
-              courseCurrentLevel.value[c.id] = lvRes.current_level;
-            } catch {
-              courseCurrentLevel.value[c.id] = 1;
-            }
-          }),
-        );
-      }
-
-      if (progressRes.status === "fulfilled") {
-        progress.value = progressRes.value.data || [];
-        lastPracticedSheetId.value =
-          progressRes.value.last_practiced_sheet_id || "";
-      }
+      summaries.value = data.courses || [];
+      progress.value = data.progress || [];
+      streakFromApi.value = data.streak_days || 0;
+      lastPracticedSheetId.value = data.last_practiced_sheet_id || "";
+    } catch {
+      toast.add({
+        severity: "error",
+        summary: "Error",
+        detail: "No se pudo cargar tu inicio",
+        life: 3000,
+      });
     } finally {
       loading.value = false;
     }
@@ -202,18 +159,6 @@
       handleDrawerToggle as EventListener,
     );
   });
-
-  function practiceSheets(courseId: string) {
-    return (courseSheets.value[courseId] || []).filter(
-      (s) => s.sheet_type !== "level_test",
-    );
-  }
-
-  function levelTests(courseId: string) {
-    return (courseSheets.value[courseId] || []).filter(
-      (s) => s.sheet_type === "level_test",
-    );
-  }
 
   function startPractice(sheetId: string) {
     router.push(`/student/practice/${sheetId}`);
@@ -257,7 +202,8 @@
 
   // Progress helper functions
   function getCourseProgressPercent(courseId: string): number {
-    const level = courseCurrentLevel.value[courseId] || 1;
+    const level =
+      summaries.value.find((s) => s.course_id === courseId)?.current_level ?? 1;
     // Assume 10 levels max for percentage calculation
     const maxLevels = 10;
     return Math.min(100, Math.round((level / maxLevels) * 100));
@@ -265,9 +211,7 @@
 
   function topicsNeedingReview(courseId: string): typeof progress.value {
     const topicIds = new Set(
-      (courseSheets.value[courseId] || [])
-        .map((sheet) => sheet.topic_id)
-        .filter(Boolean),
+      summaries.value.find((s) => s.course_id === courseId)?.topic_ids ?? [],
     );
 
     if (topicIds.size === 0) return [];
@@ -516,10 +460,7 @@
         </section>
 
         <StudentCoursesGrid
-          :courses="courses"
-          :course-current-level="courseCurrentLevel"
-          :course-sheets="courseSheets"
-          :course-notebooks="courseNotebooks"
+          :courses="summaries"
           :dismissed-review-cards="dismissedReviewCards"
           :topics-needing-review="topicsNeedingReview"
           :get-course-progress-percent="getCourseProgressPercent"

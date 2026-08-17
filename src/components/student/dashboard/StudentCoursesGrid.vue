@@ -37,14 +37,7 @@
     if (page.value > total) page.value = total;
   });
 
-  const practiceSheets = (courseId: string) =>
-    (props.courseSheets[courseId] || []).filter(
-      (sheet) => sheet.sheet_type !== "level_test",
-    );
-  const levelTests = (courseId: string) =>
-    (props.courseSheets[courseId] || []).filter(
-      (sheet) => sheet.sheet_type === "level_test",
-    );
+
 </script>
 
 <template>
@@ -99,13 +92,13 @@
     >
       <article
         v-for="course in pagedCourses"
-        :key="course.id"
+        :key="course.course_id"
         class="course-card"
       >
         <div class="course-card__eyebrow">
           <span class="course-subject">{{ course.subject || "General" }}</span>
           <span class="course-level-pill"
-            >Nivel {{ courseCurrentLevel[course.id] || 1 }}</span
+            >Nivel {{ course.current_level }}</span
           >
         </div>
         <h3 class="course-title">{{ course.title }}</h3>
@@ -114,21 +107,21 @@
           <div class="course-progress-header">
             <span class="progress-label">Progreso del curso</span>
             <span class="progress-value"
-              >{{ getCourseProgressPercent(course.id) }}%</span
+              >{{ getCourseProgressPercent(course.course_id) }}%</span
             >
           </div>
           <div class="progress-bar">
             <div
               class="progress-fill"
-              :style="{ width: getCourseProgressPercent(course.id) + '%' }"
+              :style="{ width: getCourseProgressPercent(course.course_id) + '%' }"
             ></div>
           </div>
         </div>
 
         <div
           v-if="
-            topicsNeedingReview(course.id).length > 0 &&
-            !dismissedReviewCards[course.id]
+            topicsNeedingReview(course.course_id).length > 0 &&
+            !dismissedReviewCards[course.course_id]
           "
           class="topics-review"
         >
@@ -140,49 +133,43 @@
               type="button"
               class="review-dismiss"
               aria-label="Ocultar temas para repasar"
-              @click="emit('dismissReview', course.id)"
+              @click="emit('dismissReview', course.course_id)"
             >
               <i class="pi pi-times"></i>
             </button>
           </div>
           <div class="review-topics">
             <span
-              v-for="topic in topicsNeedingReview(course.id).slice(0, 2)"
+              v-for="topic in topicsNeedingReview(course.course_id).slice(0, 2)"
               :key="topic.topic_id"
               class="review-topic-tag"
               >{{ topic.topic_title }}</span
             >
             <span
-              v-if="topicsNeedingReview(course.id).length > 2"
+              v-if="topicsNeedingReview(course.course_id).length > 2"
               class="review-more"
-              >+{{ topicsNeedingReview(course.id).length - 2 }}</span
+              >+{{ topicsNeedingReview(course.course_id).length - 2 }}</span
             >
           </div>
         </div>
 
         <div class="course-stats">
           <div class="course-stat">
-            <span class="course-stat__value">{{
-              practiceSheets(course.id).length
-            }}</span>
+            <span class="course-stat__value">{{ course.practice_sheets }}</span>
             <span class="course-stat__label">Practicas</span>
           </div>
           <div class="course-stat-divider"></div>
           <div class="course-stat">
-            <span class="course-stat__value">{{
-              levelTests(course.id).length
-            }}</span>
+            <span class="course-stat__value">{{ course.level_tests }}</span>
             <span class="course-stat__label">Pruebas</span>
           </div>
           <div class="course-stat-divider"></div>
           <div class="course-stat">
-            <span class="course-stat__value">{{
-              courseNotebooks[course.id]?.length || 0
-            }}</span>
+            <span class="course-stat__value">{{ course.notebooks }}</span>
             <span class="course-stat__label">Cuadernos</span>
           </div>
         </div>
-        <button class="btn-levels" @click="emit('openLevels', course.id)">
+        <button class="btn-levels" @click="emit('openLevels', course.course_id)">
           <i class="pi pi-list"></i>
           <span class="btn-levels__label">Ver niveles</span>
         </button>
