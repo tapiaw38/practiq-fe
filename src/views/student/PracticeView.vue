@@ -10,6 +10,7 @@
   import ColorPalette from "@/components/ui/ColorPalette.vue";
   import { BASE_COLORS } from "@/utils/palette";
   import AttachmentAnswer from "@/components/student/exercises/AttachmentAnswer.vue";
+  import ExerciseStepper from "@/components/student/exercises/ExerciseStepper.vue";
   import ExerciseMedia from "@/components/ui/ExerciseMedia.vue";
   import FillBlanksAnswer from "@/components/student/exercises/FillBlanksAnswer.vue";
   import { usePracticeSheet } from "@/composables/usePracticeSheet";
@@ -174,6 +175,38 @@
   const currentExercise = computed(
     () => sheet.value?.exercises?.[currentIdx.value]?.exercise ?? null,
   );
+
+  /**
+   * The one exercise on screen. The rest stay in state, not in the DOM.
+   *
+   * A list of one rather than a single value: rendered through `v-for`, the
+   * template gets a non-null binding, which `v-if` does not give the callbacks
+   * inside it.
+   */
+  const visibleExercises = computed(() => {
+    const current = sheet.value?.exercises?.[currentIdx.value];
+    return current ? [current] : [];
+  });
+
+  const answeredFlags = computed(() =>
+    (sheet.value?.exercises ?? []).map((item) => isAnswered(item.exercise.id)),
+  );
+
+  /**
+   * Moves to an exercise and saves what the student had written.
+   *
+   * Saving here rather than on a button is what the step-by-step layout buys:
+   * every change of exercise is a natural checkpoint, so a reload never costs
+   * more than the exercise in progress.
+   */
+  function goToExercise(index: number) {
+    if (index < 0 || index >= totalCount.value) return;
+    if (index === currentIdx.value) return;
+    const target = sheet.value?.exercises?.[index];
+    if (!target) return;
+    saveDraft();
+    setActiveExercise(target.exercise.id, index);
+  }
 
   const answeredCount = computed(() => {
     return (
@@ -559,6 +592,9 @@
       JSON.stringify({
         sheetId,
         data: draftData,
+        // Where the student was. Restoring the answers but reopening at the
+        // first exercise would make them hunt for the one they left.
+        currentIdx: currentIdx.value,
         savedAt: Date.now(),
       }),
     );
@@ -620,6 +656,12 @@
         if (draft.attachment?.url) {
           setAttachment(exerciseId, draft.attachment);
         }
+      }
+
+      const savedIdx = Number(parsed.currentIdx);
+      if (Number.isInteger(savedIdx) && savedIdx >= 0 && savedIdx < totalCount.value) {
+        const target = sheet.value?.exercises?.[savedIdx];
+        if (target) setActiveExercise(target.exercise.id, savedIdx);
       }
 
       showRestoreModal.value = false;
@@ -1033,22 +1075,26 @@
               <span class="size-val">{{ penSize }}px</span>
             </div>
 
-            <!-- Exercise cards -->
+            <!-- One exercise at a time; the stepper above jumps between them -->
+            <ExerciseStepper
+              :total="totalCount"
+              :current="currentIdx"
+              :answered="answeredFlags"
+              @select="goToExercise"
+            />
+
             <div class="exercises-list">
               <div
-                v-for="(pse, idx) in sheet.exercises"
+                v-for="pse in visibleExercises"
                 :key="pse.id"
                 class="ex-card"
                 :class="{ 'ex-card--answered': isAnswered(pse.exercise.id) }"
-                @click="setActiveExercise(pse.exercise.id, idx)"
-                @focusin="setActiveExercise(pse.exercise.id, idx)"
-                @mouseenter="setActiveExercise(pse.exercise.id, idx)"
               >
                 <div
                   class="ex-num"
                   :class="{ 'ex-num--done': isAnswered(pse.exercise.id) }"
                 >
-                  {{ idx + 1 }}
+                  {{ currentIdx + 1 }}
                 </div>
                 <div class="ex-body">
                   <div class="ex-meta">
@@ -1215,8 +1261,7 @@
                       :tool="tool"
                       :pen-size="penSize"
                       :pen-color="penColor"
-                      @click="setActiveExercise(pse.exercise.id, idx)"
-                    />
+                                          />
                   </div>
                 </div>
               </div>
@@ -1234,14 +1279,28 @@
               </div>
               <div class="footer-actions">
                 <button
-                  v-if="isCanvasMode"
-                  class="btn-draft"
-                  @click="saveDraft"
+                  class="btn-step"
+                  type="button"
+                  :disabled="currentIdx === 0"
+                  @click="goToExercise(currentIdx - 1)"
                 >
-                  <i class="pi pi-save"></i>
-                  Guardar borrador
+                  <i class="pi pi-chevron-left"></i>
+                  Anterior
                 </button>
-                <button class="btn-submit" @click="showSubmitConfirm = true">
+                <button
+                  v-if="currentIdx < totalCount - 1"
+                  class="btn-step btn-step--next"
+                  type="button"
+                  @click="goToExercise(currentIdx + 1)"
+                >
+                  Siguiente
+                  <i class="pi pi-chevron-right"></i>
+                </button>
+                <button
+                  v-else
+                  class="btn-submit"
+                  @click="showSubmitConfirm = true"
+                >
                   <i class="pi pi-send"></i>
                   Revisar respuestas
                 </button>
@@ -2084,7 +2143,7 @@
     gap: 10px;
   }
 
-  .btn-draft {
+  .btn-step {
     display: flex;
     align-items: center;
     gap: 6px;
@@ -2098,9 +2157,13 @@
     cursor: pointer;
     transition: all 0.15s;
   }
-  .btn-draft:hover {
+  .btn-step:hover:not(:disabled) {
     background: var(--fill-primary-faint);
     border-color: rgba(var(--practiq-violet-rgb), 0.35);
+  }
+  .btn-step:disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
   }
 
   .btn-submit {
@@ -2397,7 +2460,7 @@
       gap: 8px;
     }
 
-    .btn-draft {
+    .btn-step {
       flex: 1;
       padding: 12px 16px;
       justify-content: center;
@@ -2412,7 +2475,7 @@
     }
 
     /* Tap targets >= 44px en mobile */
-    .btn-draft,
+    .btn-step,
     .btn-submit {
       min-height: 50px;
     }

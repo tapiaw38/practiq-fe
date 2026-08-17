@@ -1,5 +1,7 @@
 <script setup lang="ts">
   import { ref, computed, onMounted, onUnmounted, nextTick } from "vue";
+  import { statementImageDataURL } from "@/utils/statementImage";
+  import ExerciseStepper from "@/components/student/exercises/ExerciseStepper.vue";
   import { useRoute, useRouter } from "vue-router";
   import { useToast } from "primevue/usetoast";
   import StudentLayout from "@/layouts/StudentLayout.vue";
@@ -174,6 +176,32 @@
     }, 1000);
   }
 
+  /**
+   * Handwritten statements, by exercise id.
+   *
+   * They are not part of the sheet payload — one drawing outweighed the whole
+   * sheet — so they are fetched once the sheet is known and rendered from here.
+   */
+  const teacherImages = ref<Record<string, string>>({});
+
+  function teacherImageFor(exercise?: { id?: string; question?: string; metadata?: string } | null) {
+    if (!exercise?.id) return "";
+    // The legacy reader still runs: a handful of exercises kept the drawing in
+    // `question` before metadata existed.
+    return teacherImages.value[exercise.id] || extractTeacherImageDataUrl(exercise as never);
+  }
+
+  async function loadTeacherImages() {
+    const pending = (sheet.value?.exercises ?? [])
+      .map((item) => item.exercise)
+      .filter((exercise) => exercise?.has_teacher_image)
+      .map(async (exercise) => {
+        const dataUrl = await statementImageDataURL(exercise);
+        if (dataUrl) teacherImages.value[exercise.id] = dataUrl;
+      });
+    await Promise.all(pending);
+  }
+
   const exercises = computed<PracticeSheetExercise[]>(
     () => sheet.value?.exercises || [],
   );
@@ -192,6 +220,41 @@
     if (exercise && exerciseUsesCanvas(exercise.type))
       return !!canvasData.value[exerciseId];
     return (answers.value[exerciseId] || "").trim() !== "";
+  }
+
+  const currentIdx = ref(0);
+
+  /**
+   * The one exercise on screen. The rest stay in state, not in the DOM.
+   *
+   * A list of one rather than a single value: rendered through `v-for`, the
+   * template gets a non-null binding, which `v-if` does not give the callbacks
+   * inside it.
+   */
+  const visibleExercises = computed(() => {
+    const current = exercises.value[currentIdx.value];
+    return current ? [current] : [];
+  });
+
+  const answeredFlags = computed(() =>
+    exercises.value.map((item) => isAnswered(item.exercise.id)),
+  );
+
+  /**
+   * Moves to an exercise. Answers stay in memory, keyed by exercise id, so
+   * stepping away and back keeps them.
+   *
+   * Nothing is written to storage here, unlike the practice sheet. A level test
+   * carries a claim and an expiry, and restoring one from a stale draft is a
+   * product decision, not a side effect of changing how it is laid out.
+   */
+  function goToExercise(index: number) {
+    if (index < 0 || index >= exercises.value.length) return;
+    if (index === currentIdx.value) return;
+    const target = exercises.value[index];
+    if (!target) return;
+    currentIdx.value = index;
+    setActiveExercise(target.exercise.id);
   }
 
   function setActiveExercise(exerciseId: string) {
@@ -269,6 +332,7 @@
     const id = route.params.id as string;
     try {
       sheet.value = await loadPracticeSheet(id);
+      loadTeacherImages();
       for (const ex of exercises.value) {
         answers.value[ex.exercise.id] = "";
       }
@@ -292,11 +356,6 @@
       delete (window as any).__practiqAssistantHookSource;
     }
   });
-
-  function focusNext(idx: number) {
-    const inputs = document.querySelectorAll<HTMLInputElement>(".ex-input");
-    inputs[idx + 1]?.focus();
-  }
 
   async function confirmExit() {
     await leave(() => router.back());
@@ -539,7 +598,7 @@
       activeExerciseIndex >= 0
         ? exercises.value[activeExerciseIndex]?.exercise
         : null;
-    const activeTeacherImage = extractTeacherImageDataUrl(activeExercise);
+    const activeTeacherImage = teacherImageFor(activeExercise);
 
     return {
       current_view: "student_level_test",
@@ -599,13 +658,13 @@
         difficulty: item.exercise.difficulty,
         question:
           item.exercise.type === "handwritten" &&
-          extractTeacherImageDataUrl(item.exercise)
+          teacherImageFor(item.exercise)
             ? "[consigna manuscrita en imagen adjunta]"
             : item.exercise.question,
-        has_teacher_image: !!extractTeacherImageDataUrl(item.exercise),
+        has_teacher_image: !!teacherImageFor(item.exercise),
         question_source:
           item.exercise.type === "handwritten" &&
-          extractTeacherImageDataUrl(item.exercise)
+          teacherImageFor(item.exercise)
             ? "teacher_image_attachment"
             : "text",
       })),
@@ -629,9 +688,13 @@
           canvasData.value[exerciseId],
         ])
       : "";
+    // Awaited rather than read from teacherImages: the drawings are prefetched
+    // on mount, but grading must not send a page without the statement just
+    // because a student answered faster than the fetch finished.
     const teacherDataUrl =
       (await statementMediaPreviewDataURL(exercise, assistantMediaPath(exerciseId))) ||
-      extractTeacherImageDataUrl(exercise);
+      (await statementImageDataURL(exercise)) ||
+      teacherImageFor(exercise);
     const dataUrl = await composeAssistantWorkImage({
       teacherDataUrl,
       studentDataUrl,
@@ -799,18 +862,22 @@
           <span class="size-val">{{ penSize }}px</span>
         </div>
 
-        <!-- Exercises -->
+        <!-- One exercise at a time; the stepper above jumps between them -->
+        <ExerciseStepper
+          :total="exercises.length"
+          :current="currentIdx"
+          :answered="answeredFlags"
+          @select="goToExercise"
+        />
+
         <div class="exercises-list">
           <div
-            v-for="(ex, idx) in exercises"
+            v-for="ex in visibleExercises"
             :key="ex.id"
             class="ex-card"
             :class="{ 'ex-card--answered': isAnswered(ex.exercise.id) }"
-            @click="setActiveExercise(ex.exercise.id)"
-            @focusin="setActiveExercise(ex.exercise.id)"
-            @mouseenter="setActiveExercise(ex.exercise.id)"
           >
-            <div class="ex-num">{{ idx + 1 }}</div>
+            <div class="ex-num">{{ currentIdx + 1 }}</div>
             <div class="ex-body">
               <div
                 v-if="ex.exercise.type === 'equation'"
@@ -821,7 +888,7 @@
                 v-else-if="
                   ex.exercise.type !== 'fill_blanks' &&
                   (ex.exercise.type !== 'handwritten' ||
-                  !extractTeacherImageDataUrl(ex.exercise)
+                  !teacherImageFor(ex.exercise)
                   )
                 "
                 class="ex-question"
@@ -829,8 +896,8 @@
                 {{ ex.exercise.question }}
               </div>
               <img
-                v-if="extractTeacherImageDataUrl(ex.exercise)"
-                :src="extractTeacherImageDataUrl(ex.exercise)"
+                v-if="teacherImageFor(ex.exercise)"
+                :src="teacherImageFor(ex.exercise)"
                 class="teacher-handwritten-image"
                 alt="Consigna manuscrita del profesor"
               />
@@ -863,7 +930,7 @@
                   v-model="answers[ex.exercise.id]"
                   class="ex-input"
                   placeholder="Escribe la opción correcta..."
-                  @keydown.enter="focusNext(idx)"
+                  @keydown.enter="goToExercise(currentIdx + 1)"
                 />
               </div>
 
@@ -914,7 +981,7 @@
                 v-model="answers[ex.exercise.id]"
                 class="ex-input"
                 placeholder="Escribe tu respuesta..."
-                @keydown.enter="focusNext(idx)"
+                @keydown.enter="goToExercise(currentIdx + 1)"
               />
 
               <!-- Canvas mode -->
@@ -954,7 +1021,25 @@
         <!-- Submit -->
         <div class="test-footer">
           <span class="footer-hint">{{ unansweredCount }} sin responder</span>
-          <button class="btn-submit" :disabled="submitting || uploadingAttachments.size > 0" @click="submit">
+          <button
+            class="btn-step"
+            type="button"
+            :disabled="currentIdx === 0"
+            @click="goToExercise(currentIdx - 1)"
+          >
+            <i class="pi pi-chevron-left"></i>
+            Anterior
+          </button>
+          <button
+            v-if="currentIdx < exercises.length - 1"
+            class="btn-step"
+            type="button"
+            @click="goToExercise(currentIdx + 1)"
+          >
+            Siguiente
+            <i class="pi pi-chevron-right"></i>
+          </button>
+          <button v-else class="btn-submit" :disabled="submitting || uploadingAttachments.size > 0" @click="submit">
             <i v-if="!submitting" :class="pendingSubmitJobId ? 'pi pi-refresh' : 'pi pi-send'"></i>
             <span v-else class="spinner"></span>
             {{ pendingSubmitJobId ? "Consultar evaluación" : "Entregar prueba" }}
@@ -1612,6 +1697,28 @@
   .footer-hint {
     font-size: 0.85rem;
     color: var(--text-secondary);
+  }
+
+  .btn-step {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 10px 18px;
+    border-radius: var(--radius-md);
+    border: 1.5px solid rgba(var(--practiq-violet-rgb), 0.2);
+    background: var(--surface-elevated-strong);
+    color: var(--practiq-violet);
+    font-weight: 600;
+    font-size: 0.9rem;
+    cursor: pointer;
+  }
+  .btn-step:hover:not(:disabled) {
+    background: var(--fill-primary-faint);
+    border-color: rgba(var(--practiq-violet-rgb), 0.35);
+  }
+  .btn-step:disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
   }
 
   .btn-submit {
