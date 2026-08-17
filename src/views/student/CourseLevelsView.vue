@@ -16,7 +16,7 @@
 
   const { loadCourse } = useCourse();
   const { loadCourseLevels } = useLevel();
-  const { loadMaterials } = useMaterial();
+  const { loadMaterials, loadMaterial } = useMaterial();
   const loading = ref(true);
   const data = ref<CourseLevelsResponse | null>(null);
   const courseTitle = ref("");
@@ -30,14 +30,33 @@
   const CLAMP_CHARS = 120;
 
   function canExpand(material: Material) {
-    return (material.extracted_text?.length ?? 0) > CLAMP_CHARS;
+    return (
+      material.extracted_text_truncated ||
+      (material.extracted_text?.length ?? 0) > CLAMP_CHARS
+    );
   }
 
-  function toggleExpanded(id: string) {
+  async function toggleExpanded(material: Material) {
     const next = new Set(expanded.value);
-    if (next.has(id)) next.delete(id);
-    else next.add(id);
+    if (next.has(material.id)) {
+      next.delete(material.id);
+      expanded.value = next;
+      return;
+    }
+    next.add(material.id);
     expanded.value = next;
+
+    // The listing carries only the beginning of long texts, so expanding one is
+    // the moment its rest is worth fetching. Read once: after this the material
+    // holds the whole text.
+    if (!material.extracted_text_truncated) return;
+    const full = await loadMaterial(material.id);
+    if (!full) return;
+    materials.value = materials.value.map((m) =>
+      m.id === material.id
+        ? { ...m, extracted_text: full.extracted_text, extracted_text_truncated: false }
+        : m,
+    );
   }
 
   onMounted(async () => {
@@ -195,7 +214,7 @@
                 type="button"
                 class="material-more"
                 :aria-expanded="expanded.has(material.id)"
-                @click="toggleExpanded(material.id)"
+                @click="toggleExpanded(material)"
               >
                 {{ expanded.has(material.id) ? "Ver menos" : "Ver más" }}
               </button>

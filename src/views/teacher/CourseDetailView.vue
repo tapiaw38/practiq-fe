@@ -32,6 +32,10 @@
     CourseLevelsResponse,
   } from "@/types";
   import { parseExerciseMetadata } from "@/utils/assistantExerciseContext";
+  import {
+    statementImageDataURL,
+    forgetStatementImage,
+  } from "@/utils/statementImage";
   import { ATTACHMENT_KINDS, acceptedKinds } from "@/utils/attachments";
   import {
     buildCorrectAnswer,
@@ -85,6 +89,7 @@
   } = usePracticeSheet();
   const {
     loadMaterials,
+    loadMaterial,
     createMaterial: createMaterialService,
     updateMaterial: updateMaterialService,
     deleteMaterial: deleteMaterialService,
@@ -218,13 +223,22 @@
     file_url: "",
   });
 
-  function openEditMaterial(material: Material) {
+  async function openEditMaterial(material: Material) {
     editMaterial.id = material.id;
     editMaterial.title = material.title;
     editMaterial.type = material.type;
     editMaterial.extracted_text = material.extracted_text || "";
     editMaterial.file_url = material.file_url || "";
     showEditMaterialModal.value = true;
+    // The listing carries only the beginning of the text and this form posts
+    // whatever is in it back: prefilling from the preview would save the cut
+    // version over the whole document.
+    if (material.extracted_text_truncated) {
+      const full = await loadMaterial(material.id);
+      if (full && editMaterial.id === material.id) {
+        editMaterial.extracted_text = full.extracted_text || "";
+      }
+    }
   }
 
   async function saveMaterial() {
@@ -663,7 +677,10 @@
     return true;
   }
 
-  function openEditExercise(ex: Exercise) {
+  /** What the editor loaded, to tell an untouched statement from a redrawn one. */
+  const loadedTeacherImage = ref("");
+
+  async function openEditExercise(ex: Exercise) {
     editingExerciseId.value = ex.id;
     editExercise.question = ex.question;
     editExercise.type = ex.type;
@@ -671,6 +688,8 @@
     editExercise.explanation = ex.explanation || "";
     editExercise.difficulty = ex.difficulty ?? 1;
     editExercise.metadata = ex.metadata || "{}";
+    // The drawing is not part of the payload any more, so it is fetched. The
+    // legacy reader stays for exercises that still carry it inline.
     editExercise.teacher_image = getMetadataTeacherImage(ex.metadata);
     editExercise.media_url = getMetadataMediaURL(ex.metadata);
     setExerciseOptions(editExercise, getMetadataOptions(ex.metadata));
@@ -680,7 +699,11 @@
     editExercise.fillBlanks = parseFillBlanksConfig(ex);
     showEditExerciseModal.value = true;
     if (editExercise.type === "handwritten") {
-      nextTick(() => initTeacherCanvas("edit", editExercise.teacher_image));
+      const drawing =
+        editExercise.teacher_image || (await statementImageDataURL(ex));
+      editExercise.teacher_image = drawing;
+      loadedTeacherImage.value = drawing;
+      nextTick(() => initTeacherCanvas("edit", drawing));
     }
   }
 
@@ -692,6 +715,9 @@
       editingExerciseId.value,
       buildExercisePayload(editExercise, "edit"),
     );
+    // Drawings are cached by exercise id; a teacher who just redrew a statement
+    // has to see the new one, not the copy fetched when the modal opened.
+    forgetStatementImage(editingExerciseId.value);
     showEditExerciseModal.value = false;
   }
 
@@ -777,7 +803,8 @@
       // Both student views render any teacher image they find, whatever the
       // type. Converting a handwritten exercise used to keep it, so the old
       // prompt showed up next to the new statement — and reached the assistant.
-      delete rest.teacher_image;
+      // Empty, not absent: absent means "keep what is stored".
+      rest.teacher_image = "";
       const config = pruneFillBlanks(form.fillBlanks, form.question);
       return JSON.stringify({
         ...rest,
@@ -790,15 +817,23 @@
       // Empty means "any supported file"; the API enforces the whitelist.
       if (form.accept.length) rest.accept = [...form.accept];
       else delete rest.accept;
-      delete rest.teacher_image;
+      rest.teacher_image = "";
       return JSON.stringify(rest);
     }
     delete rest.accept;
     if (form.type === "handwritten") {
       const canvasImage = canvasKind ? captureTeacherCanvas(canvasKind) : "";
-      rest.teacher_image = canvasImage || form.teacher_image;
+      const drawing = canvasImage || form.teacher_image;
+      // Leaving the key out tells the API to keep the drawing it already has.
+      // Sending it back would upload a second copy of a statement nobody
+      // changed, since the editor re-exports the canvas on every save.
+      if (drawing && drawing === loadedTeacherImage.value) {
+        delete rest.teacher_image;
+      } else {
+        rest.teacher_image = drawing;
+      }
     } else {
-      delete rest.teacher_image;
+      rest.teacher_image = "";
     }
     return JSON.stringify(rest);
   }

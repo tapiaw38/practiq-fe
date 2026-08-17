@@ -26,6 +26,7 @@
     statementMediaAudioAttachment,
     statementMediaPreviewDataURL,
   } from "@/utils/assistantExerciseContext";
+  import { statementImageDataURL } from "@/utils/statementImage";
   import { formatDuration } from "@/utils/formatters";
   import {
     renderContent,
@@ -204,9 +205,36 @@
     return name.charAt(0).toUpperCase();
   });
 
+  /**
+   * Handwritten statements, by exercise id.
+   *
+   * They are not part of the sheet payload — one drawing outweighed the whole
+   * sheet — so they are fetched once the sheet is known and rendered from here.
+   */
+  const teacherImages = ref<Record<string, string>>({});
+
+  function teacherImageFor(exercise?: { id?: string; question?: string; metadata?: string } | null) {
+    if (!exercise?.id) return "";
+    // The legacy reader still runs: a handful of exercises kept the drawing in
+    // `question` before metadata existed.
+    return teacherImages.value[exercise.id] || extractTeacherImageDataUrl(exercise as never);
+  }
+
+  async function loadTeacherImages() {
+    const pending = (sheet.value?.exercises ?? [])
+      .map((pse) => pse.exercise)
+      .filter((exercise) => exercise?.has_teacher_image)
+      .map(async (exercise) => {
+        const dataUrl = await statementImageDataURL(exercise);
+        if (dataUrl) teacherImages.value[exercise.id] = dataUrl;
+      });
+    await Promise.all(pending);
+  }
+
   onMounted(async () => {
     try {
       sheet.value = await loadPracticeSheet(sheetId);
+      loadTeacherImages();
 
       for (const pse of sheet.value.exercises ?? []) {
         answers.value[pse.exercise.id] = {
@@ -717,7 +745,7 @@
       activeExerciseIndex >= 0
         ? sheet.value.exercises[activeExerciseIndex]?.exercise
         : null;
-    const activeTeacherImage = extractTeacherImageDataUrl(activeExercise);
+    const activeTeacherImage = teacherImageFor(activeExercise);
 
     return {
       current_view: "student_practice",
@@ -782,13 +810,13 @@
         difficulty: pse.exercise.difficulty,
         question:
           pse.exercise.type === "handwritten" &&
-          extractTeacherImageDataUrl(pse.exercise)
+          teacherImageFor(pse.exercise)
             ? "[consigna manuscrita en imagen adjunta]"
             : pse.exercise.question,
-        has_teacher_image: !!extractTeacherImageDataUrl(pse.exercise),
+        has_teacher_image: !!teacherImageFor(pse.exercise),
         question_source:
           pse.exercise.type === "handwritten" &&
-          extractTeacherImageDataUrl(pse.exercise)
+          teacherImageFor(pse.exercise)
             ? "teacher_image_attachment"
             : "text",
       })),
@@ -811,9 +839,13 @@
       buildCanvasDataForOCR(exerciseId),
       answers.value[exerciseId]?.answer,
     ]);
+    // Awaited rather than read from teacherImages: the drawings are prefetched
+    // on mount, but grading must not send a page without the statement just
+    // because a student answered faster than the fetch finished.
     const teacherDataUrl =
       (await statementMediaPreviewDataURL(exercise, assistantMediaPath(exerciseId))) ||
-      extractTeacherImageDataUrl(exercise);
+      (await statementImageDataURL(exercise)) ||
+      teacherImageFor(exercise);
     const dataUrl = await composeAssistantWorkImage({
       teacherDataUrl,
       studentDataUrl,
@@ -1056,7 +1088,7 @@
                     v-else-if="
                       pse.exercise.type !== 'fill_blanks' &&
                       (pse.exercise.type !== 'handwritten' ||
-                      !extractTeacherImageDataUrl(pse.exercise)
+                      !teacherImageFor(pse.exercise)
                       )
                     "
                     class="ex-question"
@@ -1064,8 +1096,8 @@
                     {{ pse.exercise.question }}
                   </div>
                   <img
-                    v-if="extractTeacherImageDataUrl(pse.exercise)"
-                    :src="extractTeacherImageDataUrl(pse.exercise)"
+                    v-if="teacherImageFor(pse.exercise)"
+                    :src="teacherImageFor(pse.exercise)"
                     class="teacher-handwritten-image"
                     alt="Consigna manuscrita del profesor"
                   />

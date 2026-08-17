@@ -25,6 +25,18 @@ export class MaterialService implements IMaterialService {
     return data;
   }
 
+  /**
+   * One material with its whole extracted text.
+   *
+   * The listing carries a preview of that text; a material holds the full
+   * extracted document, which is far more than the two clamped lines a list
+   * shows. Read this before displaying or re-saving the text.
+   */
+  async get(id: string): Promise<{ data: Material }> {
+    const { data } = await this.api.get(`/materials/${id}`);
+    return data;
+  }
+
   async list(courseId: string): Promise<{ data: Material[] }> {
     const { data } = await this.api.get(`/courses/${courseId}/materials`);
     return data;

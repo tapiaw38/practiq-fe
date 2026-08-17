@@ -26,5 +26,11 @@ export interface Exercise {
    * the one that gets written back on edit.
    */
   media_view_url?: string;
+  /**
+   * The statement was drawn by hand. The drawing itself is never part of a
+   * payload: fetch it with `statementImageDataURL`, which reads it from the
+   * exercise's own endpoint.
+   */
+  has_teacher_image?: boolean;
   created_at: string;
 }

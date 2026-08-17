@@ -26,6 +26,16 @@ export const useMaterial = () => {
     }
   };
 
+  /** Reads one material in full; returns null rather than breaking a screen. */
+  const loadMaterial = async (id: string): Promise<Material | null> => {
+    try {
+      const { data } = await service.get(id);
+      return data;
+    } catch {
+      return null;
+    }
+  };
+
   const createMaterial = async (
     courseId: string,
     params: Partial<Material>,
@@ -95,6 +105,7 @@ export const useMaterial = () => {
     materials,
     loading,
     loadMaterials,
+    loadMaterial,
     createMaterial,
     updateMaterial,
     deleteMaterial,
