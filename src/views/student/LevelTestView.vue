@@ -1021,29 +1021,33 @@
         <!-- Submit -->
         <div class="test-footer">
           <span class="footer-hint">{{ unansweredCount }} sin responder</span>
-          <button
-            class="btn-step"
-            type="button"
-            :disabled="currentIdx === 0"
-            @click="goToExercise(currentIdx - 1)"
-          >
-            <i class="pi pi-chevron-left"></i>
-            Anterior
-          </button>
-          <button
-            v-if="currentIdx < exercises.length - 1"
-            class="btn-step"
-            type="button"
-            @click="goToExercise(currentIdx + 1)"
-          >
-            Siguiente
-            <i class="pi pi-chevron-right"></i>
-          </button>
-          <button v-else class="btn-submit" :disabled="submitting || uploadingAttachments.size > 0" @click="submit">
-            <i v-if="!submitting" :class="pendingSubmitJobId ? 'pi pi-refresh' : 'pi pi-send'"></i>
-            <span v-else class="spinner"></span>
-            {{ pendingSubmitJobId ? "Consultar evaluación" : "Entregar prueba" }}
-          </button>
+          <div class="footer-nav">
+            <button
+              class="btn-step"
+              type="button"
+              :disabled="currentIdx === 0"
+              @click="goToExercise(currentIdx - 1)"
+            >
+              <i class="pi pi-chevron-left"></i>
+              Anterior
+            </button>
+            <button
+              class="btn-step"
+              type="button"
+              :disabled="currentIdx >= exercises.length - 1"
+              @click="goToExercise(currentIdx + 1)"
+            >
+              Siguiente
+              <i class="pi pi-chevron-right"></i>
+            </button>
+          </div>
+          <div class="footer-actions">
+            <button class="btn-submit" :disabled="submitting || uploadingAttachments.size > 0" @click="submit">
+              <i v-if="!submitting" :class="pendingSubmitJobId ? 'pi pi-refresh' : 'pi pi-send'"></i>
+              <span v-else class="spinner"></span>
+              {{ pendingSubmitJobId ? "Consultar evaluación" : "Entregar prueba" }}
+            </button>
+          </div>
         </div>
       </template>
 
@@ -1683,15 +1687,32 @@
 
   /* Footer */
   .test-footer {
-    display: flex;
+    /* Three tracks rather than space-between: the side columns share the
+       leftover width, so the navigation sits in the middle of the bar and does
+       not drift as the hint text changes length. */
+    display: grid;
+    grid-template-columns: 1fr auto 1fr;
     align-items: center;
-    justify-content: space-between;
+    gap: 12px;
     padding: 16px 20px;
     background: var(--surface-elevated-strong);
     border-radius: var(--radius-xl);
     border: 1.5px solid rgba(var(--practiq-violet-rgb), 0.1);
     position: sticky;
     bottom: 16px;
+  }
+
+  .footer-nav {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    justify-content: center;
+  }
+
+  .footer-actions {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
   }
 
   .footer-hint {
@@ -2325,9 +2346,15 @@
       height: 180px;
     }
     .test-footer {
+      /* One column on a phone: three zones side by side would leave each button
+         too narrow to hit. */
+      grid-template-columns: 1fr;
       padding: 10px 12px;
-      flex-wrap: wrap;
       gap: 8px;
+    }
+    .footer-nav .btn-step {
+      flex: 1;
+      justify-content: center;
     }
     .btn-submit {
       width: 100%;

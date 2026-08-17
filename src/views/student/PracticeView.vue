@@ -1277,7 +1277,7 @@
                   <i class="pi pi-save"></i> Borrador guardado
                 </span>
               </div>
-              <div class="footer-actions">
+              <div class="footer-nav">
                 <button
                   class="btn-step"
                   type="button"
@@ -1288,19 +1288,17 @@
                   Anterior
                 </button>
                 <button
-                  v-if="currentIdx < totalCount - 1"
-                  class="btn-step btn-step--next"
+                  class="btn-step"
                   type="button"
+                  :disabled="currentIdx >= totalCount - 1"
                   @click="goToExercise(currentIdx + 1)"
                 >
                   Siguiente
                   <i class="pi pi-chevron-right"></i>
                 </button>
-                <button
-                  v-else
-                  class="btn-submit"
-                  @click="showSubmitConfirm = true"
-                >
+              </div>
+              <div class="footer-actions">
+                <button class="btn-submit" @click="showSubmitConfirm = true">
                   <i class="pi pi-send"></i>
                   Revisar respuestas
                 </button>
@@ -2095,9 +2093,13 @@
 
   /* Sticky footer */
   .practice-footer {
-    display: flex;
+    /* Three tracks rather than space-between: the side columns share the
+       leftover width, so the navigation sits in the middle of the bar and does
+       not drift as the hint text changes length. */
+    display: grid;
+    grid-template-columns: 1fr auto 1fr;
     align-items: center;
-    justify-content: space-between;
+    gap: 12px;
     padding: 14px 20px;
     background: var(--surface-elevated-strong);
     border-radius: var(--radius-xl);
@@ -2137,10 +2139,18 @@
     font-weight: 600;
   }
 
+  .footer-nav {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    justify-content: center;
+  }
+
   .footer-actions {
     display: flex;
     align-items: center;
     gap: 10px;
+    justify-content: flex-end;
   }
 
   .btn-step {
@@ -2444,7 +2454,9 @@
     }
 
     .practice-footer {
-      flex-direction: column;
+      /* One column on a phone: three zones side by side would leave each button
+         too narrow to hit. */
+      grid-template-columns: 1fr;
       gap: 12px;
       align-items: stretch;
       padding: 12px 16px;
@@ -2455,9 +2467,14 @@
       justify-content: space-between;
     }
 
+    .footer-nav,
     .footer-actions {
       width: 100%;
       gap: 8px;
+    }
+
+    .footer-actions .btn-submit {
+      flex: 1;
     }
 
     .btn-step {
