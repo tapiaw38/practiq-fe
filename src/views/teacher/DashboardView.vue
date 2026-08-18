@@ -45,11 +45,9 @@
     return name.split(" ")[0] || "Docente";
   });
 
-  const isAdmin = computed(() => {
+  const isSuperAdmin = computed(() => {
     const roles = authStore.authUser?.roles || [];
-    return roles.some(
-      (role) => role.name === "admin" || role.name === "superadmin",
-    );
+    return roles.some((role) => role.name === "superadmin");
   });
 
   const subjectCount = computed(() => {
@@ -240,12 +238,13 @@
         <div class="page-header__right">
           <span
             class="role-chip"
-            :class="isAdmin ? 'role-chip--admin' : 'role-chip--teacher'"
+            :class="isSuperAdmin ? 'role-chip--admin' : 'role-chip--teacher'"
           >
-            <i :class="isAdmin ? 'pi pi-shield' : 'pi pi-user'"></i>
-            {{ isAdmin ? "Admin" : "Docente" }}
+            <i :class="isSuperAdmin ? 'pi pi-shield' : 'pi pi-user'"></i>
+            {{ isSuperAdmin ? "Administrador" : "Docente" }}
           </span>
           <button
+            v-if="isSuperAdmin"
             class="btn btn-ghost"
             @click="goToAcademicAdmin"
             title="Académico"
@@ -254,7 +253,7 @@
             Académico
           </button>
           <button
-            v-if="isAdmin"
+            v-if="isSuperAdmin"
             class="btn btn-ghost"
             @click="goToAdminUsers"
             title="Usuarios"

@@ -78,9 +78,7 @@
 
   const isSuperAdmin = computed(() => {
     const roles = authStore.authUser?.roles || [];
-    return roles.some(
-      (role) => role.name === "superadmin" || role.name === "admin",
-    );
+    return roles.some((role) => role.name === "superadmin");
   });
 
   function practiqUserId(user: AuthApiUser) {
@@ -379,10 +377,7 @@
       <div v-if="!isSuperAdmin" class="locked-card">
         <div class="locked-icon"><i class="pi pi-lock"></i></div>
         <h2>Acceso restringido</h2>
-        <p>
-          Esta vista está pensada para superadmin o admin con funciones
-          directivas.
-        </p>
+        <p>La administración de usuarios es exclusiva del administrador.</p>
       </div>
 
       <template v-else>

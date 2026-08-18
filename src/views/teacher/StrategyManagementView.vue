@@ -40,11 +40,11 @@
     description: "",
   });
 
-  const isAdmin = computed(() => {
+  // El CRUD de estrategias es del administrador; el profesor solo las asigna
+  // a sus cursos.
+  const isSuperAdmin = computed(() => {
     const roles = authStore.authUser?.roles || [];
-    return roles.some(
-      (role) => role.name === "admin" || role.name === "superadmin",
-    );
+    return roles.some((role) => role.name === "superadmin");
   });
 
   onMounted(async () => {
@@ -174,7 +174,7 @@
         </div>
         <div class="page-header__right">
           <button
-            v-if="isAdmin"
+            v-if="isSuperAdmin"
             class="btn btn-primary"
             @click="openCreateModal"
           >
@@ -220,7 +220,7 @@
       <template v-else>
         <StrategyCatalog
           :strategies="strategies"
-          :is-admin="isAdmin"
+          :is-super-admin="isSuperAdmin"
           @create="openCreateModal"
           @edit="editStrategy"
           @delete="confirmDeleteStrategy"

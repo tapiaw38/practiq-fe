@@ -2,7 +2,7 @@ import type { LearningStrategy } from "@/types";
 
 export interface StrategyCatalogProps {
   strategies: LearningStrategy[];
-  isAdmin: boolean;
+  isSuperAdmin: boolean;
 }
 
 export interface StrategyCatalogEmits {

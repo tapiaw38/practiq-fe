@@ -42,19 +42,19 @@ const router = createRouter({
       path: "/teacher/admin/users",
       name: "teacher-admin-users",
       component: () => import("@/views/teacher/AdminUsersView.vue"),
-      meta: { requiresAuth: true, profileType: "teacher" },
+      meta: { requiresAuth: true, profileType: "teacher", roles: ["superadmin"] },
     },
     {
       path: "/teacher/admin/academic",
       name: "teacher-admin-academic",
       component: () => import("@/views/teacher/AcademicAdminView.vue"),
-      meta: { requiresAuth: true, profileType: "teacher" },
+      meta: { requiresAuth: true, profileType: "teacher", roles: ["superadmin"] },
     },
     {
       path: "/teacher/admin/academic/subjects/:subjectId/courses",
       name: "teacher-subject-courses",
       component: () => import("@/views/teacher/SubjectCoursesView.vue"),
-      meta: { requiresAuth: true, profileType: "teacher" },
+      meta: { requiresAuth: true, profileType: "teacher", roles: ["superadmin"] },
     },
     {
       path: "/teacher/courses/:id",
@@ -162,6 +162,26 @@ router.beforeEach((to, _from, next) => {
         }
       }
     } catch {}
+  }
+
+  // Las vistas de administración son del superadmin. El backend es quien
+  // decide de verdad: esto solo evita mostrarle a un profesor una pantalla que
+  // le va a responder 403 en cada acción.
+  const requiredRoles = to.meta.roles as string[] | undefined;
+  if (to.meta.requiresAuth && requiredRoles?.length) {
+    try {
+      const authUserStr = localStorage.getItem("practiq_auth_user");
+      const roles: { name: string }[] = authUserStr
+        ? JSON.parse(authUserStr).roles || []
+        : [];
+      if (!roles.some((role) => requiredRoles.includes(role.name))) {
+        next("/teacher/dashboard");
+        return;
+      }
+    } catch {
+      next("/teacher/dashboard");
+      return;
+    }
   }
 
   next();

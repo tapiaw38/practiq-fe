@@ -24,7 +24,7 @@
       <div class="empty-icon"><i class="pi pi-cog"></i></div>
       <h3>Sin estrategias</h3>
       <p>No hay estrategias de aprendizaje configuradas.</p>
-      <button v-if="isAdmin" class="btn btn-primary" @click="emit('create')">
+      <button v-if="isSuperAdmin" class="btn btn-primary" @click="emit('create')">
         <i class="pi pi-plus"></i> Crear estrategia
       </button>
     </div>
@@ -37,7 +37,7 @@
       >
         <div class="strategy-header">
           <h3 class="strategy-name">{{ strategy.name }}</h3>
-          <div v-if="isAdmin" class="strategy-actions-mini">
+          <div v-if="isSuperAdmin" class="strategy-actions-mini">
             <button
               class="icon-btn"
               title="Editar"

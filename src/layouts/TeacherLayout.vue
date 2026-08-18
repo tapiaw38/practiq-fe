@@ -16,14 +16,13 @@
   const showChangePassword = ref(false);
   const showSetPassword = ref(false);
   const isGoogleUser = computed(() => authStore.authMethod === "google");
-  const isAdmin = computed(() => {
+  // admin es el rol del profesor; superadmin, el del administrador.
+  const isSuperAdmin = computed(() => {
     const roles = authStore.authUser?.roles || [];
-    return roles.some(
-      (role) => role.name === "admin" || role.name === "superadmin",
-    );
+    return roles.some((role) => role.name === "superadmin");
   });
   const roleLabel = computed(() =>
-    isAdmin.value ? "Profesor Admin" : "Profesor",
+    isSuperAdmin.value ? "Administrador" : "Profesor",
   );
 
   watch(
@@ -76,6 +75,7 @@
           <span>Inicio</span>
         </RouterLink>
         <RouterLink
+          v-if="isSuperAdmin"
           to="/teacher/admin/users"
           class="nav-item"
           active-class="nav-item-active"
@@ -85,6 +85,7 @@
           <span>Usuarios</span>
         </RouterLink>
         <RouterLink
+          v-if="isSuperAdmin"
           to="/teacher/admin/academic"
           class="nav-item"
           active-class="nav-item-active"
