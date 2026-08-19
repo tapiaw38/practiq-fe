@@ -2,7 +2,9 @@
   import { computed, onBeforeUnmount, onMounted, ref } from "vue";
   import TeacherLayout from "@/layouts/TeacherLayout.vue";
   import Skeleton from "@/components/ui/Skeleton.vue";
+  import ConfirmModal from "@/components/ui/ConfirmModal.vue";
   import { useAssignment } from "@/composables/useAssignment";
+  import { useConfirm } from "@/composables/useConfirm";
   import { useAuthAdmin } from "@/composables/useAuthAdmin";
   import { useGrade } from "@/composables/useGrade";
   import { useProfile } from "@/composables/useProfile";
@@ -37,7 +39,8 @@
   };
 
   const authStore = useAuthStore();
-  const { loadUsers, updateUser } = useAuthAdmin();
+  const { confirmState, showConfirm, onConfirm, onCancel } = useConfirm();
+  const { loadUsers, updateUser, updateRoles } = useAuthAdmin();
   const {
     loadTeacherStudents,
     loadStudentTeachers,
@@ -349,6 +352,47 @@
       errorMessage.value = "No se pudo cambiar el estado del alumno.";
     }
   }
+
+  function hasTeacherRole(user: AuthApiUser) {
+    return (user.roles || []).some((role) => role.name === "admin");
+  }
+
+  function isSelf(user: AuthApiUser) {
+    return authStore.authUser?.id === user.id;
+  }
+
+  const changingRole = ref<string | null>(null);
+
+  async function setTeacherRole(item: UserRow, makeTeacher: boolean) {
+    const name = fullName(item.user);
+    const ok = await showConfirm(
+      makeTeacher
+        ? `¿Convertir a ${name} en docente?`
+        : `¿Quitarle el rol de docente a ${name}?`,
+      {
+        description: makeTeacher
+          ? "Va a poder crear cursos y ver a los alumnos que tenga asignados. Su sesión actual se cierra y el cambio aplica cuando vuelva a entrar."
+          : "Vuelve a ser alumno y pierde el acceso a sus cursos. Su sesión actual se cierra.",
+        confirmLabel: makeTeacher ? "Convertir en docente" : "Quitar rol",
+        danger: !makeTeacher,
+      },
+    );
+    if (!ok) return;
+
+    changingRole.value = item.user.id;
+    try {
+      const updated = await updateRoles(item.user.id, [
+        makeTeacher ? "admin" : "user",
+      ]);
+      rows.value = rows.value.map((row) =>
+        row.user.id === item.user.id ? { ...row, user: updated } : row,
+      );
+    } catch {
+      errorMessage.value = "No se pudo cambiar el rol.";
+    } finally {
+      changingRole.value = null;
+    }
+  }
 </script>
 
 <template>
@@ -509,6 +553,7 @@
                 <th>Roles</th>
                 <th>Asignados</th>
                 <th>Estado</th>
+                <th></th>
               </tr>
             </thead>
             <tbody>
@@ -548,6 +593,17 @@
                     }}
                   </span>
                 </td>
+                <td data-label="Acciones" class="cell-actions">
+                  <button
+                    v-if="hasTeacherRole(teacher.user) && !isSelf(teacher.user)"
+                    class="btn btn-secondary btn-sm"
+                    type="button"
+                    :disabled="changingRole === teacher.user.id"
+                    @click="setTeacherRole(teacher, false)"
+                  >
+                    Quitar rol docente
+                  </button>
+                </td>
               </tr>
             </tbody>
           </table>
@@ -572,6 +628,7 @@
                 <th>Email</th>
                 <th>Roles</th>
                 <th>ID</th>
+                <th></th>
               </tr>
             </thead>
             <tbody>
@@ -598,6 +655,18 @@
                   <span class="teacher-badge teacher-badge--pending">{{
                     practiqUserId(item.user)
                   }}</span>
+                </td>
+                <td data-label="Acciones" class="cell-actions">
+                  <button
+                    v-if="!hasTeacherRole(item.user) && !isSelf(item.user)"
+                    class="btn btn-secondary btn-sm"
+                    type="button"
+                    :disabled="changingRole === item.user.id"
+                    @click="setTeacherRole(item, true)"
+                  >
+                    <i class="pi pi-graduation-cap"></i>
+                    Hacer docente
+                  </button>
                 </td>
               </tr>
             </tbody>
@@ -684,6 +753,16 @@
                   </span>
                 </td>
                 <td data-label="Acciones" class="cell-actions">
+                  <button
+                    v-if="!hasTeacherRole(item.user) && !isSelf(item.user)"
+                    class="btn btn-secondary btn-sm"
+                    type="button"
+                    :disabled="changingRole === item.user.id"
+                    @click="setTeacherRole(item, true)"
+                  >
+                    <i class="pi pi-graduation-cap"></i>
+                    Hacer docente
+                  </button>
                   <button
                     class="btn btn-secondary btn-sm"
                     type="button"
@@ -878,6 +957,12 @@
       </template>
     </div>
   </TeacherLayout>
+
+  <ConfirmModal
+    v-bind="confirmState"
+    @confirm="onConfirm"
+    @cancel="onCancel"
+  />
 </template>
 
 <style scoped>
