@@ -296,4 +296,15 @@
     pointer-events: none !important;
     transform: translateY(18px) !important;
   }
+
+  /* En práctica sobre un teléfono el globo caía encima del botón de enviar.
+     La vista marca el body y acá solo se esconde el disparador: el chat en sí
+     sigue abriéndose desde el botón de Ayuda de cada ejercicio. */
+  @media (max-width: 680px) {
+    body.assistant-fab-tucked .floating-button {
+      opacity: 0 !important;
+      pointer-events: none !important;
+      transform: translateY(18px) !important;
+    }
+  }
 </style>

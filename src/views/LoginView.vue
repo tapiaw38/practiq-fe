@@ -331,10 +331,10 @@
               currentView === "login"
                 ? "Entra para continuar con tus prácticas."
                 : currentView === "register"
-                  ? "Crea tu cuenta y elige tu tipo de perfil."
+                  ? "Crea tu cuenta y empezá a practicar."
                   : currentView === "forgot"
                     ? "Te enviaremos un enlace para recuperar el acceso."
-                    : "Antes de continuar, elige tu tipo de perfil."
+                    : "Confirmá tus datos para terminar de entrar."
             }}
           </p>
           <div
@@ -456,37 +456,13 @@
             </div>
           </div>
 
-          <div class="form-group">
-            <label class="form-label">Tipo de perfil</label>
-            <div class="profile-grid">
-              <button
-                type="button"
-                class="profile-option"
-                :class="{ active: profileType === 'student' }"
-                :aria-pressed="profileType === 'student'"
-                @click="profileType = 'student'"
-              >
-                <span class="profile-option__emoji">🎒</span>
-                <span class="profile-option__name">Estudiante</span>
-                <span class="profile-option__desc"
-                  >Practicar y avanzar por temas.</span
-                >
-              </button>
-              <button
-                type="button"
-                class="profile-option"
-                :class="{ active: profileType === 'teacher' }"
-                :aria-pressed="profileType === 'teacher'"
-                @click="profileType = 'teacher'"
-              >
-                <span class="profile-option__emoji">🧑‍🏫</span>
-                <span class="profile-option__name">Docente</span>
-                <span class="profile-option__desc"
-                  >Crear cursos y acompañar estudiantes.</span
-                >
-              </button>
-            </div>
-          </div>
+          <!-- Sin selector de tipo: la cuenta nueva siempre es de estudiante,
+               el rol docente lo habilita el administrador. El selector que
+               había acá prometía un perfil que el backend ya no otorgaba. -->
+          <p class="teacher-note">
+            🧑‍🏫 ¿Sos docente? Registrate igual y pedile al administrador que
+            habilite tu cuenta.
+          </p>
 
           <div class="form-group">
             <label class="form-label" for="register-email">Email</label>
@@ -612,37 +588,12 @@
             </div>
           </div>
 
-          <div class="form-group">
-            <label class="form-label">Tipo de perfil</label>
-            <div class="profile-grid">
-              <button
-                type="button"
-                class="profile-option"
-                :class="{ active: pendingProfile.profile_type === 'student' }"
-                :aria-pressed="pendingProfile.profile_type === 'student'"
-                @click="pendingProfile.profile_type = 'student'"
-              >
-                <span class="profile-option__emoji">🎒</span>
-                <span class="profile-option__name">Estudiante</span>
-                <span class="profile-option__desc"
-                  >Entrar a prácticas y progreso.</span
-                >
-              </button>
-              <button
-                type="button"
-                class="profile-option"
-                :class="{ active: pendingProfile.profile_type === 'teacher' }"
-                :aria-pressed="pendingProfile.profile_type === 'teacher'"
-                @click="pendingProfile.profile_type = 'teacher'"
-              >
-                <span class="profile-option__emoji">🧑‍🏫</span>
-                <span class="profile-option__name">Docente</span>
-                <span class="profile-option__desc"
-                  >Entrar a cursos y gestión de contenido.</span
-                >
-              </button>
-            </div>
-          </div>
+          <!-- El tipo de perfil sale del rol de la cuenta; elegirlo acá era
+               una promesa que el backend no cumplía. -->
+          <p class="teacher-note">
+            Tu perfil se crea según cómo esté habilitada tu cuenta. ¿Sos
+            docente y ves el panel de estudiante? Avisale al administrador.
+          </p>
 
           <div v-if="errorMsg" class="alert alert--error">
             <i class="pi pi-exclamation-circle"></i>
@@ -968,61 +919,15 @@
     gap: 10px;
   }
 
-  /* Profile picker */
-  .profile-grid {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 12px;
-  }
-  .profile-option {
-    padding: 16px 14px;
-    border-radius: var(--radius-xl);
-    border: 1.5px solid var(--surface-border);
-    background: var(--surface-card);
-    text-align: left;
-    cursor: pointer;
-    transition: var(--transition);
-  }
-  .auth-card--register .profile-grid {
-    gap: 10px;
-  }
-  .auth-card--register .profile-option {
-    padding: 12px 12px;
-  }
-  .profile-option:hover {
-    border-color: var(--practiq-violet-light);
+  .teacher-note {
+    margin: 0;
+    padding: 10px 14px;
+    border-radius: var(--radius-lg);
     background: var(--practiq-violet-bg);
-  }
-  .profile-option.active {
-    border-color: var(--practiq-violet);
-    background: var(--practiq-violet-bg);
-    box-shadow: 0 0 0 3px var(--fill-primary-soft);
-  }
-  .profile-option__emoji {
-    display: block;
-    font-size: 22px;
-    margin-bottom: 8px;
-  }
-  .auth-card--register .profile-option__emoji {
-    font-size: 19px;
-    margin-bottom: 5px;
-  }
-  .profile-option__name {
-    display: block;
-    font-weight: 700;
-    font-size: var(--text-md);
-    color: var(--text-primary);
-  }
-  .profile-option__desc {
-    display: block;
-    margin-top: 2px;
-    font-size: var(--text-sm);
+    border: 1px solid var(--surface-border);
     color: var(--text-secondary);
-    line-height: 1.4;
-  }
-  .auth-card--register .profile-option__desc {
-    font-size: var(--text-xs);
-    line-height: 1.3;
+    font-size: var(--text-sm);
+    line-height: 1.5;
   }
 
   .form-help {

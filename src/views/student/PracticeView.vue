@@ -265,6 +265,10 @@
   }
 
   onMounted(async () => {
+    // En un teléfono el globo del asistente cae justo sobre "Revisar
+    // respuestas"; acá se esconde (vía AssistantWidget) porque cada ejercicio
+    // ya tiene su botón de Ayuda visible.
+    document.body.classList.add("assistant-fab-tucked");
     try {
       sheet.value = await loadPracticeSheet(sheetId);
       loadTeacherImages();
@@ -301,6 +305,7 @@
   });
 
   onUnmounted(() => {
+    document.body.classList.remove("assistant-fab-tucked");
     clearInterval(timerInterval);
     if (loadingMsgInterval) clearInterval(loadingMsgInterval);
     if ((window as any).__practiqAssistantHookSource === "practice") {
@@ -2116,7 +2121,9 @@
     align-items: center;
     gap: 12px;
     padding: 14px 20px;
-    background: var(--surface-elevated-strong);
+    /* Opaco a propósito: es sticky y el contenido pasa por atrás; con el 92%
+       de --surface-elevated-strong los textos se leían a través de la barra. */
+    background: rgb(var(--surface-card-rgb));
     border-radius: var(--radius-xl);
     border: 1.5px solid rgba(var(--practiq-violet-rgb), 0.1);
     position: sticky;
@@ -2506,6 +2513,23 @@
       gap: 12px;
       align-items: stretch;
       padding: 12px 16px;
+      /* Pegado al borde: con bottom:16px quedaba una franja por la que se veía
+         pasar el contenido. Los -10px compensan el padding lateral del shell
+         para que la barra llegue de borde a borde. */
+      bottom: 0;
+      margin-left: -10px;
+      margin-right: -10px;
+      border-radius: var(--radius-xl) var(--radius-xl) 0 0;
+      border-bottom: 0;
+      padding-bottom: max(12px, env(safe-area-inset-bottom));
+    }
+
+    /* Una sola fila deslizable: envuelta en tres filas, la barra de dibujo se
+       comía un tercio de la pantalla antes del primer ejercicio. */
+    .draw-tools-bar {
+      flex-wrap: nowrap;
+      overflow-x: auto;
+      -webkit-overflow-scrolling: touch;
     }
 
     .footer-left {

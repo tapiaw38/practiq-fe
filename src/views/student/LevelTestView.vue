@@ -329,6 +329,9 @@
   // Lifecycle
 
   onMounted(async () => {
+    // Mismo motivo que en PracticeView: en mobile el globo del asistente cae
+    // sobre el botón de enviar.
+    document.body.classList.add("assistant-fab-tucked");
     const id = route.params.id as string;
     try {
       sheet.value = await loadPracticeSheet(id);
@@ -352,6 +355,7 @@
   });
 
   onUnmounted(() => {
+    document.body.classList.remove("assistant-fab-tucked");
     if (timer) clearInterval(timer);
     if (loadingMsgInterval) clearInterval(loadingMsgInterval);
     if ((window as any).__practiqAssistantHookSource === "level-test") {
@@ -1707,7 +1711,9 @@
     align-items: center;
     gap: 12px;
     padding: 16px 20px;
-    background: var(--surface-elevated-strong);
+    /* Opaco a propósito: es sticky y el contenido pasa por atrás; con el 92%
+       de --surface-elevated-strong los textos se leían a través de la barra. */
+    background: rgb(var(--surface-card-rgb));
     border-radius: var(--radius-xl);
     border: 1.5px solid rgba(var(--practiq-violet-rgb), 0.1);
     position: sticky;
@@ -2363,6 +2369,21 @@
       grid-template-columns: 1fr;
       padding: 10px 12px;
       gap: 8px;
+      /* Pegado al borde: con bottom:16px quedaba una franja por la que se veía
+         pasar el contenido. Los -8px compensan el padding lateral del shell. */
+      bottom: 0;
+      margin-left: -8px;
+      margin-right: -8px;
+      border-radius: var(--radius-xl) var(--radius-xl) 0 0;
+      border-bottom: 0;
+      padding-bottom: max(10px, env(safe-area-inset-bottom));
+    }
+
+    /* Una sola fila deslizable, igual que en la vista de práctica. */
+    .draw-tools-bar {
+      flex-wrap: nowrap;
+      overflow-x: auto;
+      -webkit-overflow-scrolling: touch;
     }
     .footer-nav .btn-step {
       flex: 1;

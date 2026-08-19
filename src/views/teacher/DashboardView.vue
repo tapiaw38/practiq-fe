@@ -526,6 +526,23 @@
             </button>
           </div>
         </section>
+
+        <!-- Sin alumnos: el hueco apunta directo a la salida, que es el
+             código de invitación. -->
+        <section v-if="!assignedStudents.length" class="content-section">
+          <div class="empty-state">
+            <div class="empty-state__icon"><i class="pi pi-users"></i></div>
+            <h3>Todavía no tenés alumnos</h3>
+            <p>
+              Generá tu código de invitación y compartilo con la clase: cada
+              alumno que lo ingrese queda vinculado con vos.
+            </p>
+            <button class="btn btn-primary" @click="showInviteModal = true">
+              <i class="pi pi-user-plus"></i>
+              Invitar alumnos
+            </button>
+          </div>
+        </section>
       </template>
     </div>
 
@@ -1301,6 +1318,20 @@
     }
     .page-header__right {
       width: 100%;
+      /* 2x2 en vez de una pila de cuatro botones: con superadmin el header
+         empujaba el contenido media pantalla hacia abajo. */
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+    }
+    .page-header__right .role-chip {
+      grid-column: 1 / -1;
+      justify-self: start;
+    }
+    .page-header__right .btn {
+      width: 100%;
+      justify-content: center;
+      min-height: 44px;
     }
     .stats-strip {
       grid-template-columns: 1fr;
