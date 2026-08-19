@@ -6,6 +6,7 @@ export * from "./auth";
 export * from "./courses";
 export * from "./exercises";
 export * from "./grades";
+export * from "./invitations";
 export * from "./levels";
 export * from "./materials";
 export * from "./notebooks";

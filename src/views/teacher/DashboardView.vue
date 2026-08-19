@@ -4,6 +4,7 @@
   import { useAuthStore } from "@/stores/authStore";
   import TeacherLayout from "@/layouts/TeacherLayout.vue";
   import Skeleton from "@/components/ui/Skeleton.vue";
+  import InviteStudentsModal from "@/components/teacher/students/InviteStudentsModal.vue";
   import { useCourse } from "@/composables/useCourse";
   import { useAssignment } from "@/composables/useAssignment";
   import { useGrade } from "@/composables/useGrade";
@@ -28,6 +29,7 @@
   const studentGrades = ref<Record<string, Grade[]>>({});
   const loading = ref(true);
   const showCreateModal = ref(false);
+  const showInviteModal = ref(false);
   const creating = ref(false);
   const currentStudentPage = ref(1);
   const studentsPerPage = 20;
@@ -260,6 +262,10 @@
           >
             <i class="pi pi-users"></i>
             Usuarios
+          </button>
+          <button class="btn btn-ghost" @click="showInviteModal = true">
+            <i class="pi pi-user-plus"></i>
+            Invitar alumnos
           </button>
           <button class="btn btn-primary" @click="showCreateModal = true">
             <i class="pi pi-plus"></i>
@@ -639,6 +645,13 @@
           </div>
         </div>
       </Transition>
+    </Teleport>
+
+    <Teleport to="body">
+      <InviteStudentsModal
+        v-if="showInviteModal"
+        @close="showInviteModal = false"
+      />
     </Teleport>
   </TeacherLayout>
 </template>

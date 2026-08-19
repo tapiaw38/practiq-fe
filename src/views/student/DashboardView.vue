@@ -8,6 +8,7 @@
   import AssistantChatModal from "@/components/student/assistant/AssistantChatModal.vue";
   import Skeleton from "@/components/ui/Skeleton.vue";
   import StudentCoursesGrid from "@/components/student/dashboard/StudentCoursesGrid.vue";
+  import JoinTeacherCard from "@/components/student/JoinTeacherCard.vue";
   import { useProfile } from "@/composables/useProfile";
   import { useDashboard } from "@/composables/useDashboard";
   import type { TopicProgress } from "@/types";
@@ -158,6 +159,26 @@
       handleDrawerToggle as EventListener,
     );
   });
+
+  // Al vincularse con un profesor pueden aparecerle cursos nuevos, así que la
+  // pantalla se vuelve a pedir entera.
+  async function reloadDashboard() {
+    try {
+      const data = await refreshDashboard();
+
+      summaries.value = data.courses || [];
+      progress.value = data.progress || [];
+      streakFromApi.value = data.streak_days || 0;
+      lastPracticedSheetId.value = data.last_practiced_sheet_id || "";
+    } catch {
+      toast.add({
+        severity: "error",
+        summary: "Error",
+        detail: "No se pudo actualizar tu inicio",
+        life: 3000,
+      });
+    }
+  }
 
   function startPractice(sheetId: string) {
     router.push(`/student/practice/${sheetId}`);
@@ -469,6 +490,8 @@
             </article>
           </div>
         </section>
+
+        <JoinTeacherCard @joined="reloadDashboard" />
 
         <StudentCoursesGrid
           :courses="summaries"
