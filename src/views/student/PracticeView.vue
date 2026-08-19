@@ -2524,12 +2524,14 @@
       padding-bottom: max(12px, env(safe-area-inset-bottom));
     }
 
-    /* Una sola fila deslizable: envuelta en tres filas, la barra de dibujo se
-       comía un tercio de la pantalla antes del primer ejercicio. */
     .draw-tools-bar {
       flex-wrap: nowrap;
       overflow-x: auto;
       -webkit-overflow-scrolling: touch;
+    }
+
+    .draw-tools-bar > * {
+      flex-shrink: 0;
     }
 
     .footer-left {

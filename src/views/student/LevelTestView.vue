@@ -2379,11 +2379,14 @@
       padding-bottom: max(10px, env(safe-area-inset-bottom));
     }
 
-    /* Una sola fila deslizable, igual que en la vista de práctica. */
     .draw-tools-bar {
       flex-wrap: nowrap;
       overflow-x: auto;
       -webkit-overflow-scrolling: touch;
+    }
+
+    .draw-tools-bar > * {
+      flex-shrink: 0;
     }
     .footer-nav .btn-step {
       flex: 1;

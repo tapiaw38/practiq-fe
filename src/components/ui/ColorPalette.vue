@@ -232,10 +232,9 @@
   }
 
   @media (max-width: 640px) {
-    /* Sin wrap: la paleta vive en una barra que desliza horizontal; envuelta
-       en filas duplicaba la altura de la barra de herramientas. */
     .color-palette {
       flex-wrap: nowrap;
+      flex-shrink: 0;
     }
 
     .swatch,
