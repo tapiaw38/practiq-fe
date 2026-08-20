@@ -2445,17 +2445,64 @@
     }
   }
 
+  /* Assistant rail is an overlay. Keep practice on left side of freed
+     sidebar space instead of centering it beneath chat. */
+  @media (min-width: 921px) {
+    :global(.practiq-assistant-focus-target--open .practice-shell) {
+      width: calc(100% - var(--practiq-assistant-rail));
+      max-width: calc(100% - var(--practiq-assistant-rail));
+      margin-left: 0;
+      margin-right: auto;
+    }
+  }
+
   @media (max-width: 680px) {
     .practice-shell {
       padding: 16px 10px 80px;
     }
     .practice-header {
-      padding: 16px 14px;
-      flex-wrap: wrap;
+      display: grid;
+      grid-template-columns: 42px minmax(0, 1fr) auto;
+      padding: 12px;
+      gap: 10px;
+      align-items: start;
+      border-radius: var(--radius-xl);
     }
-    .header-right {
-      width: 100%;
+    .practice-header-info { display: contents; }
+    .btn-back { grid-column: 1; grid-row: 1 / span 2; }
+    .practice-title { grid-column: 2; grid-row: 1; align-self: center; font-size: 1.08rem; margin: 0; }
+    .practice-subtitle {
+      grid-column: 2;
+      grid-row: 2;
+      display: -webkit-box;
+      overflow: hidden;
+      font-size: 0.74rem;
+      line-height: 1.3;
+      -webkit-box-orient: vertical;
+      -webkit-line-clamp: 2;
+    }
+    .header-right { grid-column: 3; grid-row: 1; display: flex; gap: 5px; }
+    .streak-chip { padding: 5px 6px; gap: 3px; }
+    .streak-icon { width: 15px; height: 15px; }
+    .streak-val { font-size: .9rem; }
+    .streak-lbl { font-size: .6rem; }
+    .student-avatar { width: 34px; height: 34px; font-size: .9rem; }
+    .level-badges {
+      grid-column: 3;
+      grid-row: 2;
+      align-self: end;
       justify-content: flex-end;
+      gap: 5px;
+      margin-bottom: 0;
+      flex-wrap: nowrap;
+    }
+    .level-badge,
+    .level-test-badge,
+    .input-mode-badge {
+      padding: 3px 7px;
+      font-size: .68rem;
+      line-height: 1;
+      white-space: nowrap;
     }
     .streak-chip {
       padding: 6px 12px;
@@ -2529,10 +2576,9 @@
       flex-shrink: 0;
     }
 
-    .footer-left {
-      width: 100%;
-      justify-content: space-between;
-    }
+    .footer-hint { display: none; }
+    .footer-left:not(:has(.draft-indicator)) { display: none; }
+    .footer-left { width: 100%; justify-content: flex-end; }
 
     .footer-nav,
     .footer-actions {

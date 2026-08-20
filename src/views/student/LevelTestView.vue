@@ -2432,6 +2432,105 @@
     }
   }
 
+  /* Same compact phone layout as practice: header information remains useful,
+     but every answer surface keeps full width. */
+  @media (max-width: 680px) {
+    .test-shell {
+      padding: 16px 10px 80px;
+    }
+
+    .test-header {
+      display: grid;
+      grid-template-columns: 42px minmax(0, 1fr) auto;
+      padding: 12px;
+      gap: 10px;
+      align-items: start;
+      border-radius: var(--radius-xl);
+    }
+
+    .test-header-info { display: contents; }
+    .btn-back { grid-column: 1; grid-row: 1 / span 2; }
+    .test-title { grid-column: 2; grid-row: 1; align-self: center; font-size: 1.08rem; margin: 0; }
+    .test-subtitle {
+      grid-column: 2;
+      grid-row: 2;
+      display: -webkit-box;
+      overflow: hidden;
+      font-size: .74rem;
+      line-height: 1.3;
+      -webkit-box-orient: vertical;
+      -webkit-line-clamp: 2;
+    }
+    .timer {
+      grid-column: 3;
+      grid-row: 1;
+      padding: 5px 7px;
+      gap: 3px;
+      font-size: .78rem;
+      white-space: nowrap;
+    }
+    .level-badge {
+      grid-column: 3;
+      grid-row: 2;
+      align-self: end;
+      justify-self: end;
+      margin: 0;
+      padding: 3px 7px;
+      font-size: .68rem;
+      line-height: 1;
+      white-space: nowrap;
+    }
+
+    .ex-card {
+      padding: 14px 12px;
+      display: grid;
+      grid-template-columns: auto 1fr;
+      gap: 10px;
+      align-items: center;
+    }
+    .ex-card > .ex-body { display: contents; }
+    .ex-card > .ex-body > * { grid-column: 1 / -1; }
+    .ex-num { width: 28px; height: 28px; font-size: .82rem; }
+    .ex-canvas { height: 320px; }
+
+    .test-footer {
+      grid-template-columns: 1fr;
+      gap: 12px;
+      align-items: stretch;
+      padding: 12px 16px;
+      bottom: 0;
+      margin-left: -10px;
+      margin-right: -10px;
+      border-radius: var(--radius-xl) var(--radius-xl) 0 0;
+      border-bottom: 0;
+      padding-bottom: max(12px, env(safe-area-inset-bottom));
+    }
+    .footer-hint { display: none; }
+    .footer-nav,
+    .footer-actions { width: 100%; gap: 8px; }
+    .footer-nav .btn-step,
+    .footer-actions .btn-submit { flex: 1; }
+    .btn-step { padding: 12px 16px; justify-content: center; font-size: .875rem; }
+    .btn-submit { min-height: 50px; }
+
+    .draw-tools-bar {
+      flex-wrap: nowrap;
+      overflow-x: auto;
+      -webkit-overflow-scrolling: touch;
+    }
+    .draw-tools-bar > * { flex-shrink: 0; }
+  }
+
+  /* Match practice while assistant desktop rail is visible. */
+  @media (min-width: 921px) {
+    :global(.practiq-assistant-focus-target--open .test-shell) {
+      width: calc(100% - var(--practiq-assistant-rail));
+      max-width: calc(100% - var(--practiq-assistant-rail));
+      margin-left: 0;
+      margin-right: auto;
+    }
+  }
+
   .spinner {
     width: 16px;
     height: 16px;

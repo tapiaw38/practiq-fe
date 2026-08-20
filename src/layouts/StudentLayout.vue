@@ -381,6 +381,9 @@
 
 <style scoped>
   .app-shell {
+    /* Fallback for views that reserve assistant desktop rail. Package writes
+       same token while loaded; local declaration keeps host CSS self-contained. */
+    --practiq-assistant-rail: clamp(320px, 27vw, 430px);
     min-height: 100vh;
     display: flex;
     background: var(--gradient-app-bg);
@@ -994,6 +997,76 @@
   @media (min-width: 921px) {
     .close-btn {
       display: none;
+    }
+
+    /* Assistant desktop rail takes space from the right. Collapse navigation
+       first, rather than scaling the student's drawing canvas. */
+    :global(.practiq-assistant-focus-target--open .sidebar) {
+      width: 76px;
+      margin-left: 12px;
+      padding: 14px 10px;
+      border-radius: 24px;
+    }
+
+    /* Package only marks #app as focused. Keep its flex root at full width;
+       shrinking #app made the complete student view render as a blank sheet.
+       Collapsing the sidebar frees room for the assistant without scaling the
+       drawing canvas. */
+    :global(.practiq-assistant-focus-target--open .app-shell) {
+      min-width: 0;
+    }
+
+    :global(.practiq-assistant-focus-target--open .sidebar-brand) {
+      justify-content: center;
+      padding: 2px 0 12px;
+    }
+
+    :global(.practiq-assistant-focus-target--open .sidebar-logo) {
+      width: 40px;
+      height: 40px;
+      object-fit: cover;
+      object-position: left center;
+    }
+
+    :global(.practiq-assistant-focus-target--open .sidebar-nav) {
+      align-items: center;
+      padding: 0;
+    }
+
+    :global(.practiq-assistant-focus-target--open .nav-section-label),
+    :global(.practiq-assistant-focus-target--open .nav-item > span:not(.nav-icon)),
+    :global(.practiq-assistant-focus-target--open .nav-chevron),
+    :global(.practiq-assistant-focus-target--open .nav-sub) {
+      display: none;
+    }
+
+    :global(.practiq-assistant-focus-target--open .nav-group),
+    :global(.practiq-assistant-focus-target--open .nav-item) {
+      width: 100%;
+    }
+
+    :global(.practiq-assistant-focus-target--open .nav-item) {
+      justify-content: center;
+      padding: 8px;
+    }
+
+    :global(.practiq-assistant-focus-target--open .sidebar-footer) {
+      flex-direction: column;
+      padding: 10px 0 0;
+      gap: 8px;
+    }
+
+    :global(.practiq-assistant-focus-target--open .user-details) {
+      display: none;
+    }
+
+    :global(.practiq-assistant-focus-target--open .user-info),
+    :global(.practiq-assistant-focus-target--open .footer-actions) {
+      flex: 0 0 auto;
+    }
+
+    :global(.practiq-assistant-focus-target--open .footer-actions) {
+      flex-direction: column;
     }
   }
 </style>

@@ -14,6 +14,7 @@
 
   const open = ref(false);
   const root = ref<HTMLElement | null>(null);
+  const allColors = [...BASE_COLORS, ...EXTENDED_COLORS];
 
   /** Case-insensitive: the native picker returns lowercase, presets may not. */
   function isActive(value: string) {
@@ -75,7 +76,7 @@
 
       <div v-if="open" class="pop" role="group" aria-label="Más colores">
         <button
-          v-for="color in EXTENDED_COLORS"
+          v-for="color in allColors"
           :key="color.value"
           type="button"
           class="pop-swatch"
@@ -237,12 +238,15 @@
       flex-shrink: 0;
     }
 
-    .swatch,
     .more-btn {
       width: 40px;
       height: 40px;
       flex-shrink: 0;
     }
+
+    /* Mobile toolbar has one entry point. Base and extended colors live in
+       the palette sheet, rather than consuming the exercise toolbar row. */
+    .swatch { display: none; }
 
     .pop-swatch,
     .pop-custom {
