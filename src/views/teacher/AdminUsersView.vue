@@ -47,7 +47,7 @@
     assignTeacher: assignTeacherService,
     unassignTeacher: unassignTeacherService,
   } = useAssignment();
-  const { loadGrades, loadUserGrades, addGradeMember, removeGradeMember } =
+  const { loadGrades, loadGradesByUsers, addGradeMember, removeGradeMember } =
     useGrade();
   const {
     loadProfileById,
@@ -201,20 +201,23 @@
       }),
     );
 
+    // Grades for every student in one request: this table can list the whole
+    // platform, and firing a request per row here made "cargando" the row's
+    // steady state.
+    const studentIds = students.value.map((student) => practiqUserId(student.user));
+    const gradesByStudent: Record<string, Grade[]> = await loadGradesByUsers(
+      studentIds,
+    ).catch(() => ({}));
+
     await Promise.all(
       students.value.map(async (student) => {
+        const studentId = practiqUserId(student.user);
         try {
-          const studentId = practiqUserId(student.user);
-          const [teachersData, gradesData] = await Promise.all([
-            loadStudentTeachers(studentId),
-            loadUserGrades(studentId),
-          ]);
-          studentMap[studentId] = teachersData || [];
-          gradeMap[studentId] = gradesData || [];
+          studentMap[studentId] = (await loadStudentTeachers(studentId)) || [];
         } catch {
-          studentMap[practiqUserId(student.user)] = [];
-          gradeMap[practiqUserId(student.user)] = [];
+          studentMap[studentId] = [];
         }
+        gradeMap[studentId] = gradesByStudent[studentId] || [];
       }),
     );
 

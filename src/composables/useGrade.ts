@@ -145,6 +145,20 @@ export const useGrade = () => {
     }
   };
 
+  const loadGradesByUsers = async (userIds: string[]) => {
+    try {
+      return await store.fetchGradesByUsers(userIds);
+    } catch (error) {
+      toast.add({
+        severity: "error",
+        summary: "Error",
+        detail: "No se pudieron cargar los grados de los alumnos",
+        life: 3000,
+      });
+      throw error;
+    }
+  };
+
   return {
     grades,
     members,
@@ -158,5 +172,6 @@ export const useGrade = () => {
     removeGradeMember,
     loadGradeMembers,
     loadUserGrades,
+    loadGradesByUsers,
   };
 };

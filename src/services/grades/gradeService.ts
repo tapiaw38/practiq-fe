@@ -22,6 +22,9 @@ export interface IGradeService {
   ): Promise<{ data: OperationResult }>;
   listMembers(gradeId: string): Promise<{ data: UserProfile[] }>;
   listUserGrades(userId: string): Promise<{ data: Grade[] }>;
+  listGradesByUsers(
+    userIds: string[],
+  ): Promise<{ data: Record<string, Grade[]> }>;
 }
 
 export class GradeService implements IGradeService {
@@ -79,6 +82,15 @@ export class GradeService implements IGradeService {
 
   async listUserGrades(userId: string): Promise<{ data: Grade[] }> {
     const { data } = await this.api.get(`/users/${userId}/grades`);
+    return data;
+  }
+
+  async listGradesByUsers(
+    userIds: string[],
+  ): Promise<{ data: Record<string, Grade[]> }> {
+    const { data } = await this.api.post("/grades/batch-by-users", {
+      user_ids: userIds,
+    });
     return data;
   }
 }
