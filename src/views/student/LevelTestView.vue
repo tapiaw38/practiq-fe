@@ -329,9 +329,6 @@
   // Lifecycle
 
   onMounted(async () => {
-    // Mismo motivo que en PracticeView: en mobile el globo del asistente cae
-    // sobre el botón de enviar.
-    document.body.classList.add("assistant-fab-tucked");
     const id = route.params.id as string;
     try {
       sheet.value = await loadPracticeSheet(id);
@@ -355,7 +352,6 @@
   });
 
   onUnmounted(() => {
-    document.body.classList.remove("assistant-fab-tucked");
     if (timer) clearInterval(timer);
     if (loadingMsgInterval) clearInterval(loadingMsgInterval);
     if ((window as any).__practiqAssistantHookSource === "level-test") {

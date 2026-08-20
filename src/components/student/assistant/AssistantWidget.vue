@@ -296,10 +296,4 @@
     pointer-events: none !important;
     transform: translateY(18px) !important;
   }
-
-  @media (max-width: 680px) {
-    body.assistant-fab-tucked .floating-button {
-      bottom: 104px !important;
-    }
-  }
 </style>

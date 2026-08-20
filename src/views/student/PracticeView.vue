@@ -265,10 +265,6 @@
   }
 
   onMounted(async () => {
-    // En un teléfono el globo del asistente cae justo sobre "Revisar
-    // respuestas"; acá se esconde (vía AssistantWidget) porque cada ejercicio
-    // ya tiene su botón de Ayuda visible.
-    document.body.classList.add("assistant-fab-tucked");
     try {
       sheet.value = await loadPracticeSheet(sheetId);
       loadTeacherImages();
@@ -305,7 +301,6 @@
   });
 
   onUnmounted(() => {
-    document.body.classList.remove("assistant-fab-tucked");
     clearInterval(timerInterval);
     if (loadingMsgInterval) clearInterval(loadingMsgInterval);
     if ((window as any).__practiqAssistantHookSource === "practice") {
