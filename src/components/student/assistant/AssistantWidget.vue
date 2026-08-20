@@ -157,60 +157,12 @@
       .trim();
   }
 
-  const BUBBLE_POSITION_KEY = "practiq-assistant:bubble-position";
-  const BUBBLE_MIN_VISIBLE = 56;
-
-  function dropOffscreenBubblePosition() {
-    try {
-      const raw = localStorage.getItem(BUBBLE_POSITION_KEY);
-      if (!raw) return;
-
-      const saved = JSON.parse(raw);
-      const left = Number.parseFloat(saved?.left);
-      const top = Number.parseFloat(saved?.top);
-      if (Number.isNaN(left) || Number.isNaN(top)) {
-        localStorage.removeItem(BUBBLE_POSITION_KEY);
-        return;
-      }
-
-      const offscreen =
-        left < 0 ||
-        top < 0 ||
-        left > window.innerWidth - BUBBLE_MIN_VISIBLE ||
-        top > window.innerHeight - BUBBLE_MIN_VISIBLE;
-
-      if (offscreen) localStorage.removeItem(BUBBLE_POSITION_KEY);
-    } catch {
-      localStorage.removeItem(BUBBLE_POSITION_KEY);
-    }
-  }
-
-  function resetBubbleIfOffscreen() {
-    const bubble = document.querySelector<HTMLElement>(".floating-button");
-    if (!bubble) return;
-
-    const rect = bubble.getBoundingClientRect();
-    const offscreen =
-      rect.right > window.innerWidth ||
-      rect.bottom > window.innerHeight ||
-      rect.left < 0 ||
-      rect.top < 0;
-    if (!offscreen) return;
-
-    localStorage.removeItem(BUBBLE_POSITION_KEY);
-    bubble.style.left = "auto";
-    bubble.style.top = "auto";
-    bubble.style.right = "20px";
-    bubble.style.bottom = "20px";
-  }
-
   function mountAssistant() {
     const token = authStore.token;
     if (!token || !isEnabled.value) return;
     if (assistant && activeToken === token) return;
 
     destroyAssistant();
-    dropOffscreenBubblePosition();
 
     const primaryColor = getCSSVar("--practiq-violet");
     const backgroundColor = getCSSVar("--surface-card");
@@ -318,8 +270,6 @@
       handleDrawerToggle as EventListener,
     );
     window.addEventListener("practiq:assistant:prompt", handleAssistantPrompt as EventListener);
-    window.addEventListener("resize", resetBubbleIfOffscreen);
-    window.addEventListener("orientationchange", resetBubbleIfOffscreen);
   });
 
   onBeforeUnmount(() => {
@@ -328,8 +278,6 @@
       handleDrawerToggle as EventListener,
     );
     window.removeEventListener("practiq:assistant:prompt", handleAssistantPrompt as EventListener);
-    window.removeEventListener("resize", resetBubbleIfOffscreen);
-    window.removeEventListener("orientationchange", resetBubbleIfOffscreen);
     destroyAssistant();
   });
 </script>
