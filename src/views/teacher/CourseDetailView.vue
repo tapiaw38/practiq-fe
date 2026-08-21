@@ -213,6 +213,7 @@
   }
 
   const showEditMaterialModal = ref(false);
+  const editMaterialReady = ref(true);
   // The update endpoint replaces every field, so the form carries them all.
   // file_url is the canonical one, never the signed view_url.
   const editMaterial = reactive({
@@ -229,6 +230,7 @@
     editMaterial.type = material.type;
     editMaterial.extracted_text = material.extracted_text || "";
     editMaterial.file_url = material.file_url || "";
+    editMaterialReady.value = !material.extracted_text_truncated;
     showEditMaterialModal.value = true;
     // The listing carries only the beginning of the text and this form posts
     // whatever is in it back: prefilling from the preview would save the cut
@@ -237,11 +239,13 @@
       const full = await loadMaterial(material.id);
       if (full && editMaterial.id === material.id) {
         editMaterial.extracted_text = full.extracted_text || "";
+        editMaterialReady.value = true;
       }
     }
   }
 
   async function saveMaterial() {
+    if (!editMaterialReady.value) return;
     if (uploadInFlight(editMaterialUpload)) return;
     await updateMaterialService(editMaterial.id, {
       title: editMaterial.title,
@@ -1446,7 +1450,11 @@
                   v-model="editMaterial.extracted_text"
                   class="form-textarea"
                   rows="4"
+                  :disabled="!editMaterialReady"
                 ></textarea>
+                <small v-if="!editMaterialReady" class="field-hint">
+                  Cargando contenido completo…
+                </small>
               </div>
               <div class="modal-actions">
                 <button
@@ -1459,7 +1467,7 @@
                 <button
                   type="submit"
                   class="btn btn-primary"
-                  :disabled="missingMaterialFile(editMaterial)"
+                  :disabled="!editMaterialReady || missingMaterialFile(editMaterial)"
                 >
                   Guardar
                 </button>

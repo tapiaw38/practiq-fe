@@ -1,4 +1,5 @@
 <script setup lang="ts">
+  import { onMounted, onUnmounted, ref } from "vue";
   import type { LevelSheetSummary } from "@/types";
   import type {
     StudentLevelsListEmits,
@@ -7,14 +8,26 @@
 
   defineProps<StudentLevelsListProps>();
   const emit = defineEmits<StudentLevelsListEmits>();
+  const now = ref(Date.now());
+  let clockTimer: ReturnType<typeof setInterval> | null = null;
+
+  onMounted(() => {
+    clockTimer = setInterval(() => {
+      now.value = Date.now();
+    }, 30_000);
+  });
+
+  onUnmounted(() => {
+    if (clockTimer) clearInterval(clockTimer);
+  });
 
   // The server rejects an out-of-window attempt too; this only keeps the UI
   // honest. Mirrors sheetWindowState on the backend.
   const isScheduled = (sheet?: LevelSheetSummary | null) =>
-    !!sheet?.scheduled_at && new Date(sheet.scheduled_at) > new Date();
+    !!sheet?.scheduled_at && new Date(sheet.scheduled_at).getTime() > now.value;
 
   const isExpired = (sheet?: LevelSheetSummary | null) =>
-    !!sheet?.available_until && new Date(sheet.available_until) < new Date();
+    !!sheet?.available_until && new Date(sheet.available_until).getTime() < now.value;
 
   const isClosed = (sheet?: LevelSheetSummary | null) =>
     isScheduled(sheet) || isExpired(sheet);

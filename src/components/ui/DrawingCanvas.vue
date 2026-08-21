@@ -23,8 +23,10 @@
   function initCanvas() {
     const canvas = canvasRef.value;
     if (!canvas) return;
+    const token = ++loadToken;
 
     requestAnimationFrame(() => {
+      if (token !== loadToken) return;
       const w = canvas.offsetWidth || 600;
       const h = canvas.offsetHeight || props.height;
       canvas.width = w;
@@ -36,7 +38,10 @@
       // Load existing image if any
       if (props.modelValue && props.modelValue.startsWith("data:image/")) {
         const img = new Image();
-        img.onload = () => ctx.drawImage(img, 0, 0, w, h);
+        img.onload = () => {
+          if (token !== loadToken) return;
+          ctx.drawImage(img, 0, 0, w, h);
+        };
         img.src = props.modelValue;
       }
     });

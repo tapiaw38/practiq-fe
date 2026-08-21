@@ -1,5 +1,6 @@
 import { defineStore } from "pinia";
 import { ref } from "vue";
+import { useAuthStore } from "@/stores/authStore";
 import type {
   IDashboardService,
   StudentDashboard,
@@ -26,28 +27,59 @@ export const useDashboardStore = (service: IDashboardService) =>
     const loading = ref(false);
     // Shared so two screens mounting together make one request rather than
     // racing to make the same one.
-    let inFlight: Promise<StudentDashboard> | null = null;
+    let inFlight: {
+      ownerId: string | null;
+      promise: Promise<StudentDashboard>;
+    } | null = null;
+    let ownerId: string | null = null;
+
+    const currentOwnerId = () => {
+      const auth = useAuthStore();
+      return auth.authUser?.id ?? auth.profile?.id ?? null;
+    };
+
+    const isolateForCurrentUser = () => {
+      const currentId = currentOwnerId();
+      if (ownerId !== currentId) {
+        data.value = null;
+        ownerId = currentId;
+      }
+    };
 
     const refreshDashboard = (): Promise<StudentDashboard> => {
-      if (inFlight) return inFlight;
+      isolateForCurrentUser();
+      const requestOwnerId = ownerId;
+      if (inFlight?.ownerId === requestOwnerId) return inFlight.promise;
 
       loading.value = true;
-      inFlight = service
+      const promise = service
         .get()
         .then((response) => {
-          data.value = response.data;
+          // A logout/login can happen while request is in flight. Never put
+          // previous user's response into current user's cache.
+          if (
+            ownerId === requestOwnerId &&
+            currentOwnerId() === requestOwnerId
+          ) {
+            data.value = response.data;
+          }
           return response.data;
         })
         .finally(() => {
-          inFlight = null;
-          loading.value = false;
+          if (inFlight?.promise === promise) {
+            inFlight = null;
+            loading.value = false;
+          }
         });
-      return inFlight;
+      inFlight = { ownerId: requestOwnerId, promise };
+      return promise;
     };
 
     /** What is loaded, or one read if nothing is. */
-    const fetchDashboard = (): Promise<StudentDashboard> =>
-      data.value ? Promise.resolve(data.value) : refreshDashboard();
+    const fetchDashboard = (): Promise<StudentDashboard> => {
+      isolateForCurrentUser();
+      return data.value ? Promise.resolve(data.value) : refreshDashboard();
+    };
 
     return { data, loading, fetchDashboard, refreshDashboard };
   });
