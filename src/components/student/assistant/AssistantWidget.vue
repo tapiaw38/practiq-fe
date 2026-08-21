@@ -296,4 +296,18 @@
     pointer-events: none !important;
     transform: translateY(18px) !important;
   }
+
+  /* Practice and the level test pin a footer to the bottom edge on phones;
+     the launcher's default corner sits right on top of its submit button.
+     Those screens tag the body while mounted so only they get pushed up. */
+  @media (max-width: 680px) {
+    body.assistant-fab-tucked .floating-button {
+      /* --practiq-footer-h is measured live (see useAssistantFabOffset):
+         the footer it clears grows a row whenever the draft-saved indicator
+         shows, so a fixed guess was either wasted space or still overlapped
+         it. 140px is the fallback for the first paint, before the observer
+         reports the real height. */
+      bottom: calc(var(--practiq-footer-h, 140px) + 12px) !important;
+    }
+  }
 </style>

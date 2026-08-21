@@ -37,6 +37,7 @@
   import { useConfetti } from "@/composables/useConfetti";
   import { useSound } from "@/composables/useSound";
   import { useCuriosities } from "@/composables/useCuriosities";
+  import { tuckAssistantFab } from "@/composables/useAssistantFabOffset";
   import AiLoadingModal from "@/components/student/ai/AiLoadingModal.vue";
   import { buildFillBlanksAssistantContext } from "@/utils/fillBlanks";
   import {
@@ -263,6 +264,8 @@
       });
     await Promise.all(pending);
   }
+
+  tuckAssistantFab(".practice-footer");
 
   onMounted(async () => {
     try {
@@ -1639,6 +1642,21 @@
     gap: 12px;
   }
 
+  /* Same identity anchor as the student avatar in the sidebar. Without this
+     base style the header rendered only its initial as plain text on desktop. */
+  .student-avatar {
+    width: 46px;
+    height: 46px;
+    border-radius: var(--radius-xl);
+    background: var(--gradient-brand);
+    color: var(--color-on-primary);
+    display: grid;
+    place-items: center;
+    font-weight: 800;
+    box-shadow: var(--shadow-indigo);
+    flex-shrink: 0;
+  }
+
   .streak-chip {
     display: inline-flex;
     align-items: center;
@@ -1703,19 +1721,6 @@
     font-size: 0.7rem;
     line-height: 1;
     color: var(--text-secondary);
-  }
-
-  .student-avatar {
-    width: 42px;
-    height: 42px;
-    border-radius: 50%;
-    background: var(--gradient-brand);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    color: var(--color-on-primary);
-    font-weight: 800;
-    font-size: 1.1rem;
   }
 
   /* Progress */
@@ -2463,7 +2468,9 @@
     .practice-header {
       display: grid;
       grid-template-columns: 42px minmax(0, 1fr) auto;
-      padding: 12px;
+      /* Matches .ex-card's 14px: at 12px this was the only card on the
+         screen with tighter breathing room than its neighbors. */
+      padding: 14px 12px;
       gap: 10px;
       align-items: start;
       border-radius: var(--radius-xl);
@@ -2476,17 +2483,23 @@
       grid-row: 2;
       display: -webkit-box;
       overflow: hidden;
-      font-size: 0.74rem;
+      /* Was 0.74rem: next to the bold 14.4px streak count, that read as
+         noticeably smaller than everything else on the card instead of
+         just quieter. */
+      font-size: 0.82rem;
       line-height: 1.3;
       -webkit-box-orient: vertical;
       -webkit-line-clamp: 2;
     }
-    .header-right { grid-column: 3; grid-row: 1; display: flex; gap: 5px; }
+    /* Redundant on a phone: the top bar already has an avatar in reach.
+       Kept for desktop, where the two headers sit far enough apart that
+       it's not the same obvious repeat. */
+    .student-avatar { display: none; }
+    .header-right { grid-column: 3; grid-row: 1; display: flex; align-items: center; }
     .streak-chip { padding: 5px 6px; gap: 3px; }
     .streak-icon { width: 15px; height: 15px; }
     .streak-val { font-size: .9rem; }
     .streak-lbl { font-size: .6rem; }
-    .student-avatar { width: 34px; height: 34px; font-size: .9rem; }
     .level-badges {
       grid-column: 3;
       grid-row: 2;
@@ -2570,10 +2583,22 @@
       flex-wrap: nowrap;
       overflow-x: auto;
       -webkit-overflow-scrolling: touch;
+      padding: 10px 12px;
     }
 
     .draw-tools-bar > * {
       flex-shrink: 0;
+    }
+
+    /* The three 44px tool buttons plus the palette trigger already fill most
+       of a 375px screen; a full-width slider pushed the "3px" readout off
+       the edge, so both were the ones actually reachable only by swiping. */
+    .draw-tools-bar .size-slider {
+      width: 54px;
+    }
+
+    .draw-tools-bar .size-val {
+      min-width: 26px;
     }
 
     .footer-hint { display: none; }

@@ -829,14 +829,6 @@
     height: 44px;
   }
 
-  /* Footer bell sits at bottom of viewport; keep panel fully visible. */
-  .footer-bell :deep(.bell-panel) {
-    top: auto;
-    bottom: calc(100% + 10px);
-    left: 0;
-    right: auto;
-  }
-
   .icon-btn {
     width: 44px;
     height: 44px;

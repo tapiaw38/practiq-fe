@@ -1,5 +1,5 @@
 <script setup lang="ts">
-  import { onMounted, onUnmounted, ref } from "vue";
+  import { nextTick, onMounted, onUnmounted, ref } from "vue";
   import { useRouter } from "vue-router";
   import { useNotification } from "@/composables/useNotification";
   import type { AppNotification } from "@/types";
@@ -16,14 +16,18 @@
 
   const open = ref(false);
   const bellRef = ref<HTMLElement | null>(null);
+  const panelFixed = ref(false);
+  const panelStyle = ref<Record<string, string>>({});
 
   onMounted(() => {
     loadNotifications();
     document.addEventListener("click", closeOnOutsideClick);
+    window.addEventListener("resize", updatePanelPosition);
   });
 
   onUnmounted(() => {
     document.removeEventListener("click", closeOnOutsideClick);
+    window.removeEventListener("resize", updatePanelPosition);
   });
 
   function closeOnOutsideClick(event: MouseEvent) {
@@ -33,10 +37,38 @@
     }
   }
 
-  function togglePanel() {
+  async function togglePanel() {
     open.value = !open.value;
     // Refresh on open so a test scheduled while the tab was idle shows up.
     if (open.value) loadNotifications();
+    await nextTick();
+    updatePanelPosition();
+  }
+
+  function updatePanelPosition() {
+    if (!open.value || !bellRef.value) return;
+
+    const isFooterBell = !!bellRef.value.closest(".footer-bell");
+    panelFixed.value = true;
+    const rect = bellRef.value.getBoundingClientRect();
+    const panelWidth = Math.min(360, window.innerWidth - 32);
+    const left = Math.max(
+      16,
+      Math.min(rect.left, window.innerWidth - panelWidth - 16),
+    );
+    const maxHeight = Math.min(
+      Math.max(160, isFooterBell ? rect.top - 24 : window.innerHeight - rect.bottom - 24),
+      window.innerHeight * 0.7,
+    );
+
+    panelStyle.value = {
+      left: `${left}px`,
+      width: `${panelWidth}px`,
+      ...(isFooterBell
+        ? { bottom: `${Math.max(16, window.innerHeight - rect.top + 10)}px` }
+        : { top: `${Math.min(window.innerHeight - maxHeight - 16, rect.bottom + 10)}px` }),
+      maxHeight: `${maxHeight}px`,
+    };
   }
 
   async function openNotification(notification: AppNotification) {
@@ -81,7 +113,12 @@
     </button>
 
     <Transition name="fade">
-      <div v-if="open" class="bell-panel">
+      <div
+        v-if="open"
+        class="bell-panel"
+        :class="{ 'bell-panel--fixed': panelFixed }"
+        :style="panelStyle"
+      >
         <div class="bell-head">
           <span class="bell-title">Notificaciones</span>
           <button
@@ -187,6 +224,13 @@
     background: var(--surface-card);
     box-shadow: var(--shadow-card);
     z-index: 50;
+  }
+
+  .bell-panel--fixed {
+    position: fixed;
+    top: auto;
+    right: auto;
+    z-index: 500;
   }
 
   .bell-head {

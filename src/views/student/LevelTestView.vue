@@ -1,5 +1,5 @@
 <script setup lang="ts">
-  import { ref, computed, onMounted, onUnmounted, nextTick } from "vue";
+  import { ref, computed, onMounted, onUnmounted, nextTick, watch } from "vue";
   import { statementImageDataURL } from "@/utils/statementImage";
   import ExerciseStepper from "@/components/student/exercises/ExerciseStepper.vue";
   import { useRoute, useRouter } from "vue-router";
@@ -40,6 +40,7 @@
   import { useConfetti } from "@/composables/useConfetti";
   import { useSound } from "@/composables/useSound";
   import { useCuriosities } from "@/composables/useCuriosities";
+  import { tuckAssistantFab } from "@/composables/useAssistantFabOffset";
   import AiLoadingModal from "@/components/student/ai/AiLoadingModal.vue";
   import { buildFillBlanksAssistantContext } from "@/utils/fillBlanks";
   import {
@@ -124,6 +125,22 @@
   const showSuccessModal = ref(false);
   const testStarted = ref(false);
   let warningShown = false;
+
+  // The instructions/retry/success modals render before .test-footer exists
+  // (or over it), so tuckAssistantFab's own clearance doesn't apply here —
+  // reuse the app-wide "hide the launcher while a modal is open" rule
+  // instead (see assistant-modal-open in common.css) rather than teaching it
+  // about three more selectors.
+  watch(
+    [showInstructionsModal, showRetryModal, showSuccessModal],
+    ([instructions, retry, success]) => {
+      document.body.classList.toggle(
+        "assistant-modal-open",
+        instructions || retry || success,
+      );
+    },
+    { immediate: true },
+  );
   const loadingMessage = ref(randomMessage(loadingMessages));
   let loadingMsgInterval: ReturnType<typeof setInterval> | null = null;
 
@@ -328,6 +345,8 @@
 
   // Lifecycle
 
+  tuckAssistantFab(".test-footer");
+
   onMounted(async () => {
     const id = route.params.id as string;
     try {
@@ -352,6 +371,7 @@
   });
 
   onUnmounted(() => {
+    document.body.classList.remove("assistant-modal-open");
     if (timer) clearInterval(timer);
     if (loadingMsgInterval) clearInterval(loadingMsgInterval);
     if ((window as any).__practiqAssistantHookSource === "level-test") {
@@ -2442,7 +2462,8 @@
     .test-header {
       display: grid;
       grid-template-columns: 42px minmax(0, 1fr) auto;
-      padding: 12px;
+      /* Matches .ex-card's 14px, same fix as the practice screen. */
+      padding: 14px 12px;
       gap: 10px;
       align-items: start;
       border-radius: var(--radius-xl);
@@ -2456,7 +2477,9 @@
       grid-row: 2;
       display: -webkit-box;
       overflow: hidden;
-      font-size: .74rem;
+      /* Matches the practice screen's fix: too small next to the bold
+         timer/avatar next to it. */
+      font-size: .82rem;
       line-height: 1.3;
       -webkit-box-orient: vertical;
       -webkit-line-clamp: 2;
@@ -2517,8 +2540,14 @@
       flex-wrap: nowrap;
       overflow-x: auto;
       -webkit-overflow-scrolling: touch;
+      padding: 10px 12px;
     }
     .draw-tools-bar > * { flex-shrink: 0; }
+
+    /* Same fix as the practice screen: the full-size slider pushed the
+       "3px" readout past the edge, reachable only by swiping the bar. */
+    .draw-tools-bar .size-slider { width: 54px; }
+    .draw-tools-bar .size-val { min-width: 26px; }
   }
 
   /* Match practice while assistant desktop rail is visible. */

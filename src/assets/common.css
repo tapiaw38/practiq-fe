@@ -342,6 +342,26 @@
   color: var(--text-primary);
 }
 
+/* Fallback for callers that use the class without their own scoped rule:
+   buttons are inline by default, so two of them sat flush against each
+   other with no gap at all. Scoped .modal-actions rules still win over this
+   (Vue's data-v attribute outranks a plain global selector). */
+.modal-actions {
+  display: flex;
+  gap: 12px;
+  justify-content: flex-end;
+  margin-top: 20px;
+}
+
+@media (max-width: 480px) {
+  .modal-actions {
+    flex-direction: column-reverse;
+  }
+  .modal-actions > * {
+    width: 100%;
+  }
+}
+
 /* Hide floating assistant button when modal is open */
 body.assistant-modal-open .floating-button {
   opacity: 0 !important;
