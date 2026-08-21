@@ -54,5 +54,22 @@ export function useLeaveWarning(hasPendingWork: () => boolean) {
     action();
   }
 
-  return { leaveConfirmState, onLeaveConfirm, onLeaveCancel, leave };
+  // Confirm destructive modal actions without arming a route-navigation
+  // bypass. The action may close a dialog rather than navigate.
+  async function discard(action: () => void) {
+    if (!hasPendingWork()) {
+      action();
+      return;
+    }
+    if (!(await askToLeave())) return;
+    action();
+  }
+
+  return {
+    leaveConfirmState,
+    onLeaveConfirm,
+    onLeaveCancel,
+    leave,
+    discard,
+  };
 }

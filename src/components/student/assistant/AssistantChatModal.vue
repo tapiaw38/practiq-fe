@@ -408,6 +408,7 @@
   const feedbackHtml = ref("");
   const feedbackAudio = ref("");
   const pizarronTopic = ref("");
+  let exerciseGeneration = 0;
   const recordingError = ref("");
   // Ink on the canvas that has not been evaluated yet. Tracked with a flag
   // instead of sampling pixels: a stroke sets it, clearing resets it.
@@ -1001,6 +1002,7 @@
   // Pizarrón
 
   async function generateExercise(topic: string, voice?: Blob) {
+    const generation = ++exerciseGeneration;
     pizarronTopic.value = topic;
     pizState.value = "generating";
     const grade = getStudentGrade();
@@ -1032,15 +1034,16 @@
       if (voice) fd.append("voice_content", voice, "audio.wav");
       const reply = await postFormData(fd);
       if (reply.text || reply.audioUrl) {
+        if (generation !== exerciseGeneration) return;
         exerciseHtml.value = reply.text;
         exerciseAudio.value = reply.audioUrl;
         pizState.value = "drawing";
         nextTick(scheduleCanvasInit);
       } else {
-        pizState.value = "idle";
+        if (generation === exerciseGeneration) pizState.value = "idle";
       }
     } catch {
-      pizState.value = "idle";
+      if (generation === exerciseGeneration) pizState.value = "idle";
     }
   }
 
@@ -1090,6 +1093,7 @@
   }
 
   function resetPizarron() {
+    exerciseGeneration++;
     pizState.value = "idle";
     hasDrawing.value = false;
     exerciseHtml.value = "";
@@ -1233,12 +1237,17 @@
       responding.value,
   );
 
-  const { leaveConfirmState, onLeaveConfirm, onLeaveCancel, leave } =
+  const {
+    leaveConfirmState,
+    onLeaveConfirm,
+    onLeaveCancel,
+    discard,
+  } =
     useLeaveWarning(() => hasPendingWork.value);
 
   /** Closing throws the drawing away, so it asks first. */
   function requestClose() {
-    leave(() => {
+    discard(() => {
       resetPizarron();
       emit("close");
     });
