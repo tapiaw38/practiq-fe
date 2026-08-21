@@ -84,7 +84,9 @@
                   v-if="exerciseAudio"
                   :src="exerciseAudio"
                   controls
+                  autoplay
                   preload="metadata"
+                  @canplay="playIncomingAudio"
                   class="acm-audio-player acm-audio-player--block"
                 ></audio>
               </div>
@@ -172,7 +174,9 @@
                 v-if="feedbackAudio"
                 :src="feedbackAudio"
                 controls
+                autoplay
                 preload="metadata"
+                @canplay="playIncomingAudio"
                 class="acm-audio-player acm-audio-player--block"
               ></audio>
               <button
@@ -227,7 +231,9 @@
                     <audio
                       :src="msg.audioSrc"
                       controls
+                      :autoplay="msg.sender === 'assistant'"
                       preload="metadata"
+                      @canplay="msg.sender === 'assistant' && playIncomingAudio($event)"
                       class="acm-audio-player"
                       :class="{ 'acm-audio-player--block': !!msg.content }"
                     ></audio>
@@ -399,6 +405,13 @@
   function toggleVoiceReplies() {
     voiceReplies.value = !voiceReplies.value;
     localStorage.setItem(VOICE_KEY, voiceReplies.value ? "1" : "0");
+  }
+
+  function playIncomingAudio(event: Event) {
+    const audio = event.currentTarget as HTMLAudioElement;
+    void audio.play().catch(() => {
+      // Browser autoplay policy may require one manual click; controls remain.
+    });
   }
 
   // Pizarrón
