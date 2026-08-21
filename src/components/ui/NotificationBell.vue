@@ -72,6 +72,10 @@
   }
 
   async function openNotification(notification: AppNotification) {
+    // Keep future reminders until their test is actually available.
+    if (notification.scheduled_at && !isPast(notification.scheduled_at)) {
+      return;
+    }
     await dismissNotification(notification.id);
     open.value = false;
     if (
@@ -143,7 +147,19 @@
             v-for="notification in notifications"
             :key="notification.id"
             class="bell-item"
-            :class="{ 'bell-item--unread': !notification.read }"
+            :aria-disabled="
+              !!notification.scheduled_at && !isPast(notification.scheduled_at)
+            "
+            :class="{
+              'bell-item--unread': !notification.read,
+              'bell-item--scheduled':
+                notification.scheduled_at && !isPast(notification.scheduled_at),
+            }"
+            :title="
+              notification.scheduled_at && !isPast(notification.scheduled_at)
+                ? 'Disponible en la fecha programada'
+                : undefined
+            "
             @click="openNotification(notification)"
           >
             <span class="bell-item-icon">
@@ -289,6 +305,10 @@
 
   .bell-item--unread {
     background: rgba(124, 58, 237, 0.07);
+  }
+
+  .bell-item--scheduled {
+    cursor: default;
   }
 
   .bell-item-icon {

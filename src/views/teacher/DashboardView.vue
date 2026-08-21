@@ -202,9 +202,16 @@
       // One request for every assigned student's grade, not one per student:
       // with a full class list this used to be dozens of round trips queued
       // behind the browser's per-host connection limit.
-      studentGrades.value = await loadGradesByUsers(
-        assignedStudents.value.map((student) => student.id),
-      );
+      try {
+        studentGrades.value = await loadGradesByUsers(
+          assignedStudents.value.map((student) => student.id),
+        );
+      } catch (err) {
+        // Grades enrich roster; they must not erase successfully loaded
+        // students when auxiliary batch request fails.
+        console.error(err);
+        studentGrades.value = {};
+      }
     } catch (err) {
       console.error(err);
       assignedStudents.value = [];
