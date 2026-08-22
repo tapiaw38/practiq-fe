@@ -172,6 +172,46 @@ export async function loadImageFromDataUrl(
   });
 }
 
+/**
+ * Paints the student's drawing over the white page they actually saw.
+ *
+ * DrawingCanvas only ever clears its bitmap, so `toDataURL` hands back the
+ * `#1e293b` strokes over fully transparent pixels — the page white is CSS on
+ * the element, not part of the image. Whoever flattens that transparency
+ * decides the ink's background, and the grading pipeline flattens to black,
+ * which leaves near-black strokes on black and reads back UNREADABLE. The
+ * assistant only escaped it because composeTeacherAndStudentImage fills white
+ * before drawing.
+ */
+export async function flattenCanvasOnWhite(dataUrl: string): Promise<string> {
+  if (!dataUrl || !dataUrl.startsWith("data:image/")) return "";
+
+  let img: HTMLImageElement;
+  try {
+    img = await loadImageFromDataUrl(dataUrl);
+  } catch {
+    return dataUrl;
+  }
+
+  const width = img.naturalWidth || img.width;
+  const height = img.naturalHeight || img.height;
+  if (!width || !height) return dataUrl;
+
+  const out = document.createElement("canvas");
+  out.width = width;
+  out.height = height;
+  const ctx = out.getContext("2d");
+  if (!ctx) return dataUrl;
+
+  ctx.fillStyle = "#ffffff";
+  ctx.fillRect(0, 0, width, height);
+  ctx.drawImage(img, 0, 0);
+
+  // PNG, like composeTeacherAndStudentImage: handwriting is line art, so this
+  // stays small and skips the JPEG ringing that blurs thin strokes.
+  return out.toDataURL("image/png");
+}
+
 export async function composeTeacherAndStudentImage(params: {
   teacherDataUrl?: string;
   studentDataUrl?: string;

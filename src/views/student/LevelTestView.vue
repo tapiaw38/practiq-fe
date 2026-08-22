@@ -25,6 +25,7 @@
   import {
     composeAssistantWorkImage,
     extractTeacherImageDataUrl,
+    flattenCanvasOnWhite,
     parseExerciseMetadata,
     pickBestStudentImage,
     summarizeExerciseMetadata,
@@ -153,19 +154,6 @@
   // theme's text colour is not one of the ink options.
   const penColor = ref(BASE_COLORS[0].value);
   const penSize = ref(3);
-
-  function cssVar(name: string, fallback: string, depth = 0): string {
-    if (typeof window === "undefined") return fallback;
-    const value = getComputedStyle(document.documentElement)
-      .getPropertyValue(name)
-      .trim();
-    if (!value) return fallback;
-    const varMatch = value.match(/^var\((--[^,\s)]+)(?:,\s*(.+))?\)$/);
-    if (varMatch && depth < 4) {
-      return cssVar(varMatch[1], varMatch[2]?.trim() || fallback, depth + 1);
-    }
-    return value;
-  }
 
   // Timer — 30 min
   const TEST_DURATION_SECONDS = 30 * 60;
@@ -422,32 +410,34 @@
 
     try {
       if (!pendingSubmitJobId.value) {
-        const attempts = exercises.value.map((ex) => {
-          if (ex.exercise.type === "attachment") {
-            const uploaded = attachments.value[ex.exercise.id];
+        const attempts = await Promise.all(
+          exercises.value.map(async (ex) => {
+            if (ex.exercise.type === "attachment") {
+              const uploaded = attachments.value[ex.exercise.id];
+              return {
+                exercise_id: ex.exercise.id,
+                answer_text: "",
+                canvas_data: "",
+                attachment_url: uploaded?.url ?? "",
+                attachment_name: uploaded?.filename ?? "",
+                attachment_content_type: uploaded?.content_type ?? "",
+                time_spent_seconds: perExerciseSeconds,
+                hints_used: 0,
+              };
+            }
             return {
               exercise_id: ex.exercise.id,
-              answer_text: "",
-              canvas_data: "",
-              attachment_url: uploaded?.url ?? "",
-              attachment_name: uploaded?.filename ?? "",
-              attachment_content_type: uploaded?.content_type ?? "",
+              answer_text: exerciseUsesCanvas(ex.exercise.type)
+                ? ""
+                : answers.value[ex.exercise.id] || "",
+              canvas_data: exerciseUsesCanvas(ex.exercise.type)
+                ? await buildCanvasDataForOCR(ex.exercise.id)
+                : "",
               time_spent_seconds: perExerciseSeconds,
               hints_used: 0,
             };
-          }
-          return {
-            exercise_id: ex.exercise.id,
-            answer_text: exerciseUsesCanvas(ex.exercise.type)
-              ? ""
-              : answers.value[ex.exercise.id] || "",
-            canvas_data: exerciseUsesCanvas(ex.exercise.type)
-              ? buildCanvasDataForOCR(ex.exercise.id)
-              : "",
-            time_spent_seconds: perExerciseSeconds,
-            hints_used: 0,
-          };
-        });
+          }),
+        );
         const start = await submitPracticeSheetAsync(sheet.value!.id, {
           attempts,
         });
@@ -528,68 +518,11 @@
     }
   }
 
+  // Same dead threshold pass the practice view carried: it bailed on
+  // `!sourceImg.complete`, always true for a fresh data: URL, so the test sent
+  // the raw transparent canvas to grading. See flattenCanvasOnWhite.
   function buildCanvasDataForOCR(exerciseId: string) {
-    const dataUrl = canvasData.value[exerciseId] || "";
-    if (!dataUrl || !dataUrl.startsWith("data:image/")) {
-      return "";
-    }
-
-    // Create temp canvas from dataURL
-    const source = document.createElement("canvas");
-    const sourceImg = new Image();
-    sourceImg.src = dataUrl;
-
-    // If image not yet loaded, return original
-    if (!sourceImg.complete) {
-      return dataUrl;
-    }
-
-    source.width = sourceImg.width || 680;
-    source.height = sourceImg.height || 220;
-    const sourceCtx = source.getContext("2d");
-    if (!sourceCtx) return dataUrl;
-    sourceCtx.drawImage(sourceImg, 0, 0);
-
-    const scale = 2;
-    const out = document.createElement("canvas");
-    out.width = Math.max(1, Math.floor(source.width * scale));
-    out.height = Math.max(1, Math.floor(source.height * scale));
-    const ctx = out.getContext("2d");
-    if (!ctx) {
-      return dataUrl;
-    }
-
-    ctx.fillStyle = cssVar("--surface-card", "#ffffff");
-    ctx.fillRect(0, 0, out.width, out.height);
-    ctx.imageSmoothingEnabled = false;
-    ctx.drawImage(source, 0, 0, out.width, out.height);
-
-    const image = ctx.getImageData(0, 0, out.width, out.height);
-    const pixels = image.data;
-    for (let i = 0; i < pixels.length; i += 4) {
-      const r = pixels[i];
-      const g = pixels[i + 1];
-      const b = pixels[i + 2];
-      const alpha = pixels[i + 3];
-
-      if (alpha < 8) {
-        pixels[i] = 255;
-        pixels[i + 1] = 255;
-        pixels[i + 2] = 255;
-        pixels[i + 3] = 255;
-        continue;
-      }
-
-      const gray = 0.299 * r + 0.587 * g + 0.114 * b;
-      const value = gray > 205 ? 255 : 0;
-      pixels[i] = value;
-      pixels[i + 1] = value;
-      pixels[i + 2] = value;
-      pixels[i + 3] = 255;
-    }
-    ctx.putImageData(image, 0, 0);
-
-    return out.toDataURL("image/jpeg", 0.92);
+    return flattenCanvasOnWhite(canvasData.value[exerciseId] || "");
   }
 
   function getAssistantExerciseId() {
@@ -716,7 +649,7 @@
 
     const studentDataUrl = exerciseUsesCanvas(exercise.type)
       ? await pickBestStudentImage([
-          buildCanvasDataForOCR(exerciseId),
+          await buildCanvasDataForOCR(exerciseId),
           canvasData.value[exerciseId],
         ])
       : "";

@@ -21,6 +21,7 @@
   import {
     composeAssistantWorkImage,
     extractTeacherImageDataUrl,
+    flattenCanvasOnWhite,
     parseExerciseMetadata,
     pickBestStudentImage,
     summarizeExerciseMetadata,
@@ -149,19 +150,6 @@
   const showRestoreModal = ref(false);
   const loadingMessage = ref(randomMessage(loadingMessages));
   let loadingMsgInterval: ReturnType<typeof setInterval> | null = null;
-
-  function cssVar(name: string, fallback: string, depth = 0): string {
-    if (typeof window === "undefined") return fallback;
-    const value = getComputedStyle(document.documentElement)
-      .getPropertyValue(name)
-      .trim();
-    if (!value) return fallback;
-    const varMatch = value.match(/^var\((--[^,\s)]+)(?:,\s*(.+))?\)$/);
-    if (varMatch && depth < 4) {
-      return cssVar(varMatch[1], varMatch[2]?.trim() || fallback, depth + 1);
-    }
-    return value;
-  }
 
   let timerInterval: ReturnType<typeof setInterval>;
 
@@ -466,8 +454,8 @@
     }, 3000);
 
     try {
-      const attempts =
-        sheet.value?.exercises.map((pse) => {
+      const attempts = await Promise.all(
+        sheet.value?.exercises.map(async (pse) => {
           const exerciseId = pse.exercise.id;
           const data = answers.value[exerciseId];
           if (pse.exercise.type === "attachment") {
@@ -488,7 +476,7 @@
               exercise_id: exerciseId,
               answer_text: "",
               canvas_data: data?.answer?.startsWith("data:image/")
-                ? buildCanvasDataForOCR(exerciseId)
+                ? await buildCanvasDataForOCR(exerciseId)
                 : "",
               time_spent_seconds: timers.value[exerciseId] || 0,
               hints_used: data?.hints || 0,
@@ -502,7 +490,8 @@
               hints_used: data?.hints || 0,
             };
           }
-        }) ?? [];
+        }) ?? [],
+      );
       const start = await submitPracticeSheetAsync(sheetId, { attempts });
       const jobId = start.job_id;
       let jobDone = false;
@@ -690,68 +679,13 @@
     hasDraft.value = false;
   }
 
+  // Was a hand-rolled 1-bit threshold pass, but it never ran: it bailed on
+  // `!sourceImg.complete`, which a freshly assigned data: URL always is, so
+  // grading received the raw transparent canvas. Flattening on white is what
+  // it was reaching for anyway, and the threshold itself only cost the model
+  // the stroke detail it needs to read fractions and exponents.
   function buildCanvasDataForOCR(exerciseId: string) {
-    const dataUrl = answers.value[exerciseId]?.answer || "";
-    if (!dataUrl || !dataUrl.startsWith("data:image/")) {
-      return "";
-    }
-
-    // Create temp canvas from dataURL
-    const source = document.createElement("canvas");
-    const sourceImg = new Image();
-    sourceImg.src = dataUrl;
-
-    // If image not yet loaded, return original
-    if (!sourceImg.complete) {
-      return dataUrl;
-    }
-
-    source.width = sourceImg.width || 600;
-    source.height = sourceImg.height || 240;
-    const sourceCtx = source.getContext("2d");
-    if (!sourceCtx) return dataUrl;
-    sourceCtx.drawImage(sourceImg, 0, 0);
-
-    const scale = 2;
-    const out = document.createElement("canvas");
-    out.width = Math.max(1, Math.floor(source.width * scale));
-    out.height = Math.max(1, Math.floor(source.height * scale));
-    const ctx = out.getContext("2d");
-    if (!ctx) {
-      return dataUrl;
-    }
-
-    ctx.fillStyle = cssVar("--surface-card", "#ffffff");
-    ctx.fillRect(0, 0, out.width, out.height);
-    ctx.imageSmoothingEnabled = false;
-    ctx.drawImage(source, 0, 0, out.width, out.height);
-
-    const image = ctx.getImageData(0, 0, out.width, out.height);
-    const pixels = image.data;
-    for (let i = 0; i < pixels.length; i += 4) {
-      const r = pixels[i];
-      const g = pixels[i + 1];
-      const b = pixels[i + 2];
-      const alpha = pixels[i + 3];
-
-      if (alpha < 8) {
-        pixels[i] = 255;
-        pixels[i + 1] = 255;
-        pixels[i + 2] = 255;
-        pixels[i + 3] = 255;
-        continue;
-      }
-
-      const gray = 0.299 * r + 0.587 * g + 0.114 * b;
-      const value = gray > 205 ? 255 : 0;
-      pixels[i] = value;
-      pixels[i + 1] = value;
-      pixels[i + 2] = value;
-      pixels[i + 3] = 255;
-    }
-    ctx.putImageData(image, 0, 0);
-
-    return out.toDataURL("image/jpeg", 0.92);
+    return flattenCanvasOnWhite(answers.value[exerciseId]?.answer || "");
   }
 
   function getAssistantExerciseId() {
@@ -887,7 +821,7 @@
         : null;
 
     const studentDataUrl = await pickBestStudentImage([
-      buildCanvasDataForOCR(exerciseId),
+      await buildCanvasDataForOCR(exerciseId),
       answers.value[exerciseId]?.answer,
     ]);
     // Awaited rather than read from teacherImages: the drawings are prefetched
