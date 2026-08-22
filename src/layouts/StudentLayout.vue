@@ -631,7 +631,7 @@
     gap: 9px;
     padding: 10px 11px;
     border-radius: var(--radius-lg);
-    border: 1px solid transparent;
+    border: none;
     background: rgba(var(--surface-card-rgb), 0.42);
     cursor: pointer;
     text-align: left;
@@ -639,8 +639,7 @@
     width: 100%;
   }
   .nav-course-toggle:hover {
-    background: var(--surface-elevated-strong);
-    border-color: rgba(var(--practiq-violet-rgb), 0.12);
+    background: rgba(var(--practiq-violet-rgb), 0.1);
   }
   .nav-course-toggle .pi-graduation-cap {
     width: 26px;
@@ -677,7 +676,7 @@
     gap: 8px;
     padding: 8px 10px;
     border-radius: var(--radius-md);
-    border: 1px solid transparent;
+    border: none;
     background: transparent;
     cursor: pointer;
     width: 100%;
@@ -686,11 +685,9 @@
   }
   .nav-level-row:hover:not(:disabled) {
     background: var(--surface-elevated-strong);
-    border-color: rgba(var(--practiq-violet-rgb), 0.1);
   }
   .nav-level-row--current {
     background: var(--fill-primary-subtle);
-    border-color: rgba(var(--practiq-violet-rgb), 0.12);
   }
   .nav-level-row--locked {
     cursor: default;
@@ -748,7 +745,7 @@
     gap: 8px;
     padding: 8px 10px 8px 12px;
     border-radius: var(--radius-md);
-    border: 1px solid transparent;
+    border: none;
     background: rgba(var(--surface-bg-rgb), 0.5);
     cursor: pointer;
     font-size: var(--text-sm);
@@ -761,25 +758,21 @@
 
   .nav-book-item:hover {
     background: var(--fill-primary-subtle);
-    border-color: rgba(var(--practiq-violet-rgb), 0.12);
     color: var(--practiq-violet-dark);
   }
 
   .nav-book-item--practice:hover {
     background: var(--fill-success-subtle);
-    border-color: rgba(var(--color-success-rgb), 0.14);
     color: var(--color-success-dark);
   }
 
   .nav-book-item--test:hover {
     background: var(--fill-warning-subtle);
-    border-color: rgba(var(--color-warning-rgb), 0.16);
     color: var(--color-warning-strong);
   }
 
   .nav-book-item--notebook:hover {
     background: var(--fill-primary-subtle);
-    border-color: rgba(var(--practiq-violet-rgb), 0.12);
     color: var(--practiq-violet);
   }
 
