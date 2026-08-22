@@ -297,10 +297,12 @@
     transform: translateY(18px) !important;
   }
 
-  /* Practice and the level test pin a footer to the bottom edge on phones;
-     the launcher's default corner sits right on top of its submit button.
-     Those screens tag the body while mounted so only they get pushed up. */
-  @media (max-width: 680px) {
+  /* Practice and the level test pin a footer to the bottom edge on phones
+     AND tablets (portrait iPads land around 768-834px, landscape up to
+     ~1180px); the launcher's default corner sits right on top of its submit
+     button at every one of those widths, not just phones. Those screens tag
+     the body while mounted so only they get pushed up. */
+  @media (max-width: 1200px) {
     body.assistant-fab-tucked .floating-button {
       /* --practiq-footer-h is measured live (see useAssistantFabOffset):
          the footer it clears grows a row whenever the draft-saved indicator

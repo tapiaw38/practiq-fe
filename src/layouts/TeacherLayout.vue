@@ -354,6 +354,10 @@
 
   .user-details {
     min-width: 0;
+    /* Same fix as the student sidebar: the desktop sidebar never had room to
+       show the name next to the avatar without squeezing it unreadable.
+       Re-enabled in the 920px drawer below, which is a flat 320px. */
+    display: none;
   }
 
   .user-name {
@@ -444,6 +448,29 @@
     .main-content {
       padding: 16px;
     }
+
+    /* Same fix as the student sidebar: keep the footer's icon buttons from
+       crowding the avatar once the sidebar itself narrows here. */
+    .sidebar-footer {
+      gap: 6px;
+      padding: 14px 4px 0;
+    }
+
+    .user-avatar {
+      width: 36px;
+      height: 36px;
+      font-size: var(--text-md);
+    }
+
+    .footer-actions {
+      gap: 3px;
+    }
+
+    .icon-btn {
+      width: 34px;
+      height: 34px;
+      font-size: var(--text-sm);
+    }
   }
 
   /* Tablet portrait */
@@ -492,6 +519,12 @@
 
     .sidebar--open {
       transform: translateX(0);
+    }
+
+    /* Drawer is a flat 320px here regardless of viewport width, wide enough
+       to show the name next to the avatar again. */
+    .user-details {
+      display: block;
     }
 
     /* Tap targets >= 44px en mobile */

@@ -15,17 +15,27 @@ export function tuckAssistantFab(footerSelector: string) {
 
   let observer: ResizeObserver | null = null;
   let frame = 0;
+  let el: HTMLElement | null = null;
+
+  // Distance from the viewport's bottom edge to the footer's top edge, not
+  // just the footer's own height: on tablet/desktop widths the footer is a
+  // sticky bar with its own `bottom: 16px` gap, so height alone undercounted
+  // by that gap and the launcher still clipped the footer's top edge.
+  const measure = () => {
+    if (!el) return;
+    const clearance = window.innerHeight - el.getBoundingClientRect().top;
+    document.body.style.setProperty(CSS_VAR, `${Math.ceil(clearance)}px`);
+  };
 
   const attach = () => {
-    const el = document.querySelector<HTMLElement>(footerSelector);
+    el = document.querySelector<HTMLElement>(footerSelector);
     if (!el) return false;
-    // offsetHeight, not the observer entry's contentRect: contentRect is the
-    // content box only, so the footer's own padding was quietly missing from
-    // the clearance and the launcher still overlapped its bottom edge.
-    observer = new ResizeObserver(() => {
-      document.body.style.setProperty(CSS_VAR, `${el.offsetHeight}px`);
-    });
+    observer = new ResizeObserver(measure);
     observer.observe(el);
+    // ResizeObserver only fires on size changes; a tablet rotation or a
+    // window resize can move the footer without resizing it.
+    window.addEventListener("resize", measure);
+    measure();
     return true;
   };
 
@@ -42,6 +52,7 @@ export function tuckAssistantFab(footerSelector: string) {
   onUnmounted(() => {
     cancelAnimationFrame(frame);
     observer?.disconnect();
+    window.removeEventListener("resize", measure);
     document.body.classList.remove(BODY_CLASS);
     document.body.style.removeProperty(CSS_VAR);
   });

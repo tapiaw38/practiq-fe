@@ -352,7 +352,6 @@
     padding: 20px 24px;
     background: rgba(var(--surface-card-rgb), 0.92);
     border-radius: var(--radius-2xl);
-    border: 1.5px solid rgba(var(--practiq-violet-rgb), 0.1);
     box-shadow: 0 4px 20px rgba(var(--practiq-violet-rgb), 0.06);
   }
 
@@ -360,8 +359,8 @@
     width: 38px;
     height: 38px;
     border-radius: 50%;
-    border: 1.5px solid rgba(var(--practiq-violet-rgb), 0.2);
-    background: rgba(var(--surface-card-rgb), 0.8);
+    border: none;
+    background: rgba(var(--practiq-violet-rgb), 0.08);
     cursor: pointer;
     display: flex;
     align-items: center;
@@ -449,7 +448,7 @@
   .level-card {
     background: rgba(var(--surface-card-rgb), 0.9);
     border-radius: var(--radius-2xl);
-    border: 1.5px solid rgba(var(--practiq-violet-rgb), 0.08);
+    box-shadow: var(--shadow-card);
     overflow: hidden;
     transition: box-shadow 0.15s;
   }
@@ -460,7 +459,6 @@
     align-items: center;
     gap: 14px;
     padding: 18px 20px;
-    border-bottom: 1.5px solid rgba(var(--practiq-violet-rgb), 0.06);
   }
 
   .lc-meta {

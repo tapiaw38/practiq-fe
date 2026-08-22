@@ -875,6 +875,12 @@
 
   .user-details {
     min-width: 0;
+    /* The desktop sidebar (220-280px depending on the breakpoint) never had
+       room for three 44px action buttons plus a name: at 1280px this still
+       squeezed "Walter Tapia" into a 20px-wide box, unreadable rather than
+       actually hidden. The 920px drawer is a flat 320px regardless of the
+       viewport, wide enough to show it — re-enabled there below. */
+    display: none;
   }
 
   .user-name {
@@ -918,6 +924,31 @@
 
     .main-content {
       padding: 16px;
+    }
+
+    /* The footer's three 44px action buttons never shrink (flex-shrink: 0),
+       so at this sidebar width they ran out of room and sat on top of the
+       avatar instead of next to it. */
+    .sidebar-footer {
+      gap: 6px;
+      padding: 14px 4px 0;
+    }
+
+    .user-avatar {
+      width: 38px;
+      height: 38px;
+      font-size: var(--text-sm);
+    }
+
+    .footer-actions {
+      gap: 3px;
+    }
+
+    .icon-btn,
+    .footer-bell :deep(.bell-btn) {
+      width: 34px;
+      height: 34px;
+      font-size: var(--text-sm);
     }
   }
 
@@ -972,6 +1003,12 @@
 
     .sidebar--open {
       transform: translateX(0);
+    }
+
+    /* Drawer is a flat 320px here regardless of viewport width, wide enough
+       to show the name next to the avatar again. */
+    .user-details {
+      display: block;
     }
 
     /* Tap targets >= 44px en mobile */

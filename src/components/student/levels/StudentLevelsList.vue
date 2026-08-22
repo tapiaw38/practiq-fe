@@ -140,7 +140,9 @@
                 {{
                   level.level_test.test_style === "canvas" ? "Hoja" : "Teclado"
                 }}
-                · 75% para avanzar
+                <template v-if="!isClosed(level.level_test)"
+                  >· 75% para avanzar</template
+                >
               </span>
               <span
                 v-if="level.level_test.scheduled_at"
@@ -201,13 +203,12 @@
   }
   .level-card {
     background: var(--surface-elevated);
-    border: 1px solid var(--surface-elevated-strong);
     border-radius: var(--radius-2xl);
     box-shadow: var(--shadow-card);
     padding: 18px;
   }
   .level-card--current {
-    border-color: var(--practiq-violet);
+    background: rgba(var(--practiq-violet-rgb), 0.05);
   }
   .level-card--locked {
     opacity: 0.72;
@@ -306,7 +307,7 @@
     width: 100%;
     justify-content: space-between;
     gap: 10px;
-    border: 1.5px solid var(--surface-border);
+    border: none;
     border-radius: var(--radius-lg);
     background: var(--surface-card);
     padding: 12px;
@@ -315,33 +316,27 @@
     transition: var(--transition-fast);
   }
   .lc-item--practice {
-    border-color: rgba(var(--color-success-rgb), 0.15);
-    background: rgba(var(--color-success-rgb), 0.05);
+    background: rgba(var(--color-success-rgb), 0.08);
   }
   .lc-item--practice:hover {
-    border-color: rgba(var(--color-success-rgb), 0.3);
-    background: rgba(var(--color-success-rgb), 0.1);
+    background: rgba(var(--color-success-rgb), 0.14);
     transform: translateX(2px);
   }
   .lc-item--notebook {
-    border-color: rgba(var(--practiq-violet-rgb), 0.12);
-    background: rgba(var(--practiq-violet-rgb), 0.04);
+    background: rgba(var(--practiq-violet-rgb), 0.07);
   }
   .lc-item--notebook:hover {
-    border-color: rgba(var(--practiq-violet-rgb), 0.25);
-    background: rgba(var(--practiq-violet-rgb), 0.08);
+    background: rgba(var(--practiq-violet-rgb), 0.12);
     transform: translateX(2px);
   }
   .lc-item--test {
-    border-color: rgba(var(--color-warning-rgb), 0.2);
-    background: rgba(var(--color-warning-rgb), 0.05);
+    background: rgba(var(--color-warning-rgb), 0.08);
   }
   .lc-item--test-big {
     padding: 16px 18px;
   }
   .lc-item--test:hover {
-    border-color: rgba(var(--color-warning-rgb), 0.4);
-    background: rgba(var(--color-warning-rgb), 0.1);
+    background: rgba(var(--color-warning-rgb), 0.14);
     transform: translateX(2px);
   }
   .lc-item-info {
