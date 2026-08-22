@@ -28,6 +28,15 @@
   let assistant: Assistant | null = null;
   let activeToken: string | null = null;
   const drawerOpen = ref(false);
+  const assistantViews = new Set([
+    "student-practice",
+    "student-level-test",
+    "student-notebook",
+  ]);
+
+  function isAssistantView() {
+    return assistantViews.has(String(route.name || ""));
+  }
 
   function getAssistantCanvasAttachment() {
     const capture = window.__practiqAssistantCapture;
@@ -144,6 +153,14 @@
 
   function applyDrawerVisibility() {
     if (!assistant) return;
+    // The package owns route visibility. Refresh first, then never call
+    // showButton on excluded routes: doing so resurrected the FAB after the
+    // mobile sidebar opened and closed on course-level screens.
+    assistant.refreshVisibility();
+    if (!isAssistantView()) {
+      setAssistantDrawerHidden(false);
+      return;
+    }
     const shouldHide = drawerOpen.value && window.innerWidth <= 920;
     if (shouldHide) {
       assistant.close();
@@ -151,7 +168,6 @@
       requestAnimationFrame(() => setAssistantDrawerHidden(true));
     } else {
       setAssistantDrawerHidden(false);
-      assistant.showButton();
     }
   }
 
