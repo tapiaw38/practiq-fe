@@ -270,6 +270,8 @@
   onMounted(async () => {
     try {
       sheet.value = await loadPracticeSheet(sheetId);
+      localStorage.setItem("practiq-last-practice", sheetId);
+      window.dispatchEvent(new CustomEvent("practiq:last-practice-changed"));
       loadTeacherImages();
       // Publish where the student starts. Nothing else does it now: the label
       // used to be published by the hover handler on every exercise card, and
@@ -1043,7 +1045,8 @@
                 class="tool-btn"
                 type="button"
                 aria-label="Usar lápiz"
-                :class="{ 'tool-btn--active': tool === 'pen' }"
+                :class="{ 'tool-btn--active': tool === 'pen', 'tool-btn--pen-active': tool === 'pen' }"
+                :style="{ backgroundColor: penColor }"
                 @click="tool = 'pen'"
                 title="Lápiz"
               >
@@ -1110,7 +1113,7 @@
                       type="button"
                       title="Pedir ayuda con este ejercicio"
                       @click.stop="requestAssistantHelp"
-                    >🤖 Ayuda</button>
+                    >Ayuda</button>
                     <span
                       class="difficulty-pill"
                       :style="{
@@ -1766,6 +1769,7 @@
     display: flex;
     flex-direction: column;
     gap: 12px;
+    padding-bottom: 24px;
   }
 
   /* Canvas toolbar */
@@ -1781,8 +1785,8 @@
   }
 
   .tool-btn {
-    width: 34px;
-    height: 34px;
+    width: 30px;
+    height: 30px;
     border-radius: var(--radius-sm);
     border: 1.5px solid rgba(var(--practiq-violet-rgb), 0.15);
     background: var(--surface-elevated);
@@ -1794,9 +1798,18 @@
     color: var(--text-secondary);
     transition: all 0.15s;
   }
-  .tool-btn:hover {
+  .tool-btn:hover:not(.tool-btn--active) {
     border-color: var(--practiq-violet);
     color: var(--practiq-violet);
+  }
+  .tool-btn--active:hover {
+    color: var(--color-on-primary);
+  }
+  .tool-btn--pen-active,
+  .tool-btn--pen-active:hover {
+    border-color: transparent;
+    color: #fff;
+    box-shadow: none;
   }
   .tool-btn--active {
     background: var(--practiq-violet);
@@ -2129,6 +2142,8 @@
     position: sticky;
     bottom: 16px;
     box-shadow: var(--shadow-card-lg);
+    z-index: 3;
+    scroll-margin-bottom: 24px;
   }
 
   .footer-left {
@@ -2577,6 +2592,7 @@
       border-radius: var(--radius-xl) var(--radius-xl) 0 0;
       border-bottom: 0;
       padding-bottom: max(12px, env(safe-area-inset-bottom));
+      margin-top: 8px;
     }
 
     .draw-tools-bar {
@@ -2590,11 +2606,17 @@
       flex-shrink: 0;
     }
 
+
     /* The three 44px tool buttons plus the palette trigger already fill most
        of a 375px screen; a full-width slider pushed the "3px" readout off
        the edge, so both were the ones actually reachable only by swiping. */
     .draw-tools-bar .size-slider {
       width: 54px;
+    }
+
+    .tool-btn {
+      width: 40px;
+      height: 40px;
     }
 
     .draw-tools-bar .size-val {
@@ -2641,8 +2663,8 @@
     }
 
     .tool-btn {
-      width: 46px;
-      height: 46px;
+      width: 40px;
+      height: 40px;
       font-size: 1rem;
     }
 
@@ -2658,12 +2680,25 @@
   }
   .exercise-assistant-trigger {
     margin-left: auto;
-    border: 0;
+    border: 1px solid rgba(var(--practiq-violet-rgb), 0.2);
     border-radius: 999px;
-    padding: 4px 8px;
+    padding: 3px 9px;
     background: color-mix(in srgb, var(--practiq-violet) 12%, transparent);
     color: var(--practiq-violet);
     cursor: pointer;
-    font-size: 0.72rem;
+    font: inherit;
+    font-size: 0.75rem;
+    font-weight: 700;
+    line-height: 1.4;
+    transition: background 0.15s, border-color 0.15s, transform 0.15s;
+  }
+
+  .exercise-assistant-trigger:hover {
+    background: color-mix(in srgb, var(--practiq-violet) 20%, transparent);
+    border-color: rgba(var(--practiq-violet-rgb), 0.38);
+  }
+
+  .exercise-assistant-trigger:active {
+    transform: translateY(1px);
   }
 </style>

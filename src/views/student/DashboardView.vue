@@ -29,6 +29,7 @@
   );
   const lastPracticedSheetId = ref<string>("");
   const loading = ref(true);
+  const loadError = ref(false);
   const showAssistant = ref(false);
 
   const firstName = computed(() => {
@@ -64,6 +65,11 @@
   );
   const currentLevel = computed(() => summaries.value[0]?.current_level ?? 1);
   const streakDays = computed(() => streakFromApi.value);
+  const streakMessage = computed(() =>
+    streakDays.value > 0
+      ? `${streakDays.value} ${streakDays.value === 1 ? "día" : "días"} seguidos`
+      : "Empezá hoy",
+  );
   const averageMastery = computed(() => {
     if (!groupedProgress.value.length) return 0;
     return (
@@ -141,7 +147,19 @@
       progress.value = data.progress || [];
       streakFromApi.value = data.streak_days || 0;
       lastPracticedSheetId.value = data.last_practiced_sheet_id || "";
+      if (lastPracticedSheetId.value) {
+        localStorage.setItem("practiq-last-practice", lastPracticedSheetId.value);
+      } else {
+        localStorage.removeItem("practiq-last-practice");
+      }
+      window.dispatchEvent(
+        new CustomEvent("practiq:last-practice-changed", {
+          detail: { id: lastPracticedSheetId.value },
+        }),
+      );
+      loadError.value = false;
     } catch {
+      loadError.value = true;
       toast.add({
         severity: "error",
         summary: "Error",
@@ -163,6 +181,8 @@
   // Al vincularse con un profesor pueden aparecerle cursos nuevos, así que la
   // pantalla se vuelve a pedir entera.
   async function reloadDashboard() {
+    loading.value = true;
+    loadError.value = false;
     try {
       const data = await refreshDashboard();
 
@@ -170,13 +190,27 @@
       progress.value = data.progress || [];
       streakFromApi.value = data.streak_days || 0;
       lastPracticedSheetId.value = data.last_practiced_sheet_id || "";
+      if (lastPracticedSheetId.value) {
+        localStorage.setItem("practiq-last-practice", lastPracticedSheetId.value);
+      } else {
+        localStorage.removeItem("practiq-last-practice");
+      }
+      window.dispatchEvent(
+        new CustomEvent("practiq:last-practice-changed", {
+          detail: { id: lastPracticedSheetId.value },
+        }),
+      );
+      loadError.value = false;
     } catch {
+      loadError.value = true;
       toast.add({
         severity: "error",
         summary: "Error",
         detail: "No se pudo actualizar tu inicio",
         life: 3000,
       });
+    } finally {
+      loading.value = false;
     }
   }
 
@@ -360,6 +394,19 @@
       </template>
 
       <template v-else>
+        <section v-if="loadError" class="dashboard-error surface-card" role="alert">
+          <div class="dashboard-error__icon"><i class="pi pi-refresh"></i></div>
+          <div>
+            <h2>No pudimos cargar tu inicio</h2>
+            <p>Revisá tu conexión y volvé a intentarlo.</p>
+          </div>
+          <button class="btn btn-secondary" type="button" @click="reloadDashboard">
+            Reintentar
+          </button>
+        </section>
+
+        <template v-else>
+
         <!-- Welcome banner -->
         <section class="welcome-banner anim-rise">
           <div class="welcome-copy">
@@ -401,8 +448,9 @@
               Continuar práctica
             </button>
             <button
-              class="btn btn-secondary welcome-btn"
+              class="btn btn-secondary welcome-btn assistant-cta"
               @click="showAssistant = true"
+              aria-label="Abrir asistente para practicar"
             >
               <i class="pi pi-comments"></i>
               Practicar con mi asistente
@@ -413,12 +461,26 @@
         <!-- Metrics row -->
         <section class="metrics-row anim-stagger">
           <div class="metric-card">
-            <div class="metric-card__icon metric-card__icon--fire">
-              <img src="@/assets/burn.png" alt="" class="metric-icon-img" />
+            <div
+              class="metric-card__icon"
+              :class="streakDays > 0 ? 'metric-card__icon--fire' : 'metric-card__icon--ice'"
+            >
+              <img
+                v-if="streakDays > 0"
+                src="@/assets/burn.png"
+                alt=""
+                class="metric-icon-img"
+              />
+              <img
+                v-else
+                src="@/assets/ice-cube.png"
+                alt=""
+                class="metric-icon-img"
+              />
             </div>
             <div>
-              <div class="metric-card__value">{{ streakDays }}</div>
-              <div class="metric-card__label">Racha</div>
+              <div class="metric-card__value">{{ streakDays > 0 ? streakDays : "" }}</div>
+              <div class="metric-card__label">{{ streakMessage }}</div>
             </div>
           </div>
 
@@ -501,6 +563,7 @@
           @open-levels="openCourseLevels"
           @dismiss-review="dismissReviewCard"
         />
+        </template>
       </template>
 
       <img
@@ -523,6 +586,41 @@
   .student-home {
     position: relative;
     padding: 24px 28px 40px;
+  }
+
+  .dashboard-error {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    padding: 20px;
+    margin-bottom: 20px;
+    border-radius: var(--radius-2xl);
+    color: var(--text-primary);
+  }
+
+  .dashboard-error h2 {
+    font-size: 1rem;
+    margin-bottom: 2px;
+  }
+
+  .dashboard-error p {
+    color: var(--text-secondary);
+    font-size: var(--text-md);
+  }
+
+  .dashboard-error__icon {
+    width: 40px;
+    height: 40px;
+    display: grid;
+    place-items: center;
+    border-radius: 50%;
+    color: var(--practiq-violet);
+    background: var(--fill-primary-soft);
+  }
+
+  .dashboard-error .btn {
+    margin-left: auto;
+    flex-shrink: 0;
   }
 
   .loading-state {
@@ -562,6 +660,15 @@
   }
 
   @media (max-width: 640px) {
+    .dashboard-error {
+      align-items: flex-start;
+      flex-wrap: wrap;
+    }
+
+    .dashboard-error .btn {
+      width: 100%;
+      margin-left: 54px;
+    }
     .dashboard-mascot {
       display: none;
     }
@@ -657,6 +764,16 @@
     font-size: var(--text-md);
   }
 
+  .assistant-cta {
+    border-style: dashed;
+    color: var(--practiq-violet-dark);
+    background: rgba(var(--practiq-violet-rgb), 0.04);
+  }
+
+  .assistant-cta:hover {
+    background: rgba(var(--practiq-violet-rgb), 0.09);
+  }
+
   /* Metrics row */
   .metrics-row {
     display: grid;
@@ -700,6 +817,9 @@
 
   .metric-card__icon--fire {
     background: var(--gradient-fire-soft);
+  }
+  .metric-card__icon--ice {
+    background: rgba(var(--color-info-rgb), 0.12);
   }
   .metric-card__icon--star {
     background: var(--gradient-star-soft);

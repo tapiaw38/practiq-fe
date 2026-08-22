@@ -33,6 +33,9 @@
   const openCourses = ref(new Set<string>());
   const showChangePassword = ref(false);
   const showSetPassword = ref(false);
+  const lastPracticedSheetId = ref(
+    localStorage.getItem("practiq-last-practice") || "",
+  );
   const isGoogleUser = computed(() => authStore.authMethod === "google");
   // openLevels[courseId] = Set of open level numbers
   const openLevels = reactive<Record<string, Set<number>>>({});
@@ -115,6 +118,12 @@
     if (window.innerWidth > 920) navOpen.value = false;
   }
 
+  function syncLastPractice(event: Event) {
+    const id = (event as CustomEvent<{ id?: string }>).detail?.id || "";
+    lastPracticedSheetId.value = id;
+    if (id) localStorage.setItem("practiq-last-practice", id);
+  }
+
   watch(
     () => route.fullPath,
     () => {
@@ -130,14 +139,17 @@
 
   onMounted(() => {
     window.addEventListener("resize", syncDesktopState);
+    window.addEventListener("practiq:last-practice-changed", syncLastPractice);
   });
   onUnmounted(() => {
     window.removeEventListener("resize", syncDesktopState);
+    window.removeEventListener("practiq:last-practice-changed", syncLastPractice);
   });
 
   function logout() {
     authStore.clearAuth();
     localStorage.removeItem("practiq_profile");
+    localStorage.removeItem("practiq-last-practice");
     router.push("/login");
   }
 </script>
@@ -145,7 +157,12 @@
 <template>
   <div class="app-shell">
     <header class="mobile-topbar">
-      <button class="topbar-btn" type="button" @click="navOpen = true">
+      <button
+        class="topbar-btn"
+        type="button"
+        aria-label="Abrir menú de navegación"
+        @click="navOpen = true"
+      >
         <i class="pi pi-bars"></i>
       </button>
 
@@ -181,10 +198,25 @@
           <span>Inicio</span>
         </RouterLink>
 
+        <RouterLink
+          v-if="lastPracticedSheetId"
+          :to="`/student/practice/${lastPracticedSheetId}`"
+          class="nav-item nav-item--continue"
+          title="Continuar última práctica"
+          aria-label="Continuar última práctica"
+          @click="navOpen = false"
+        >
+          <span class="nav-icon"><i class="pi pi-play-circle"></i></span>
+          <span>Continuar</span>
+        </RouterLink>
+
         <!-- Courses and levels -->
         <div class="nav-group">
           <button
             class="nav-item nav-item-btn"
+            :title="coursesOpen ? 'Cerrar Mis Cursos' : 'Abrir Mis Cursos'"
+            :aria-expanded="coursesOpen"
+            aria-controls="student-courses-nav"
             @click="coursesOpen = !coursesOpen"
           >
             <span class="nav-icon"><i class="pi pi-book"></i></span>
@@ -195,9 +227,9 @@
             ></i>
           </button>
 
-          <div v-if="coursesOpen" class="nav-sub">
-            <div v-if="loadingCourses" class="nav-sub-loading">
-              <i class="pi pi-spin pi-spinner"></i>
+          <div v-if="coursesOpen" id="student-courses-nav" class="nav-sub">
+            <div v-if="loadingCourses" class="nav-sub-loading" aria-busy="true" aria-label="Cargando cursos">
+              <span v-for="n in 3" :key="n" class="nav-loading-line"></span>
             </div>
             <template v-else-if="coursesData.length">
               <div
@@ -607,9 +639,29 @@
   }
 
   .nav-sub-loading {
+    display: grid;
+    gap: 8px;
     padding: 8px 12px;
-    font-size: var(--text-sm);
-    color: var(--text-secondary);
+  }
+
+  .nav-loading-line {
+    display: block;
+    height: 12px;
+    width: 100%;
+    border-radius: var(--radius-pill);
+    background: linear-gradient(
+      90deg,
+      var(--surface-elevated) 25%,
+      var(--surface-card) 50%,
+      var(--surface-elevated) 75%
+    );
+    background-size: 200% 100%;
+    animation: nav-loading 1.2s ease-in-out infinite;
+  }
+
+  @keyframes nav-loading {
+    from { background-position: 100% 0; }
+    to { background-position: -100% 0; }
   }
 
   .nav-sub-empty {

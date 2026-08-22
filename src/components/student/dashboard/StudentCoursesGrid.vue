@@ -219,7 +219,7 @@
     gap: 4px;
     padding: 4px;
     border-radius: var(--radius-lg);
-    background: var(--surface-elevated);
+    background: var(--elevation-tint-bg);
     border: 1px solid var(--surface-elevated-strong);
     flex-shrink: 0;
   }
@@ -306,7 +306,7 @@
     background: var(--surface-elevated);
     border: 1px solid var(--surface-elevated-strong);
     border-radius: var(--radius-2xl);
-    box-shadow: var(--shadow-card);
+    box-shadow: var(--elevation-tint-shadow);
     color: var(--text-secondary);
   }
   .empty-icon {
@@ -322,10 +322,10 @@
     display: grid;
     gap: 14px;
     padding: 18px;
-    background: var(--surface-elevated);
+    background: var(--elevation-tint-bg);
     border: 1px solid var(--surface-elevated-strong);
     border-radius: var(--radius-2xl);
-    box-shadow: var(--shadow-card);
+    box-shadow: var(--elevation-tint-shadow);
     transition: var(--transition);
   }
   .course-card:hover {

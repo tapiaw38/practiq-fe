@@ -855,7 +855,8 @@
             class="tool-btn"
             type="button"
             aria-label="Usar lápiz"
-            :class="{ 'tool-btn--active': tool === 'pen' }"
+            :class="{ 'tool-btn--active': tool === 'pen', 'tool-btn--pen-active': tool === 'pen' }"
+            :style="{ backgroundColor: penColor }"
             @click="tool = 'pen'"
             title="Lápiz"
           >
@@ -1479,8 +1480,8 @@
   }
 
   .tool-btn {
-    width: 34px;
-    height: 34px;
+    width: 30px;
+    height: 30px;
     border-radius: var(--radius-sm);
     border: 1.5px solid rgba(var(--practiq-violet-rgb), 0.15);
     background: var(--surface-elevated);
@@ -1492,9 +1493,18 @@
     color: var(--text-secondary);
     transition: all 0.15s;
   }
-  .tool-btn:hover {
+  .tool-btn:hover:not(.tool-btn--active) {
     border-color: var(--practiq-violet);
     color: var(--practiq-violet);
+  }
+  .tool-btn--active:hover {
+    color: var(--color-on-primary);
+  }
+  .tool-btn--pen-active,
+  .tool-btn--pen-active:hover {
+    border-color: transparent;
+    color: #fff;
+    box-shadow: none;
   }
   .tool-btn--active {
     background: var(--practiq-violet);
@@ -1734,6 +1744,8 @@
     border: 1.5px solid rgba(var(--practiq-violet-rgb), 0.1);
     position: sticky;
     bottom: 16px;
+    z-index: 3;
+    scroll-margin-bottom: 24px;
   }
 
   .footer-nav {
@@ -2432,8 +2444,8 @@
     }
 
     .tool-btn {
-      width: 46px;
-      height: 46px;
+      width: 40px;
+      height: 40px;
       font-size: 1rem;
     }
 
@@ -2527,6 +2539,7 @@
       border-radius: var(--radius-xl) var(--radius-xl) 0 0;
       border-bottom: 0;
       padding-bottom: max(12px, env(safe-area-inset-bottom));
+      margin-top: 8px;
     }
     .footer-hint { display: none; }
     .footer-nav,
@@ -2548,6 +2561,7 @@
        "3px" readout past the edge, reachable only by swiping the bar. */
     .draw-tools-bar .size-slider { width: 54px; }
     .draw-tools-bar .size-val { min-width: 26px; }
+    .tool-btn { width: 40px; height: 40px; }
   }
 
   /* Match practice while assistant desktop rail is visible. */

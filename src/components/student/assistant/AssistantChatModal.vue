@@ -374,6 +374,10 @@
     AssistantChatModalProps,
   } from "./AssistantChatModal.types";
   import type { AssistantMode, AssistantMessage, PizarronState } from "@/types";
+  import {
+    assistantVoiceEnabled,
+    setAssistantVoiceEnabled,
+  } from "@/utils/assistantPreferences";
 
   const props = defineProps<AssistantChatModalProps>();
   const emit = defineEmits<AssistantChatModalEmits>();
@@ -399,12 +403,11 @@
   // Voice replies (Gillie TTS). Persisted so the student keeps their choice.
   // No autoplay: the player appears and waits, which is the safe default in a
   // classroom.
-  const VOICE_KEY = "acm-voice-replies";
-  const voiceReplies = ref(localStorage.getItem(VOICE_KEY) !== "0");
+  const voiceReplies = ref(assistantVoiceEnabled());
 
   function toggleVoiceReplies() {
     voiceReplies.value = !voiceReplies.value;
-    localStorage.setItem(VOICE_KEY, voiceReplies.value ? "1" : "0");
+    setAssistantVoiceEnabled(voiceReplies.value);
   }
 
   function playIncomingAudio(event: Event) {

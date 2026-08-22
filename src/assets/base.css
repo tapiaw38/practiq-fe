@@ -118,6 +118,14 @@
   --shadow-auth-card: 0 1px 3px rgba(0, 0, 0, 0.04), 0 12px 40px rgba(100, 116, 139, 0.08);
   --shadow-illustration: 0 20px 40px rgba(0, 0, 0, 0.18);
 
+  /* Elevation contract: use these semantic levels instead of inventing a
+     border/shadow per screen. */
+  --elevation-flat-bg: var(--surface-bg);
+  --elevation-tint-bg: var(--surface-elevated);
+  --elevation-tint-shadow: var(--shadow-card);
+  --elevation-panel-bg: var(--surface-card);
+  --elevation-panel-shadow: var(--shadow-panel);
+
   /* Gradients and transparent fills */
   --gradient-app-bg:
     radial-gradient(circle at top left, rgba(var(--practiq-violet-rgb), 0.12), transparent 16%),
@@ -181,6 +189,34 @@
   box-sizing: border-box;
   margin: 0;
   padding: 0;
+}
+
+.surface-flat {
+  background: var(--elevation-flat-bg);
+}
+
+.surface-card {
+  background: var(--elevation-tint-bg);
+  box-shadow: var(--elevation-tint-shadow);
+}
+
+.surface-panel {
+  background: var(--elevation-panel-bg);
+  box-shadow: var(--elevation-panel-shadow);
+}
+
+:focus-visible {
+  outline: 3px solid rgba(var(--practiq-violet-light-rgb), 0.45);
+  outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    scroll-behavior: auto !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
 }
 
 html {

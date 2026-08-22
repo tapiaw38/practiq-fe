@@ -32,6 +32,9 @@
   const isClosed = (sheet?: LevelSheetSummary | null) =>
     isScheduled(sheet) || isExpired(sheet);
 
+  const levelTestState = (sheet?: LevelSheetSummary | null) =>
+    isExpired(sheet) ? "expired" : isScheduled(sheet) ? "scheduled" : "available";
+
   const formatSchedule = (value: string) =>
     new Date(value).toLocaleString("es-AR", {
       weekday: "long",
@@ -129,7 +132,10 @@
           </div>
           <button
             class="lc-item lc-item--test lc-item--test-big"
-            :class="{ 'lc-item--scheduled': isClosed(level.level_test) }"
+            :class="[
+              `lc-item--test-${levelTestState(level.level_test)}`,
+              { 'lc-item--scheduled': isClosed(level.level_test) },
+            ]"
             :disabled="isClosed(level.level_test)"
             @click="emit('openLevelTest', level.level_test!)"
           >
@@ -157,7 +163,7 @@
             </div>
             <div class="test-cta">
               <template v-if="isExpired(level.level_test)">
-                <i class="pi pi-clock"></i>
+                <i class="pi pi-ban"></i>
                 Plazo vencido
               </template>
               <template v-else-if="isScheduled(level.level_test)">
@@ -165,6 +171,7 @@
                 Disponible en la fecha
               </template>
               <template v-else>
+                <i class="pi pi-play-circle"></i>
                 {{
                   level.level === data.current_level
                     ? "Rendir prueba"
@@ -202,9 +209,9 @@
     gap: 14px;
   }
   .level-card {
-    background: var(--surface-elevated);
+    background: var(--elevation-tint-bg);
     border-radius: var(--radius-2xl);
-    box-shadow: var(--shadow-card);
+    box-shadow: var(--elevation-tint-shadow);
     padding: 18px;
   }
   .level-card--current {
@@ -332,6 +339,30 @@
   .lc-item--test {
     background: rgba(var(--color-warning-rgb), 0.08);
   }
+
+  .lc-item--test-available {
+    background: var(--color-success-bg);
+    color: var(--color-success-dark);
+  }
+
+  .lc-item--test-scheduled {
+    background: var(--color-info-bg);
+    color: var(--color-info-dark);
+  }
+
+  .lc-item--test-expired {
+    background: var(--surface-hover);
+    color: var(--text-secondary);
+  }
+
+  .lc-item--test-available:hover {
+    background: rgba(var(--color-success-rgb), 0.14);
+  }
+
+  .lc-item--test-scheduled:hover,
+  .lc-item--test-expired:hover {
+    background: var(--surface-hover);
+  }
   .lc-item--test-big {
     padding: 16px 18px;
   }
@@ -376,6 +407,18 @@
     gap: 6px;
     color: var(--practiq-violet);
     font-weight: 800;
+  }
+
+  .lc-item--test-available .test-cta {
+    color: var(--color-success-dark);
+  }
+
+  .lc-item--test-scheduled .test-cta {
+    color: var(--color-info-dark);
+  }
+
+  .lc-item--test-expired .test-cta {
+    color: var(--text-secondary);
   }
   .lc-locked-hint {
     display: flex;

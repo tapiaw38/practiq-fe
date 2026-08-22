@@ -1,5 +1,5 @@
 <script setup lang="ts">
-  import { onBeforeUnmount, ref, watch } from "vue";
+  import { nextTick, onBeforeUnmount, ref, watch } from "vue";
   import { BASE_COLORS, EXTENDED_COLORS } from "@/utils/palette";
 
   withDefaults(
@@ -14,7 +14,19 @@
 
   const open = ref(false);
   const root = ref<HTMLElement | null>(null);
-  const allColors = [...BASE_COLORS, ...EXTENDED_COLORS];
+  function uniqueColors(colors: typeof BASE_COLORS) {
+    const seen = new Set<string>();
+    return colors.filter((color) => {
+      const key = color.value.toLowerCase();
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+  }
+
+  const baseColors = uniqueColors(BASE_COLORS);
+  const allColors = uniqueColors([...BASE_COLORS, ...EXTENDED_COLORS]);
+  const popStyle = ref<Record<string, string>>({});
 
   /** Case-insensitive: the native picker returns lowercase, presets may not. */
   function isActive(value: string) {
@@ -24,6 +36,29 @@
   function pick(value: string) {
     model.value = value;
     open.value = false;
+  }
+
+  async function togglePalette() {
+    open.value = !open.value;
+    if (!open.value) return;
+    await nextTick();
+    const rect = root.value?.getBoundingClientRect();
+    if (!rect) return;
+
+    // Keep sheet below trigger when possible; if it would leave viewport,
+    // place it above trigger instead. This avoids mobile footer overlap.
+    const estimatedHeight = 260;
+    const top =
+      rect.bottom + 8 + estimatedHeight <= window.innerHeight
+        ? rect.bottom + 8
+        : Math.max(12, rect.top - estimatedHeight - 8);
+    popStyle.value = {
+      position: "fixed",
+      left: `${Math.max(12, Math.min(rect.left, window.innerWidth - 312))}px`,
+      right: "auto",
+      top: `${top}px`,
+      bottom: "auto",
+    };
   }
 
   // Without this the popover covers the canvas and there is no way to dismiss
@@ -49,7 +84,7 @@
     aria-label="Color del lápiz"
   >
     <button
-      v-for="color in BASE_COLORS"
+      v-for="color in baseColors"
       :key="color.value"
       type="button"
       class="swatch"
@@ -69,12 +104,18 @@
         :aria-expanded="open"
         title="Más colores"
         aria-label="Ver más colores"
-        @click="open = !open"
+        @click="togglePalette"
       >
         <i class="pi pi-palette"></i>
       </button>
 
-      <div v-if="open" class="pop" role="group" aria-label="Más colores">
+      <div
+        v-if="open"
+        class="pop"
+        role="group"
+        aria-label="Más colores"
+        :style="popStyle"
+      >
         <button
           v-for="color in allColors"
           :key="color.value"
@@ -244,9 +285,16 @@
       flex-shrink: 0;
     }
 
-    /* Mobile toolbar has one entry point. Base and extended colors live in
-       the palette sheet, rather than consuming the exercise toolbar row. */
-    .swatch { display: none; }
+    /* Mobile shows only palette trigger below pencil. Colors live in popover. */
+    .color-palette {
+      flex-wrap: nowrap;
+      justify-content: center;
+      max-width: none;
+    }
+
+    .swatch {
+      display: none;
+    }
 
     .pop-swatch,
     .pop-custom {
@@ -259,13 +307,14 @@
        half out of view. On a phone it becomes a sheet pinned to both edges:
        it cannot be clipped wherever the trigger happens to be. */
     .pop {
+      /* Coordinates come from trigger, not viewport bottom. */
       position: fixed;
-      left: 12px;
-      right: 12px;
-      bottom: 12px;
       top: auto;
-      width: auto;
+      width: min(300px, calc(100vw - 24px));
+      box-sizing: border-box;
       max-width: none;
+      max-height: min(260px, calc(100vh - 24px));
+      overflow-y: auto;
       grid-template-columns: repeat(auto-fit, minmax(34px, 1fr));
       justify-items: center;
       padding: 14px;

@@ -14,6 +14,10 @@
   import { useRoute } from "vue-router";
   import { useAuthStore } from "@/stores/authStore";
   import { createAssistant, type Assistant } from "practiq-assistant-package";
+  import {
+    assistantVoiceEnabled,
+    ASSISTANT_VOICE_EVENT,
+  } from "@/utils/assistantPreferences";
 
   const authStore = useAuthStore();
   const route = useRoute();
@@ -179,7 +183,7 @@
       initialMessage: "Hola, soy tu asistente. ¿Tienes alguna duda?",
       searchImages: false,
       audioInput: true,
-      audioAnswers: true,
+      audioAnswers: assistantVoiceEnabled(),
       getImageAttachment: getAssistantCanvasAttachment,
       getMediaAttachments: getAssistantMediaAttachments,
       getStructuredContext: getAssistantStructuredContext,
@@ -270,6 +274,7 @@
       handleDrawerToggle as EventListener,
     );
     window.addEventListener("practiq:assistant:prompt", handleAssistantPrompt as EventListener);
+    window.addEventListener(ASSISTANT_VOICE_EVENT, remountForVoicePreference);
   });
 
   onBeforeUnmount(() => {
@@ -278,8 +283,15 @@
       handleDrawerToggle as EventListener,
     );
     window.removeEventListener("practiq:assistant:prompt", handleAssistantPrompt as EventListener);
+    window.removeEventListener(ASSISTANT_VOICE_EVENT, remountForVoicePreference);
     destroyAssistant();
   });
+
+  function remountForVoicePreference() {
+    if (!isEnabled.value) return;
+    destroyAssistant();
+    mountAssistant();
+  }
 </script>
 
 <style>

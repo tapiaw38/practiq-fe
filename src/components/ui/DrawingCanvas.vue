@@ -207,6 +207,8 @@
   <canvas
     ref="canvasRef"
     class="drawing-canvas"
+    role="img"
+    aria-label="Área para dibujar tu respuesta"
     :style="{ height: `${height}px` }"
     @mousedown="startDrawing"
     @mousemove="draw"

@@ -22,6 +22,7 @@
   import { useCuriosities } from "@/composables/useCuriosities";
   import AiLoadingModal from "@/components/student/ai/AiLoadingModal.vue";
   import { loadingMessages, randomMessage } from "@/utils/motivationalMessages";
+  import { tuckAssistantFab } from "@/composables/useAssistantFabOffset";
 
   const route = useRoute();
   const router = useRouter();
@@ -54,6 +55,8 @@
   // Per-page canvas snapshots
   const canvasSnapshots = ref<Record<string, string>>({});
   const savedCanvasSnapshots = ref<Record<string, string>>({});
+
+  tuckAssistantFab(".save-bar");
 
   const hasPendingWork = computed(() =>
     Object.entries(canvasSnapshots.value).some(
@@ -570,7 +573,8 @@
               <div class="draw-tools">
                 <button
                   class="tool-btn"
-                  :class="{ 'tool-btn--active': tool === 'pen' }"
+                  :class="{ 'tool-btn--active': tool === 'pen', 'tool-btn--pen-active': tool === 'pen' }"
+                  :style="{ backgroundColor: penColor }"
                   @click="tool = 'pen'"
                   title="Lápiz"
                 >
@@ -757,7 +761,7 @@
   .notebook-shell {
     max-width: 860px;
     margin: 0 auto;
-    padding: 24px 20px 48px;
+    padding: 24px 20px 104px;
     display: flex;
     flex-direction: column;
     gap: 16px;
@@ -833,6 +837,8 @@
     gap: 6px;
     flex-wrap: wrap;
     padding: 4px 0;
+    overflow-x: auto;
+    scrollbar-width: thin;
   }
 
   .page-tab {
@@ -998,8 +1004,8 @@
   }
 
   .tool-btn {
-    width: 34px;
-    height: 34px;
+    width: 30px;
+    height: 30px;
     border-radius: var(--radius-sm);
     border: 1.5px solid rgba(var(--practiq-violet-rgb), 0.15);
     background: rgba(var(--surface-card-rgb), 0.8);
@@ -1011,9 +1017,18 @@
     color: var(--text-secondary);
     transition: all 0.15s;
   }
-  .tool-btn:hover {
+  .tool-btn:hover:not(.tool-btn--active) {
     border-color: var(--practiq-violet);
     color: var(--practiq-violet);
+  }
+  .tool-btn--active:hover {
+    color: var(--color-on-primary);
+  }
+  .tool-btn--pen-active,
+  .tool-btn--pen-active:hover {
+    border-color: transparent;
+    color: #fff;
+    box-shadow: none;
   }
   .tool-btn--active {
     background: var(--practiq-violet);
@@ -1085,6 +1100,11 @@
     background: linear-gradient(180deg, var(--surface-card), var(--surface-bg));
     gap: 16px;
     flex-wrap: wrap;
+    position: sticky;
+    bottom: 16px;
+    z-index: 3;
+    border-radius: var(--radius-xl);
+    box-shadow: var(--shadow-card-lg);
   }
 
   .save-status {
@@ -1312,7 +1332,7 @@
 
   @media (max-width: 600px) {
     .notebook-shell {
-      padding: 12px 8px 32px;
+      padding: 12px 8px 116px;
       gap: 10px;
     }
     .nb-header {
@@ -1344,6 +1364,12 @@
       padding: 12px 14px;
       flex-direction: column;
       align-items: stretch;
+      bottom: 0;
+      border-radius: var(--radius-xl) var(--radius-xl) 0 0;
+      margin-left: -8px;
+      margin-right: -8px;
+      border-bottom: 0;
+      padding-bottom: max(12px, env(safe-area-inset-bottom));
     }
     .page-nav {
       margin-left: 0;
@@ -1371,13 +1397,14 @@
       height: 44px;
     }
     .tool-btn {
-      width: 46px;
-      height: 46px;
+      width: 40px;
+      height: 40px;
       font-size: 1rem;
     }
     .page-tab {
       min-width: 44px;
       height: 44px;
+      flex: 0 0 auto;
     }
     .ai-review-head {
       align-items: flex-start;
@@ -1390,6 +1417,15 @@
     .ai-review-text,
     .teacher-review-section {
       padding-left: 0;
+    }
+  }
+
+  @media (min-width: 921px) {
+    :global(.practiq-assistant-focus-target--open .notebook-shell) {
+      width: calc(100% - var(--practiq-assistant-rail));
+      max-width: calc(100% - var(--practiq-assistant-rail));
+      margin-left: 0;
+      margin-right: auto;
     }
   }
 </style>
