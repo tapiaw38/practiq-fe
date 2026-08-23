@@ -119,16 +119,27 @@
       uploadingAttachments.value.size > 0),
   );
 
-  // A file awaiting the teacher comes back with is_correct=false; showing it
-  // as an error would be a lie, so it gets its own bucket.
+  // An answer nobody could grade comes back with is_correct=false; showing it
+  // as an error would be a lie, so it gets its own bucket. A practice is never
+  // corrected by the teacher, so this is as far as those answers go.
   const incorrectResults = computed(() =>
     result.value?.exercise_results?.filter(
-      (r) => !r.is_correct && !r.needs_teacher_review,
+      (r) => !r.is_correct && !r.not_graded && !r.needs_teacher_review,
     ) ?? []
   );
 
-  const pendingResults = computed(() =>
-    result.value?.exercise_results?.filter((r) => r.needs_teacher_review) ?? []
+  const ungradedResults = computed(() =>
+    result.value?.exercise_results?.filter(
+      (r) => r.not_graded || r.needs_teacher_review,
+    ) ?? []
+  );
+
+  // Nothing at all came back with a verdict, so the score is not a judgement
+  // on the student's work.
+  const allUngraded = computed(
+    () =>
+      !!result.value?.exercise_results?.length &&
+      ungradedResults.value.length === result.value.exercise_results.length,
   );
 
   const visibleErrors = computed(() =>
@@ -518,10 +529,10 @@
       loadTopicProgress();
       clearDraft();
 
-      // Nothing was graded yet: the score is a placeholder while the teacher
-      // reviews the delivery. Reacting to it told the student they failed
-      // before anyone had looked at their work.
-      if (!result.value.pending_review) {
+      // A practice always comes back scored. Only when nothing at all could be
+      // graded is there no result to react to — celebrating or commiserating on
+      // a placeholder 0% would tell the student they failed work nobody read.
+      if (!allUngraded.value) {
         if (result.value.score >= 70) {
           fireSuccess();
           playSound("correct");
@@ -1351,8 +1362,8 @@
               <div class="results-header">
                 <div class="results-emoji">
                   {{
-                    result.pending_review
-                      ? "⏳"
+                    allUngraded
+                      ? "📝"
                       : result.score >= 90
                         ? "🏆"
                         : result.score >= 70
@@ -1362,15 +1373,15 @@
                 </div>
                 <h3 class="results-title">
                   {{
-                    result.pending_review
-                      ? "Esperando corrección"
+                    allUngraded
+                      ? "Práctica entregada"
                       : result.score >= 70
                         ? randomMessage(successMessages)
                         : randomMessage(encourageMessages)
                   }}
                 </h3>
               </div>
-              <div v-if="!result.pending_review" class="results-stats">
+              <div v-if="!allUngraded" class="results-stats">
                 <div class="stat-card">
                   <div
                     class="stat-value"
@@ -1396,24 +1407,24 @@
                   <div class="stat-label">Dominio</div>
                 </div>
               </div>
-              <div v-if="!result.pending_review" class="results-recommendation">
+              <div v-if="!allUngraded" class="results-recommendation">
                 <div class="rec-icon">
                   {{ result.should_repeat ? "🔄" : "▶️" }}
                 </div>
                 <p>{{ result.recommendation }}</p>
               </div>
 
-              <div v-if="result.pending_review" class="pending-review-badge">
-                <i class="pi pi-clock"></i>
-                {{ pendingResults.length === 1
-                  ? "Tu entrega quedó esperando la corrección del docente."
-                  : pendingResults.length > 1
-                    ? `${pendingResults.length} entregas quedaron esperando la corrección del docente.`
-                    : "Tu entrega quedó esperando la corrección del docente." }}
+              <!-- A practice is never sent to the teacher: what the assistant
+                   could not read is simply left out of the score. -->
+              <div v-if="ungradedResults.length" class="ungraded-badge">
+                <i class="pi pi-info-circle"></i>
+                {{ ungradedResults.length === 1
+                  ? "No pudimos corregir 1 respuesta automáticamente, así que no cuenta en tu puntaje."
+                  : `No pudimos corregir ${ungradedResults.length} respuestas automáticamente, así que no cuentan en tu puntaje.` }}
               </div>
 
               <!-- Per-exercise feedback (only errors) -->
-              <div v-if="incorrectResults.length === 0 && result.exercise_results?.length && !pendingResults.length" class="all-correct-badge">
+              <div v-if="incorrectResults.length === 0 && result.exercise_results?.length && !ungradedResults.length" class="all-correct-badge">
                 ✅ ¡Todas las respuestas correctas!
               </div>
 
@@ -2288,7 +2299,7 @@
   }
 
   /* Exercise results */
-  .pending-review-badge {
+  .ungraded-badge {
     display: flex;
     align-items: center;
     gap: 10px;

@@ -110,7 +110,7 @@
           @click="navOpen = false"
         >
           <span class="nav-icon"><i class="pi pi-paperclip"></i></span>
-          <span>Entregas</span>
+          <span>Pruebas de nivel</span>
         </RouterLink>
         <RouterLink
           to="/teacher/strategies"

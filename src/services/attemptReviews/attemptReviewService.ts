@@ -4,8 +4,6 @@ import type { AttemptReview, OperationResult } from "@/types";
 export interface AttemptReviewFilters {
   courseId?: string;
   studentId?: string;
-  /** "practice" | "level_test" */
-  sheetType?: string;
   /** "" | "reviewed" | "unreviewed" */
   reviewed?: string;
   limit?: number;
@@ -18,6 +16,11 @@ export interface AttemptReviewPage {
   has_more: boolean;
 }
 
+/**
+ * The queue only ever holds level test answers: a practice is graded when the
+ * student submits it and homework is corrected in the notebook screen. There is
+ * nothing to filter by sheet type.
+ */
 export interface IAttemptReviewService {
   list(params?: AttemptReviewFilters): Promise<AttemptReviewPage>;
   review(
@@ -36,7 +39,6 @@ export class AttemptReviewService implements IAttemptReviewService {
       params: {
         course_id: params.courseId || undefined,
         student_id: params.studentId || undefined,
-        sheet_type: params.sheetType || undefined,
         reviewed: params.reviewed || undefined,
         limit: params.limit,
         offset: params.offset,

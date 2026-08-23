@@ -49,8 +49,17 @@ export interface ExerciseResult {
   student_answer: string;
   correct_answer: string;
   ai_feedback?: string;
-  /** The assistant could not grade this file; a teacher will. */
+  /**
+   * The answer was handed to the teacher. Only a level test does that; on a
+   * practice it is never set.
+   */
   needs_teacher_review?: boolean;
+  /**
+   * Nobody could put a verdict on this answer, so it is out of the score
+   * instead of counted as wrong. On a practice nobody will correct it later
+   * either, so it must not be shown as an error.
+   */
+  not_graded?: boolean;
 }
 
 export interface SubmitResult {
@@ -62,7 +71,10 @@ export interface SubmitResult {
   ai_feedback?: string;
   should_level_up: boolean;
   should_repeat: boolean;
-  /** Every answer is awaiting the teacher, so there is no score to act on. */
+  /**
+   * Every answer is awaiting the teacher, so there is no score to act on.
+   * Only a level test can set it: a practice always comes back with a result.
+   */
   pending_review?: boolean;
   next_level: number;
   exercise_results: ExerciseResult[];

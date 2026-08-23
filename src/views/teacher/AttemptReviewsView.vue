@@ -19,12 +19,12 @@
   const PAGE_SIZE = 20;
 
   // Course and student narrow a queue that mixes every course a teacher runs.
-  // sheetType is the one specific to this screen: a level test holds the
-  // student's promotion until it is corrected, so those are worth isolating.
+  // The queue itself only holds level tests: those decide promotion, so a
+  // person confirms them. Practices are graded on submit and never wait here,
+  // and homework has its own screen (NotebookReviewView).
   const filters = reactive({
     courseId: "",
     studentId: "",
-    sheetType: "",
     reviewed: "unreviewed",
   });
   const saving = ref<string | null>(null);
@@ -184,9 +184,10 @@
       <div class="page-header">
         <div>
           <div class="page-kicker">Corrección</div>
-          <h1 class="page-title">Entregas por revisar</h1>
+          <h1 class="page-title">Pruebas de nivel por revisar</h1>
           <p class="page-subtitle">
-            Las que la IA no pudo corregir. Podés cambiar cualquier nota después.
+            Solo las pruebas de nivel se corrigen acá: definen el pase de nivel,
+            así que la nota la ponés vos. Podés cambiarla después.
           </p>
         </div>
       </div>
@@ -198,15 +199,6 @@
             <option value="unreviewed">Sin corregir</option>
             <option value="reviewed">Ya corregidas</option>
             <option value="">Todas</option>
-          </select>
-        </label>
-
-        <label class="filter-field">
-          <span>Tipo</span>
-          <select v-model="filters.sheetType" class="form-select" @change="applyFilters">
-            <option value="">Todas</option>
-            <option value="level_test">Pruebas de nivel</option>
-            <option value="practice">Prácticas</option>
           </select>
         </label>
 
