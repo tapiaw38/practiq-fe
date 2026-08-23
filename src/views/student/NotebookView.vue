@@ -13,6 +13,7 @@
   import type { Notebook, NotebookPage } from "@/types";
   import {
     composeAssistantWorkImage,
+    loadImageFromDataUrl,
     pickBestStudentImage,
   } from "@/utils/assistantExerciseContext";
   import { formatAIFeedback, formatRelativeTime } from "@/utils/formatters";
@@ -128,16 +129,20 @@
     return "Pendiente de revision";
   }
 
-  function captureCanvas(): string {
+  async function captureCanvas(): Promise<string> {
     const pageId = currentPage.value?.id || "";
     const dataUrl = canvasSnapshots.value[pageId] || "";
     if (!dataUrl) return "";
 
-    // Create temp canvas to process the image
+    // Wait for data URL decode before drawing. A newly assigned data URL is
+    // normally not complete yet; returning here would leak transparent PNG.
     const source = document.createElement("canvas");
-    const img = new Image();
-    img.src = dataUrl;
-    if (!img.complete) return dataUrl; // If image not loaded, return as-is
+    let img: HTMLImageElement;
+    try {
+      img = await loadImageFromDataUrl(dataUrl);
+    } catch {
+      return dataUrl;
+    }
     source.width = img.width;
     source.height = img.height;
     const sourceCtx = source.getContext("2d");
@@ -245,7 +250,7 @@
   async function getBestStudentNotebookImage(): Promise<string> {
     const pageId = currentPage.value?.id || "";
     return pickBestStudentImage([
-      captureCanvas(),
+      await captureCanvas(),
       canvasSnapshots.value[pageId],
       currentPage.value?.submission?.canvas_data,
     ]);
@@ -403,7 +408,7 @@
 
     try {
       const pageId = currentPage.value.id;
-      const data = captureCanvas();
+      const data = await captureCanvas();
 
       const start = await saveSubmissionAsync(pageId, { canvas_data: data });
       const jobId = start.job_id;
