@@ -19,9 +19,10 @@
   const PAGE_SIZE = 20;
 
   // Course and student narrow a queue that mixes every course a teacher runs.
-  // The queue itself only holds level tests: those decide promotion, so a
-  // person confirms them. Practices are graded on submit and never wait here,
-  // and homework has its own screen (NotebookReviewView).
+  // The queue itself only holds level test answers the assistant could not
+  // resolve — those hold the student's promotion. Anything it did resolve is
+  // already scored, practices are graded on submit and never wait here, and
+  // homework has its own screen (NotebookReviewView).
   const filters = reactive({
     courseId: "",
     studentId: "",
@@ -186,8 +187,9 @@
           <div class="page-kicker">Corrección</div>
           <h1 class="page-title">Pruebas de nivel por revisar</h1>
           <p class="page-subtitle">
-            Solo las pruebas de nivel se corrigen acá: definen el pase de nivel,
-            así que la nota la ponés vos. Podés cambiarla después.
+            Solo lo que la IA no pudo resolver, y solo de pruebas de nivel: el
+            alumno no pasa de nivel hasta que lo corrijas. Podés cambiar
+            cualquier nota después.
           </p>
         </div>
       </div>
