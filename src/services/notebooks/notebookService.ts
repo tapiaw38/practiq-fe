@@ -31,6 +31,8 @@ export interface INotebookService {
       content_type: "canvas" | "text";
       content_data: string;
       instructions: string;
+      statement_text?: string;
+      statement_verified?: boolean;
     },
   ): Promise<void>;
   update(
@@ -115,6 +117,8 @@ export class NotebookService implements INotebookService {
       content_type: "canvas" | "text";
       content_data: string;
       instructions: string;
+      statement_text?: string;
+      statement_verified?: boolean;
     },
   ): Promise<void> {
     await this.api.put(`/notebook-pages/${pageId}`, params);

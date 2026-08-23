@@ -468,6 +468,9 @@
             :key="submission.id"
             class="submission-card"
             :class="{
+              'submission-card--needs-review':
+                submission.needs_teacher_review &&
+                !submission.teacher_reviewed_at,
               'submission-card--correct': submission.ai_is_correct === true,
               'submission-card--incorrect': submission.ai_is_correct === false,
               'submission-card--pending':
@@ -503,6 +506,16 @@
                 </span>
                 <span v-else class="badge badge--pending">
                   <i class="pi pi-clock"></i> Pendiente
+                </span>
+                <span
+                  v-if="
+                    submission.needs_teacher_review &&
+                    !submission.teacher_reviewed_at
+                  "
+                  class="badge badge--review"
+                  title="La consigna de esta página no fue verificada, así que la IA solo sugiere"
+                >
+                  <i class="pi pi-flag"></i> Requiere tu revisión
                 </span>
                 <span
                   v-if="submission.teacher_reviewed_at"
@@ -1028,6 +1041,17 @@
   .badge--teacher {
     background: var(--fill-primary-soft);
     color: var(--practiq-violet);
+  }
+
+  .badge--review {
+    background: rgba(var(--color-warning-rgb), 0.16);
+    color: var(--color-warning-dark);
+  }
+
+  .submission-card--needs-review {
+    box-shadow:
+      inset 3px 0 0 var(--color-warning),
+      var(--elevation-tint-shadow);
   }
 
   .submission-meta {

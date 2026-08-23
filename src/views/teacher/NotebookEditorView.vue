@@ -116,6 +116,48 @@
     if (currentPage.value?.content_type === "canvas") initCanvas(true);
   }
 
+  const statementDraft = ref("");
+  const savingStatement = ref(false);
+  const statementMsg = ref("");
+
+  const hasImageStatement = computed(() => {
+    const value = (currentPage.value?.content_data || "").trim();
+    if (!value) return false;
+    if (value.startsWith("data:image/")) return true;
+    return /^https?:\/\/\S+\.(png|jpe?g|webp|gif)(\?|#|$)/i.test(value);
+  });
+
+  watch(
+    () => currentPage.value?.id,
+    () => {
+      statementDraft.value = currentPage.value?.statement_text || "";
+      statementMsg.value = "";
+    },
+    { immediate: true },
+  );
+
+  async function saveStatement() {
+    if (!currentPage.value || savingStatement.value) return;
+    savingStatement.value = true;
+    try {
+      await updatePageService(currentPage.value.id, {
+        title: currentPage.value.title || "",
+        content_type: currentPage.value.content_type,
+        content_data: currentPage.value.content_data || "",
+        instructions: currentPage.value.instructions || "",
+        statement_text: statementDraft.value.trim(),
+      });
+      currentPage.value.statement_text = statementDraft.value.trim();
+      currentPage.value.statement_verified = true;
+      statementMsg.value = "Consigna confirmada";
+      setTimeout(() => {
+        statementMsg.value = "";
+      }, 2500);
+    } finally {
+      savingStatement.value = false;
+    }
+  }
+
   async function savePage() {
     if (!currentPage.value || saving.value) return;
     saving.value = true;
@@ -474,6 +516,43 @@
                 placeholder="Ej: Resuelve las siguientes operaciones con tu lápiz."
                 @blur="savePage"
               />
+            </div>
+
+            <div v-if="hasImageStatement" class="statement-box">
+              <div class="statement-head">
+                <label class="inst-label">Consigna leída por la IA</label>
+                <span
+                  class="statement-tag"
+                  :class="currentPage.statement_verified ? 'statement-tag--ok' : 'statement-tag--pending'"
+                >
+                  <i :class="currentPage.statement_verified ? 'pi pi-check-circle' : 'pi pi-exclamation-circle'"></i>
+                  {{ currentPage.statement_verified ? "Verificada" : "Sin verificar" }}
+                </span>
+              </div>
+              <p class="statement-help">
+                Esto es lo que el sistema entendió de tu hoja y contra lo que se
+                corrigen las respuestas. Revisalo: si algo quedó mal leído, el
+                alumno se corrige contra un enunciado equivocado. Hasta que la
+                verifiques, las correcciones quedan como sugerencia y pasan por vos.
+              </p>
+              <textarea
+                v-model="statementDraft"
+                class="statement-input"
+                rows="4"
+                placeholder="Todavía no se pudo leer la consigna. Escribila acá."
+              ></textarea>
+              <div class="statement-actions">
+                <button
+                  class="statement-btn"
+                  type="button"
+                  :disabled="savingStatement"
+                  @click="saveStatement"
+                >
+                  <i class="pi pi-check"></i>
+                  {{ savingStatement ? "Guardando…" : "Confirmar consigna" }}
+                </button>
+                <span v-if="statementMsg" class="statement-msg">{{ statementMsg }}</span>
+              </div>
             </div>
 
             <!-- Save feedback -->
@@ -852,6 +931,89 @@
   }
 
   /* Instructions */
+  .statement-box {
+    margin-top: 14px;
+    padding: 14px 16px;
+    border-radius: var(--radius-xl);
+    background: var(--elevation-tint-bg);
+    box-shadow: var(--elevation-tint-shadow);
+  }
+  .statement-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    margin-bottom: 6px;
+  }
+  .statement-tag {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 3px 9px;
+    border-radius: var(--radius-pill);
+    font-size: var(--text-xs);
+    font-weight: 700;
+    flex-shrink: 0;
+  }
+  .statement-tag--ok {
+    background: rgba(var(--color-success-rgb), 0.14);
+    color: var(--color-success-dark);
+  }
+  .statement-tag--pending {
+    background: rgba(var(--color-warning-rgb), 0.14);
+    color: var(--color-warning-dark);
+  }
+  .statement-help {
+    margin: 0 0 10px;
+    font-size: var(--text-xs);
+    line-height: 1.5;
+    color: var(--text-secondary);
+  }
+  .statement-input {
+    width: 100%;
+    padding: 10px 12px;
+    border: 1px solid var(--surface-border);
+    border-radius: var(--radius-lg);
+    background: var(--surface-card);
+    color: var(--text-primary);
+    font-family: inherit;
+    font-size: var(--text-sm);
+    resize: vertical;
+  }
+  .statement-actions {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-top: 10px;
+  }
+  .statement-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 8px 14px;
+    min-height: 38px;
+    border: none;
+    border-radius: var(--radius-pill);
+    background: var(--fill-primary-soft);
+    color: var(--practiq-violet-dark);
+    font-size: var(--text-sm);
+    font-weight: 700;
+    cursor: pointer;
+    transition: var(--transition-fast);
+  }
+  .statement-btn:hover:not(:disabled) {
+    background: rgba(var(--practiq-violet-rgb), 0.16);
+  }
+  .statement-btn:disabled {
+    opacity: 0.6;
+    cursor: default;
+  }
+  .statement-msg {
+    font-size: var(--text-xs);
+    font-weight: 700;
+    color: var(--color-success-dark);
+  }
+
   .instructions-row {
     display: flex;
     flex-direction: column;

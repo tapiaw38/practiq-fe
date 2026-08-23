@@ -125,6 +125,8 @@ export const useNotebook = () => {
       content_type: "canvas" | "text";
       content_data: string;
       instructions: string;
+      statement_text?: string;
+      statement_verified?: boolean;
     },
   ) => {
     try {
@@ -154,6 +156,8 @@ export const useNotebook = () => {
       content_type: "canvas" | "text";
       content_data: string;
       instructions: string;
+      statement_text?: string;
+      statement_verified?: boolean;
     },
   ) => {
     try {
