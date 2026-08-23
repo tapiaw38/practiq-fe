@@ -109,7 +109,19 @@
     registerAssistantHooks();
   });
 
-  function getReviewBoxClass(submission: { ai_is_correct?: boolean }) {
+  function isAwaitingTeacher(submission?: {
+    needs_teacher_review?: boolean;
+    teacher_reviewed_at?: string;
+  }) {
+    return !!submission?.needs_teacher_review && !submission?.teacher_reviewed_at;
+  }
+
+  function getReviewBoxClass(submission: {
+    ai_is_correct?: boolean;
+    needs_teacher_review?: boolean;
+    teacher_reviewed_at?: string;
+  }) {
+    if (isAwaitingTeacher(submission)) return "ai-review-box--pending";
     if (submission.ai_is_correct === true) return "ai-review-box--success";
     if (submission.ai_is_correct === false) return "ai-review-box--error";
     return "ai-review-box--pending";
@@ -122,7 +134,10 @@
   function getReviewBadgeLabel(submission: {
     ai_is_correct?: boolean;
     ai_feedback?: string;
+    needs_teacher_review?: boolean;
+    teacher_reviewed_at?: string;
   }) {
+    if (isAwaitingTeacher(submission)) return "Pendiente de revisión docente";
     if (submission.ai_is_correct === true) return "Correcto";
     if (submission.ai_is_correct === false) return "Incorrecto";
     if (hasUnreadableAIFeedback(submission.ai_feedback)) return "No legible";
@@ -328,11 +343,13 @@
 
       // Check if submission was correct and celebrate
       const updatedPage = pages.value.find((p) => p.id === pageId);
-      if (updatedPage?.submission?.ai_is_correct === true) {
-        fireCorrect();
-        playSound("correct");
-      } else if (updatedPage?.submission?.ai_is_correct === false) {
-        playSound("incorrect");
+      if (!isAwaitingTeacher(updatedPage?.submission)) {
+        if (updatedPage?.submission?.ai_is_correct === true) {
+          fireCorrect();
+          playSound("correct");
+        } else if (updatedPage?.submission?.ai_is_correct === false) {
+          playSound("incorrect");
+        }
       }
 
       setTimeout(() => {
@@ -536,7 +553,11 @@
               <div class="ai-review-head">
                 <div class="ai-review-icon">
                   <i
-                    v-if="currentPage.submission.ai_is_correct === true"
+                    v-if="isAwaitingTeacher(currentPage.submission)"
+                    class="pi pi-clock"
+                  ></i>
+                  <i
+                    v-else-if="currentPage.submission.ai_is_correct === true"
                     class="pi pi-check-circle"
                   ></i>
                   <i
@@ -548,16 +569,19 @@
                 <div class="ai-review-status">
                   <span
                     v-if="
+                      isAwaitingTeacher(currentPage.submission) ||
                       currentPage.submission.ai_is_correct !== undefined ||
                       hasUnreadableAIFeedback(currentPage.submission.ai_feedback)
                     "
                     class="ai-review-badge"
                     :class="
-                      currentPage.submission.ai_is_correct === true
-                        ? 'ai-review-badge--ok'
-                        : currentPage.submission.ai_is_correct === false
-                          ? 'ai-review-badge--fail'
-                          : 'ai-review-badge--warn'
+                      isAwaitingTeacher(currentPage.submission)
+                        ? 'ai-review-badge--warn'
+                        : currentPage.submission.ai_is_correct === true
+                          ? 'ai-review-badge--ok'
+                          : currentPage.submission.ai_is_correct === false
+                            ? 'ai-review-badge--fail'
+                            : 'ai-review-badge--warn'
                     "
                   >
                     {{ getReviewBadgeLabel(currentPage.submission) }}
@@ -566,7 +590,10 @@
                     >Pendiente de revision</span
                   >
                   <span
-                    v-if="currentPage.submission.ai_reviewed_at"
+                    v-if="
+                      currentPage.submission.ai_reviewed_at &&
+                      !isAwaitingTeacher(currentPage.submission)
+                    "
                     class="ai-review-time"
                   >
                     Revisado
@@ -576,7 +603,11 @@
                   </span>
                 </div>
               </div>
-              <p class="ai-review-text">
+              <p v-if="isAwaitingTeacher(currentPage.submission)" class="ai-review-text">
+                Tu docente va a revisar esta página. Cuando la corrija vas a ver
+                el resultado acá.
+              </p>
+              <p v-else class="ai-review-text">
                 {{ formatAIFeedback(currentPage.submission.ai_feedback) }}
               </p>
 
