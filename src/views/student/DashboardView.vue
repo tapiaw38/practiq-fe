@@ -11,6 +11,7 @@
   import JoinTeacherCard from "@/components/student/JoinTeacherCard.vue";
   import { useProfile } from "@/composables/useProfile";
   import { useDashboard } from "@/composables/useDashboard";
+  import { needsReview } from "@/utils/mastery";
   import type { TopicProgress } from "@/types";
 
   const router = useRouter();
@@ -59,6 +60,15 @@
     }
     return Array.from(map.values());
   });
+
+  // Deliberately not a re-sort of groupedProgress: currentTopic below reads its
+  // first entry, so reordering that list would rename the banner's topic.
+  const TOP_TOPICS = 6;
+  const topProgress = computed(() =>
+    [...groupedProgress.value]
+      .sort((a, b) => a.mastery_score - b.mastery_score)
+      .slice(0, TOP_TOPICS),
+  );
 
   const currentTopic = computed(
     () => groupedProgress.value[0]?.topic_title || "—",
@@ -271,12 +281,7 @@
     if (topicIds.size === 0) return [];
 
     return progress.value
-      .filter(
-        (p) =>
-          topicIds.has(p.topic_id) &&
-          p.mastery_score < 60 &&
-          p.total_attempts > 0,
-      )
+      .filter((p) => topicIds.has(p.topic_id) && needsReview(p))
       .sort((a, b) => a.mastery_score - b.mastery_score)
       .slice(0, 5);
   }
@@ -522,11 +527,19 @@
               <div class="section-kicker">Resumen rápido</div>
               <h2 class="section-title">Tu progreso por tema</h2>
             </div>
+            <RouterLink
+              v-if="groupedProgress.length > TOP_TOPICS"
+              to="/student/progress"
+              class="section-link"
+            >
+              Ver todo ({{ groupedProgress.length }})
+              <i class="pi pi-arrow-right"></i>
+            </RouterLink>
           </div>
 
           <div class="mastery-grid anim-stagger">
             <article
-              v-for="p in groupedProgress"
+              v-for="p in topProgress"
               :key="p.topic_id"
               class="mastery-card"
             >
@@ -870,7 +883,27 @@
     display: flex;
     align-items: center;
     justify-content: space-between;
+    gap: 12px;
     margin-bottom: 16px;
+  }
+
+  .section-link {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    flex-shrink: 0;
+    padding: 8px 14px;
+    min-height: 38px;
+    border-radius: var(--radius-pill);
+    background: var(--fill-primary-soft);
+    color: var(--practiq-violet-dark);
+    font-size: var(--text-sm);
+    font-weight: 700;
+    text-decoration: none;
+    transition: var(--transition-fast);
+  }
+  .section-link:hover {
+    background: rgba(var(--practiq-violet-rgb), 0.16);
   }
 
   .section-title {

@@ -210,6 +210,16 @@
           <span>Continuar</span>
         </RouterLink>
 
+        <RouterLink
+          to="/student/progress"
+          class="nav-item"
+          active-class="nav-item-active"
+          @click="navOpen = false"
+        >
+          <span class="nav-icon"><i class="pi pi-chart-line"></i></span>
+          <span>Mi progreso</span>
+        </RouterLink>
+
         <!-- Courses and levels -->
         <div class="nav-group">
           <button
