@@ -21,9 +21,9 @@
   import {
     composeAssistantWorkImage,
     extractTeacherImageDataUrl,
-    flattenCanvasOnWhite,
     parseExerciseMetadata,
     pickBestStudentImage,
+    prepareHandwritingImage,
     summarizeExerciseMetadata,
     statementMediaAudioAttachment,
     statementMediaPreviewDataURL,
@@ -685,7 +685,7 @@
   // it was reaching for anyway, and the threshold itself only cost the model
   // the stroke detail it needs to read fractions and exponents.
   function buildCanvasDataForOCR(exerciseId: string) {
-    return flattenCanvasOnWhite(answers.value[exerciseId]?.answer || "");
+    return prepareHandwritingImage(answers.value[exerciseId]?.answer || "");
   }
 
   function getAssistantExerciseId() {

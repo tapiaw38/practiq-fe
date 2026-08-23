@@ -172,18 +172,31 @@ export async function loadImageFromDataUrl(
   });
 }
 
+/** Anything at or below this grey counts as a stroke rather than page. */
+const INK_GREY_MAX = 188;
+/** Breathing room kept around the strokes, in source pixels. */
+const INK_CROP_PADDING = 28;
+
 /**
- * Paints the student's drawing over the white page they actually saw.
+ * Turns a raw drawing-canvas export into the image the grader should see:
+ * the strokes over the white page the student actually had, trimmed to what
+ * they wrote.
+ *
+ * Two things this deliberately does NOT do:
  *
  * DrawingCanvas only ever clears its bitmap, so `toDataURL` hands back the
  * `#1e293b` strokes over fully transparent pixels — the page white is CSS on
- * the element, not part of the image. Whoever flattens that transparency
- * decides the ink's background, and the grading pipeline flattens to black,
- * which leaves near-black strokes on black and reads back UNREADABLE. The
- * assistant only escaped it because composeTeacherAndStudentImage fills white
- * before drawing.
+ * the element, not part of the image. Whoever flattens that transparency picks
+ * the ink's background, and the grading pipeline picks black, which leaves
+ * near-black strokes on black and reads back UNREADABLE. So it fills white.
+ *
+ * And it does not threshold to pure black and white. Practice and the level
+ * test used to, the notebook still did until this replaced it, and on a real
+ * `#1e293b` stroke that collapses 162 grey levels to 2 and drops ~16% of the
+ * stroke's pixels — the antialiased edge a vision model reads weight and shape
+ * from. A 1-bit threshold is preprocessing for classical OCR, not for this.
  */
-export async function flattenCanvasOnWhite(dataUrl: string): Promise<string> {
+export async function prepareHandwritingImage(dataUrl: string): Promise<string> {
   if (!dataUrl || !dataUrl.startsWith("data:image/")) return "";
 
   let img: HTMLImageElement;
@@ -197,19 +210,70 @@ export async function flattenCanvasOnWhite(dataUrl: string): Promise<string> {
   const height = img.naturalHeight || img.height;
   if (!width || !height) return dataUrl;
 
+  const flat = document.createElement("canvas");
+  flat.width = width;
+  flat.height = height;
+  const flatCtx = flat.getContext("2d");
+  if (!flatCtx) return dataUrl;
+
+  flatCtx.fillStyle = "#ffffff";
+  flatCtx.fillRect(0, 0, width, height);
+  flatCtx.drawImage(img, 0, 0);
+
+  const bounds = inkBounds(flatCtx, width, height);
+  // No strokes found: send the flattened page rather than an empty crop.
+  if (!bounds) return flat.toDataURL("image/png");
+
+  const minX = Math.max(0, bounds.minX - INK_CROP_PADDING);
+  const minY = Math.max(0, bounds.minY - INK_CROP_PADDING);
+  const maxX = Math.min(width - 1, bounds.maxX + INK_CROP_PADDING);
+  const maxY = Math.min(height - 1, bounds.maxY + INK_CROP_PADDING);
+  const cropW = Math.max(1, maxX - minX + 1);
+  const cropH = Math.max(1, maxY - minY + 1);
+
+  if (cropW === width && cropH === height) return flat.toDataURL("image/png");
+
   const out = document.createElement("canvas");
-  out.width = width;
-  out.height = height;
+  out.width = cropW;
+  out.height = cropH;
   const ctx = out.getContext("2d");
-  if (!ctx) return dataUrl;
+  if (!ctx) return flat.toDataURL("image/png");
 
   ctx.fillStyle = "#ffffff";
-  ctx.fillRect(0, 0, width, height);
-  ctx.drawImage(img, 0, 0);
+  ctx.fillRect(0, 0, cropW, cropH);
+  ctx.drawImage(flat, minX, minY, cropW, cropH, 0, 0, cropW, cropH);
 
   // PNG, like composeTeacherAndStudentImage: handwriting is line art, so this
   // stays small and skips the JPEG ringing that blurs thin strokes.
   return out.toDataURL("image/png");
+}
+
+/** Tightest box containing the strokes, or null when the page is blank. */
+function inkBounds(
+  ctx: CanvasRenderingContext2D,
+  width: number,
+  height: number,
+) {
+  const pixels = ctx.getImageData(0, 0, width, height).data;
+  let minX = width;
+  let minY = height;
+  let maxX = -1;
+  let maxY = -1;
+
+  for (let y = 0; y < height; y++) {
+    for (let x = 0; x < width; x++) {
+      const idx = (y * width + x) * 4;
+      const grey =
+        0.299 * pixels[idx] + 0.587 * pixels[idx + 1] + 0.114 * pixels[idx + 2];
+      if (pixels[idx + 3] < 8 || grey > INK_GREY_MAX) continue;
+      if (x < minX) minX = x;
+      if (y < minY) minY = y;
+      if (x > maxX) maxX = x;
+      if (y > maxY) maxY = y;
+    }
+  }
+
+  return maxX < minX || maxY < minY ? null : { minX, minY, maxX, maxY };
 }
 
 export async function composeTeacherAndStudentImage(params: {

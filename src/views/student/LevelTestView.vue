@@ -25,9 +25,9 @@
   import {
     composeAssistantWorkImage,
     extractTeacherImageDataUrl,
-    flattenCanvasOnWhite,
     parseExerciseMetadata,
     pickBestStudentImage,
+    prepareHandwritingImage,
     summarizeExerciseMetadata,
     statementMediaAudioAttachment,
     statementMediaPreviewDataURL,
@@ -520,9 +520,9 @@
 
   // Same dead threshold pass the practice view carried: it bailed on
   // `!sourceImg.complete`, always true for a fresh data: URL, so the test sent
-  // the raw transparent canvas to grading. See flattenCanvasOnWhite.
+  // the raw transparent canvas to grading. See prepareHandwritingImage.
   function buildCanvasDataForOCR(exerciseId: string) {
-    return flattenCanvasOnWhite(canvasData.value[exerciseId] || "");
+    return prepareHandwritingImage(canvasData.value[exerciseId] || "");
   }
 
   function getAssistantExerciseId() {

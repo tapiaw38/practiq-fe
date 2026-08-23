@@ -13,8 +13,8 @@
   import type { Notebook, NotebookPage } from "@/types";
   import {
     composeAssistantWorkImage,
-    loadImageFromDataUrl,
     pickBestStudentImage,
+    prepareHandwritingImage,
   } from "@/utils/assistantExerciseContext";
   import { formatAIFeedback, formatRelativeTime } from "@/utils/formatters";
   import { renderContent } from "@/composables/useContentRenderer";
@@ -129,122 +129,14 @@
     return "Pendiente de revision";
   }
 
-  async function captureCanvas(): Promise<string> {
+  // Was ~115 lines that flattened on white, cropped to the ink and then
+  // thresholded to pure black and white. The crop was worth keeping and the
+  // other two screens lacked it; the threshold was not, and they had already
+  // dropped it. Both now live in prepareHandwritingImage so the same
+  // handwriting reaches the grader the same way from every screen.
+  function captureCanvas(): Promise<string> {
     const pageId = currentPage.value?.id || "";
-    const dataUrl = canvasSnapshots.value[pageId] || "";
-    if (!dataUrl) return "";
-
-    // Wait for data URL decode before drawing. A newly assigned data URL is
-    // normally not complete yet; returning here would leak transparent PNG.
-    const source = document.createElement("canvas");
-    let img: HTMLImageElement;
-    try {
-      img = await loadImageFromDataUrl(dataUrl);
-    } catch {
-      return dataUrl;
-    }
-    source.width = img.width;
-    source.height = img.height;
-    const sourceCtx = source.getContext("2d");
-    if (!sourceCtx) return dataUrl;
-    sourceCtx.drawImage(img, 0, 0);
-
-    const scale = 2.5;
-    const temp = document.createElement("canvas");
-    temp.width = Math.max(1, Math.floor(source.width * scale));
-    temp.height = Math.max(1, Math.floor(source.height * scale));
-    const tempCtx = temp.getContext("2d");
-    if (!tempCtx) {
-      return source.toDataURL("image/png");
-    }
-
-    tempCtx.fillStyle = "#ffffff";
-    tempCtx.fillRect(0, 0, temp.width, temp.height);
-    tempCtx.imageSmoothingEnabled = false;
-    tempCtx.drawImage(source, 0, 0, temp.width, temp.height);
-
-    const baseImage = tempCtx.getImageData(0, 0, temp.width, temp.height);
-    const basePixels = baseImage.data;
-    const threshold = 188;
-
-    let minX = temp.width;
-    let minY = temp.height;
-    let maxX = -1;
-    let maxY = -1;
-
-    for (let y = 0; y < temp.height; y++) {
-      for (let x = 0; x < temp.width; x++) {
-        const idx = (y * temp.width + x) * 4;
-        const r = basePixels[idx];
-        const g = basePixels[idx + 1];
-        const b = basePixels[idx + 2];
-        const alpha = basePixels[idx + 3];
-        const gray = 0.299 * r + 0.587 * g + 0.114 * b;
-        const isInk = alpha >= 8 && gray <= threshold;
-        if (!isInk) continue;
-
-        if (x < minX) minX = x;
-        if (y < minY) minY = y;
-        if (x > maxX) maxX = x;
-        if (y > maxY) maxY = y;
-      }
-    }
-
-    const pad = Math.floor(28 * scale);
-    if (maxX < minX || maxY < minY) {
-      minX = 0;
-      minY = 0;
-      maxX = temp.width - 1;
-      maxY = temp.height - 1;
-    } else {
-      minX = Math.max(0, minX - pad);
-      minY = Math.max(0, minY - pad);
-      maxX = Math.min(temp.width - 1, maxX + pad);
-      maxY = Math.min(temp.height - 1, maxY + pad);
-    }
-
-    const cropW = Math.max(1, maxX - minX + 1);
-    const cropH = Math.max(1, maxY - minY + 1);
-
-    const out = document.createElement("canvas");
-    out.width = cropW;
-    out.height = cropH;
-    const ctx = out.getContext("2d");
-    if (!ctx) {
-      return source.toDataURL("image/png");
-    }
-
-    ctx.fillStyle = "#ffffff";
-    ctx.fillRect(0, 0, out.width, out.height);
-    ctx.imageSmoothingEnabled = false;
-    ctx.drawImage(temp, minX, minY, cropW, cropH, 0, 0, cropW, cropH);
-
-    const image = ctx.getImageData(0, 0, out.width, out.height);
-    const pixels = image.data;
-    for (let i = 0; i < pixels.length; i += 4) {
-      const r = pixels[i];
-      const g = pixels[i + 1];
-      const b = pixels[i + 2];
-      const alpha = pixels[i + 3];
-
-      if (alpha < 8) {
-        pixels[i] = 255;
-        pixels[i + 1] = 255;
-        pixels[i + 2] = 255;
-        pixels[i + 3] = 255;
-        continue;
-      }
-
-      const gray = 0.299 * r + 0.587 * g + 0.114 * b;
-      const value = gray > threshold ? 255 : 0;
-      pixels[i] = value;
-      pixels[i + 1] = value;
-      pixels[i + 2] = value;
-      pixels[i + 3] = 255;
-    }
-    ctx.putImageData(image, 0, 0);
-
-    return out.toDataURL("image/png");
+    return prepareHandwritingImage(canvasSnapshots.value[pageId] || "");
   }
 
   async function getBestStudentNotebookImage(): Promise<string> {
