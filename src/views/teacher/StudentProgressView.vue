@@ -689,7 +689,8 @@
             <i class="pi pi-file empty-icon"></i>
             <p>No hay hojas de práctica disponibles.</p>
           </div>
-          <div v-else class="sheets-list">
+          <div v-else class="sheets-layout" :class="{ 'sheets-layout--open': !!selectedSheet }">
+          <div class="sheets-list">
             <div
               v-for="sheet in filteredSheets"
               :key="sheet.id"
@@ -731,8 +732,8 @@
             </div>
           </div>
 
-          <!-- Attempts drawer -->
-          <Transition name="slide-up">
+          <!-- Attempts panel -->
+          <Transition name="slide-in">
             <div
               v-if="selectedSheet && attempts.length > 0"
               class="attempts-panel"
@@ -819,7 +820,7 @@
                         {{ formatAIFeedback(a.ai_feedback) }}
                       </td>
                       <td data-label="Puntaje">
-                        {{ (a.score * 100).toFixed(0) }}%
+                        {{ Math.round(a.score) }}%
                       </td>
                       <td data-label="Tiempo (s)">
                         {{ a.time_spent_seconds }}
@@ -852,6 +853,7 @@
               </div>
             </div>
           </Transition>
+          </div>
         </div>
 
         <!-- TAB: Cuadernos -->
@@ -1684,6 +1686,24 @@
   }
 
   /* Sheets */
+  .sheets-layout {
+    display: grid;
+    gap: 16px;
+    align-items: start;
+  }
+  @media (min-width: 1100px) {
+    .sheets-layout--open {
+      grid-template-columns: minmax(0, 1fr) minmax(0, 1.05fr);
+    }
+    .sheets-layout--open .attempts-panel {
+      position: sticky;
+      top: 16px;
+      max-height: calc(100vh - 32px);
+      overflow-y: auto;
+      margin-top: 0;
+    }
+  }
+
   .sheets-list {
     display: flex;
     flex-direction: column;
@@ -2201,6 +2221,28 @@
     display: block;
     margin-bottom: 14px;
     opacity: 0.4;
+  }
+
+  /* Slide-in transition: from the side on desktop, from below when stacked */
+  .slide-in-enter-active,
+  .slide-in-leave-active {
+    transition: all 0.25s ease;
+  }
+  .slide-in-enter-from {
+    opacity: 0;
+    transform: translateY(16px);
+  }
+  .slide-in-leave-to {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  @media (min-width: 1100px) {
+    .slide-in-enter-from {
+      transform: translateX(16px);
+    }
+    .slide-in-leave-to {
+      transform: translateX(8px);
+    }
   }
 
   /* Slide-up transition */
