@@ -17,7 +17,7 @@ export function removeToken(): void {
 function createAxiosInstance(baseURL: string) {
   const instance = axios.create({
     baseURL,
-    timeout: 15000,
+    timeout: 300000,
     headers: { 'Content-Type': 'application/json' }
   })
 

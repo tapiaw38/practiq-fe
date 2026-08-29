@@ -1,36 +1,36 @@
 <script setup lang="ts">
-  import { ref, computed, onMounted } from "vue";
+  import { ref, computed, onMounted, onUnmounted } from "vue";
   import { useRouter } from "vue-router";
   import { useAuthStore } from "@/stores/authStore";
+  import { useToast } from "primevue/usetoast";
+  import type { CourseSummary } from "@/services/dashboard/dashboardService";
   import StudentLayout from "@/layouts/StudentLayout.vue";
   import AssistantChatModal from "@/components/student/assistant/AssistantChatModal.vue";
   import Skeleton from "@/components/ui/Skeleton.vue";
   import StudentCoursesGrid from "@/components/student/dashboard/StudentCoursesGrid.vue";
-  import { useCourse } from "@/composables/useCourse";
-  import { useProgress } from "@/composables/useProgress";
-  import { usePracticeSheet } from "@/composables/usePracticeSheet";
-  import { useNotebook } from "@/composables/useNotebook";
-  import { useLevel } from "@/composables/useLevel";
+  import JoinTeacherCard from "@/components/student/JoinTeacherCard.vue";
   import { useProfile } from "@/composables/useProfile";
-  import type { PracticeSheet, TopicProgress, Notebook } from "@/types";
+  import { useDashboard } from "@/composables/useDashboard";
+  import { needsReview } from "@/utils/mastery";
+  import type { TopicProgress } from "@/types";
 
   const router = useRouter();
   const authStore = useAuthStore();
-  const { courses, loadCourses } = useCourse();
-  const { loadMyProgress } = useProgress();
-  const { loadPracticeSheets } = usePracticeSheet();
-  const { loadNotebooks } = useNotebook();
-  const { loadCourseLevels } = useLevel();
   const { loadProfile } = useProfile();
+  const toast = useToast();
+  const { refreshDashboard } = useDashboard();
+
   const progress = ref<TopicProgress[]>([]);
-  const courseSheets = ref<Record<string, PracticeSheet[]>>({});
-  const courseNotebooks = ref<Record<string, Notebook[]>>({});
-  const courseCurrentLevel = ref<Record<string, number>>({});
+  const summaries = ref<CourseSummary[]>([]);
+  // Computed by the API through the domain rule, so a streak the student
+  // already broke is not shown.
+  const streakFromApi = ref(0);
   const dismissedReviewCards = ref<Record<string, boolean>>(
     loadDismissedReviewCards(),
   );
   const lastPracticedSheetId = ref<string>("");
   const loading = ref(true);
+  const loadError = ref(false);
   const showAssistant = ref(false);
 
   const firstName = computed(() => {
@@ -61,15 +61,24 @@
     return Array.from(map.values());
   });
 
+  // Deliberately not a re-sort of groupedProgress: currentTopic below reads its
+  // first entry, so reordering that list would rename the banner's topic.
+  const TOP_TOPICS = 6;
+  const topProgress = computed(() =>
+    [...groupedProgress.value]
+      .sort((a, b) => a.mastery_score - b.mastery_score)
+      .slice(0, TOP_TOPICS),
+  );
+
   const currentTopic = computed(
     () => groupedProgress.value[0]?.topic_title || "—",
   );
-  const currentLevel = computed(() => {
-    const levels = Object.values(courseCurrentLevel.value);
-    return levels.length ? levels[0] : 1;
-  });
-  const streakDays = computed(
-    () => Math.max(...groupedProgress.value.map((p) => p.streak_days), 0) || 0,
+  const currentLevel = computed(() => summaries.value[0]?.current_level ?? 1);
+  const streakDays = computed(() => streakFromApi.value);
+  const streakMessage = computed(() =>
+    streakDays.value > 0
+      ? `${streakDays.value} ${streakDays.value === 1 ? "día" : "días"} seguidos`
+      : "Empezá hoy",
   );
   const averageMastery = computed(() => {
     if (!groupedProgress.value.length) return 0;
@@ -79,11 +88,7 @@
     );
   });
   const totalSheets = computed(() =>
-    Object.values(courseSheets.value).reduce(
-      (acc, items) =>
-        acc + items.filter((s) => s.sheet_type !== "level_test").length,
-      0,
-    ),
+    summaries.value.reduce((acc, s) => acc + s.practice_sheets, 0),
   );
   const totalCorrect = computed(() =>
     groupedProgress.value.reduce((acc, item) => acc + item.correct_attempts, 0),
@@ -102,11 +107,11 @@
 
   const assistantContext = computed(() => ({
     studentName: authStore.profile?.name,
-    courses: courses.value.map((c) => ({
+    courses: summaries.value.map((c) => ({
       title: c.title,
-      subject: c.subject_name || c.subject || "",
-      grade: c.grade_name || "",
-      currentLevel: courseCurrentLevel.value[c.id] ?? 1,
+      subject: c.subject,
+      grade: "",
+      currentLevel: c.current_level,
     })),
     topicProgress: groupedProgress.value.map((p) => ({
       topic: p.topic_title,
@@ -115,85 +120,108 @@
       streak: p.streak_days,
     })),
   }));
-  const featuredSheetId = computed(() => {
-    // 1. If we have a last practiced sheet ID from backend, verify it exists and use it
-    if (lastPracticedSheetId.value) {
-      for (const course of courses.value) {
-        const sheets = courseSheets.value[course.id] || [];
-        const found = sheets.find((s) => s.id === lastPracticedSheetId.value);
-        if (found) return found.id;
-      }
-    }
+  // The API already resolves this, and it only offers a sheet whose course is
+  // still active, so the local verification it used to do is redundant.
+  const featuredSheetId = computed(() => lastPracticedSheetId.value);
 
-    // 2. Fallback: find first practice sheet (not level test) in first course
-    for (const course of courses.value) {
-      const sheets = (courseSheets.value[course.id] || []).filter(
-        (s) => s.sheet_type !== "level_test",
-      );
-      if (sheets.length > 0) return sheets[0].id;
+  function handleDrawerToggle(e: Event) {
+    const customEvent = e as CustomEvent<{ open: boolean }>;
+    if (customEvent.detail.open) {
+      showAssistant.value = false;
     }
-
-    return "";
-  });
+  }
 
   onMounted(async () => {
+    window.addEventListener(
+      "student-drawer-toggled",
+      handleDrawerToggle as EventListener,
+    );
+
+    // Not awaited: the home does not need the profile to render, and blocking
+    // on it added a whole round trip before anything else even started.
     if (!authStore.profile) {
-      try {
-        const profile = await loadProfile();
-        authStore.setProfile(profile);
-      } catch {}
+      loadProfile()
+        .then((profile) => authStore.setProfile(profile))
+        .catch(() => undefined);
     }
 
     try {
-      const [coursesRes, progressRes] = await Promise.allSettled([
-        loadCourses("student"),
-        loadMyProgress(),
-      ]);
+      // One request for the whole screen. This used to be about eighteen calls
+      // five round trips deep — courses, then sheets, notebooks and levels once
+      // per course — and the latency of those trips was the wait, not the work.
+      // Always read: this screen shows progress and a streak that practising
+      // changes. The sidebar reuses whatever this leaves behind.
+      const data = await refreshDashboard();
 
-      if (coursesRes.status === "fulfilled") {
-        await Promise.all(
-          courses.value.map(async (c) => {
-            try {
-              const sheets = await loadPracticeSheets(c.id);
-              courseSheets.value[c.id] = sheets || [];
-            } catch {
-              courseSheets.value[c.id] = [];
-            }
-            try {
-              courseNotebooks.value[c.id] = await loadNotebooks(c.id);
-            } catch {
-              courseNotebooks.value[c.id] = [];
-            }
-            try {
-              const lvRes = await loadCourseLevels(c.id);
-              courseCurrentLevel.value[c.id] = lvRes.current_level;
-            } catch {
-              courseCurrentLevel.value[c.id] = 1;
-            }
-          }),
-        );
+      summaries.value = data.courses || [];
+      progress.value = data.progress || [];
+      streakFromApi.value = data.streak_days || 0;
+      lastPracticedSheetId.value = data.last_practiced_sheet_id || "";
+      if (lastPracticedSheetId.value) {
+        localStorage.setItem("practiq-last-practice", lastPracticedSheetId.value);
+      } else {
+        localStorage.removeItem("practiq-last-practice");
       }
-
-      if (progressRes.status === "fulfilled") {
-        progress.value = progressRes.value.data || [];
-        lastPracticedSheetId.value =
-          progressRes.value.last_practiced_sheet_id || "";
-      }
+      window.dispatchEvent(
+        new CustomEvent("practiq:last-practice-changed", {
+          detail: { id: lastPracticedSheetId.value },
+        }),
+      );
+      loadError.value = false;
+    } catch {
+      loadError.value = true;
+      toast.add({
+        severity: "error",
+        summary: "Error",
+        detail: "No se pudo cargar tu inicio",
+        life: 3000,
+      });
     } finally {
       loading.value = false;
     }
   });
 
-  function practiceSheets(courseId: string) {
-    return (courseSheets.value[courseId] || []).filter(
-      (s) => s.sheet_type !== "level_test",
+  onUnmounted(() => {
+    window.removeEventListener(
+      "student-drawer-toggled",
+      handleDrawerToggle as EventListener,
     );
-  }
+  });
 
-  function levelTests(courseId: string) {
-    return (courseSheets.value[courseId] || []).filter(
-      (s) => s.sheet_type === "level_test",
-    );
+  // Al vincularse con un profesor pueden aparecerle cursos nuevos, así que la
+  // pantalla se vuelve a pedir entera.
+  async function reloadDashboard() {
+    loading.value = true;
+    loadError.value = false;
+    try {
+      const data = await refreshDashboard();
+
+      summaries.value = data.courses || [];
+      progress.value = data.progress || [];
+      streakFromApi.value = data.streak_days || 0;
+      lastPracticedSheetId.value = data.last_practiced_sheet_id || "";
+      if (lastPracticedSheetId.value) {
+        localStorage.setItem("practiq-last-practice", lastPracticedSheetId.value);
+      } else {
+        localStorage.removeItem("practiq-last-practice");
+      }
+      window.dispatchEvent(
+        new CustomEvent("practiq:last-practice-changed", {
+          detail: { id: lastPracticedSheetId.value },
+        }),
+      );
+      loadError.value = false;
+    } catch {
+      loadError.value = true;
+      toast.add({
+        severity: "error",
+        summary: "Error",
+        detail: "No se pudo actualizar tu inicio",
+        life: 3000,
+      });
+    } finally {
+      loading.value = false;
+    }
   }
 
   function startPractice(sheetId: string) {
@@ -238,7 +266,8 @@
 
   // Progress helper functions
   function getCourseProgressPercent(courseId: string): number {
-    const level = courseCurrentLevel.value[courseId] || 1;
+    const level =
+      summaries.value.find((s) => s.course_id === courseId)?.current_level ?? 1;
     // Assume 10 levels max for percentage calculation
     const maxLevels = 10;
     return Math.min(100, Math.round((level / maxLevels) * 100));
@@ -246,20 +275,13 @@
 
   function topicsNeedingReview(courseId: string): typeof progress.value {
     const topicIds = new Set(
-      (courseSheets.value[courseId] || [])
-        .map((sheet) => sheet.topic_id)
-        .filter(Boolean),
+      summaries.value.find((s) => s.course_id === courseId)?.topic_ids ?? [],
     );
 
     if (topicIds.size === 0) return [];
 
     return progress.value
-      .filter(
-        (p) =>
-          topicIds.has(p.topic_id) &&
-          p.mastery_score < 60 &&
-          p.total_attempts > 0,
-      )
+      .filter((p) => topicIds.has(p.topic_id) && needsReview(p))
       .sort((a, b) => a.mastery_score - b.mastery_score)
       .slice(0, 5);
   }
@@ -300,7 +322,7 @@
         <!-- Metrics skeleton -->
         <section class="metrics-row">
           <div
-            v-for="i in 3"
+            v-for="i in 2"
             :key="i"
             class="metric-card metric-card--skeleton"
           >
@@ -310,12 +332,24 @@
               <Skeleton width="60px" height="14px" />
             </div>
           </div>
+          <!-- La tercera columna es 1fr: sin el cuerpo ancho de la tarjeta de
+               precisión el placeholder queda pegado a la izquierda. -->
+          <div class="metric-card metric-card--goal metric-card--skeleton">
+            <Skeleton variant="circle" size="40px" />
+            <div class="metric-goal-body" style="gap: 0">
+              <div class="metric-goal-top">
+                <Skeleton width="110px" height="14px" />
+                <Skeleton width="60px" height="14px" />
+              </div>
+              <Skeleton width="100%" height="8px" rounded />
+            </div>
+          </div>
         </section>
 
         <!-- Progress skeleton -->
         <section class="mastery-section">
           <div class="section-head">
-            <div>
+            <div style="display: flex; flex-direction: column; gap: 8px">
               <Skeleton width="100px" height="12px" />
               <Skeleton width="180px" height="24px" />
             </div>
@@ -342,7 +376,7 @@
         <!-- Courses skeleton -->
         <section class="courses-section">
           <div class="section-head">
-            <div>
+            <div style="display: flex; flex-direction: column; gap: 8px">
               <Skeleton width="80px" height="12px" />
               <Skeleton width="140px" height="24px" />
             </div>
@@ -365,8 +399,21 @@
       </template>
 
       <template v-else>
+        <section v-if="loadError" class="dashboard-error surface-card" role="alert">
+          <div class="dashboard-error__icon"><i class="pi pi-refresh"></i></div>
+          <div>
+            <h2>No pudimos cargar tu inicio</h2>
+            <p>Revisá tu conexión y volvé a intentarlo.</p>
+          </div>
+          <button class="btn btn-secondary" type="button" @click="reloadDashboard">
+            Reintentar
+          </button>
+        </section>
+
+        <template v-else>
+
         <!-- Welcome banner -->
-        <section class="welcome-banner">
+        <section class="welcome-banner anim-rise">
           <div class="welcome-copy">
             <div class="welcome-kicker">Tu práctica de hoy</div>
             <h1 class="welcome-title">Hola, {{ firstName }}.</h1>
@@ -406,8 +453,9 @@
               Continuar práctica
             </button>
             <button
-              class="btn btn-secondary welcome-btn"
+              class="btn btn-secondary welcome-btn assistant-cta"
               @click="showAssistant = true"
+              aria-label="Abrir asistente para practicar"
             >
               <i class="pi pi-comments"></i>
               Practicar con mi asistente
@@ -416,17 +464,35 @@
         </section>
 
         <!-- Metrics row -->
-        <section class="metrics-row">
+        <section class="metrics-row anim-stagger">
           <div class="metric-card">
-            <div class="metric-card__icon metric-card__icon--fire">🔥</div>
+            <div
+              class="metric-card__icon"
+              :class="streakDays > 0 ? 'metric-card__icon--fire' : 'metric-card__icon--ice'"
+            >
+              <img
+                v-if="streakDays > 0"
+                src="@/assets/burn.png"
+                alt=""
+                class="metric-icon-img"
+              />
+              <img
+                v-else
+                src="@/assets/ice-cube.png"
+                alt=""
+                class="metric-icon-img"
+              />
+            </div>
             <div>
-              <div class="metric-card__value">{{ streakDays }}</div>
-              <div class="metric-card__label">Racha</div>
+              <div class="metric-card__value">{{ streakDays > 0 ? streakDays : "" }}</div>
+              <div class="metric-card__label">{{ streakMessage }}</div>
             </div>
           </div>
 
           <div class="metric-card">
-            <div class="metric-card__icon metric-card__icon--star">⭐</div>
+            <div class="metric-card__icon metric-card__icon--star">
+              <img src="@/assets/stars.png" alt="" class="metric-icon-img" />
+            </div>
             <div>
               <div class="metric-card__value">{{ totalCorrect }}</div>
               <div class="metric-card__label">Aciertos</div>
@@ -434,7 +500,9 @@
           </div>
 
           <div class="metric-card metric-card--goal">
-            <div class="metric-card__icon metric-card__icon--goal">🎯</div>
+            <div class="metric-card__icon metric-card__icon--goal">
+              <img src="@/assets/target.png" alt="" class="metric-icon-img" />
+            </div>
             <div class="metric-goal-body">
               <div class="metric-goal-top">
                 <span class="metric-card__label">Precisión global</span>
@@ -453,17 +521,25 @@
         </section>
 
         <!-- Progress section -->
-        <section v-if="groupedProgress.length > 0" class="mastery-section">
+        <section v-if="groupedProgress.length > 0" class="mastery-section anim-rise">
           <div class="section-head">
             <div>
               <div class="section-kicker">Resumen rápido</div>
               <h2 class="section-title">Tu progreso por tema</h2>
             </div>
+            <RouterLink
+              v-if="groupedProgress.length > TOP_TOPICS"
+              to="/student/progress"
+              class="section-link"
+            >
+              Ver todo ({{ groupedProgress.length }})
+              <i class="pi pi-arrow-right"></i>
+            </RouterLink>
           </div>
 
-          <div class="mastery-grid">
+          <div class="mastery-grid anim-stagger">
             <article
-              v-for="p in groupedProgress"
+              v-for="p in topProgress"
               :key="p.topic_id"
               class="mastery-card"
             >
@@ -490,17 +566,17 @@
           </div>
         </section>
 
+        <JoinTeacherCard @joined="reloadDashboard" />
+
         <StudentCoursesGrid
-          :courses="courses"
-          :course-current-level="courseCurrentLevel"
-          :course-sheets="courseSheets"
-          :course-notebooks="courseNotebooks"
+          :courses="summaries"
           :dismissed-review-cards="dismissedReviewCards"
           :topics-needing-review="topicsNeedingReview"
           :get-course-progress-percent="getCourseProgressPercent"
           @open-levels="openCourseLevels"
           @dismiss-review="dismissReviewCard"
         />
+        </template>
       </template>
 
       <img
@@ -523,6 +599,41 @@
   .student-home {
     position: relative;
     padding: 24px 28px 40px;
+  }
+
+  .dashboard-error {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    padding: 20px;
+    margin-bottom: 20px;
+    border-radius: var(--radius-2xl);
+    color: var(--text-primary);
+  }
+
+  .dashboard-error h2 {
+    font-size: 1rem;
+    margin-bottom: 2px;
+  }
+
+  .dashboard-error p {
+    color: var(--text-secondary);
+    font-size: var(--text-md);
+  }
+
+  .dashboard-error__icon {
+    width: 40px;
+    height: 40px;
+    display: grid;
+    place-items: center;
+    border-radius: 50%;
+    color: var(--practiq-violet);
+    background: var(--fill-primary-soft);
+  }
+
+  .dashboard-error .btn {
+    margin-left: auto;
+    flex-shrink: 0;
   }
 
   .loading-state {
@@ -562,6 +673,15 @@
   }
 
   @media (max-width: 640px) {
+    .dashboard-error {
+      align-items: flex-start;
+      flex-wrap: wrap;
+    }
+
+    .dashboard-error .btn {
+      width: 100%;
+      margin-left: 54px;
+    }
     .dashboard-mascot {
       display: none;
     }
@@ -652,9 +772,19 @@
   }
 
   .welcome-btn {
-    min-height: 44px;
+    min-height: 48px;
     border-radius: var(--radius-lg);
     font-size: var(--text-md);
+  }
+
+  .assistant-cta {
+    border-style: dashed;
+    color: var(--practiq-violet-dark);
+    background: rgba(var(--practiq-violet-rgb), 0.04);
+  }
+
+  .assistant-cta:hover {
+    background: rgba(var(--practiq-violet-rgb), 0.09);
   }
 
   /* Metrics row */
@@ -692,8 +822,17 @@
     flex-shrink: 0;
   }
 
+  .metric-icon-img {
+    width: 32px;
+    height: 32px;
+    object-fit: contain;
+  }
+
   .metric-card__icon--fire {
     background: var(--gradient-fire-soft);
+  }
+  .metric-card__icon--ice {
+    background: rgba(var(--color-info-rgb), 0.12);
   }
   .metric-card__icon--star {
     background: var(--gradient-star-soft);
@@ -744,7 +883,27 @@
     display: flex;
     align-items: center;
     justify-content: space-between;
+    gap: 12px;
     margin-bottom: 16px;
+  }
+
+  .section-link {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    flex-shrink: 0;
+    padding: 8px 14px;
+    min-height: 38px;
+    border-radius: var(--radius-pill);
+    background: var(--fill-primary-soft);
+    color: var(--practiq-violet-dark);
+    font-size: var(--text-sm);
+    font-weight: 700;
+    text-decoration: none;
+    transition: var(--transition-fast);
+  }
+  .section-link:hover {
+    background: rgba(var(--practiq-violet-rgb), 0.16);
   }
 
   .section-title {
@@ -882,11 +1041,31 @@
       width: 100%;
       justify-content: center;
     }
+    /* Racha and Aciertos stay side by side: they are two short numbers, and
+       one per row pushed the courses off the first screen. The goal card keeps
+       the full width because it carries a progress bar. */
     .metrics-row {
-      grid-template-columns: 1fr;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
     }
     .metric-card--goal {
-      grid-column: auto;
+      grid-column: 1 / -1;
+    }
+    .metric-card {
+      gap: 10px;
+      padding: 14px;
+      min-width: 0;
+    }
+    .metric-card__icon {
+      width: 38px;
+      height: 38px;
+      font-size: 18px;
+    }
+    /* The label is the part that would overflow a half-width card. */
+    .metric-card__label {
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
     }
     .mastery-grid {
       grid-template-columns: 1fr;

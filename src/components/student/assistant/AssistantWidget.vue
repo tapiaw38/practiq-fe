@@ -3,19 +3,40 @@
 </template>
 
 <script setup lang="ts">
-  import { computed, nextTick, onBeforeUnmount, watch } from "vue";
+  import {
+    computed,
+    nextTick,
+    onMounted,
+    onBeforeUnmount,
+    ref,
+    watch,
+  } from "vue";
   import { useRoute } from "vue-router";
-  import robotAvatarUrl from "@/assets/robot.png";
   import { useAuthStore } from "@/stores/authStore";
   import { createAssistant, type Assistant } from "practiq-assistant-package";
+  import {
+    assistantVoiceEnabled,
+    ASSISTANT_VOICE_EVENT,
+  } from "@/utils/assistantPreferences";
 
   const authStore = useAuthStore();
   const route = useRoute();
 
   const proxyBaseUrl = `${import.meta.env.VITE_PRACTIQ_API_URL || "http://localhost:8083"}/api/assistant-proxy`;
+  const copilotBaseUrl = `${import.meta.env.VITE_PRACTIQ_API_URL || "http://localhost:8083"}/api/ai/copilot`;
 
   let assistant: Assistant | null = null;
   let activeToken: string | null = null;
+  const drawerOpen = ref(false);
+  const assistantViews = new Set([
+    "student-practice",
+    "student-level-test",
+    "student-notebook",
+  ]);
+
+  function isAssistantView() {
+    return assistantViews.has(String(route.name || ""));
+  }
 
   function getAssistantCanvasAttachment() {
     const capture = window.__practiqAssistantCapture;
@@ -94,6 +115,11 @@
     return resolved;
   }
 
+  function getAssistantMediaAttachments() {
+    const capture = window.__practiqAssistantMediaAttachments;
+    return typeof capture === "function" ? capture() : [];
+  }
+
   const isEnabled = computed(() =>
     Boolean(
       authStore.isAuthenticated &&
@@ -106,9 +132,49 @@
 
   function destroyAssistant() {
     if (!assistant) return;
+    setAssistantDrawerHidden(false);
     assistant.unmount();
     assistant = null;
     activeToken = null;
+  }
+
+  function setAssistantDrawerHidden(hidden: boolean) {
+    document
+      .querySelectorAll(".floating-button, .ia-chat-container")
+      .forEach((el) => {
+        el.classList.toggle("practiq-assistant-drawer-hidden", hidden);
+        if (hidden) {
+          el.setAttribute("aria-hidden", "true");
+        } else {
+          el.removeAttribute("aria-hidden");
+        }
+      });
+  }
+
+  function applyDrawerVisibility() {
+    if (!assistant) return;
+    // The package owns route visibility. Refresh first, then never call
+    // showButton on excluded routes: doing so resurrected the FAB after the
+    // mobile sidebar opened and closed on course-level screens.
+    assistant.refreshVisibility();
+    if (!isAssistantView()) {
+      setAssistantDrawerHidden(false);
+      return;
+    }
+    const shouldHide = drawerOpen.value && window.innerWidth <= 920;
+    if (shouldHide) {
+      assistant.close();
+      assistant.showButton();
+      requestAnimationFrame(() => setAssistantDrawerHidden(true));
+    } else {
+      setAssistantDrawerHidden(false);
+    }
+  }
+
+  function getCSSVar(name: string): string {
+    return getComputedStyle(document.documentElement)
+      .getPropertyValue(name)
+      .trim();
   }
 
   function mountAssistant() {
@@ -118,38 +184,60 @@
 
     destroyAssistant();
 
+    const primaryColor = getCSSVar("--practiq-violet");
+    const backgroundColor = getCSSVar("--surface-card");
+    const textColor = getCSSVar("--text-primary");
+
     assistant = createAssistant({
       apiBaseUrl: proxyBaseUrl,
+      copilotBaseUrl,
       authToken: token,
       authMode: "bearer",
+      conversationStorageKey: authStore.profile?.id,
       title: "Asistente",
       placeholder: "Pregúntale al asistente…",
       initialMessage: "Hola, soy tu asistente. ¿Tienes alguna duda?",
+      searchImages: false,
       audioInput: true,
-      audioAnswers: true,
+      audioAnswers: assistantVoiceEnabled(),
       getImageAttachment: getAssistantCanvasAttachment,
+      getMediaAttachments: getAssistantMediaAttachments,
       getStructuredContext: getAssistantStructuredContext,
+      visibility: {
+        includeViews: [
+          "student-practice",
+          "student-level-test",
+          "student-notebook",
+        ],
+        excludeViews: [],
+        getCurrentView: () => String(route.name || ""),
+      },
       buttonOptions: {
-        avatarUrl: robotAvatarUrl,
-        backgroundColor: "#ffffff",
-        color: "#123c52",
+        backgroundColor: backgroundColor,
+        color: primaryColor,
         size: "large",
       },
+      quickActions: [
+        { label: "💡 Pista", prompt: "Dame una pista sin revelar la respuesta." },
+        { label: "🧩 Explicame", prompt: "Explicame paso a paso usando el ejercicio actual." },
+        { label: "✓ Revisá", prompt: "Revisá mi respuesta actual y ayudame a mejorarla." },
+      ],
       theme: {
-        primaryColor: "#123c52",
-        textColor: "#16394c",
-        backgroundColor: "#ffffff",
-        userMessageBgColor: "#123c52",
+        primaryColor: primaryColor,
+        textColor: textColor,
+        backgroundColor: backgroundColor,
+        userMessageBgColor: primaryColor,
         userMessageTextColor: "#ffffff",
-        assistantMessageBgColor: "#eef7fb",
-        assistantMessageTextColor: "#16394c",
-        inputBorderColor: "#cfe4ee",
-        inputBgColor: "#ffffff",
-        inputTextColor: "#16394c",
+        assistantMessageBgColor: getCSSVar("--surface-elevated"),
+        assistantMessageTextColor: textColor,
+        inputBorderColor: getCSSVar("--surface-border"),
+        inputBgColor: backgroundColor,
+        inputTextColor: textColor,
       },
     });
 
     activeToken = token;
+    applyDrawerVisibility();
   }
 
   watch(
@@ -181,10 +269,75 @@
       window.dispatchEvent(new CustomEvent("practiq:assistant:route-change"));
       assistant?.refreshContext();
       assistant?.resetConversation();
+      assistant?.refreshVisibility();
     },
   );
 
+  function handleDrawerToggle(e: Event) {
+    const customEvent = e as CustomEvent<{ open: boolean }>;
+    drawerOpen.value = !!customEvent.detail.open;
+    applyDrawerVisibility();
+  }
+
+  function handleAssistantPrompt(e: Event) {
+    const prompt = (e as CustomEvent<{ prompt?: string }>).detail?.prompt;
+    if (prompt) assistant?.prompt(prompt);
+  }
+
+  onMounted(() => {
+    window.addEventListener(
+      "student-drawer-toggled",
+      handleDrawerToggle as EventListener,
+    );
+    window.addEventListener("practiq:assistant:prompt", handleAssistantPrompt as EventListener);
+    window.addEventListener(ASSISTANT_VOICE_EVENT, remountForVoicePreference);
+  });
+
   onBeforeUnmount(() => {
+    window.removeEventListener(
+      "student-drawer-toggled",
+      handleDrawerToggle as EventListener,
+    );
+    window.removeEventListener("practiq:assistant:prompt", handleAssistantPrompt as EventListener);
+    window.removeEventListener(ASSISTANT_VOICE_EVENT, remountForVoicePreference);
     destroyAssistant();
   });
+
+  function remountForVoicePreference() {
+    if (!isEnabled.value) return;
+    destroyAssistant();
+    mountAssistant();
+  }
 </script>
+
+<style>
+  .floating-button,
+  .ia-chat-container {
+    transition:
+      opacity 0.2s ease,
+      transform 0.22s ease;
+  }
+
+  .floating-button.practiq-assistant-drawer-hidden,
+  .ia-chat-container.practiq-assistant-drawer-hidden {
+    opacity: 0 !important;
+    pointer-events: none !important;
+    transform: translateY(18px) !important;
+  }
+
+  /* Practice and the level test pin a footer to the bottom edge on phones
+     AND tablets (portrait iPads land around 768-834px, landscape up to
+     ~1180px); the launcher's default corner sits right on top of its submit
+     button at every one of those widths, not just phones. Those screens tag
+     the body while mounted so only they get pushed up. */
+  @media (max-width: 1200px) {
+    body.assistant-fab-tucked .floating-button {
+      /* --practiq-footer-h is measured live (see useAssistantFabOffset):
+         the footer it clears grows a row whenever the draft-saved indicator
+         shows, so a fixed guess was either wasted space or still overlapped
+         it. 140px is the fallback for the first paint, before the observer
+         reports the real height. */
+      bottom: calc(var(--practiq-footer-h, 140px) + 12px) !important;
+    }
+  }
+</style>

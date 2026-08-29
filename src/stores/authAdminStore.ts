@@ -43,10 +43,23 @@ export const useAuthAdminStore = (service: IAuthAdminService) =>
       }
     };
 
+    const updateRoles = async (id: string, roles: string[]) => {
+      loading.value = true;
+      try {
+        const response = await service.updateRoles(id, roles);
+        const index = users.value.findIndex((user) => user.id === id);
+        if (index !== -1) users.value[index] = response.data;
+        return response.data;
+      } finally {
+        loading.value = false;
+      }
+    };
+
     return {
       users,
       loading,
       fetchUsers,
       updateUser,
+      updateRoles,
     };
   });

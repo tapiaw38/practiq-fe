@@ -1,4 +1,6 @@
 <script setup lang="ts">
+  import { onMounted, onUnmounted, ref } from "vue";
+  import type { LevelSheetSummary } from "@/types";
   import type {
     StudentLevelsListEmits,
     StudentLevelsListProps,
@@ -6,6 +8,41 @@
 
   defineProps<StudentLevelsListProps>();
   const emit = defineEmits<StudentLevelsListEmits>();
+  const now = ref(Date.now());
+  let clockTimer: ReturnType<typeof setInterval> | null = null;
+
+  onMounted(() => {
+    clockTimer = setInterval(() => {
+      now.value = Date.now();
+    }, 30_000);
+  });
+
+  onUnmounted(() => {
+    if (clockTimer) clearInterval(clockTimer);
+  });
+
+  // The server rejects an out-of-window attempt too; this only keeps the UI
+  // honest. Mirrors sheetWindowState on the backend.
+  const isScheduled = (sheet?: LevelSheetSummary | null) =>
+    !!sheet?.scheduled_at && new Date(sheet.scheduled_at).getTime() > now.value;
+
+  const isExpired = (sheet?: LevelSheetSummary | null) =>
+    !!sheet?.available_until && new Date(sheet.available_until).getTime() < now.value;
+
+  const isClosed = (sheet?: LevelSheetSummary | null) =>
+    isScheduled(sheet) || isExpired(sheet);
+
+  const levelTestState = (sheet?: LevelSheetSummary | null) =>
+    isExpired(sheet) ? "expired" : isScheduled(sheet) ? "scheduled" : "available";
+
+  const formatSchedule = (value: string) =>
+    new Date(value).toLocaleString("es-AR", {
+      weekday: "long",
+      day: "numeric",
+      month: "long",
+      hour: "2-digit",
+      minute: "2-digit",
+    });
 </script>
 
 <template>
@@ -95,6 +132,11 @@
           </div>
           <button
             class="lc-item lc-item--test lc-item--test-big"
+            :class="[
+              `lc-item--test-${levelTestState(level.level_test)}`,
+              { 'lc-item--scheduled': isClosed(level.level_test) },
+            ]"
+            :disabled="isClosed(level.level_test)"
             @click="emit('openLevelTest', level.level_test!)"
           >
             <div class="lc-item-info">
@@ -104,16 +146,39 @@
                 {{
                   level.level_test.test_style === "canvas" ? "Hoja" : "Teclado"
                 }}
-                · 75% para avanzar
+                <template v-if="!isClosed(level.level_test)"
+                  >· 75% para avanzar</template
+                >
+              </span>
+              <span
+                v-if="level.level_test.scheduled_at"
+                class="lc-item-schedule"
+              >
+                <i class="pi pi-calendar-clock"></i>
+                {{ formatSchedule(level.level_test.scheduled_at) }}
+                <template v-if="level.level_test.available_until">
+                  — hasta {{ formatSchedule(level.level_test.available_until) }}
+                </template>
               </span>
             </div>
             <div class="test-cta">
-              {{
-                level.level === data.current_level
-                  ? "Rendir prueba"
-                  : "Ver prueba"
-              }}
-              <i class="pi pi-arrow-right"></i>
+              <template v-if="isExpired(level.level_test)">
+                <i class="pi pi-ban"></i>
+                Plazo vencido
+              </template>
+              <template v-else-if="isScheduled(level.level_test)">
+                <i class="pi pi-lock"></i>
+                Disponible en la fecha
+              </template>
+              <template v-else>
+                <i class="pi pi-play-circle"></i>
+                {{
+                  level.level === data.current_level
+                    ? "Rendir prueba"
+                    : "Ver prueba"
+                }}
+                <i class="pi pi-arrow-right"></i>
+              </template>
             </div>
           </button>
         </div>
@@ -144,14 +209,13 @@
     gap: 14px;
   }
   .level-card {
-    background: var(--surface-elevated);
-    border: 1px solid var(--surface-elevated-strong);
+    background: var(--elevation-tint-bg);
     border-radius: var(--radius-2xl);
-    box-shadow: var(--shadow-card);
+    box-shadow: var(--elevation-tint-shadow);
     padding: 18px;
   }
   .level-card--current {
-    border-color: var(--practiq-violet);
+    background: rgba(var(--practiq-violet-rgb), 0.05);
   }
   .level-card--locked {
     opacity: 0.72;
@@ -250,7 +314,7 @@
     width: 100%;
     justify-content: space-between;
     gap: 10px;
-    border: 1.5px solid var(--surface-border);
+    border: none;
     border-radius: var(--radius-lg);
     background: var(--surface-card);
     padding: 12px;
@@ -259,33 +323,51 @@
     transition: var(--transition-fast);
   }
   .lc-item--practice {
-    border-color: rgba(var(--color-success-rgb), 0.15);
-    background: rgba(var(--color-success-rgb), 0.05);
+    background: rgba(var(--color-success-rgb), 0.08);
   }
   .lc-item--practice:hover {
-    border-color: rgba(var(--color-success-rgb), 0.3);
-    background: rgba(var(--color-success-rgb), 0.1);
+    background: rgba(var(--color-success-rgb), 0.14);
     transform: translateX(2px);
   }
   .lc-item--notebook {
-    border-color: rgba(var(--practiq-violet-rgb), 0.12);
-    background: rgba(var(--practiq-violet-rgb), 0.04);
+    background: rgba(var(--practiq-violet-rgb), 0.07);
   }
   .lc-item--notebook:hover {
-    border-color: rgba(var(--practiq-violet-rgb), 0.25);
-    background: rgba(var(--practiq-violet-rgb), 0.08);
+    background: rgba(var(--practiq-violet-rgb), 0.12);
     transform: translateX(2px);
   }
   .lc-item--test {
-    border-color: rgba(var(--color-warning-rgb), 0.2);
-    background: rgba(var(--color-warning-rgb), 0.05);
+    background: rgba(var(--color-warning-rgb), 0.08);
+  }
+
+  .lc-item--test-available {
+    background: var(--color-success-bg);
+    color: var(--color-success-dark);
+  }
+
+  .lc-item--test-scheduled {
+    background: var(--color-info-bg);
+    color: var(--color-info-dark);
+  }
+
+  .lc-item--test-expired {
+    background: var(--surface-hover);
+    color: var(--text-secondary);
+  }
+
+  .lc-item--test-available:hover {
+    background: rgba(var(--color-success-rgb), 0.14);
+  }
+
+  .lc-item--test-scheduled:hover,
+  .lc-item--test-expired:hover {
+    background: var(--surface-hover);
   }
   .lc-item--test-big {
     padding: 16px 18px;
   }
   .lc-item--test:hover {
-    border-color: rgba(var(--color-warning-rgb), 0.4);
-    background: rgba(var(--color-warning-rgb), 0.1);
+    background: rgba(var(--color-warning-rgb), 0.14);
     transform: translateX(2px);
   }
   .lc-item-info {
@@ -299,6 +381,19 @@
   }
   .lc-item-meta,
   .lc-empty,
+  .lc-item--scheduled {
+    opacity: 0.65;
+    cursor: not-allowed;
+  }
+  .lc-item-schedule {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    margin-top: 4px;
+    font-size: var(--text-xs);
+    font-weight: 700;
+    color: var(--practiq-violet);
+  }
   .lc-locked-hint {
     color: var(--text-secondary);
     font-size: var(--text-sm);
@@ -313,6 +408,18 @@
     color: var(--practiq-violet);
     font-weight: 800;
   }
+
+  .lc-item--test-available .test-cta {
+    color: var(--color-success-dark);
+  }
+
+  .lc-item--test-scheduled .test-cta {
+    color: var(--color-info-dark);
+  }
+
+  .lc-item--test-expired .test-cta {
+    color: var(--text-secondary);
+  }
   .lc-locked-hint {
     display: flex;
     gap: 7px;
@@ -323,9 +430,21 @@
     .lc-item {
       align-items: flex-start;
     }
-    .lc-current-indicator,
-    .test-cta {
+    .lc-current-indicator {
       display: none;
+    }
+    /* CTA visible en mobile: texto corto, no se oculta */
+    .test-cta {
+      flex-shrink: 0;
+      align-self: center;
+      font-size: var(--text-sm);
+      text-align: right;
+    }
+    .lc-item {
+      min-height: 52px;
+    }
+    .lc-item--test-big {
+      padding: 14px 16px;
     }
   }
 </style>

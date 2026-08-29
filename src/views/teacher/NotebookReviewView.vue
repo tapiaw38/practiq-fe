@@ -1,15 +1,25 @@
 <script setup lang="ts">
-  import { ref, reactive, computed, onMounted } from "vue";
+  import { ref, reactive, computed, onMounted, watch } from "vue";
   import TeacherLayout from "@/layouts/TeacherLayout.vue";
   import Skeleton from "@/components/ui/Skeleton.vue";
   import { useCourse } from "@/composables/useCourse";
   import { useNotebook } from "@/composables/useNotebook";
+  import { useGrade } from "@/composables/useGrade";
+  import { useSubject } from "@/composables/useSubject";
   import { formatDateTime } from "@/utils/formatters";
   import type { NotebookSubmissionFull } from "@/types";
 
   const { courses, students, loadCourses, loadStudents } = useCourse();
+  const { grades, loadGrades } = useGrade();
+  const { subjects, loadSubjects } = useSubject();
   const {
+    submissionsPage,
+    submissionsPageSize,
+    submissionsHasMore,
     loadSubmissions: loadSubmissionsService,
+    loadSubmissionsPage,
+    nextSubmissionsPage,
+    prevSubmissionsPage,
     triggerAIReview: triggerAIReviewService,
     updateManualReview: updateManualReviewService,
   } = useNotebook();
@@ -20,9 +30,12 @@
   const reviewingSubmission = ref<NotebookSubmissionFull | null>(null);
   const savingReview = ref(false);
   const studentsLoading = ref(false);
+  let searchDebounceTimer: ReturnType<typeof setTimeout> | null = null;
 
   const filters = reactive({
     courseId: "",
+    gradeId: "",
+    subjectId: "",
     studentId: "",
     reviewedStatus: "",
     studentSearch: "",
@@ -48,14 +61,43 @@
     return result;
   });
 
+  /** Any of these is enough to query the server; a course is not required. */
+  const hasScope = () =>
+    !!(filters.courseId || filters.gradeId || filters.subjectId);
+
   onMounted(async () => {
-    await loadCoursesData();
-    if (filters.courseId) {
-      await Promise.all([loadStudentsForCourse(), loadSubmissions()]);
+    await Promise.all([
+      loadCoursesData(),
+      loadGrades(),
+      loadSubjects(),
+    ]);
+    if (hasScope()) {
+      if (filters.courseId) {
+        await loadStudentsForCourse();
+      }
+      await loadSubmissions();
     } else {
       loading.value = false;
     }
   });
+
+  watch(
+    () => filters.studentSearch,
+    () => {
+      if (searchDebounceTimer) {
+        clearTimeout(searchDebounceTimer);
+      }
+      searchDebounceTimer = setTimeout(() => {
+        // Searching swaps to the unpaginated set and hides the pager, so this
+        // has to refetch for every scope. Limiting it to courseId left a
+        // grade- or subject-scoped search filtering only the loaded page,
+        // with matches on later pages unreachable and no sign they existed.
+        if (hasScope()) {
+          loadSubmissions(1);
+        }
+      }, 300);
+    }
+  );
 
   async function loadCoursesData() {
     try {
@@ -66,25 +108,76 @@
     }
   }
 
-  async function loadSubmissions() {
-    if (!filters.courseId) {
+  async function loadSubmissions(page = 1) {
+    if (!hasScope()) {
       submissions.value = [];
+      // Clearing the filters emptied the list but left the counter wherever
+      // the teacher had paged to, so the next scope opened on a stale page.
+      submissionsPage.value = 1;
       loading.value = false;
       return;
     }
 
     loading.value = true;
     try {
-      const params: Record<string, string | boolean | undefined> = {};
-      params.course_id = filters.courseId;
-      if (filters.studentId) params.student_id = filters.studentId;
-      if (filters.reviewedStatus === "reviewed") params.reviewed = true;
-      if (filters.reviewedStatus === "unreviewed") params.reviewed = false;
+      const filterParams: Record<string, string | boolean | undefined> = {};
+      if (filters.courseId) filterParams.course_id = filters.courseId;
+      if (filters.gradeId) filterParams.grade_id = filters.gradeId;
+      if (filters.subjectId) filterParams.subject_id = filters.subjectId;
+      if (filters.studentId) filterParams.student_id = filters.studentId;
+      if (filters.reviewedStatus === "reviewed") filterParams.reviewed = true;
+      if (filters.reviewedStatus === "unreviewed")
+        filterParams.reviewed = false;
 
-      submissions.value = (await loadSubmissionsService(params)) || [];
+      if (filters.studentSearch.trim()) {
+        submissions.value = (await loadSubmissionsService(filterParams)) || [];
+      } else {
+        submissions.value =
+          (await loadSubmissionsPage(page, filterParams)) || [];
+      }
     } catch (err) {
       console.error("Failed to load submissions:", err);
       submissions.value = [];
+    } finally {
+      loading.value = false;
+    }
+  }
+
+  async function goToNextPage() {
+    if (!submissionsHasMore.value) return;
+    const filterParams: Record<string, string | boolean | undefined> = {};
+    if (filters.courseId) filterParams.course_id = filters.courseId;
+    if (filters.gradeId) filterParams.grade_id = filters.gradeId;
+    if (filters.subjectId) filterParams.subject_id = filters.subjectId;
+    if (filters.studentId) filterParams.student_id = filters.studentId;
+    if (filters.reviewedStatus === "reviewed") filterParams.reviewed = true;
+    if (filters.reviewedStatus === "unreviewed") filterParams.reviewed = false;
+
+    loading.value = true;
+    try {
+      submissions.value = (await nextSubmissionsPage(filterParams)) || [];
+    } catch (err) {
+      console.error("Failed to load next page:", err);
+    } finally {
+      loading.value = false;
+    }
+  }
+
+  async function goToPrevPage() {
+    if (submissionsPage.value <= 1) return;
+    const filterParams: Record<string, string | boolean | undefined> = {};
+    if (filters.courseId) filterParams.course_id = filters.courseId;
+    if (filters.gradeId) filterParams.grade_id = filters.gradeId;
+    if (filters.subjectId) filterParams.subject_id = filters.subjectId;
+    if (filters.studentId) filterParams.student_id = filters.studentId;
+    if (filters.reviewedStatus === "reviewed") filterParams.reviewed = true;
+    if (filters.reviewedStatus === "unreviewed") filterParams.reviewed = false;
+
+    loading.value = true;
+    try {
+      submissions.value = (await prevSubmissionsPage(filterParams)) || [];
+    } catch (err) {
+      console.error("Failed to load previous page:", err);
     } finally {
       loading.value = false;
     }
@@ -113,7 +206,7 @@
   }
 
   async function refreshSubmissions() {
-    await loadSubmissions();
+    await loadSubmissions(submissionsPage.value);
   }
 
   function getInitial(name?: string) {
@@ -139,9 +232,11 @@
   async function triggerAIReview(submissionId: string) {
     reviewingIds.value.add(submissionId);
     try {
-      await triggerAIReviewService(submissionId);
-      // Poll for result or reload after delay
-      setTimeout(loadSubmissions, 3000);
+      const reviewedSubmission = await triggerAIReviewService(submissionId);
+      const index = submissions.value.findIndex((s) => s.id === submissionId);
+      if (index >= 0 && reviewedSubmission) {
+        submissions.value[index] = reviewedSubmission;
+      }
     } catch (err) {
       console.error("Failed to trigger AI review:", err);
     } finally {
@@ -201,13 +296,47 @@
       <!-- Filters -->
       <div class="filters-bar">
         <div class="filter-group">
+          <label class="filter-label">Grado</label>
+          <select
+            v-model="filters.gradeId"
+            class="filter-select"
+            @change="() => loadSubmissions(1)"
+          >
+            <option value="">Todos los grados</option>
+            <option
+              v-for="grade in grades"
+              :key="grade.id"
+              :value="grade.id"
+            >
+              {{ grade.name }}
+            </option>
+          </select>
+        </div>
+        <div class="filter-group">
+          <label class="filter-label">Materia</label>
+          <select
+            v-model="filters.subjectId"
+            class="filter-select"
+            @change="() => loadSubmissions(1)"
+          >
+            <option value="">Todas las materias</option>
+            <option
+              v-for="subject in subjects"
+              :key="subject.id"
+              :value="subject.id"
+            >
+              {{ subject.name }}
+            </option>
+          </select>
+        </div>
+        <div class="filter-group">
           <label class="filter-label">Curso</label>
           <select
             v-model="filters.courseId"
             class="filter-select"
             @change="onCourseChange"
           >
-            <option value="" disabled>Selecciona un curso</option>
+            <option value="">Todos los cursos</option>
             <option
               v-for="course in courses"
               :key="course.id"
@@ -222,11 +351,11 @@
           <select
             v-model="filters.reviewedStatus"
             class="filter-select"
-            @change="loadSubmissions"
+            @change="() => loadSubmissions(1)"
           >
-            <option value="unreviewed">Sin revisar (IA)</option>
-            <option value="reviewed">Revisadas (IA)</option>
             <option value="">Todas del curso</option>
+            <option value="reviewed">Revisadas (IA)</option>
+            <option value="unreviewed">Sin revisar (IA)</option>
           </select>
         </div>
         <div class="filter-group">
@@ -235,7 +364,7 @@
             v-model="filters.studentId"
             class="filter-select"
             :disabled="studentsLoading || students.length === 0"
-            @change="loadSubmissions"
+            @change="() => loadSubmissions(1)"
           >
             <option value="">Todos los alumnos del curso</option>
             <option
@@ -258,10 +387,9 @@
         </div>
       </div>
 
-      <div v-if="!filters.courseId && !loading" class="scope-hint">
+      <div v-if="!filters.courseId && !filters.gradeId && !filters.subjectId && !loading" class="scope-hint">
         <i class="pi pi-filter"></i>
-        Selecciona un curso para ver entregas. Esto evita cargar entregas de
-        todos los alumnos.
+        Selecciona al menos un filtro (grado, materia o curso) para ver entregas.
       </div>
 
       <!-- Loading Skeleton -->
@@ -333,139 +461,184 @@
       </div>
 
       <!-- Submissions Grid -->
-      <div v-else class="submissions-grid">
-        <article
-          v-for="submission in filteredSubmissions"
-          :key="submission.id"
-          class="submission-card"
-          :class="{
-            'submission-card--correct': submission.ai_is_correct === true,
-            'submission-card--incorrect': submission.ai_is_correct === false,
-            'submission-card--pending': submission.ai_is_correct === undefined,
-          }"
-        >
-          <div class="submission-header">
-            <div class="student-info">
-              <div class="student-avatar">
-                {{ getInitial(submission.student_name) }}
-              </div>
-              <div class="student-details">
-                <div class="student-name">
-                  {{ submission.student_name || "Estudiante" }}
+      <div v-else>
+        <div class="submissions-grid">
+          <article
+            v-for="submission in filteredSubmissions"
+            :key="submission.id"
+            class="submission-card"
+            :class="{
+              'submission-card--needs-review':
+                submission.needs_teacher_review &&
+                !submission.teacher_reviewed_at,
+              'submission-card--correct': submission.ai_is_correct === true,
+              'submission-card--incorrect': submission.ai_is_correct === false,
+              'submission-card--pending':
+                submission.ai_is_correct === undefined,
+            }"
+          >
+            <div class="submission-header">
+              <div class="student-info">
+                <div class="student-avatar">
+                  {{ getInitial(submission.student_name) }}
                 </div>
-                <div class="student-email">{{ submission.student_email }}</div>
+                <div class="student-details">
+                  <div class="student-name">
+                    {{ submission.student_name || "Estudiante" }}
+                  </div>
+                  <div class="student-email">
+                    {{ submission.student_email }}
+                  </div>
+                </div>
+              </div>
+              <div class="submission-badges">
+                <span
+                  v-if="submission.ai_is_correct === true"
+                  class="badge badge--success"
+                >
+                  <i class="pi pi-check"></i> Correcto
+                </span>
+                <span
+                  v-else-if="submission.ai_is_correct === false"
+                  class="badge badge--error"
+                >
+                  <i class="pi pi-times"></i> Incorrecto
+                </span>
+                <span v-else class="badge badge--pending">
+                  <i class="pi pi-clock"></i> Pendiente
+                </span>
+                <span
+                  v-if="
+                    submission.needs_teacher_review &&
+                    !submission.teacher_reviewed_at
+                  "
+                  class="badge badge--review"
+                  title="La consigna de esta página no fue verificada, así que la IA solo sugiere"
+                >
+                  <i class="pi pi-flag"></i> Requiere tu revisión
+                </span>
+                <span
+                  v-if="submission.teacher_reviewed_at"
+                  class="badge badge--teacher"
+                >
+                  <i class="pi pi-user"></i> Revisado
+                </span>
               </div>
             </div>
-            <div class="submission-badges">
-              <span
-                v-if="submission.ai_is_correct === true"
-                class="badge badge--success"
-              >
-                <i class="pi pi-check"></i> Correcto
+
+            <div class="submission-meta">
+              <span class="meta-item">
+                <i class="pi pi-book"></i>
+                {{ submission.notebook_title || "Cuaderno" }}
               </span>
-              <span
-                v-else-if="submission.ai_is_correct === false"
-                class="badge badge--error"
-              >
-                <i class="pi pi-times"></i> Incorrecto
+              <span class="meta-item">
+                <i class="pi pi-file"></i>
+                Pagina {{ submission.page_number }}
               </span>
-              <span v-else class="badge badge--pending">
-                <i class="pi pi-clock"></i> Pendiente
-              </span>
-              <span
-                v-if="submission.teacher_reviewed_at"
-                class="badge badge--teacher"
-              >
-                <i class="pi pi-user"></i> Revisado
+              <span class="meta-item">
+                <i class="pi pi-calendar"></i>
+                {{ formatDateTime(submission.created_at) }}
               </span>
             </div>
-          </div>
 
-          <div class="submission-meta">
-            <span class="meta-item">
-              <i class="pi pi-book"></i>
-              {{ submission.notebook_title || "Cuaderno" }}
-            </span>
-            <span class="meta-item">
-              <i class="pi pi-file"></i>
-              Pagina {{ submission.page_number }}
-            </span>
-            <span class="meta-item">
-              <i class="pi pi-calendar"></i>
-              {{ formatDateTime(submission.created_at) }}
-            </span>
-          </div>
-
-          <!-- Canvas Preview -->
-          <div class="canvas-preview" v-if="submission.canvas_data">
-            <img
-              :src="submission.canvas_data"
-              :alt="`Respuesta de ${submission.student_name}`"
-              class="preview-image"
-              @click="openPreview(submission)"
-            />
-          </div>
-
-          <!-- AI Feedback -->
-          <div v-if="submission.ai_feedback" class="ai-feedback-box">
-            <div class="feedback-header">
-              <i class="pi pi-android"></i>
-              <span>Feedback IA</span>
+            <!-- Canvas Preview -->
+            <div class="canvas-preview" v-if="submission.canvas_data">
+              <img
+                :src="submission.canvas_data"
+                :alt="`Respuesta de ${submission.student_name}`"
+                class="preview-image"
+                @click="openPreview(submission)"
+              />
             </div>
-            <p class="feedback-text">{{ submission.ai_feedback }}</p>
-          </div>
 
-          <!-- Teacher Review Section -->
-          <div v-if="submission.teacher_feedback" class="teacher-feedback-box">
-            <div class="feedback-header">
-              <i class="pi pi-user"></i>
-              <span>Tu revision</span>
+            <!-- AI Feedback -->
+            <div v-if="submission.ai_feedback" class="ai-feedback-box">
+              <div class="feedback-header">
+                <i class="pi pi-android"></i>
+                <span>Feedback IA</span>
+              </div>
+              <p class="feedback-text">{{ submission.ai_feedback }}</p>
             </div>
-            <p class="feedback-text">{{ submission.teacher_feedback }}</p>
-            <span
-              class="review-badge"
-              :class="
-                submission.teacher_is_correct
-                  ? 'review-badge--correct'
-                  : 'review-badge--incorrect'
-              "
-            >
-              {{
-                submission.teacher_is_correct
-                  ? "Marcado correcto"
-                  : "Marcado incorrecto"
-              }}
-            </span>
-          </div>
 
-          <!-- Actions -->
-          <div class="submission-actions">
-            <button
-              v-if="submission.ai_is_correct === undefined"
-              class="btn btn-sm btn-secondary"
-              :disabled="reviewingIds.has(submission.id)"
-              @click="triggerAIReview(submission.id)"
+            <!-- Teacher Review Section -->
+            <div
+              v-if="submission.teacher_feedback"
+              class="teacher-feedback-box"
             >
-              <i
-                v-if="reviewingIds.has(submission.id)"
-                class="pi pi-spin pi-spinner"
-              ></i>
-              <i v-else class="pi pi-android"></i>
-              {{
-                reviewingIds.has(submission.id)
-                  ? "Evaluando..."
-                  : "Evaluar con IA"
-              }}
-            </button>
-            <button
-              class="btn btn-sm btn-primary"
-              @click="openReviewModal(submission)"
-            >
-              <i class="pi pi-pencil"></i>
-              Revisar manualmente
-            </button>
-          </div>
-        </article>
+              <div class="feedback-header">
+                <i class="pi pi-user"></i>
+                <span>Tu revision</span>
+              </div>
+              <p class="feedback-text">{{ submission.teacher_feedback }}</p>
+              <span
+                class="review-badge"
+                :class="
+                  submission.teacher_is_correct
+                    ? 'review-badge--correct'
+                    : 'review-badge--incorrect'
+                "
+              >
+                {{
+                  submission.teacher_is_correct
+                    ? "Marcado correcto"
+                    : "Marcado incorrecto"
+                }}
+              </span>
+            </div>
+
+            <!-- Actions -->
+            <div class="submission-actions">
+              <button
+                v-if="submission.ai_is_correct === undefined"
+                class="btn btn-sm btn-secondary"
+                :disabled="reviewingIds.has(submission.id)"
+                @click="triggerAIReview(submission.id)"
+              >
+                <i
+                  v-if="reviewingIds.has(submission.id)"
+                  class="pi pi-spin pi-spinner"
+                ></i>
+                <i v-else class="pi pi-android"></i>
+                {{
+                  reviewingIds.has(submission.id)
+                    ? "Evaluando..."
+                    : "Evaluar con IA"
+                }}
+              </button>
+              <button
+                class="btn btn-sm btn-primary"
+                @click="openReviewModal(submission)"
+              >
+                <i class="pi pi-pencil"></i>
+                Revisar manualmente
+              </button>
+            </div>
+          </article>
+        </div>
+      </div>
+
+      <!-- Pagination Controls -->
+      <div v-if="!loading && !filters.studentSearch.trim() && (filteredSubmissions.length > 0 || submissionsPage > 1)" class="pagination-controls">
+        <button
+          class="btn btn-secondary"
+          :disabled="submissionsPage === 1"
+          @click="goToPrevPage"
+        >
+          <i class="pi pi-chevron-left"></i>
+          Anterior
+        </button>
+        <span class="pagination-info">
+          Página {{ submissionsPage }} ·
+          {{ filteredSubmissions.length }} resultados
+        </span>
+        <button
+          class="btn btn-secondary"
+          :disabled="!submissionsHasMore"
+          @click="goToNextPage"
+        >
+          Siguiente
+          <i class="pi pi-chevron-right"></i>
+        </button>
       </div>
 
       <!-- Preview Modal -->
@@ -870,6 +1043,17 @@
     color: var(--practiq-violet);
   }
 
+  .badge--review {
+    background: rgba(var(--color-warning-rgb), 0.16);
+    color: var(--color-warning-dark);
+  }
+
+  .submission-card--needs-review {
+    box-shadow:
+      inset 3px 0 0 var(--color-warning),
+      var(--elevation-tint-shadow);
+  }
+
   .submission-meta {
     display: flex;
     flex-wrap: wrap;
@@ -1072,6 +1256,30 @@
     border-color: var(--color-error);
   }
 
+  /* Pagination */
+  .pagination-controls {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    margin-top: 24px;
+    padding: 16px 20px;
+    background: var(--surface-elevated);
+    border-radius: var(--radius-xl);
+    border: 1px solid var(--surface-elevated-strong);
+  }
+
+  .pagination-info {
+    font-size: var(--text-base);
+    font-weight: 600;
+    color: var(--text-secondary);
+  }
+
+  .btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+
   /* Responsive */
   @media (max-width: 1024px) {
     .review-dashboard {
@@ -1097,6 +1305,13 @@
 
     .filter-group {
       width: 100%;
+      min-width: 0;
+    }
+
+    .filter-select,
+    .filter-input {
+      width: 100%;
+      min-height: 46px;
     }
 
     .submission-header {
@@ -1109,6 +1324,16 @@
 
     .correctness-toggle {
       flex-direction: column;
+    }
+
+    .submission-actions {
+      flex-direction: column;
+    }
+
+    .submission-actions > * {
+      width: 100%;
+      justify-content: center;
+      min-height: 44px;
     }
   }
 </style>

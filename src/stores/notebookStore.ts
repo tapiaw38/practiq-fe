@@ -17,6 +17,9 @@ export const useNotebookStore = (service: INotebookService) =>
     const submitJob = ref<NotebookSubmitJobStart | null>(null);
     const jobStatus = ref<NotebookSubmitJobStatus | null>(null);
     const loading = ref(false);
+    const submissionsPage = ref(1);
+    const submissionsPageSize = ref(20);
+    const submissionsHasMore = ref(true);
 
     const fetchNotebooks = async (courseId: string) => {
       loading.value = true;
@@ -165,14 +168,73 @@ export const useNotebookStore = (service: INotebookService) =>
       student_id?: string;
       reviewed?: boolean;
       course_id?: string;
+      limit?: number;
+      offset?: number;
     }) => {
       loading.value = true;
+      // No limit means "the whole scoped set" — the review search relies on it
+      // to filter across pages; only a paged call gets the probe row.
+      const limit = params?.limit;
       try {
-        const response = await service.getSubmissions(params);
-        submissions.value = response.data;
-        return response.data;
+        const response = await service.getSubmissions(
+          limit ? { ...params, limit: limit + 1 } : params,
+        );
+        if (!limit) {
+          submissions.value = response.data;
+          submissionsHasMore.value = false;
+          return response.data;
+        }
+        // One row past the page: a full page is not proof there is a next one,
+        // and `length >= limit` lit up "Siguiente" on an exact multiple.
+        const page = response.data.slice(0, limit);
+        submissions.value = page;
+        submissionsHasMore.value = response.data.length > limit;
+        return page;
       } finally {
         loading.value = false;
+      }
+    };
+
+    const loadSubmissionsPage = async (
+      page: number,
+      filters?: {
+        notebook_id?: string;
+        student_id?: string;
+        reviewed?: boolean;
+        course_id?: string;
+      },
+    ) => {
+      const offset = (page - 1) * submissionsPageSize.value;
+      const data = await fetchSubmissions({
+        ...filters,
+        limit: submissionsPageSize.value,
+        offset,
+      });
+      // Only after the fetch resolves: advancing first left the counter on a
+      // page whose rows never loaded when the request failed.
+      submissionsPage.value = page;
+      return data;
+    };
+
+    const nextSubmissionsPage = async (filters?: {
+      notebook_id?: string;
+      student_id?: string;
+      reviewed?: boolean;
+      course_id?: string;
+    }) => {
+      if (submissionsHasMore.value) {
+        return loadSubmissionsPage(submissionsPage.value + 1, filters);
+      }
+    };
+
+    const prevSubmissionsPage = async (filters?: {
+      notebook_id?: string;
+      student_id?: string;
+      reviewed?: boolean;
+      course_id?: string;
+    }) => {
+      if (submissionsPage.value > 1) {
+        return loadSubmissionsPage(submissionsPage.value - 1, filters);
       }
     };
 
@@ -217,6 +279,9 @@ export const useNotebookStore = (service: INotebookService) =>
       submitJob,
       jobStatus,
       loading,
+      submissionsPage,
+      submissionsPageSize,
+      submissionsHasMore,
       fetchNotebooks,
       fetchNotebook,
       createNotebook,
@@ -228,6 +293,9 @@ export const useNotebookStore = (service: INotebookService) =>
       savePageSubmissionAsync,
       fetchSubmissionJob,
       fetchSubmissions,
+      loadSubmissionsPage,
+      nextSubmissionsPage,
+      prevSubmissionsPage,
       triggerAIReviewForSubmission,
       updateManualReviewForSubmission,
     };

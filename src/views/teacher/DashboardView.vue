@@ -4,6 +4,7 @@
   import { useAuthStore } from "@/stores/authStore";
   import TeacherLayout from "@/layouts/TeacherLayout.vue";
   import Skeleton from "@/components/ui/Skeleton.vue";
+  import InviteStudentsModal from "@/components/teacher/students/InviteStudentsModal.vue";
   import { useCourse } from "@/composables/useCourse";
   import { useAssignment } from "@/composables/useAssignment";
   import { useGrade } from "@/composables/useGrade";
@@ -20,7 +21,7 @@
     loadCourses,
     createCourse: createCourseService,
   } = useCourse();
-  const { grades, loadGrades, loadUserGrades } = useGrade();
+  const { grades, loadGrades, loadGradesByUsers } = useGrade();
   const { subjects, loadSubjects } = useSubject();
   const { loadProfile } = useProfile();
   const { loadMyStudents } = useAssignment();
@@ -28,7 +29,15 @@
   const studentGrades = ref<Record<string, Grade[]>>({});
   const loading = ref(true);
   const showCreateModal = ref(false);
+  const showInviteModal = ref(false);
   const creating = ref(false);
+  const courseView = ref<"grid" | "list">(
+    localStorage.getItem("practiq-teacher-course-view") === "list"
+      ? "list"
+      : "grid",
+  );
+  const currentStudentPage = ref(1);
+  const studentsPerPage = 20;
 
   const newCourse = reactive({
     title: "",
@@ -43,11 +52,9 @@
     return name.split(" ")[0] || "Docente";
   });
 
-  const isAdmin = computed(() => {
+  const isSuperAdmin = computed(() => {
     const roles = authStore.authUser?.roles || [];
-    return roles.some(
-      (role) => role.name === "admin" || role.name === "superadmin",
-    );
+    return roles.some((role) => role.name === "superadmin");
   });
 
   const subjectCount = computed(() => {
@@ -63,6 +70,16 @@
     );
     return formatShortDate(sorted[0].created_at);
   });
+
+  const paginatedStudents = computed(() => {
+    const start = (currentStudentPage.value - 1) * studentsPerPage;
+    const end = start + studentsPerPage;
+    return assignedStudents.value.slice(start, end);
+  });
+
+  const totalStudentPages = computed(() =>
+    Math.ceil(assignedStudents.value.length / studentsPerPage)
+  );
 
   const assignedStudentsByGrade = computed(() => {
     const buckets = new Map<
@@ -147,6 +164,10 @@
   function goToCourse(id: string) {
     router.push(`/teacher/courses/${id}`);
   }
+  function setCourseView(view: "grid" | "list") {
+    courseView.value = view;
+    localStorage.setItem("practiq-teacher-course-view", view);
+  }
   function goToAdminUsers() {
     router.push("/teacher/admin/users");
   }
@@ -164,6 +185,18 @@
     });
   }
 
+  function nextStudentPage() {
+    if (currentStudentPage.value < totalStudentPages.value) {
+      currentStudentPage.value++;
+    }
+  }
+
+  function prevStudentPage() {
+    if (currentStudentPage.value > 1) {
+      currentStudentPage.value--;
+    }
+  }
+
   async function loadCatalogs() {
     try {
       await Promise.all([loadGrades(), loadSubjects()]);
@@ -175,17 +208,19 @@
   async function loadAssignedStudents() {
     try {
       assignedStudents.value = await loadMyStudents();
-      const gradeEntries = await Promise.all(
-        assignedStudents.value.map(async (student) => {
-          try {
-            const grades = await loadUserGrades(student.id);
-            return [student.id, grades || []] as const;
-          } catch {
-            return [student.id, []] as const;
-          }
-        }),
-      );
-      studentGrades.value = Object.fromEntries(gradeEntries);
+      // One request for every assigned student's grade, not one per student:
+      // with a full class list this used to be dozens of round trips queued
+      // behind the browser's per-host connection limit.
+      try {
+        studentGrades.value = await loadGradesByUsers(
+          assignedStudents.value.map((student) => student.id),
+        );
+      } catch (err) {
+        // Grades enrich roster; they must not erase successfully loaded
+        // students when auxiliary batch request fails.
+        console.error(err);
+        studentGrades.value = {};
+      }
     } catch (err) {
       console.error(err);
       assignedStudents.value = [];
@@ -216,12 +251,13 @@
         <div class="page-header__right">
           <span
             class="role-chip"
-            :class="isAdmin ? 'role-chip--admin' : 'role-chip--teacher'"
+            :class="isSuperAdmin ? 'role-chip--admin' : 'role-chip--teacher'"
           >
-            <i :class="isAdmin ? 'pi pi-shield' : 'pi pi-user'"></i>
-            {{ isAdmin ? "Admin" : "Docente" }}
+            <i :class="isSuperAdmin ? 'pi pi-shield' : 'pi pi-user'"></i>
+            {{ isSuperAdmin ? "Administrador" : "Docente" }}
           </span>
           <button
+            v-if="isSuperAdmin"
             class="btn btn-ghost"
             @click="goToAcademicAdmin"
             title="Académico"
@@ -230,13 +266,17 @@
             Académico
           </button>
           <button
-            v-if="isAdmin"
+            v-if="isSuperAdmin"
             class="btn btn-ghost"
             @click="goToAdminUsers"
             title="Usuarios"
           >
             <i class="pi pi-users"></i>
             Usuarios
+          </button>
+          <button class="btn btn-ghost" @click="showInviteModal = true">
+            <i class="pi pi-user-plus"></i>
+            Invitar alumnos
           </button>
           <button class="btn btn-primary" @click="showCreateModal = true">
             <i class="pi pi-plus"></i>
@@ -249,7 +289,7 @@
       <div v-if="loading" class="stats-strip stats-strip--skeleton">
         <div class="stat-item" v-for="i in 4" :key="i">
           <Skeleton variant="circle" size="34px" />
-          <div>
+          <div style="display: flex; flex-direction: column; gap: 6px">
             <Skeleton width="40px" height="20px" />
             <Skeleton width="60px" height="12px" />
           </div>
@@ -295,7 +335,7 @@
       <template v-if="loading">
         <section class="content-section">
           <div class="section-header">
-            <div>
+            <div style="display: flex; flex-direction: column; gap: 8px">
               <Skeleton width="120px" height="24px" />
               <Skeleton width="280px" height="14px" />
             </div>
@@ -323,7 +363,7 @@
 
         <section class="content-section">
           <div class="section-header">
-            <div>
+            <div style="display: flex; flex-direction: column; gap: 8px">
               <Skeleton width="180px" height="24px" />
               <Skeleton width="260px" height="14px" />
             </div>
@@ -359,12 +399,25 @@
                 Accedé a los contenidos y ejercicios de cada curso.
               </p>
             </div>
-            <button
-              class="btn btn-outline btn-sm"
-              @click="showCreateModal = true"
-            >
-              <i class="pi pi-plus"></i> Nuevo
-            </button>
+            <div class="courses-actions">
+              <div class="view-toggle" role="group" aria-label="Vista de cursos">
+                <button
+                  type="button"
+                  :class="{ 'view-toggle__active': courseView === 'grid' }"
+                  title="Vista de tarjetas"
+                  @click="setCourseView('grid')"
+                ><i class="pi pi-th-large"></i></button>
+                <button
+                  type="button"
+                  :class="{ 'view-toggle__active': courseView === 'list' }"
+                  title="Vista de lista"
+                  @click="setCourseView('list')"
+                ><i class="pi pi-list"></i></button>
+              </div>
+              <button class="btn btn-outline btn-sm" @click="showCreateModal = true">
+                <i class="pi pi-plus"></i> Nuevo
+              </button>
+            </div>
           </div>
 
           <div v-if="courses.length === 0" class="empty-state">
@@ -380,7 +433,7 @@
             </button>
           </div>
 
-          <div v-else class="courses-grid">
+          <div v-else class="courses-grid" :class="{ 'courses-grid--list': courseView === 'list' }">
             <div
               v-for="course in courses"
               :key="course.id"
@@ -443,7 +496,7 @@
 
           <div class="student-grid">
             <article
-              v-for="student in assignedStudents"
+              v-for="student in paginatedStudents"
               :key="student.id"
               class="student-card"
               @click="goToStudentProgress(student)"
@@ -472,6 +525,46 @@
               </div>
               <i class="pi pi-angle-right student-card__arrow"></i>
             </article>
+          </div>
+
+          <!-- Pagination Controls -->
+          <div v-if="assignedStudents.length > studentsPerPage" class="pagination-controls">
+            <button
+              class="btn btn-secondary"
+              :disabled="currentStudentPage === 1"
+              @click="prevStudentPage"
+            >
+              <i class="pi pi-chevron-left"></i>
+              Anterior
+            </button>
+            <span class="pagination-info">
+              Página {{ currentStudentPage }} de {{ totalStudentPages }} · {{ assignedStudents.length }} estudiantes
+            </span>
+            <button
+              class="btn btn-secondary"
+              :disabled="currentStudentPage === totalStudentPages"
+              @click="nextStudentPage"
+            >
+              Siguiente
+              <i class="pi pi-chevron-right"></i>
+            </button>
+          </div>
+        </section>
+
+        <!-- Sin alumnos: el hueco apunta directo a la salida, que es el
+             código de invitación. -->
+        <section v-if="!assignedStudents.length" class="content-section">
+          <div class="empty-state">
+            <div class="empty-state__icon"><i class="pi pi-users"></i></div>
+            <h3>Todavía no tenés alumnos</h3>
+            <p>
+              Generá tu código de invitación y compartilo con la clase: cada
+              alumno que lo ingrese queda vinculado con vos.
+            </p>
+            <button class="btn btn-primary" @click="showInviteModal = true">
+              <i class="pi pi-user-plus"></i>
+              Invitar alumnos
+            </button>
           </div>
         </section>
       </template>
@@ -593,6 +686,13 @@
           </div>
         </div>
       </Transition>
+    </Teleport>
+
+    <Teleport to="body">
+      <InviteStudentsModal
+        v-if="showInviteModal"
+        @close="showInviteModal = false"
+      />
     </Teleport>
   </TeacherLayout>
 </template>
@@ -811,6 +911,52 @@
     grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
     gap: 16px;
   }
+  .courses-actions,
+  .view-toggle {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .view-toggle {
+    padding: 3px;
+    border: 1px solid var(--surface-border);
+    border-radius: var(--radius-sm);
+    background: var(--surface-card);
+  }
+  .view-toggle button {
+    width: 30px;
+    height: 28px;
+    border: 0;
+    border-radius: var(--radius-xs);
+    background: transparent;
+    color: var(--text-secondary);
+    cursor: pointer;
+  }
+  .view-toggle button.view-toggle__active {
+    background: var(--fill-primary-soft);
+    color: var(--practiq-violet-dark);
+  }
+  .courses-grid--list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+  .courses-grid--list .course-card {
+    display: grid;
+    grid-template-columns: 4px minmax(0, 1fr);
+  }
+  .courses-grid--list .course-card__stripe { height: auto; }
+  .courses-grid--list .course-card__body {
+    display: grid;
+    grid-template-columns: minmax(220px, 1fr) minmax(180px, 1.4fr) auto;
+    align-items: center;
+    gap: 18px;
+    padding: 13px 16px;
+  }
+  .courses-grid--list .course-card__top { grid-column: 1; grid-row: 1; }
+  .courses-grid--list .course-title { grid-column: 1; grid-row: 2; }
+  .courses-grid--list .course-desc { grid-column: 2; grid-row: 1 / span 2; }
+  .courses-grid--list .course-card__footer { grid-column: 3; grid-row: 1 / span 2; margin: 0; padding: 0; border: 0; gap: 18px; }
 
   .course-card {
     position: relative;
@@ -1080,6 +1226,30 @@
     flex-shrink: 0;
   }
 
+  /* Pagination */
+  .pagination-controls {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    margin-top: 24px;
+    padding: 16px 20px;
+    background: var(--surface-elevated);
+    border-radius: var(--radius-xl);
+    border: 1px solid var(--surface-elevated-strong);
+  }
+
+  .pagination-info {
+    font-size: var(--text-base);
+    font-weight: 600;
+    color: var(--text-secondary);
+  }
+
+  .btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+
   /* Empty & loading */
   .loading-state {
     display: flex;
@@ -1218,6 +1388,20 @@
     }
     .page-header__right {
       width: 100%;
+      /* 2x2 en vez de una pila de cuatro botones: con superadmin el header
+         empujaba el contenido media pantalla hacia abajo. */
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+    }
+    .page-header__right .role-chip {
+      grid-column: 1 / -1;
+      justify-self: start;
+    }
+    .page-header__right .btn {
+      width: 100%;
+      justify-content: center;
+      min-height: 44px;
     }
     .stats-strip {
       grid-template-columns: 1fr;
@@ -1250,6 +1434,27 @@
     }
     .student-grid {
       grid-template-columns: 1fr;
+    }
+    /* Tap targets >= 44px en mobile */
+    .student-card {
+      min-height: 64px;
+    }
+    .pagination-controls {
+      flex-direction: column;
+      align-items: stretch;
+      gap: 10px;
+    }
+    .pagination-controls .btn {
+      width: 100%;
+      justify-content: center;
+      min-height: 46px;
+    }
+    .pagination-info {
+      text-align: center;
+    }
+    .icon-btn {
+      width: 44px;
+      height: 44px;
     }
   }
 

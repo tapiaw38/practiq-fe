@@ -17,6 +17,9 @@ export const usePracticeSheet = () => {
     submitJob,
     jobStatus,
     loading,
+    currentPage,
+    pageSize,
+    hasMore,
   } = storeToRefs(store);
 
   const loadPracticeSheets = async (courseId: string) => {
@@ -56,6 +59,10 @@ export const usePracticeSheet = () => {
       level?: number;
       sheet_type?: string;
       test_style?: string;
+      /** RFC 3339 UTC string; empty clears the schedule. */
+      scheduled_at?: string;
+      /** RFC 3339 UTC string; empty leaves the window open. */
+      available_until?: string;
       exercise_ids: string[];
     },
   ) => {
@@ -87,6 +94,10 @@ export const usePracticeSheet = () => {
       level?: number;
       sheet_type?: string;
       test_style?: string;
+      /** RFC 3339 UTC string; empty clears the schedule. */
+      scheduled_at?: string;
+      /** RFC 3339 UTC string; empty leaves the window open. */
+      available_until?: string;
       exercise_ids?: string[];
     },
   ) => {
@@ -186,6 +197,48 @@ export const usePracticeSheet = () => {
     }
   };
 
+  const loadPage = async (courseId: string, page: number) => {
+    try {
+      return await store.loadPage(courseId, page);
+    } catch (error) {
+      toast.add({
+        severity: "error",
+        summary: "Error",
+        detail: "No se pudo cargar la página",
+        life: 3000,
+      });
+      throw error;
+    }
+  };
+
+  const nextPage = async (courseId: string) => {
+    try {
+      return await store.nextPage(courseId);
+    } catch (error) {
+      toast.add({
+        severity: "error",
+        summary: "Error",
+        detail: "No se pudo cargar la siguiente página",
+        life: 3000,
+      });
+      throw error;
+    }
+  };
+
+  const prevPage = async (courseId: string) => {
+    try {
+      return await store.prevPage(courseId);
+    } catch (error) {
+      toast.add({
+        severity: "error",
+        summary: "Error",
+        detail: "No se pudo cargar la página anterior",
+        life: 3000,
+      });
+      throw error;
+    }
+  };
+
   return {
     practiceSheets,
     currentPracticeSheet,
@@ -193,6 +246,9 @@ export const usePracticeSheet = () => {
     submitJob,
     jobStatus,
     loading,
+    currentPage,
+    pageSize,
+    hasMore,
     loadPracticeSheets,
     loadPracticeSheet,
     createPracticeSheet,
@@ -201,5 +257,8 @@ export const usePracticeSheet = () => {
     submitPracticeSheet,
     submitPracticeSheetAsync,
     loadSubmitJob,
+    loadPage,
+    nextPage,
+    prevPage,
   };
 };

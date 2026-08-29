@@ -2,10 +2,11 @@
   import { computed, onMounted, onUnmounted, ref, reactive, watch } from "vue";
   import { useRoute, useRouter } from "vue-router";
   import { useAuthStore } from "@/stores/authStore";
-  import { useCourse } from "@/composables/useCourse";
+  import { useDashboard } from "@/composables/useDashboard";
   import { useLevel } from "@/composables/useLevel";
   import ChangePasswordModal from "@/components/auth/ChangePasswordModal.vue";
   import SetPasswordModal from "@/components/auth/SetPasswordModal.vue";
+  import NotificationBell from "@/components/ui/NotificationBell.vue";
   import type { LevelData } from "@/types";
 
   interface CourseNavItem {
@@ -19,7 +20,7 @@
   const route = useRoute();
   const router = useRouter();
   const authStore = useAuthStore();
-  const { loadCourses } = useCourse();
+  const { loadDashboard } = useDashboard();
   const { loadCourseLevels } = useLevel();
   const profile = computed(() => authStore.profile);
   const userInitial = computed(
@@ -32,6 +33,9 @@
   const openCourses = ref(new Set<string>());
   const showChangePassword = ref(false);
   const showSetPassword = ref(false);
+  const lastPracticedSheetId = ref(
+    localStorage.getItem("practiq-last-practice") || "",
+  );
   const isGoogleUser = computed(() => authStore.authMethod === "google");
   // openLevels[courseId] = Set of open level numbers
   const openLevels = reactive<Record<string, Set<number>>>({});
@@ -74,14 +78,22 @@
     if (!open || coursesData.value.length) return;
     loadingCourses.value = true;
     try {
-      const courses = await loadCourses("student");
-      coursesData.value = (courses || []).map((c) => ({
-        id: c.id,
+      // The home already read these, so opening this list from there costs
+      // nothing. It used to call `/courses?role=student` again, which answered
+      // with grade ids, subject ids and descriptions to draw a title.
+      const dashboard = await loadDashboard();
+      coursesData.value = (dashboard.courses || []).map((c) => ({
+        id: c.course_id,
         title: c.title,
-        currentLevel: 1,
+        // The level the student is on, which the badge shows. It used to start
+        // at 1 for every course until the levels call came back and corrected
+        // it, so the sidebar briefly claimed everyone was on level 1.
+        currentLevel: c.current_level,
         levels: [],
         loading: false,
       }));
+    } catch {
+      coursesData.value = [];
     } finally {
       loadingCourses.value = false;
     }
@@ -106,6 +118,12 @@
     if (window.innerWidth > 920) navOpen.value = false;
   }
 
+  function syncLastPractice(event: Event) {
+    const id = (event as CustomEvent<{ id?: string }>).detail?.id || "";
+    lastPracticedSheetId.value = id;
+    if (id) localStorage.setItem("practiq-last-practice", id);
+  }
+
   watch(
     () => route.fullPath,
     () => {
@@ -113,16 +131,25 @@
     },
   );
 
+  watch(navOpen, (open) => {
+    window.dispatchEvent(
+      new CustomEvent("student-drawer-toggled", { detail: { open } }),
+    );
+  });
+
   onMounted(() => {
     window.addEventListener("resize", syncDesktopState);
+    window.addEventListener("practiq:last-practice-changed", syncLastPractice);
   });
   onUnmounted(() => {
     window.removeEventListener("resize", syncDesktopState);
+    window.removeEventListener("practiq:last-practice-changed", syncLastPractice);
   });
 
   function logout() {
     authStore.clearAuth();
     localStorage.removeItem("practiq_profile");
+    localStorage.removeItem("practiq-last-practice");
     router.push("/login");
   }
 </script>
@@ -130,7 +157,12 @@
 <template>
   <div class="app-shell">
     <header class="mobile-topbar">
-      <button class="topbar-btn" type="button" @click="navOpen = true">
+      <button
+        class="topbar-btn"
+        type="button"
+        aria-label="Abrir menú de navegación"
+        @click="navOpen = true"
+      >
         <i class="pi pi-bars"></i>
       </button>
 
@@ -138,7 +170,10 @@
         <img src="@/assets/logo.png" class="topbar-logo" alt="Practiq" />
       </div>
 
-      <div class="topbar-avatar">{{ userInitial }}</div>
+      <div class="topbar-right">
+        <NotificationBell />
+        <div class="topbar-avatar">{{ userInitial }}</div>
+      </div>
     </header>
 
     <div v-if="navOpen" class="drawer-backdrop" @click="navOpen = false"></div>
@@ -163,10 +198,35 @@
           <span>Inicio</span>
         </RouterLink>
 
+        <RouterLink
+          v-if="lastPracticedSheetId"
+          :to="`/student/practice/${lastPracticedSheetId}`"
+          class="nav-item nav-item--continue"
+          title="Continuar última práctica"
+          aria-label="Continuar última práctica"
+          @click="navOpen = false"
+        >
+          <span class="nav-icon"><i class="pi pi-play-circle"></i></span>
+          <span>Continuar</span>
+        </RouterLink>
+
+        <RouterLink
+          to="/student/progress"
+          class="nav-item"
+          active-class="nav-item-active"
+          @click="navOpen = false"
+        >
+          <span class="nav-icon"><i class="pi pi-chart-line"></i></span>
+          <span>Mi progreso</span>
+        </RouterLink>
+
         <!-- Courses and levels -->
         <div class="nav-group">
           <button
             class="nav-item nav-item-btn"
+            :title="coursesOpen ? 'Cerrar Mis Cursos' : 'Abrir Mis Cursos'"
+            :aria-expanded="coursesOpen"
+            aria-controls="student-courses-nav"
             @click="coursesOpen = !coursesOpen"
           >
             <span class="nav-icon"><i class="pi pi-book"></i></span>
@@ -177,9 +237,9 @@
             ></i>
           </button>
 
-          <div v-if="coursesOpen" class="nav-sub">
-            <div v-if="loadingCourses" class="nav-sub-loading">
-              <i class="pi pi-spin pi-spinner"></i>
+          <div v-if="coursesOpen" id="student-courses-nav" class="nav-sub">
+            <div v-if="loadingCourses" class="nav-sub-loading" aria-busy="true" aria-label="Cargando cursos">
+              <span v-for="n in 3" :key="n" class="nav-loading-line"></span>
             </div>
             <template v-else-if="coursesData.length">
               <div
@@ -322,6 +382,8 @@
           </div>
         </div>
         <div class="footer-actions">
+          <!-- Desktop entry point: the topbar bell only shows on mobile. -->
+          <NotificationBell class="footer-bell" />
           <button
             class="icon-btn"
             type="button"
@@ -361,6 +423,9 @@
 
 <style scoped>
   .app-shell {
+    /* Fallback for views that reserve assistant desktop rail. Package writes
+       same token while loaded; local declaration keeps host CSS self-contained. */
+    --practiq-assistant-rail: clamp(320px, 27vw, 430px);
     min-height: 100vh;
     display: flex;
     background: var(--gradient-app-bg);
@@ -460,8 +525,8 @@
   .close-btn,
   .topbar-btn,
   .logout-btn {
-    width: 42px;
-    height: 42px;
+    width: 44px;
+    height: 44px;
     border: none;
     border-radius: var(--radius-lg);
     background: var(--surface-subtle);
@@ -584,9 +649,29 @@
   }
 
   .nav-sub-loading {
+    display: grid;
+    gap: 8px;
     padding: 8px 12px;
-    font-size: var(--text-sm);
-    color: var(--text-secondary);
+  }
+
+  .nav-loading-line {
+    display: block;
+    height: 12px;
+    width: 100%;
+    border-radius: var(--radius-pill);
+    background: linear-gradient(
+      90deg,
+      var(--surface-elevated) 25%,
+      var(--surface-card) 50%,
+      var(--surface-elevated) 75%
+    );
+    background-size: 200% 100%;
+    animation: nav-loading 1.2s ease-in-out infinite;
+  }
+
+  @keyframes nav-loading {
+    from { background-position: 100% 0; }
+    to { background-position: -100% 0; }
   }
 
   .nav-sub-empty {
@@ -608,7 +693,7 @@
     gap: 9px;
     padding: 10px 11px;
     border-radius: var(--radius-lg);
-    border: 1px solid transparent;
+    border: none;
     background: rgba(var(--surface-card-rgb), 0.42);
     cursor: pointer;
     text-align: left;
@@ -616,8 +701,7 @@
     width: 100%;
   }
   .nav-course-toggle:hover {
-    background: var(--surface-elevated-strong);
-    border-color: rgba(var(--practiq-violet-rgb), 0.12);
+    background: rgba(var(--practiq-violet-rgb), 0.1);
   }
   .nav-course-toggle .pi-graduation-cap {
     width: 26px;
@@ -654,7 +738,7 @@
     gap: 8px;
     padding: 8px 10px;
     border-radius: var(--radius-md);
-    border: 1px solid transparent;
+    border: none;
     background: transparent;
     cursor: pointer;
     width: 100%;
@@ -663,11 +747,9 @@
   }
   .nav-level-row:hover:not(:disabled) {
     background: var(--surface-elevated-strong);
-    border-color: rgba(var(--practiq-violet-rgb), 0.1);
   }
   .nav-level-row--current {
     background: var(--fill-primary-subtle);
-    border-color: rgba(var(--practiq-violet-rgb), 0.12);
   }
   .nav-level-row--locked {
     cursor: default;
@@ -725,7 +807,7 @@
     gap: 8px;
     padding: 8px 10px 8px 12px;
     border-radius: var(--radius-md);
-    border: 1px solid transparent;
+    border: none;
     background: rgba(var(--surface-bg-rgb), 0.5);
     cursor: pointer;
     font-size: var(--text-sm);
@@ -738,25 +820,21 @@
 
   .nav-book-item:hover {
     background: var(--fill-primary-subtle);
-    border-color: rgba(var(--practiq-violet-rgb), 0.12);
     color: var(--practiq-violet-dark);
   }
 
   .nav-book-item--practice:hover {
     background: var(--fill-success-subtle);
-    border-color: rgba(var(--color-success-rgb), 0.14);
     color: var(--color-success-dark);
   }
 
   .nav-book-item--test:hover {
     background: var(--fill-warning-subtle);
-    border-color: rgba(var(--color-warning-rgb), 0.16);
     color: var(--color-warning-strong);
   }
 
   .nav-book-item--notebook:hover {
     background: var(--fill-primary-subtle);
-    border-color: rgba(var(--practiq-violet-rgb), 0.12);
     color: var(--practiq-violet);
   }
 
@@ -794,9 +872,21 @@
     flex-shrink: 0;
   }
 
+  .topbar-right {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+
+  /* Match the sibling icon buttons in the sidebar footer. */
+  .footer-bell :deep(.bell-btn) {
+    width: 44px;
+    height: 44px;
+  }
+
   .icon-btn {
-    width: 36px;
-    height: 36px;
+    width: 44px;
+    height: 44px;
     border: none;
     border-radius: var(--radius-md);
     background: var(--surface-subtle);
@@ -840,6 +930,12 @@
 
   .user-details {
     min-width: 0;
+    /* The desktop sidebar (220-280px depending on the breakpoint) never had
+       room for three 44px action buttons plus a name: at 1280px this still
+       squeezed "Walter Tapia" into a 20px-wide box, unreadable rather than
+       actually hidden. The 920px drawer is a flat 320px regardless of the
+       viewport, wide enough to show it — re-enabled there below. */
+    display: none;
   }
 
   .user-name {
@@ -884,6 +980,31 @@
     .main-content {
       padding: 16px;
     }
+
+    /* The footer's three 44px action buttons never shrink (flex-shrink: 0),
+       so at this sidebar width they ran out of room and sat on top of the
+       avatar instead of next to it. */
+    .sidebar-footer {
+      gap: 6px;
+      padding: 14px 4px 0;
+    }
+
+    .user-avatar {
+      width: 38px;
+      height: 38px;
+      font-size: var(--text-sm);
+    }
+
+    .footer-actions {
+      gap: 3px;
+    }
+
+    .icon-btn,
+    .footer-bell :deep(.bell-btn) {
+      width: 34px;
+      height: 34px;
+      font-size: var(--text-sm);
+    }
   }
 
   /* Tablet portrait */
@@ -920,7 +1041,7 @@
       position: fixed;
       inset: 0;
       background: var(--surface-scrim);
-      z-index: 34;
+      z-index: 250;
     }
 
     .sidebar {
@@ -932,17 +1053,104 @@
       height: calc(100vh - 24px);
       transform: translateX(-110%);
       transition: transform 0.24s ease;
-      z-index: 40;
+      z-index: 260;
     }
 
     .sidebar--open {
       transform: translateX(0);
+    }
+
+    /* Drawer is a flat 320px here regardless of viewport width, wide enough
+       to show the name next to the avatar again. */
+    .user-details {
+      display: block;
+    }
+
+    /* Tap targets >= 44px en mobile */
+    .nav-item {
+      min-height: 52px;
+    }
+
+    .nav-level-row,
+    .nav-book-item,
+    .nav-course-toggle {
+      min-height: 48px;
     }
   }
 
   @media (min-width: 921px) {
     .close-btn {
       display: none;
+    }
+
+    /* Assistant desktop rail takes space from the right. Collapse navigation
+       first, rather than scaling the student's drawing canvas. */
+    :global(.practiq-assistant-focus-target--open .sidebar) {
+      width: 76px;
+      margin-left: 12px;
+      padding: 14px 10px;
+      border-radius: 24px;
+    }
+
+    /* Package only marks #app as focused. Keep its flex root at full width;
+       shrinking #app made the complete student view render as a blank sheet.
+       Collapsing the sidebar frees room for the assistant without scaling the
+       drawing canvas. */
+    :global(.practiq-assistant-focus-target--open .app-shell) {
+      min-width: 0;
+    }
+
+    :global(.practiq-assistant-focus-target--open .sidebar-brand) {
+      justify-content: center;
+      padding: 2px 0 12px;
+    }
+
+    :global(.practiq-assistant-focus-target--open .sidebar-logo) {
+      width: 40px;
+      height: 40px;
+      object-fit: cover;
+      object-position: left center;
+    }
+
+    :global(.practiq-assistant-focus-target--open .sidebar-nav) {
+      align-items: center;
+      padding: 0;
+    }
+
+    :global(.practiq-assistant-focus-target--open .nav-section-label),
+    :global(.practiq-assistant-focus-target--open .nav-item > span:not(.nav-icon)),
+    :global(.practiq-assistant-focus-target--open .nav-chevron),
+    :global(.practiq-assistant-focus-target--open .nav-sub) {
+      display: none;
+    }
+
+    :global(.practiq-assistant-focus-target--open .nav-group),
+    :global(.practiq-assistant-focus-target--open .nav-item) {
+      width: 100%;
+    }
+
+    :global(.practiq-assistant-focus-target--open .nav-item) {
+      justify-content: center;
+      padding: 8px;
+    }
+
+    :global(.practiq-assistant-focus-target--open .sidebar-footer) {
+      flex-direction: column;
+      padding: 10px 0 0;
+      gap: 8px;
+    }
+
+    :global(.practiq-assistant-focus-target--open .user-details) {
+      display: none;
+    }
+
+    :global(.practiq-assistant-focus-target--open .user-info),
+    :global(.practiq-assistant-focus-target--open .footer-actions) {
+      flex: 0 0 auto;
+    }
+
+    :global(.practiq-assistant-focus-target--open .footer-actions) {
+      flex-direction: column;
     }
   }
 </style>

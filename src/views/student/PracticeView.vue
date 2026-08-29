@@ -1,33 +1,68 @@
 <script setup lang="ts">
   import { ref, computed, onMounted, onUnmounted } from "vue";
   import { useRoute, useRouter } from "vue-router";
+  import { useToast } from "primevue/usetoast";
   import { useAuthStore } from "@/stores/authStore";
   import StudentLayout from "@/layouts/StudentLayout.vue";
   import Skeleton from "@/components/ui/Skeleton.vue";
+  import ConfirmModal from "@/components/ui/ConfirmModal.vue";
+  import DrawingCanvas from "@/components/ui/DrawingCanvas.vue";
+  import ColorPalette from "@/components/ui/ColorPalette.vue";
+  import { BASE_COLORS } from "@/utils/palette";
+  import AttachmentAnswer from "@/components/student/exercises/AttachmentAnswer.vue";
+  import ExerciseStepper from "@/components/student/exercises/ExerciseStepper.vue";
+  import ExerciseMedia from "@/components/ui/ExerciseMedia.vue";
+  import FillBlanksAnswer from "@/components/student/exercises/FillBlanksAnswer.vue";
   import { usePracticeSheet } from "@/composables/usePracticeSheet";
+  import { useLeaveWarning } from "@/composables/useLeaveWarning";
   import { useProgress } from "@/composables/useProgress";
   import type { PracticeSheet, SubmitResult, TopicProgress } from "@/types";
+  import type { UploadedFile } from "@/services/uploads/uploadService";
   import {
     composeAssistantWorkImage,
     extractTeacherImageDataUrl,
     parseExerciseMetadata,
     pickBestStudentImage,
+    prepareHandwritingImage,
     summarizeExerciseMetadata,
+    statementMediaAudioAttachment,
+    statementMediaPreviewDataURL,
   } from "@/utils/assistantExerciseContext";
+  import { statementImageDataURL } from "@/utils/statementImage";
   import { formatDuration } from "@/utils/formatters";
   import {
     renderContent,
     renderEquation,
   } from "@/composables/useContentRenderer";
   import MathFieldEditor from "@/components/ui/MathFieldEditor.vue";
+  import { useConfetti } from "@/composables/useConfetti";
+  import { useSound } from "@/composables/useSound";
+  import { useCuriosities } from "@/composables/useCuriosities";
+  import { tuckAssistantFab } from "@/composables/useAssistantFabOffset";
+  import AiLoadingModal from "@/components/student/ai/AiLoadingModal.vue";
+  import { buildFillBlanksAssistantContext } from "@/utils/fillBlanks";
+  import {
+    loadingMessages,
+    successMessages,
+    encourageMessages,
+    randomMessage,
+  } from "@/utils/motivationalMessages";
 
+  const toast = useToast();
   const route = useRoute();
   const router = useRouter();
   const authStore = useAuthStore();
+  const { leaveConfirmState, onLeaveConfirm, onLeaveCancel } = useLeaveWarning(
+    () => hasPendingWork.value,
+  );
   const { loadCourseProgress } = useProgress();
   const { loadPracticeSheet, submitPracticeSheetAsync, loadSubmitJob } =
     usePracticeSheet();
+  const { fireSuccess } = useConfetti();
+  const { play: playSound } = useSound();
+  const { curiosities, fetchCuriosities } = useCuriosities();
   const sheetId = route.params.id as string;
+  const curiosityIndex = ref(0);
 
   const sheet = ref<PracticeSheet | null>(null);
   const loading = ref(true);
@@ -37,17 +72,31 @@
     Record<string, { answer: string; timeStart: number; hints: number }>
   >({});
   const keyboardAnswers = ref<Record<string, string>>({});
+  const attachments = ref<Record<string, UploadedFile | null>>({});
+
+  // Ids with an upload still in flight; submitting now would deliver the
+  // exercise without its file.
+  const uploadingAttachments = ref<Set<string>>(new Set());
+
+  function setUploading(exerciseId: string, value: boolean) {
+    const next = new Set(uploadingAttachments.value);
+    if (value) next.add(exerciseId);
+    else next.delete(exerciseId);
+    uploadingAttachments.value = next;
+  }
+
+  function setAttachment(exerciseId: string, value: UploadedFile | null) {
+    attachments.value = { ...attachments.value, [exerciseId]: value };
+  }
   const timers = ref<Record<string, number>>({});
   const hints = ref<Record<string, number>>({});
 
   // Canvas — multiple refs, one per exercise
-  const canvasRefs: Record<string, HTMLCanvasElement | null> = {};
-  const initializedIds = new Set<string>();
-  const undoStacks: Record<string, ImageData[]> = {};
-  const isDrawingMap: Record<string, boolean> = {};
-  const lastPos: Record<string, { x: number; y: number }> = {};
+  const canvasRefs: Record<string, InstanceType<typeof DrawingCanvas> | null> = {};
   const tool = ref<"pen" | "eraser">("pen");
-  const penColor = ref(cssVar("--text-primary", "#1e293b"));
+  // Matches the palette's first swatch so one is selected from the start; the
+  // theme's text colour is not one of the ink options.
+  const penColor = ref(BASE_COLORS[0].value);
   const penSize = ref(3);
   const activeCanvasId = ref("");
 
@@ -55,21 +104,63 @@
   const showResults = ref(false);
   const submitting = ref(false);
   const result = ref<SubmitResult | null>(null);
+  const showAllErrors = ref(false);
+
+  const hasPendingWork = computed(() =>
+    !result.value &&
+    (hasDraft.value ||
+      submitting.value ||
+      Object.values(answers.value).some((item) => !!item?.answer) ||
+      Object.values(keyboardAnswers.value).some((answer) => !!answer?.trim()) ||
+      Object.values(attachments.value).some(Boolean) ||
+      // An upload in flight is work too: it is the student's first action on
+      // an attachment exercise, and until it resolves `attachments` is still
+      // empty, so leaving now dropped the answer with no warning.
+      uploadingAttachments.value.size > 0),
+  );
+
+  // An answer nobody could grade comes back with is_correct=false; showing it
+  // as an error would be a lie, so it gets its own bucket. A practice is never
+  // corrected by the teacher, so this is as far as those answers go.
+  const incorrectResults = computed(() =>
+    result.value?.exercise_results?.filter(
+      (r) => !r.is_correct && !r.not_graded && !r.needs_teacher_review,
+    ) ?? []
+  );
+
+  const ungradedResults = computed(() =>
+    result.value?.exercise_results?.filter(
+      (r) => r.not_graded || r.needs_teacher_review,
+    ) ?? []
+  );
+
+  // Nothing at all came back with a verdict, so the score is not a judgement
+  // on the student's work.
+  const allUngraded = computed(
+    () =>
+      !!result.value?.exercise_results?.length &&
+      ungradedResults.value.length === result.value.exercise_results.length,
+  );
+
+  const visibleErrors = computed(() =>
+    showAllErrors.value ? incorrectResults.value : incorrectResults.value.slice(0, 3)
+  );
+
+  const hiddenErrorsCount = computed(() =>
+    Math.max(0, incorrectResults.value.length - 3)
+  );
+
+  function formatStudentAnswer(answer: string): string {
+    if (!answer || answer.trim() === "") return "(vacío)";
+    if (answer.toUpperCase() === "UNREADABLE") return "(no se pudo leer)";
+    if (answer.startsWith("data:image/")) return "(no se pudo leer)";
+    return answer;
+  }
+
   const hasDraft = ref(false);
   const showRestoreModal = ref(false);
-
-  function cssVar(name: string, fallback: string, depth = 0): string {
-    if (typeof window === "undefined") return fallback;
-    const value = getComputedStyle(document.documentElement)
-      .getPropertyValue(name)
-      .trim();
-    if (!value) return fallback;
-    const varMatch = value.match(/^var\((--[^,\s)]+)(?:,\s*(.+))?\)$/);
-    if (varMatch && depth < 4) {
-      return cssVar(varMatch[1], varMatch[2]?.trim() || fallback, depth + 1);
-    }
-    return value;
-  }
+  const loadingMessage = ref(randomMessage(loadingMessages));
+  let loadingMsgInterval: ReturnType<typeof setInterval> | null = null;
 
   let timerInterval: ReturnType<typeof setInterval>;
 
@@ -84,6 +175,38 @@
   const currentExercise = computed(
     () => sheet.value?.exercises?.[currentIdx.value]?.exercise ?? null,
   );
+
+  /**
+   * The one exercise on screen. The rest stay in state, not in the DOM.
+   *
+   * A list of one rather than a single value: rendered through `v-for`, the
+   * template gets a non-null binding, which `v-if` does not give the callbacks
+   * inside it.
+   */
+  const visibleExercises = computed(() => {
+    const current = sheet.value?.exercises?.[currentIdx.value];
+    return current ? [current] : [];
+  });
+
+  const answeredFlags = computed(() =>
+    (sheet.value?.exercises ?? []).map((item) => isAnswered(item.exercise.id)),
+  );
+
+  /**
+   * Moves to an exercise and saves what the student had written.
+   *
+   * Saving here rather than on a button is what the step-by-step layout buys:
+   * every change of exercise is a natural checkpoint, so a reload never costs
+   * more than the exercise in progress.
+   */
+  function goToExercise(index: number) {
+    if (index < 0 || index >= totalCount.value) return;
+    if (index === currentIdx.value) return;
+    const target = sheet.value?.exercises?.[index];
+    if (!target) return;
+    saveDraft();
+    setActiveExercise(target.exercise.id, index);
+  }
 
   const answeredCount = computed(() => {
     return (
@@ -115,9 +238,44 @@
     return name.charAt(0).toUpperCase();
   });
 
+  /**
+   * Handwritten statements, by exercise id.
+   *
+   * They are not part of the sheet payload — one drawing outweighed the whole
+   * sheet — so they are fetched once the sheet is known and rendered from here.
+   */
+  const teacherImages = ref<Record<string, string>>({});
+
+  function teacherImageFor(exercise?: { id?: string; question?: string; metadata?: string } | null) {
+    if (!exercise?.id) return "";
+    // The legacy reader still runs: a handful of exercises kept the drawing in
+    // `question` before metadata existed.
+    return teacherImages.value[exercise.id] || extractTeacherImageDataUrl(exercise as never);
+  }
+
+  async function loadTeacherImages() {
+    const pending = (sheet.value?.exercises ?? [])
+      .map((pse) => pse.exercise)
+      .filter((exercise) => exercise?.has_teacher_image)
+      .map(async (exercise) => {
+        const dataUrl = await statementImageDataURL(exercise);
+        if (dataUrl) teacherImages.value[exercise.id] = dataUrl;
+      });
+    await Promise.all(pending);
+  }
+
+  tuckAssistantFab(".practice-footer");
+
   onMounted(async () => {
     try {
       sheet.value = await loadPracticeSheet(sheetId);
+      localStorage.setItem("practiq-last-practice", sheetId);
+      window.dispatchEvent(new CustomEvent("practiq:last-practice-changed"));
+      loadTeacherImages();
+      // Publish where the student starts. Nothing else does it now: the label
+      // used to be published by the hover handler on every exercise card, and
+      // showing one exercise at a time removed those.
+      publishAssistantLabel();
 
       for (const pse of sheet.value.exercises ?? []) {
         answers.value[pse.exercise.id] = {
@@ -132,6 +290,11 @@
       startTimer();
       loadTopicProgress();
 
+      // Fetch curiosities for loading screen
+      if (sheet.value.course_id) {
+        fetchCuriosities(sheet.value.course_id);
+      }
+
       // Check for saved draft after canvases are initialized
       setTimeout(() => {
         checkForDraft();
@@ -143,9 +306,11 @@
 
   onUnmounted(() => {
     clearInterval(timerInterval);
+    if (loadingMsgInterval) clearInterval(loadingMsgInterval);
     if ((window as any).__practiqAssistantHookSource === "practice") {
       delete window.__practiqAssistantCapture;
       delete window.__practiqAssistantContext;
+      delete window.__practiqAssistantMediaAttachments;
       delete (window as any).__practiqAssistantHookSource;
     }
   });
@@ -163,6 +328,12 @@
     const exercise = sheet.value?.exercises?.find(
       (pse) => pse.exercise.id === exerciseId,
     )?.exercise;
+    // An uploaded file is an answer: without this the exercise stayed marked
+    // as pending and the student got warned about unanswered work they had
+    // already delivered.
+    if (exercise?.type === "attachment") {
+      return !!attachments.value[exerciseId];
+    }
     if (exercise && exerciseUsesCanvas(exercise.type)) {
       return !!answers.value[exerciseId]?.answer;
     }
@@ -171,14 +342,47 @@
 
   function setActiveExercise(exerciseId: string, idx: number) {
     currentIdx.value = idx;
-    if (
-      exerciseUsesCanvas(sheet.value?.exercises?.[idx]?.exercise.type || "")
-    ) {
-      activeCanvasId.value = exerciseId;
-    }
+    // Clearing matters as much as setting: this only ever got assigned on
+    // canvas exercises and was never reset, so after visiting a canvas one it
+    // kept winning inside getAssistantExerciseId(). Selecting a text exercise
+    // then showed "E3" while the assistant was handed E1.
+    activeCanvasId.value = exerciseUsesCanvas(
+      sheet.value?.exercises?.[idx]?.exercise.type || "",
+    )
+      ? exerciseId
+      : "";
+    publishAssistantLabel();
   }
 
+  /**
+   * The badge and the context the assistant receives must come from the same
+   * resolver. They used to be computed independently — the label from the
+   * clicked index, the context from getAssistantExerciseId() — and any
+   * disagreement between them showed up as the assistant explaining a
+   * different exercise than the one it named.
+   */
+  function publishAssistantLabel() {
+    const index = getAssistantExerciseIndex(getAssistantExerciseId());
+    window.dispatchEvent(
+      new CustomEvent("practiq:assistant:active-context", {
+        detail: { label: index >= 0 ? `E${index + 1}` : "" },
+      }),
+    );
+  }
+
+  // Types with their own answer widget are never drawn on, not even in a
+  // canvas-style sheet. Without this the submit path treated a fill_blanks or
+  // attachment answer as a drawing and sent an empty answer_text, discarding
+  // what the student had already completed.
+  const OWN_INPUT_TYPES = new Set([
+    "multiple_choice",
+    "fill_blanks",
+    "attachment",
+    "equation",
+  ]);
+
   function exerciseUsesCanvas(exerciseType: string) {
+    if (OWN_INPUT_TYPES.has(exerciseType)) return false;
     return (
       isCanvasMode.value ||
       exerciseType === "handwritten" ||
@@ -206,148 +410,84 @@
 
   // Canvas
 
-  function setCanvasRef(id: string, el: HTMLCanvasElement | null) {
-    if (!el) {
-      canvasRefs[id] = null;
-      initializedIds.delete(id);
-      return;
-    }
+  function setCanvasRef(id: string, el: InstanceType<typeof DrawingCanvas> | null) {
     canvasRefs[id] = el;
-    if (!initializedIds.has(id)) {
-      initializedIds.add(id);
-      initCanvas(id, el);
-    }
-  }
-
-  function drawBackground(ctx: CanvasRenderingContext2D, w: number, h: number) {
-    ctx.fillStyle = cssVar("--surface-bg-soft", "#fafaf7");
-    ctx.fillRect(0, 0, w, h);
-    // Red margin line
-    ctx.strokeStyle = `rgba(${cssVar("--color-error-rgb", "239, 68, 68")}, 0.25)`;
-    ctx.lineWidth = 1.5;
-    ctx.beginPath();
-    ctx.moveTo(56, 0);
-    ctx.lineTo(56, h);
-    ctx.stroke();
-    // Horizontal ruled lines
-    ctx.strokeStyle = `rgba(${cssVar("--practiq-violet-rgb", "124, 58, 237")}, 0.1)`;
-    ctx.lineWidth = 1;
-    for (let y = 32; y < h; y += 32) {
-      ctx.beginPath();
-      ctx.moveTo(0, y);
-      ctx.lineTo(w, y);
-      ctx.stroke();
-    }
-  }
-
-  function initCanvas(id: string, canvas: HTMLCanvasElement) {
-    requestAnimationFrame(() => {
-      const w = canvas.offsetWidth || 600;
-      const h = canvas.offsetHeight || 280;
-      canvas.width = w;
-      canvas.height = h;
-      const ctx = canvas.getContext("2d")!;
-      drawBackground(ctx, w, h);
-      undoStacks[id] = [];
-    });
-  }
-
-  function getPos(e: MouseEvent, canvas: HTMLCanvasElement) {
-    const rect = canvas.getBoundingClientRect();
-    return {
-      x: (e.clientX - rect.left) * (canvas.width / rect.width),
-      y: (e.clientY - rect.top) * (canvas.height / rect.height),
-    };
-  }
-
-  function startDrawing(e: MouseEvent, id: string, idx: number) {
-    const canvas = canvasRefs[id];
-    if (!canvas) return;
-    const ctx = canvas.getContext("2d")!;
-    if (!undoStacks[id]) undoStacks[id] = [];
-    undoStacks[id].push(ctx.getImageData(0, 0, canvas.width, canvas.height));
-    isDrawingMap[id] = true;
-    activeCanvasId.value = id;
-    currentIdx.value = idx;
-    const pos = getPos(e, canvas);
-    lastPos[id] = pos;
-    ctx.beginPath();
-    ctx.moveTo(pos.x, pos.y);
-  }
-
-  function draw(e: MouseEvent, id: string) {
-    if (!isDrawingMap[id]) return;
-    const canvas = canvasRefs[id];
-    if (!canvas) return;
-    const ctx = canvas.getContext("2d")!;
-    const pos = getPos(e, canvas);
-    ctx.globalCompositeOperation =
-      tool.value === "eraser" ? "destination-out" : "source-over";
-    ctx.strokeStyle = penColor.value;
-    ctx.lineWidth = tool.value === "eraser" ? penSize.value * 4 : penSize.value;
-    ctx.lineCap = "round";
-    ctx.lineJoin = "round";
-    ctx.lineTo(pos.x, pos.y);
-    ctx.stroke();
-    lastPos[id] = pos;
-  }
-
-  function stopDrawing(id: string) {
-    if (!isDrawingMap[id]) return;
-    isDrawingMap[id] = false;
-    const canvas = canvasRefs[id];
-    if (!canvas) return;
-    canvas.getContext("2d")!.beginPath();
-    answers.value[id].answer = canvas.toDataURL("image/png");
-  }
-
-  function startDrawingTouch(e: TouchEvent, id: string, idx: number) {
-    const t = e.touches[0];
-    startDrawing(
-      { clientX: t.clientX, clientY: t.clientY } as MouseEvent,
-      id,
-      idx,
-    );
-  }
-
-  function drawTouch(e: TouchEvent, id: string) {
-    const t = e.touches[0];
-    draw({ clientX: t.clientX, clientY: t.clientY } as MouseEvent, id);
   }
 
   function undoActive() {
     const id = activeCanvasId.value;
     if (!id) return;
     const canvas = canvasRefs[id];
-    const stack = undoStacks[id];
-    if (!canvas || !stack || stack.length === 0) return;
-    canvas.getContext("2d")!.putImageData(stack.pop()!, 0, 0);
+    if (!canvas) return;
+    canvas.undo();
   }
 
   function clearCanvas(id: string) {
     const canvas = canvasRefs[id];
     if (!canvas) return;
-    const ctx = canvas.getContext("2d")!;
-    undoStacks[id] = [];
-    drawBackground(ctx, canvas.width, canvas.height);
+    canvas.clear();
     answers.value[id].answer = "";
+  }
+
+  function requestAssistantHelp() {
+    window.dispatchEvent(new CustomEvent("practiq:assistant:prompt", {
+      detail: { prompt: "Ayudame con el ejercicio actual. Dame una pista sin resolverlo." },
+    }));
   }
 
   // Submit
 
+  function getNextCuriosity(): string {
+    if (curiosities.value.length > 0) {
+      const msg = curiosities.value[curiosityIndex.value % curiosities.value.length];
+      curiosityIndex.value++;
+      return `💡 ${msg}`;
+    }
+    return randomMessage(loadingMessages);
+  }
+
   async function submitAnswers() {
+    if (uploadingAttachments.value.size > 0) {
+      toast.add({
+        severity: "warn",
+        summary: "Esperá un momento",
+        detail: "Todavía se está subiendo un archivo. Se enviaría sin él.",
+        life: 3500,
+      });
+      return;
+    }
+
     submitting.value = true;
+    showSubmitConfirm.value = false;
+    loadingMessage.value = getNextCuriosity();
+    loadingMsgInterval = setInterval(() => {
+      loadingMessage.value = getNextCuriosity();
+    }, 3000);
+
     try {
-      const attempts =
-        sheet.value?.exercises.map((pse) => {
+      const attempts = await Promise.all(
+        sheet.value?.exercises.map(async (pse) => {
           const exerciseId = pse.exercise.id;
           const data = answers.value[exerciseId];
+          if (pse.exercise.type === "attachment") {
+            const uploaded = attachments.value[exerciseId];
+            return {
+              exercise_id: exerciseId,
+              answer_text: "",
+              canvas_data: "",
+              attachment_url: uploaded?.url ?? "",
+              attachment_name: uploaded?.filename ?? "",
+              attachment_content_type: uploaded?.content_type ?? "",
+              time_spent_seconds: timers.value[exerciseId] || 0,
+              hints_used: data?.hints || 0,
+            };
+          }
           if (exerciseUsesCanvas(pse.exercise.type)) {
             return {
               exercise_id: exerciseId,
-              answer_text: data?.answer || "",
+              answer_text: "",
               canvas_data: data?.answer?.startsWith("data:image/")
-                ? buildCanvasDataForOCR(exerciseId)
+                ? await buildCanvasDataForOCR(exerciseId)
                 : "",
               time_spent_seconds: timers.value[exerciseId] || 0,
               hints_used: data?.hints || 0,
@@ -361,7 +501,8 @@
               hints_used: data?.hints || 0,
             };
           }
-        }) ?? [];
+        }) ?? [],
+      );
       const start = await submitPracticeSheetAsync(sheetId, { attempts });
       const jobId = start.job_id;
       let jobDone = false;
@@ -383,13 +524,30 @@
         throw new Error("No se recibió resultado de evaluación");
       }
       showSubmitConfirm.value = false;
+      showAllErrors.value = false;
       showResults.value = true;
       loadTopicProgress();
-      clearDraft(); // Clear draft on successful submit
+      clearDraft();
+
+      // A practice always comes back scored. Only when nothing at all could be
+      // graded is there no result to react to — celebrating or commiserating on
+      // a placeholder 0% would tell the student they failed work nobody read.
+      if (!allUngraded.value) {
+        if (result.value.score >= 70) {
+          fireSuccess();
+          playSound("correct");
+        } else {
+          playSound("incorrect");
+        }
+      }
     } catch (err) {
       console.error(err);
     } finally {
       submitting.value = false;
+      if (loadingMsgInterval) {
+        clearInterval(loadingMsgInterval);
+        loadingMsgInterval = null;
+      }
     }
   }
 
@@ -407,7 +565,10 @@
   // Draft Save/Restore
 
   function getDraftKey(): string {
-    return `practiq-draft-${sheetId}`;
+    // Scoped to the account: with only the sheet id, two students sharing a
+    // browser restored each other's draft — including the attachment metadata,
+    // so the second one submitted the first one's upload URL.
+    return `practiq-draft-${authStore.profile?.id ?? "anon"}-${sheetId}`;
   }
 
   function saveDraft() {
@@ -415,15 +576,22 @@
 
     const draftData: Record<
       string,
-      { canvasData: string; keyboardAnswer: string; timestamp: number }
+      {
+        canvasData: string;
+        keyboardAnswer: string;
+        // The uploaded file itself already lives in storage; keeping its
+        // metadata is enough to restore the answer after a reload.
+        attachment: UploadedFile | null;
+        timestamp: number;
+      }
     > = {};
 
     for (const pse of sheet.value.exercises || []) {
       const exerciseId = pse.exercise.id;
-      const canvas = canvasRefs[exerciseId];
       draftData[exerciseId] = {
-        canvasData: canvas ? canvas.toDataURL("image/png") : "",
+        canvasData: answers.value[exerciseId]?.answer || "",
         keyboardAnswer: keyboardAnswers.value[exerciseId] || "",
+        attachment: attachments.value[exerciseId] ?? null,
         timestamp: Date.now(),
       };
     }
@@ -433,6 +601,9 @@
       JSON.stringify({
         sheetId,
         data: draftData,
+        // Where the student was. Restoring the answers but reopening at the
+        // first exercise would make them hunt for the one they left.
+        currentIdx: currentIdx.value,
         savedAt: Date.now(),
       }),
     );
@@ -483,29 +654,23 @@
           keyboardAnswers.value[exerciseId] = draft.keyboardAnswer;
         }
 
-        // Restore canvas data
-        const exercise = sheet.value?.exercises.find(
-          (pse) => pse.exercise.id === exerciseId,
-        )?.exercise;
-        if (draft.canvasData && exercise && exerciseUsesCanvas(exercise.type)) {
-          const canvas = canvasRefs[exerciseId];
-          if (canvas) {
-            const img = new Image();
-            img.onload = () => {
-              const ctx = canvas.getContext("2d");
-              if (ctx) {
-                ctx.clearRect(0, 0, canvas.width, canvas.height);
-                ctx.drawImage(img, 0, 0);
-                // Update answers record
-                answers.value[exerciseId] = {
-                  ...answers.value[exerciseId],
-                  answer: draft.canvasData,
-                };
-              }
-            };
-            img.src = draft.canvasData;
-          }
+        // Restore canvas data via v-model
+        if (draft.canvasData) {
+          answers.value[exerciseId] = {
+            ...answers.value[exerciseId],
+            answer: draft.canvasData,
+          };
         }
+
+        if (draft.attachment?.url) {
+          setAttachment(exerciseId, draft.attachment);
+        }
+      }
+
+      const savedIdx = Number(parsed.currentIdx);
+      if (Number.isInteger(savedIdx) && savedIdx >= 0 && savedIdx < totalCount.value) {
+        const target = sheet.value?.exercises?.[savedIdx];
+        if (target) setActiveExercise(target.exercise.id, savedIdx);
       }
 
       showRestoreModal.value = false;
@@ -525,65 +690,31 @@
     hasDraft.value = false;
   }
 
+  // Was a hand-rolled 1-bit threshold pass, but it never ran: it bailed on
+  // `!sourceImg.complete`, which a freshly assigned data: URL always is, so
+  // grading received the raw transparent canvas. Flattening on white is what
+  // it was reaching for anyway, and the threshold itself only cost the model
+  // the stroke detail it needs to read fractions and exponents.
   function buildCanvasDataForOCR(exerciseId: string) {
-    const source = canvasRefs[exerciseId];
-    if (!source) {
-      return answers.value[exerciseId]?.answer || "";
-    }
-
-    const scale = 2;
-    const out = document.createElement("canvas");
-    out.width = Math.max(1, Math.floor(source.width * scale));
-    out.height = Math.max(1, Math.floor(source.height * scale));
-    const ctx = out.getContext("2d");
-    if (!ctx) {
-      return answers.value[exerciseId]?.answer || "";
-    }
-
-    ctx.fillStyle = cssVar("--surface-card", "#ffffff");
-    ctx.fillRect(0, 0, out.width, out.height);
-    ctx.imageSmoothingEnabled = false;
-    ctx.drawImage(source, 0, 0, out.width, out.height);
-
-    const image = ctx.getImageData(0, 0, out.width, out.height);
-    const pixels = image.data;
-    for (let i = 0; i < pixels.length; i += 4) {
-      const r = pixels[i];
-      const g = pixels[i + 1];
-      const b = pixels[i + 2];
-      const alpha = pixels[i + 3];
-
-      if (alpha < 8) {
-        pixels[i] = 255;
-        pixels[i + 1] = 255;
-        pixels[i + 2] = 255;
-        pixels[i + 3] = 255;
-        continue;
-      }
-
-      const gray = 0.299 * r + 0.587 * g + 0.114 * b;
-      const value = gray > 205 ? 255 : 0;
-      pixels[i] = value;
-      pixels[i + 1] = value;
-      pixels[i + 2] = value;
-      pixels[i + 3] = 255;
-    }
-    ctx.putImageData(image, 0, 0);
-
-    return out.toDataURL("image/jpeg", 0.92);
+    return prepareHandwritingImage(answers.value[exerciseId]?.answer || "");
   }
 
   function getAssistantExerciseId() {
+    // What the student currently has selected wins. The fallbacks below used
+    // to come first, so "the first exercise with a drawing" (usually E1) beat
+    // the actual selection and the assistant explained the wrong one.
+    const selected = sheet.value?.exercises?.[currentIdx.value]?.exercise.id;
+    if (selected) return selected;
+
     if (activeCanvasId.value) {
       return activeCanvasId.value;
     }
 
-    const answeredId = Object.entries(answers.value).find(([, data]) =>
-      data.answer?.startsWith("data:image/"),
-    )?.[0];
-    if (answeredId) return answeredId;
-
-    return sheet.value?.exercises?.[currentIdx.value]?.exercise.id || "";
+    return (
+      Object.entries(answers.value).find(([, data]) =>
+        data.answer?.startsWith("data:image/"),
+      )?.[0] || ""
+    );
   }
 
   function getAssistantExerciseIndex(exerciseId: string) {
@@ -592,6 +723,11 @@
         (pse) => pse.exercise.id === exerciseId,
       ) ?? -1
     );
+  }
+
+  function assistantMediaPath(exerciseId: string) {
+    if (!sheet.value?.id || !exerciseId) return "";
+    return `/practice-sheets/${encodeURIComponent(sheet.value.id)}/exercises/${encodeURIComponent(exerciseId)}/assistant-media`;
   }
 
   (window as any).__practiqAssistantHookSource = "practice";
@@ -605,7 +741,7 @@
       activeExerciseIndex >= 0
         ? sheet.value.exercises[activeExerciseIndex]?.exercise
         : null;
-    const activeTeacherImage = extractTeacherImageDataUrl(activeExercise);
+    const activeTeacherImage = teacherImageFor(activeExercise);
 
     return {
       current_view: "student_practice",
@@ -613,7 +749,7 @@
       sheet_id: sheet.value.id,
       sheet_title: sheet.value.title,
       level: sheet.value.level,
-      response_mode: "canvas",
+      response_mode: activeExercise?.type === "fill_blanks" ? "fill_blanks" : "canvas",
       exercise_count: sheet.value.exercises.length,
       active_exercise: activeExercise
         ? {
@@ -626,13 +762,41 @@
                 ? "[consigna manuscrita en imagen adjunta]"
                 : activeExercise.question,
             has_teacher_image: !!activeTeacherImage,
+            has_statement_media: !!activeExercise.media_view_url,
             question_source:
               activeExercise.type === "handwritten" && activeTeacherImage
                 ? "teacher_image_attachment"
                 : "text",
-            metadata_summary: JSON.stringify(
-              summarizeExerciseMetadata(activeExercise) || {},
-            ),
+            student_answer: (() => {
+              const canvasAnswer = answers.value[activeExercise.id]?.answer || "";
+              if (canvasAnswer && !canvasAnswer.startsWith("data:image/")) return canvasAnswer;
+              if (activeExercise.type === "fill_blanks") {
+                return buildFillBlanksAssistantContext(
+                  activeExercise,
+                  keyboardAnswers.value[activeExercise.id] || "",
+                ).blanks
+                  .filter((blank) => blank.value)
+                  .map((blank) => `Hueco ${blank.id}: ${blank.value}`)
+                  .join(", ");
+              }
+              return keyboardAnswers.value[activeExercise.id] || "";
+            })(),
+            student_answer_raw:
+              activeExercise.type === "fill_blanks"
+                ? keyboardAnswers.value[activeExercise.id] || ""
+                : "",
+            puzzle:
+              activeExercise.type === "fill_blanks"
+                ? buildFillBlanksAssistantContext(
+                    activeExercise,
+                    keyboardAnswers.value[activeExercise.id] || "",
+                  )
+                : null,
+            has_student_image: (answers.value[activeExercise.id]?.answer || "").startsWith("data:image/"),
+            metadata_summary:
+              activeExercise.type === "fill_blanks"
+                ? ""
+                : JSON.stringify(summarizeExerciseMetadata(activeExercise) || {}),
           }
         : null,
       exercise_list: sheet.value.exercises.map((pse, idx) => ({
@@ -642,13 +806,13 @@
         difficulty: pse.exercise.difficulty,
         question:
           pse.exercise.type === "handwritten" &&
-          extractTeacherImageDataUrl(pse.exercise)
+          teacherImageFor(pse.exercise)
             ? "[consigna manuscrita en imagen adjunta]"
             : pse.exercise.question,
-        has_teacher_image: !!extractTeacherImageDataUrl(pse.exercise),
+        has_teacher_image: !!teacherImageFor(pse.exercise),
         question_source:
           pse.exercise.type === "handwritten" &&
-          extractTeacherImageDataUrl(pse.exercise)
+          teacherImageFor(pse.exercise)
             ? "teacher_image_attachment"
             : "text",
       })),
@@ -668,10 +832,16 @@
         : null;
 
     const studentDataUrl = await pickBestStudentImage([
-      buildCanvasDataForOCR(exerciseId),
+      await buildCanvasDataForOCR(exerciseId),
       answers.value[exerciseId]?.answer,
     ]);
-    const teacherDataUrl = extractTeacherImageDataUrl(exercise);
+    // Awaited rather than read from teacherImages: the drawings are prefetched
+    // on mount, but grading must not send a page without the statement just
+    // because a student answered faster than the fetch finished.
+    const teacherDataUrl =
+      (await statementMediaPreviewDataURL(exercise, assistantMediaPath(exerciseId))) ||
+      (await statementImageDataURL(exercise)) ||
+      teacherImageFor(exercise);
     const dataUrl = await composeAssistantWorkImage({
       teacherDataUrl,
       studentDataUrl,
@@ -688,6 +858,15 @@
         ? "image/png"
         : "image/jpeg",
     };
+  };
+
+  window.__practiqAssistantMediaAttachments = async () => {
+    const exerciseId = getAssistantExerciseId();
+    const exerciseIndex = getAssistantExerciseIndex(exerciseId);
+    const exercise =
+      exerciseIndex >= 0 ? sheet.value?.exercises[exerciseIndex]?.exercise : null;
+    const audio = await statementMediaAudioAttachment(exercise, assistantMediaPath(exerciseId));
+    return audio ? [audio] : [];
   };
 
   function closeSubmitConfirm() {
@@ -749,9 +928,12 @@
           </span>
         </div>
         <div class="header-right">
-          <div class="streak-chip">
-            <span>🔥</span>
-            <div>
+          <div
+            class="streak-chip"
+            :class="{ 'streak-chip--active': streakCount > 0 }"
+          >
+            <img src="@/assets/burn.png" alt="" class="streak-icon" />
+            <div class="streak-text">
               <div class="streak-val">{{ streakCount }}</div>
               <div class="streak-lbl">racha</div>
             </div>
@@ -775,7 +957,7 @@
               class="ex-num-skel"
             />
             <div class="ex-body ex-body--skeleton">
-              <div class="ex-meta" style="margin-bottom: 8px">
+              <div class="ex-meta">
                 <Skeleton variant="badge" width="90px" />
                 <Skeleton width="50px" height="14px" />
               </div>
@@ -808,7 +990,8 @@
                 class="tool-btn"
                 type="button"
                 aria-label="Usar lápiz"
-                :class="{ 'tool-btn--active': tool === 'pen' }"
+                :class="{ 'tool-btn--active': tool === 'pen', 'tool-btn--pen-active': tool === 'pen' }"
+                :style="{ backgroundColor: penColor }"
                 @click="tool = 'pen'"
                 title="Lápiz"
               >
@@ -834,13 +1017,7 @@
                 <i class="pi pi-undo"></i>
               </button>
               <div class="tool-sep"></div>
-              <input
-                type="color"
-                v-model="penColor"
-                class="color-picker"
-                title="Color"
-                aria-label="Color del lápiz"
-              />
+              <ColorPalette v-model="penColor" />
               <input
                 type="range"
                 v-model.number="penSize"
@@ -853,25 +1030,35 @@
               <span class="size-val">{{ penSize }}px</span>
             </div>
 
-            <!-- Exercise cards -->
+            <!-- One exercise at a time; the stepper above jumps between them -->
+            <ExerciseStepper
+              :total="totalCount"
+              :current="currentIdx"
+              :answered="answeredFlags"
+              @select="goToExercise"
+            />
+
             <div class="exercises-list">
               <div
-                v-for="(pse, idx) in sheet.exercises"
+                v-for="pse in visibleExercises"
                 :key="pse.id"
                 class="ex-card"
                 :class="{ 'ex-card--answered': isAnswered(pse.exercise.id) }"
-                @click="setActiveExercise(pse.exercise.id, idx)"
-                @focusin="setActiveExercise(pse.exercise.id, idx)"
-                @mouseenter="setActiveExercise(pse.exercise.id, idx)"
               >
                 <div
                   class="ex-num"
                   :class="{ 'ex-num--done': isAnswered(pse.exercise.id) }"
                 >
-                  {{ idx + 1 }}
+                  {{ currentIdx + 1 }}
                 </div>
                 <div class="ex-body">
                   <div class="ex-meta">
+                    <button
+                      class="exercise-assistant-trigger"
+                      type="button"
+                      title="Pedir ayuda con este ejercicio"
+                      @click.stop="requestAssistantHelp"
+                    >Ayuda</button>
                     <span
                       class="difficulty-pill"
                       :style="{
@@ -883,7 +1070,8 @@
                       Dificultad {{ pse.exercise.difficulty }}
                     </span>
                     <span class="time-display"
-                      >⏱ {{ formatDuration(timers[pse.exercise.id] || 0) }}</span
+                      >⏱
+                      {{ formatDuration(timers[pse.exercise.id] || 0) }}</span
                     >
                     <span v-if="hints[pse.exercise.id]" class="hint-count">
                       💡 {{ hints[pse.exercise.id] }} pista{{
@@ -899,19 +1087,22 @@
                   ></div>
                   <div
                     v-else-if="
-                      pse.exercise.type !== 'handwritten' ||
-                      !extractTeacherImageDataUrl(pse.exercise)
+                      pse.exercise.type !== 'fill_blanks' &&
+                      (pse.exercise.type !== 'handwritten' ||
+                      !teacherImageFor(pse.exercise)
+                      )
                     "
                     class="ex-question"
                   >
                     {{ pse.exercise.question }}
                   </div>
                   <img
-                    v-if="extractTeacherImageDataUrl(pse.exercise)"
-                    :src="extractTeacherImageDataUrl(pse.exercise)"
+                    v-if="teacherImageFor(pse.exercise)"
+                    :src="teacherImageFor(pse.exercise)"
                     class="teacher-handwritten-image"
                     alt="Consigna manuscrita del profesor"
                   />
+                  <ExerciseMedia :url="pse.exercise.media_view_url" />
 
                   <!-- Keyboard mode input -->
                   <div
@@ -942,6 +1133,35 @@
                       :placeholder="getPlaceholder(pse.exercise.type)"
                       rows="4"
                     ></textarea>
+                  </div>
+
+                  <!-- Fill in the blanks -->
+                  <div
+                    v-else-if="pse.exercise.type === 'fill_blanks'"
+                    class="fill-blanks-wrap"
+                  >
+                    <FillBlanksAnswer
+                      :exercise="pse.exercise"
+                      :model-value="keyboardAnswers[pse.exercise.id] || ''"
+                      @update:model-value="
+                        (value) => (keyboardAnswers[pse.exercise.id] = value)
+                      "
+                    />
+                  </div>
+
+                  <!-- File / audio submission -->
+                  <div
+                    v-else-if="pse.exercise.type === 'attachment'"
+                    class="attachment-answer-wrap"
+                  >
+                    <AttachmentAnswer
+                      :exercise="pse.exercise"
+                      :model-value="attachments[pse.exercise.id] ?? null"
+                      @update:model-value="
+                        (value) => setAttachment(pse.exercise.id, value)
+                      "
+                      @update:uploading="(v: boolean) => setUploading(pse.exercise.id, v)"
+                    />
                   </div>
 
                   <!-- Equation answer mode -->
@@ -983,25 +1203,20 @@
                         <i class="pi pi-trash"></i> Limpiar
                       </button>
                     </div>
-                    <canvas
+                    <DrawingCanvas
                       :ref="
                         (el) =>
                           setCanvasRef(
                             pse.exercise.id,
-                            el as HTMLCanvasElement | null,
+                            el as InstanceType<typeof DrawingCanvas> | null,
                           )
                       "
-                      class="ex-canvas"
-                      @mousedown="startDrawing($event, pse.exercise.id, idx)"
-                      @mousemove="draw($event, pse.exercise.id)"
-                      @mouseup="stopDrawing(pse.exercise.id)"
-                      @mouseleave="stopDrawing(pse.exercise.id)"
-                      @touchstart.prevent="
-                        startDrawingTouch($event, pse.exercise.id, idx)
-                      "
-                      @touchmove.prevent="drawTouch($event, pse.exercise.id)"
-                      @touchend="stopDrawing(pse.exercise.id)"
-                    ></canvas>
+                      v-model="answers[pse.exercise.id].answer"
+                      :height="240"
+                      :tool="tool"
+                      :pen-size="penSize"
+                      :pen-color="penColor"
+                                          />
                   </div>
                 </div>
               </div>
@@ -1017,15 +1232,27 @@
                   <i class="pi pi-save"></i> Borrador guardado
                 </span>
               </div>
-              <div class="footer-actions">
+              <div class="footer-nav">
                 <button
-                  v-if="isCanvasMode"
-                  class="btn-draft"
-                  @click="saveDraft"
+                  class="btn-step"
+                  type="button"
+                  :disabled="currentIdx === 0"
+                  @click="goToExercise(currentIdx - 1)"
                 >
-                  <i class="pi pi-save"></i>
-                  Guardar borrador
+                  <i class="pi pi-chevron-left"></i>
+                  Anterior
                 </button>
+                <button
+                  class="btn-step"
+                  type="button"
+                  :disabled="currentIdx >= totalCount - 1"
+                  @click="goToExercise(currentIdx + 1)"
+                >
+                  Siguiente
+                  <i class="pi pi-chevron-right"></i>
+                </button>
+              </div>
+              <div class="footer-actions">
                 <button class="btn-submit" @click="showSubmitConfirm = true">
                   <i class="pi pi-send"></i>
                   Revisar respuestas
@@ -1070,33 +1297,62 @@
             @click.self="closeSubmitConfirm()"
           >
             <div class="modal-box">
-              <h3 class="modal-title">Revisar y enviar</h3>
-              <p class="submit-copy">
-                Respondiste <strong>{{ answeredCount }}</strong> de
-                <strong>{{ totalCount }}</strong> ejercicios. ¿Deseas enviar tus
-                respuestas?
+              <div class="practice-submit-header">
+                <div class="practice-submit-badge practice-submit-badge--quiet">
+                  <i class="pi pi-send"></i>
+                  <span>Enviar práctica</span>
+                </div>
+                <h3 class="modal-title">Revisar y enviar</h3>
+                <p class="submit-copy practice-submit-copy">
+                  Respondiste <strong>{{ answeredCount }}</strong> de
+                  <strong>{{ totalCount }}</strong> ejercicios.
+                </p>
+              </div>
+              <div class="practice-submit-summary">
+                <div class="practice-submit-summary-item">
+                  <span class="practice-submit-summary-value">
+                    {{ answeredCount }}
+                  </span>
+                  <span class="practice-submit-summary-label">Listas</span>
+                </div>
+                <div class="practice-submit-summary-divider"></div>
+                <div class="practice-submit-summary-item">
+                  <span class="practice-submit-summary-value">
+                    {{ totalCount - answeredCount }}
+                  </span>
+                  <span class="practice-submit-summary-label">Faltan</span>
+                </div>
+              </div>
+              <p class="practice-submit-question">
+                ¿Deseas enviar tus respuestas para que IA las evalúe?
               </p>
               <div class="modal-actions">
                 <button
                   class="btn btn-secondary"
-                  :disabled="submitting"
+                  :disabled="submitting || uploadingAttachments.size > 0"
                   @click="closeSubmitConfirm()"
                 >
                   Cancelar
                 </button>
                 <button
                   class="btn btn-primary"
-                  :disabled="submitting"
+                  :disabled="submitting || uploadingAttachments.size > 0"
                   @click="submitAnswers"
                 >
-                  <span v-if="submitting" class="spinner"></span>
-                  {{ submitting ? "Evaluando con IA..." : "Enviar respuestas" }}
+                  Enviar respuestas
                 </button>
               </div>
             </div>
           </div>
         </Transition>
       </Teleport>
+
+      <AiLoadingModal
+        :show="submitting"
+        title="Revisando respuestas"
+        :message="loadingMessage"
+        footnote="No cierres esta ventana"
+      />
 
       <!-- Results modal -->
       <Teleport to="body">
@@ -1106,20 +1362,26 @@
               <div class="results-header">
                 <div class="results-emoji">
                   {{
-                    result.score >= 90 ? "🏆" : result.score >= 70 ? "🌟" : "💪"
+                    allUngraded
+                      ? "📝"
+                      : result.score >= 90
+                        ? "🏆"
+                        : result.score >= 70
+                          ? "🌟"
+                          : "💪"
                   }}
                 </div>
                 <h3 class="results-title">
                   {{
-                    result.score >= 90
-                      ? "¡Excelente!"
+                    allUngraded
+                      ? "Práctica entregada"
                       : result.score >= 70
-                        ? "¡Buen trabajo!"
-                        : "¡Sigue practicando!"
+                        ? randomMessage(successMessages)
+                        : randomMessage(encourageMessages)
                   }}
                 </h3>
               </div>
-              <div class="results-stats">
+              <div v-if="!allUngraded" class="results-stats">
                 <div class="stat-card">
                   <div
                     class="stat-value"
@@ -1145,24 +1407,58 @@
                   <div class="stat-label">Dominio</div>
                 </div>
               </div>
-              <div class="results-recommendation">
+              <div v-if="!allUngraded" class="results-recommendation">
                 <div class="rec-icon">
-                  {{
-                    result.should_level_up
-                      ? "⬆️"
-                      : result.should_repeat
-                        ? "🔄"
-                        : "▶️"
-                  }}
+                  {{ result.should_repeat ? "🔄" : "▶️" }}
                 </div>
                 <p>{{ result.recommendation }}</p>
               </div>
-              <div v-if="result.ai_feedback" class="results-ai-feedback">
-                <strong>Comentario IA:</strong> {{ result.ai_feedback }}
+
+              <!-- A practice is never sent to the teacher: what the assistant
+                   could not read is simply left out of the score. -->
+              <div v-if="ungradedResults.length" class="ungraded-badge">
+                <i class="pi pi-info-circle"></i>
+                {{ ungradedResults.length === 1
+                  ? "No pudimos corregir 1 respuesta automáticamente, así que no cuenta en tu puntaje."
+                  : `No pudimos corregir ${ungradedResults.length} respuestas automáticamente, así que no cuentan en tu puntaje.` }}
               </div>
-              <div v-if="result.should_level_up" class="level-up-badge">
-                🎉 ¡Subiste al Nivel {{ result.next_level }}!
+
+              <!-- Per-exercise feedback (only errors) -->
+              <div v-if="incorrectResults.length === 0 && result.exercise_results?.length && !ungradedResults.length" class="all-correct-badge">
+                ✅ ¡Todas las respuestas correctas!
               </div>
+
+              <div v-else-if="incorrectResults.length > 0" class="exercise-results-section">
+                <div class="exercise-results-list" :class="{ 'exercise-results-list--expanded': showAllErrors }">
+                  <div
+                    v-for="exResult in visibleErrors"
+                    :key="exResult.exercise_id"
+                    class="exercise-result-item exercise-result--incorrect"
+                  >
+                    <div class="exercise-result-icon">❌</div>
+                    <div class="exercise-result-content">
+                      <div class="exercise-result-answers">
+                        <span class="answer-label">Tu respuesta:</span>
+                        <span class="answer-student">{{ formatStudentAnswer(exResult.student_answer) }}</span>
+                        <span class="answer-label">Correcta:</span>
+                        <span class="answer-correct">{{ exResult.correct_answer }}</span>
+                      </div>
+                      <div v-if="exResult.ai_feedback && !exResult.ai_feedback.includes('UNREADABLE')" class="exercise-result-feedback">
+                        {{ exResult.ai_feedback }}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <button
+                  v-if="hiddenErrorsCount > 0 && !showAllErrors"
+                  class="btn-show-more"
+                  @click="showAllErrors = true"
+                >
+                  Ver {{ hiddenErrorsCount }} error{{ hiddenErrorsCount > 1 ? 'es' : '' }} más
+                </button>
+              </div>
+
               <div class="modal-actions">
                 <button class="btn btn-secondary" @click="router.back()">
                   Volver al inicio
@@ -1177,6 +1473,11 @@
       </Teleport>
     </div>
   </StudentLayout>
+  <ConfirmModal
+    v-bind="leaveConfirmState"
+    @confirm="onLeaveConfirm"
+    @cancel="onLeaveCancel"
+  />
 </template>
 
 <style scoped>
@@ -1289,14 +1590,72 @@
     gap: 12px;
   }
 
+  /* Same identity anchor as the student avatar in the sidebar. Without this
+     base style the header rendered only its initial as plain text on desktop. */
+  .student-avatar {
+    width: 46px;
+    height: 46px;
+    border-radius: var(--radius-xl);
+    background: var(--gradient-brand);
+    color: var(--color-on-primary);
+    display: grid;
+    place-items: center;
+    font-weight: 800;
+    box-shadow: var(--shadow-indigo);
+    flex-shrink: 0;
+  }
+
   .streak-chip {
-    display: flex;
+    display: inline-flex;
     align-items: center;
     gap: 8px;
-    padding: 10px 16px;
+    padding: 8px 14px;
     border-radius: var(--radius-lg);
     background: var(--gradient-brand-soft);
     border: 1.5px solid rgba(var(--practiq-violet-rgb), 0.1);
+    transition: all 0.3s ease;
+  }
+
+  .streak-chip--active {
+    background: linear-gradient(135deg, #ff6b35, #f7931e);
+    border-color: rgba(255, 107, 53, 0.3);
+    box-shadow: none;
+    animation: none;
+  }
+
+  .streak-chip--active .streak-val {
+    color: white;
+    font-size: 1.15rem;
+  }
+
+  .streak-chip--active .streak-lbl {
+    color: rgba(255, 255, 255, 0.85);
+  }
+
+  .streak-chip--active .streak-icon {
+    animation: flame-dance 0.5s ease-in-out infinite alternate;
+  }
+
+  @keyframes flame-dance {
+    from { transform: scale(1) rotate(-2deg); }
+    to { transform: scale(1.06) rotate(2deg); }
+  }
+
+  .streak-icon {
+    width: 22px;
+    height: 22px;
+    object-fit: contain;
+    flex-shrink: 0;
+    /* ponytail: transform-origin bottom so el fuego "crece" desde la base */
+    transform-origin: 50% 100%;
+  }
+
+  .streak-text {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 1px;
+    line-height: 1;
   }
 
   .streak-val {
@@ -1307,21 +1666,9 @@
   }
 
   .streak-lbl {
-    font-size: 0.72rem;
+    font-size: 0.7rem;
+    line-height: 1;
     color: var(--text-secondary);
-  }
-
-  .student-avatar {
-    width: 42px;
-    height: 42px;
-    border-radius: 50%;
-    background: var(--gradient-brand);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    color: var(--color-on-primary);
-    font-weight: 800;
-    font-size: 1.1rem;
   }
 
   /* Progress */
@@ -1367,6 +1714,7 @@
     display: flex;
     flex-direction: column;
     gap: 12px;
+    padding-bottom: 24px;
   }
 
   /* Canvas toolbar */
@@ -1382,8 +1730,8 @@
   }
 
   .tool-btn {
-    width: 34px;
-    height: 34px;
+    width: 30px;
+    height: 30px;
     border-radius: var(--radius-sm);
     border: 1.5px solid rgba(var(--practiq-violet-rgb), 0.15);
     background: var(--surface-elevated);
@@ -1395,9 +1743,18 @@
     color: var(--text-secondary);
     transition: all 0.15s;
   }
-  .tool-btn:hover {
+  .tool-btn:hover:not(.tool-btn--active) {
     border-color: var(--practiq-violet);
     color: var(--practiq-violet);
+  }
+  .tool-btn--active:hover {
+    color: var(--color-on-primary);
+  }
+  .tool-btn--pen-active,
+  .tool-btn--pen-active:hover {
+    border-color: transparent;
+    color: #fff;
+    box-shadow: none;
   }
   .tool-btn--active {
     background: var(--practiq-violet);
@@ -1410,16 +1767,6 @@
     height: 28px;
     background: rgba(var(--practiq-violet-rgb), 0.15);
     margin: 0 4px;
-  }
-
-  .color-picker {
-    width: 34px;
-    height: 34px;
-    border-radius: var(--radius-sm);
-    border: 1.5px solid rgba(var(--practiq-violet-rgb), 0.15);
-    padding: 2px;
-    cursor: pointer;
-    background: none;
   }
 
   .size-slider {
@@ -1482,7 +1829,7 @@
     gap: 10px;
   }
   .ex-body--skeleton {
-    gap: 0; /* Using individual margins for better control */
+    gap: 12px;
   }
 
   .ex-meta {
@@ -1710,20 +2057,38 @@
     touch-action: none;
     cursor: crosshair;
     box-shadow: var(--shadow-card);
+    background-color: var(--surface-bg-soft);
+    background-image:
+      linear-gradient(90deg, transparent 56px, rgba(var(--color-error-rgb), 0.25) 56px, rgba(var(--color-error-rgb), 0.25) 57.5px, transparent 57.5px),
+      repeating-linear-gradient(
+        transparent,
+        transparent 31px,
+        rgba(var(--practiq-violet-rgb), 0.1) 31px,
+        rgba(var(--practiq-violet-rgb), 0.1) 32px
+      );
+    background-repeat: no-repeat, repeat;
   }
 
   /* Sticky footer */
   .practice-footer {
-    display: flex;
+    /* Three tracks rather than space-between: the side columns share the
+       leftover width, so the navigation sits in the middle of the bar and does
+       not drift as the hint text changes length. */
+    display: grid;
+    grid-template-columns: 1fr auto 1fr;
     align-items: center;
-    justify-content: space-between;
+    gap: 12px;
     padding: 14px 20px;
-    background: var(--surface-elevated-strong);
+    /* Opaco a propósito: es sticky y el contenido pasa por atrás; con el 92%
+       de --surface-elevated-strong los textos se leían a través de la barra. */
+    background: rgb(var(--surface-card-rgb));
     border-radius: var(--radius-xl);
     border: 1.5px solid rgba(var(--practiq-violet-rgb), 0.1);
     position: sticky;
     bottom: 16px;
     box-shadow: var(--shadow-card-lg);
+    z-index: 3;
+    scroll-margin-bottom: 24px;
   }
 
   .footer-left {
@@ -1756,13 +2121,21 @@
     font-weight: 600;
   }
 
+  .footer-nav {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    justify-content: center;
+  }
+
   .footer-actions {
     display: flex;
     align-items: center;
     gap: 10px;
+    justify-content: flex-end;
   }
 
-  .btn-draft {
+  .btn-step {
     display: flex;
     align-items: center;
     gap: 6px;
@@ -1776,9 +2149,13 @@
     cursor: pointer;
     transition: all 0.15s;
   }
-  .btn-draft:hover {
+  .btn-step:hover:not(:disabled) {
     background: var(--fill-primary-faint);
     border-color: rgba(var(--practiq-violet-rgb), 0.35);
+  }
+  .btn-step:disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
   }
 
   .btn-submit {
@@ -1805,6 +2182,61 @@
     color: var(--text-secondary);
     font-size: 0.88rem;
     margin-bottom: 20px;
+  }
+
+  .practice-submit-header {
+    display: grid;
+    gap: 10px;
+    justify-items: start;
+  }
+
+  .practice-submit-copy {
+    margin-bottom: 0;
+    max-width: 42ch;
+  }
+
+  .practice-submit-summary {
+    display: grid;
+    grid-template-columns: 1fr auto 1fr;
+    align-items: center;
+    gap: 12px;
+    padding: 14px 16px;
+    border-radius: var(--radius-xl);
+    background: var(--surface-bg-soft);
+    border: 1px solid rgba(var(--practiq-violet-rgb), 0.1);
+  }
+
+  .practice-submit-summary-item {
+    display: grid;
+    gap: 2px;
+    text-align: center;
+  }
+
+  .practice-submit-summary-value {
+    font-size: 1.4rem;
+    font-weight: 800;
+    color: var(--text-primary);
+    line-height: 1;
+  }
+
+  .practice-submit-summary-label {
+    font-size: 0.75rem;
+    color: var(--text-secondary);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    font-weight: 700;
+  }
+
+  .practice-submit-summary-divider {
+    width: 1px;
+    height: 38px;
+    background: rgba(var(--practiq-violet-rgb), 0.14);
+  }
+
+  .practice-submit-question {
+    margin: 0;
+    color: var(--text-secondary);
+    font-size: 0.92rem;
   }
 
   .results-box {
@@ -1866,14 +2298,109 @@
     font-size: 0.9rem;
   }
 
-  .level-up-badge {
+  /* Exercise results */
+  .ungraded-badge {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-top: 16px;
+    padding: 14px 16px;
+    border-radius: var(--radius-lg, 14px);
+    background: var(--color-warning-bg, rgba(245, 158, 11, 0.12));
+    color: var(--text-primary);
+    font-weight: 600;
+  }
+  .all-correct-badge {
     margin-top: 12px;
-    padding: 12px 16px;
+    padding: 14px 16px;
     border-radius: var(--radius-lg);
     background: var(--fill-success-subtle);
-    color: var(--color-success-dark);
-    font-weight: 700;
+    color: var(--color-success-dark, #166534);
+    font-weight: 600;
     text-align: center;
+  }
+
+  .exercise-results-section {
+    margin-top: 12px;
+    width: 100%;
+  }
+
+  .exercise-results-list {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  .exercise-results-list--expanded {
+    max-height: 250px;
+    overflow-y: auto;
+  }
+
+  .exercise-result-item {
+    display: flex;
+    gap: 10px;
+    padding: 12px;
+    border-radius: var(--radius-lg);
+    text-align: left;
+  }
+
+  .exercise-result--incorrect {
+    background: var(--fill-error-subtle, #fef2f2);
+  }
+
+  .exercise-result-icon {
+    font-size: 1.1rem;
+    flex-shrink: 0;
+  }
+
+  .exercise-result-content {
+    flex: 1;
+    font-size: 0.85rem;
+  }
+
+  .exercise-result-answers {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px 8px;
+    margin-bottom: 6px;
+  }
+
+  .answer-label {
+    color: var(--text-muted);
+    font-size: 0.75rem;
+  }
+
+  .answer-student {
+    color: var(--color-error, #dc2626);
+    font-weight: 600;
+  }
+
+  .answer-correct {
+    color: var(--color-success, #16a34a);
+    font-weight: 600;
+  }
+
+  .exercise-result-feedback {
+    color: var(--text-secondary);
+    line-height: 1.4;
+  }
+
+  .btn-show-more {
+    margin-top: 8px;
+    width: 100%;
+    padding: 10px;
+    border: 1px dashed var(--border-color);
+    border-radius: var(--radius-md);
+    background: transparent;
+    color: var(--text-secondary);
+    font-size: 0.85rem;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+
+  .btn-show-more:hover {
+    background: var(--surface-subtle);
+    color: var(--text-primary);
   }
 
   /* Responsive */
@@ -1883,20 +2410,240 @@
     }
   }
 
+  /* Assistant rail is an overlay. Keep practice on left side of freed
+     sidebar space instead of centering it beneath chat. */
+  @media (min-width: 921px) {
+    :global(.practiq-assistant-focus-target--open .practice-shell) {
+      width: calc(100% - var(--practiq-assistant-rail));
+      max-width: calc(100% - var(--practiq-assistant-rail));
+      margin-left: 0;
+      margin-right: auto;
+    }
+  }
+
   @media (max-width: 680px) {
     .practice-shell {
-      padding: 16px 14px 80px;
+      padding: 16px 10px 80px;
     }
     .practice-header {
-      padding: 16px;
-      flex-wrap: wrap;
+      display: grid;
+      grid-template-columns: 42px minmax(0, 1fr) auto;
+      /* Matches .ex-card's 14px: at 12px this was the only card on the
+         screen with tighter breathing room than its neighbors. */
+      padding: 14px 12px;
+      gap: 10px;
+      align-items: start;
+      border-radius: var(--radius-xl);
     }
-    .header-right {
-      width: 100%;
+    .practice-header-info { display: contents; }
+    .btn-back { grid-column: 1; grid-row: 1 / span 2; }
+    .practice-title { grid-column: 2; grid-row: 1; align-self: center; font-size: 1.08rem; margin: 0; }
+    .practice-subtitle {
+      grid-column: 2;
+      grid-row: 2;
+      display: -webkit-box;
+      overflow: hidden;
+      /* Was 0.74rem: next to the bold 14.4px streak count, that read as
+         noticeably smaller than everything else on the card instead of
+         just quieter. */
+      font-size: 0.82rem;
+      line-height: 1.3;
+      -webkit-box-orient: vertical;
+      -webkit-line-clamp: 2;
+    }
+    /* Redundant on a phone: the top bar already has an avatar in reach.
+       Kept for desktop, where the two headers sit far enough apart that
+       it's not the same obvious repeat. */
+    .student-avatar { display: none; }
+    .header-right { grid-column: 3; grid-row: 1; display: flex; align-items: center; }
+    .streak-chip { padding: 5px 6px; gap: 3px; }
+    .streak-icon { width: 15px; height: 15px; }
+    .streak-val { font-size: .9rem; }
+    .streak-lbl { font-size: .6rem; }
+    .level-badges {
+      grid-column: 3;
+      grid-row: 2;
+      align-self: end;
       justify-content: flex-end;
+      gap: 5px;
+      margin-bottom: 0;
+      flex-wrap: nowrap;
+    }
+    .level-badge,
+    .level-test-badge,
+    .input-mode-badge {
+      padding: 3px 7px;
+      font-size: .68rem;
+      line-height: 1;
+      white-space: nowrap;
+    }
+    .streak-chip {
+      padding: 6px 12px;
+      gap: 6px;
+    }
+    .streak-icon {
+      width: 18px;
+      height: 18px;
+    }
+    .streak-chip--active .streak-val {
+      font-size: 1rem;
     }
     .results-stats {
       grid-template-columns: 1fr;
     }
+
+    /* El número en columna propia comía ~48px de ancho útil. En mobile queda
+       en la misma fila que los badges y el resto del ejercicio va full width.
+       ponytail: grid + display:contents en vez de duplicar markup. */
+    .ex-card {
+      padding: 14px 12px;
+      display: grid;
+      grid-template-columns: auto 1fr;
+      gap: 10px;
+      align-items: center;
+    }
+
+    .ex-card > .ex-body {
+      display: contents;
+    }
+
+    .ex-card > .ex-body > :not(.ex-meta) {
+      grid-column: 1 / -1;
+    }
+
+    .ex-num {
+      width: 28px;
+      height: 28px;
+      font-size: 0.82rem;
+    }
+
+    .ex-canvas {
+      height: 320px;
+    }
+
+    .practice-footer {
+      /* One column on a phone: three zones side by side would leave each button
+         too narrow to hit. */
+      grid-template-columns: 1fr;
+      gap: 12px;
+      align-items: stretch;
+      padding: 12px 16px;
+      /* Pegado al borde: con bottom:16px quedaba una franja por la que se veía
+         pasar el contenido. Los -10px compensan el padding lateral del shell
+         para que la barra llegue de borde a borde. */
+      bottom: 0;
+      margin-left: -10px;
+      margin-right: -10px;
+      border-radius: var(--radius-xl) var(--radius-xl) 0 0;
+      border-bottom: 0;
+      padding-bottom: max(12px, env(safe-area-inset-bottom));
+      margin-top: 8px;
+    }
+
+    .draw-tools-bar {
+      flex-wrap: nowrap;
+      overflow-x: auto;
+      -webkit-overflow-scrolling: touch;
+      padding: 10px 12px;
+    }
+
+    .draw-tools-bar > * {
+      flex-shrink: 0;
+    }
+
+
+    /* The three 44px tool buttons plus the palette trigger already fill most
+       of a 375px screen; a full-width slider pushed the "3px" readout off
+       the edge, so both were the ones actually reachable only by swiping. */
+    .draw-tools-bar .size-slider {
+      width: 54px;
+    }
+
+    .tool-btn {
+      width: 40px;
+      height: 40px;
+    }
+
+    .draw-tools-bar .size-val {
+      min-width: 26px;
+    }
+
+    .footer-hint { display: none; }
+    .footer-left:not(:has(.draft-indicator)) { display: none; }
+    .footer-left { width: 100%; justify-content: flex-end; }
+
+    .footer-nav,
+    .footer-actions {
+      width: 100%;
+      gap: 8px;
+    }
+
+    .footer-actions .btn-submit {
+      flex: 1;
+    }
+
+    .btn-step {
+      flex: 1;
+      padding: 12px 16px;
+      justify-content: center;
+      font-size: 0.875rem;
+    }
+
+    .btn-submit {
+      flex: 1;
+      padding: 12px 20px;
+      justify-content: center;
+      font-size: 0.9rem;
+    }
+
+    /* Tap targets >= 44px en mobile */
+    .btn-step,
+    .btn-submit {
+      min-height: 50px;
+    }
+
+    .btn-back {
+      width: 44px;
+      height: 44px;
+    }
+
+    .tool-btn {
+      width: 40px;
+      height: 40px;
+      font-size: 1rem;
+    }
+
+    .choice-option {
+      min-height: 52px;
+      padding: 12px 14px;
+    }
+
+    .choice-option input {
+      width: 22px;
+      height: 22px;
+    }
+  }
+  .exercise-assistant-trigger {
+    margin-left: auto;
+    border: 1px solid rgba(var(--practiq-violet-rgb), 0.2);
+    border-radius: 999px;
+    padding: 3px 9px;
+    background: color-mix(in srgb, var(--practiq-violet) 12%, transparent);
+    color: var(--practiq-violet);
+    cursor: pointer;
+    font: inherit;
+    font-size: 0.75rem;
+    font-weight: 700;
+    line-height: 1.4;
+    transition: background 0.15s, border-color 0.15s, transform 0.15s;
+  }
+
+  .exercise-assistant-trigger:hover {
+    background: color-mix(in srgb, var(--practiq-violet) 20%, transparent);
+    border-color: rgba(var(--practiq-violet-rgb), 0.38);
+  }
+
+  .exercise-assistant-trigger:active {
+    transform: translateY(1px);
   }
 </style>

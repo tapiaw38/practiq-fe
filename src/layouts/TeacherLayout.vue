@@ -2,6 +2,8 @@
   import { computed, ref, watch } from "vue";
   import { useRoute, useRouter } from "vue-router";
   import { useAuthStore } from "@/stores/authStore";
+  import ChangePasswordModal from "@/components/auth/ChangePasswordModal.vue";
+  import SetPasswordModal from "@/components/auth/SetPasswordModal.vue";
 
   const route = useRoute();
   const router = useRouter();
@@ -11,14 +13,16 @@
     () => profile.value?.name?.[0]?.toUpperCase() || "D",
   );
   const navOpen = ref(false);
-  const isAdmin = computed(() => {
+  const showChangePassword = ref(false);
+  const showSetPassword = ref(false);
+  const isGoogleUser = computed(() => authStore.authMethod === "google");
+  // admin es el rol del profesor; superadmin, el del administrador.
+  const isSuperAdmin = computed(() => {
     const roles = authStore.authUser?.roles || [];
-    return roles.some(
-      (role) => role.name === "admin" || role.name === "superadmin",
-    );
+    return roles.some((role) => role.name === "superadmin");
   });
   const roleLabel = computed(() =>
-    isAdmin.value ? "Profesor Admin" : "Profesor",
+    isSuperAdmin.value ? "Administrador" : "Profesor",
   );
 
   watch(
@@ -60,7 +64,7 @@
       </div>
 
       <nav class="sidebar-nav">
-        <div class="nav-section-label">Docente</div>
+        <div class="nav-section-label">Espacio docente</div>
         <RouterLink
           to="/teacher/dashboard"
           class="nav-item"
@@ -70,7 +74,9 @@
           <span class="nav-icon"><i class="pi pi-home"></i></span>
           <span>Inicio</span>
         </RouterLink>
+        <div v-if="isSuperAdmin" class="nav-section-label nav-section-label--spaced">Gestión</div>
         <RouterLink
+          v-if="isSuperAdmin"
           to="/teacher/admin/users"
           class="nav-item"
           active-class="nav-item-active"
@@ -80,6 +86,7 @@
           <span>Usuarios</span>
         </RouterLink>
         <RouterLink
+          v-if="isSuperAdmin"
           to="/teacher/admin/academic"
           class="nav-item"
           active-class="nav-item-active"
@@ -88,6 +95,7 @@
           <span class="nav-icon"><i class="pi pi-sitemap"></i></span>
           <span>Académico</span>
         </RouterLink>
+        <div class="nav-section-label nav-section-label--spaced">Revisar</div>
         <RouterLink
           to="/teacher/notebook-reviews"
           class="nav-item"
@@ -97,6 +105,16 @@
           <span class="nav-icon"><i class="pi pi-book"></i></span>
           <span>Cuadernos</span>
         </RouterLink>
+        <RouterLink
+          to="/teacher/attempt-reviews"
+          class="nav-item"
+          active-class="nav-item-active"
+          @click="navOpen = false"
+        >
+          <span class="nav-icon"><i class="pi pi-paperclip"></i></span>
+          <span>Pruebas de nivel</span>
+        </RouterLink>
+        <div class="nav-section-label nav-section-label--spaced">Herramientas</div>
         <RouterLink
           to="/teacher/strategies"
           class="nav-item"
@@ -116,9 +134,30 @@
             <div class="user-role">{{ roleLabel }}</div>
           </div>
         </div>
-        <button class="logout-btn" type="button" @click="logout">
-          <i class="pi pi-sign-out"></i>
-        </button>
+        <div class="footer-actions">
+          <button
+            class="icon-btn"
+            type="button"
+            :title="
+              isGoogleUser ? 'Establecer contraseña' : 'Cambiar contraseña'
+            "
+            @click="
+              isGoogleUser
+                ? (showSetPassword = true)
+                : (showChangePassword = true)
+            "
+          >
+            <i class="pi pi-lock"></i>
+          </button>
+          <button
+            class="icon-btn icon-btn--logout"
+            type="button"
+            title="Cerrar sesión"
+            @click="logout"
+          >
+            <i class="pi pi-sign-out"></i>
+          </button>
+        </div>
       </div>
     </aside>
 
@@ -126,6 +165,11 @@
       <slot />
     </main>
   </div>
+
+  <Teleport to="body">
+    <ChangePasswordModal v-model:visible="showChangePassword" />
+    <SetPasswordModal v-model:visible="showSetPassword" />
+  </Teleport>
 </template>
 
 <style scoped>
@@ -193,8 +237,8 @@
   .close-btn,
   .topbar-btn,
   .logout-btn {
-    width: 42px;
-    height: 42px;
+    width: 44px;
+    height: 44px;
     border: none;
     border-radius: var(--radius-lg);
     background: var(--surface-subtle);
@@ -313,6 +357,10 @@
 
   .user-details {
     min-width: 0;
+    /* Same fix as the student sidebar: the desktop sidebar never had room to
+       show the name next to the avatar without squeezing it unreadable.
+       Re-enabled in the 920px drawer below, which is a flat 320px. */
+    display: none;
   }
 
   .user-name {
@@ -330,6 +378,35 @@
   }
 
   .logout-btn:hover {
+    color: var(--color-error);
+    background: var(--color-error-bg);
+  }
+
+  .footer-actions {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex-shrink: 0;
+  }
+
+  .icon-btn {
+    width: 44px;
+    height: 44px;
+    border: none;
+    border-radius: var(--radius-md);
+    background: var(--surface-subtle);
+    color: var(--text-secondary);
+    display: grid;
+    place-items: center;
+    cursor: pointer;
+    transition: var(--transition);
+    font-size: var(--text-md);
+  }
+  .icon-btn:hover {
+    background: var(--surface-card);
+    color: var(--text-primary);
+  }
+  .icon-btn--logout:hover {
     color: var(--color-error);
     background: var(--color-error-bg);
   }
@@ -373,6 +450,29 @@
 
     .main-content {
       padding: 16px;
+    }
+
+    /* Same fix as the student sidebar: keep the footer's icon buttons from
+       crowding the avatar once the sidebar itself narrows here. */
+    .sidebar-footer {
+      gap: 6px;
+      padding: 14px 4px 0;
+    }
+
+    .user-avatar {
+      width: 36px;
+      height: 36px;
+      font-size: var(--text-md);
+    }
+
+    .footer-actions {
+      gap: 3px;
+    }
+
+    .icon-btn {
+      width: 34px;
+      height: 34px;
+      font-size: var(--text-sm);
     }
   }
 
@@ -422,6 +522,17 @@
 
     .sidebar--open {
       transform: translateX(0);
+    }
+
+    /* Drawer is a flat 320px here regardless of viewport width, wide enough
+       to show the name next to the avatar again. */
+    .user-details {
+      display: block;
+    }
+
+    /* Tap targets >= 44px en mobile */
+    .nav-item {
+      min-height: 52px;
     }
   }
 

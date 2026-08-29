@@ -1,21 +1,31 @@
 import type { AxiosInstance } from "axios";
-import type { Grade, UserProfile } from "@/types";
+import type { Grade, OperationResult, UserProfile } from "@/types";
 
 export interface IGradeService {
   list(): Promise<{ data: Grade[] }>;
   create(params: {
     name: string;
     description: string;
+    visual_theme?: "primary" | "secondary";
   }): Promise<{ data: Grade }>;
   update(
     id: string,
-    params: { name: string; description: string },
+    params: { name: string; description: string; visual_theme: "primary" | "secondary" },
   ): Promise<{ data: Grade }>;
   delete(id: string): Promise<void>;
-  addMember(gradeId: string, userId: string): Promise<{ message: string }>;
-  removeMember(gradeId: string, userId: string): Promise<{ message: string }>;
+  addMember(
+    gradeId: string,
+    userId: string,
+  ): Promise<{ data: OperationResult }>;
+  removeMember(
+    gradeId: string,
+    userId: string,
+  ): Promise<{ data: OperationResult }>;
   listMembers(gradeId: string): Promise<{ data: UserProfile[] }>;
   listUserGrades(userId: string): Promise<{ data: Grade[] }>;
+  listGradesByUsers(
+    userIds: string[],
+  ): Promise<{ data: Record<string, Grade[]> }>;
 }
 
 export class GradeService implements IGradeService {
@@ -29,6 +39,7 @@ export class GradeService implements IGradeService {
   async create(params: {
     name: string;
     description: string;
+    visual_theme?: "primary" | "secondary";
   }): Promise<{ data: Grade }> {
     const { data } = await this.api.post("/grades", params);
     return data;
@@ -36,7 +47,7 @@ export class GradeService implements IGradeService {
 
   async update(
     id: string,
-    params: { name: string; description: string },
+    params: { name: string; description: string; visual_theme: "primary" | "secondary" },
   ): Promise<{ data: Grade }> {
     const { data } = await this.api.put(`/grades/${id}`, params);
     return data;
@@ -49,7 +60,7 @@ export class GradeService implements IGradeService {
   async addMember(
     gradeId: string,
     userId: string,
-  ): Promise<{ message: string }> {
+  ): Promise<{ data: OperationResult }> {
     const { data } = await this.api.post(`/grades/${gradeId}/members`, {
       user_id: userId,
     });
@@ -59,7 +70,7 @@ export class GradeService implements IGradeService {
   async removeMember(
     gradeId: string,
     userId: string,
-  ): Promise<{ message: string }> {
+  ): Promise<{ data: OperationResult }> {
     const { data } = await this.api.delete(
       `/grades/${gradeId}/members/${userId}`,
     );
@@ -73,6 +84,15 @@ export class GradeService implements IGradeService {
 
   async listUserGrades(userId: string): Promise<{ data: Grade[] }> {
     const { data } = await this.api.get(`/users/${userId}/grades`);
+    return data;
+  }
+
+  async listGradesByUsers(
+    userIds: string[],
+  ): Promise<{ data: Record<string, Grade[]> }> {
+    const { data } = await this.api.post("/grades/batch-by-users", {
+      user_ids: userIds,
+    });
     return data;
   }
 }

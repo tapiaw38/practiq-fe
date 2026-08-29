@@ -1,5 +1,16 @@
 /// <reference types="vite/client" />
 
+declare module '*.mp3' {
+  const src: string
+  export default src
+}
+
+declare module '*.vue' {
+  import type { DefineComponent } from 'vue'
+  const component: DefineComponent<{}, {}, any>
+  export default component
+}
+
 interface ImportMetaEnv {
   readonly VITE_AUTH_API_URL: string
   readonly VITE_PRACTIQ_API_URL: string
@@ -13,6 +24,10 @@ interface PractiqAssistantCaptureResult {
   dataUrl: string
   filename?: string
   contentType?: string
+}
+
+interface PractiqAssistantMediaAttachment extends PractiqAssistantCaptureResult {
+  field: "voice_content"
 }
 
 type PractiqAssistantStructuredContextValue =
@@ -36,4 +51,7 @@ interface Window {
     | PractiqAssistantStructuredContext
     | Promise<PractiqAssistantStructuredContext | null>
     | null
+  __practiqAssistantMediaAttachments?: () =>
+    | PractiqAssistantMediaAttachment[]
+    | Promise<PractiqAssistantMediaAttachment[]>
 }

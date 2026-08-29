@@ -50,7 +50,7 @@
     description: string;
   } | null>(null);
 
-  const gradeForm = reactive({ name: "", description: "" });
+  const gradeForm = reactive({ name: "", description: "", visualTheme: "primary" as "primary" | "secondary" });
   const courseForm = reactive({
     subjectId: "",
     title: "",
@@ -92,6 +92,7 @@
     editingGrade.value = null;
     gradeForm.name = "";
     gradeForm.description = "";
+    gradeForm.visualTheme = "primary";
     showGradeModal.value = true;
   }
 
@@ -99,6 +100,7 @@
     editingGrade.value = grade;
     gradeForm.name = grade.name;
     gradeForm.description = grade.description || "";
+    gradeForm.visualTheme = grade.visual_theme || "primary";
     showGradeModal.value = true;
   }
 
@@ -114,11 +116,13 @@
         await updateGradeService(editingGrade.value.id, {
           name: gradeForm.name,
           description: gradeForm.description,
+          visual_theme: gradeForm.visualTheme,
         });
       } else {
         const grade = await createGradeService({
           name: gradeForm.name,
           description: gradeForm.description,
+          visual_theme: gradeForm.visualTheme,
         });
         selectedGradeId.value = grade.id;
       }
@@ -175,6 +179,7 @@
         await updateCourseService(editingCourse.value.id, {
           title: courseForm.title,
           description: courseForm.description,
+          grade_id: selectedGrade.value.id,
           subject_id: courseForm.subjectId,
           subject: subjectName,
           level: courseForm.level,
@@ -288,7 +293,7 @@
         </aside>
         <main class="ac-main">
           <div class="main-header">
-            <div>
+            <div style="display: flex; flex-direction: column; gap: 8px">
               <Skeleton width="100px" height="14px" />
               <Skeleton width="180px" height="28px" />
             </div>
@@ -299,7 +304,14 @@
               :key="i"
               class="course-tile course-tile--skeleton"
             >
-              <div class="course-tile__top">
+              <div
+                class="course-tile__top"
+                style="
+                  display: flex;
+                  align-items: center;
+                  justify-content: space-between;
+                "
+              >
                 <Skeleton width="70px" height="20px" rounded />
                 <Skeleton width="24px" height="24px" variant="circle" />
               </div>
@@ -528,6 +540,13 @@
                   placeholder="Ej: 1er grado"
                   required
                 />
+              </div>
+              <div class="form-group">
+                <label class="form-label">Tema visual</label>
+                <select v-model="gradeForm.visualTheme" class="form-select">
+                  <option value="primary">Primaria — expresivo</option>
+                  <option value="secondary">Secundaria — sobrio y compacto</option>
+                </select>
               </div>
               <div class="form-group">
                 <label class="form-label"
@@ -1783,6 +1802,15 @@
     .courses-area,
     .grade-header {
       padding: 16px;
+    }
+
+    /* Tap targets >= 44px en mobile */
+    .icon-btn,
+    .icon-btn--sm,
+    .card-action-btn,
+    .modal-close {
+      width: 44px;
+      height: 44px;
     }
   }
 </style>

@@ -4,42 +4,67 @@
   import { useAuthStore } from "@/stores/authStore";
   import StudentLayout from "@/layouts/StudentLayout.vue";
   import Skeleton from "@/components/ui/Skeleton.vue";
+  import ConfirmModal from "@/components/ui/ConfirmModal.vue";
+  import DrawingCanvas from "@/components/ui/DrawingCanvas.vue";
+  import ColorPalette from "@/components/ui/ColorPalette.vue";
+  import { BASE_COLORS } from "@/utils/palette";
   import { useNotebook } from "@/composables/useNotebook";
+  import { useLeaveWarning } from "@/composables/useLeaveWarning";
   import type { Notebook, NotebookPage } from "@/types";
   import {
     composeAssistantWorkImage,
     pickBestStudentImage,
+    prepareHandwritingImage,
   } from "@/utils/assistantExerciseContext";
   import { formatAIFeedback, formatRelativeTime } from "@/utils/formatters";
   import { renderContent } from "@/composables/useContentRenderer";
+  import { useConfetti } from "@/composables/useConfetti";
+  import { useSound } from "@/composables/useSound";
+  import { useCuriosities } from "@/composables/useCuriosities";
+  import AiLoadingModal from "@/components/student/ai/AiLoadingModal.vue";
+  import { loadingMessages, randomMessage } from "@/utils/motivationalMessages";
+  import { tuckAssistantFab } from "@/composables/useAssistantFabOffset";
 
   const route = useRoute();
   const router = useRouter();
   const authStore = useAuthStore();
+  const { leaveConfirmState, onLeaveConfirm, onLeaveCancel } = useLeaveWarning(
+    () => hasPendingWork.value || saveStatus.value === "saving",
+  );
   const { loadNotebook, saveSubmissionAsync, loadSubmissionJob } =
     useNotebook();
+  const { fireCorrect } = useConfetti();
+  const { play: playSound } = useSound();
+  const { curiosities, fetchCuriosities } = useCuriosities();
+  const curiosityIndex = ref(0);
 
   const notebook = ref<Notebook | null>(null);
   const loading = ref(true);
   const currentPageIndex = ref(0);
 
   // Drawing state
-  const answerCanvas = ref<HTMLCanvasElement | null>(null);
+  const canvasRef = ref<InstanceType<typeof DrawingCanvas> | null>(null);
   const tool = ref<"pen" | "eraser">("pen");
-  const penColor = ref("#1e1e2e");
+  const penColor = ref(BASE_COLORS[0].value);
   const penSize = ref(3);
-  const isDrawing = ref(false);
-  const undoStack = ref<ImageData[]>([]);
-
-  // Text state
-  const textAnswer = ref("");
 
   // Save state
   const saveStatus = ref<"saving" | "saved" | "">("");
+  const loadingMessage = ref(randomMessage(loadingMessages));
+  let loadingMsgInterval: ReturnType<typeof setInterval> | null = null;
 
   // Per-page canvas snapshots
   const canvasSnapshots = ref<Record<string, string>>({});
-  const textAnswers = ref<Record<string, string>>({});
+  const savedCanvasSnapshots = ref<Record<string, string>>({});
+
+  tuckAssistantFab(".save-bar");
+
+  const hasPendingWork = computed(() =>
+    Object.entries(canvasSnapshots.value).some(
+      ([pageId, canvas]) =>
+        (canvas || "") !== (savedCanvasSnapshots.value[pageId] || ""),
+    ),
+  );
 
   const pages = computed(() => notebook.value?.pages || []);
   const currentPage = computed<NotebookPage | null>(
@@ -47,12 +72,6 @@
   );
   const studentId = computed(
     () => authStore.profile?.id || authStore.authUser?.id || "",
-  );
-
-  const penCursor = `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24'%3E%3Cpath fill='%231e1e2e' d='M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04a1 1 0 0 0 0-1.41l-2.34-2.34a1 1 0 0 0-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z'/%3E%3C/svg%3E") 0 24, crosshair`;
-  const eraserCursor = `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='20' height='20' viewBox='0 0 20 20'%3E%3Ccircle cx='10' cy='10' r='8' fill='none' stroke='%23666' stroke-width='1.5'/%3E%3C/svg%3E") 10 10, cell`;
-  const canvasCursor = computed(() =>
-    tool.value === "eraser" ? eraserCursor : penCursor,
   );
 
   function hasSubmission(page: NotebookPage) {
@@ -67,269 +86,78 @@
       for (const page of pages.value) {
         if (page.submission?.canvas_data)
           canvasSnapshots.value[page.id] = page.submission.canvas_data;
-        if (page.submission?.answer_text)
-          textAnswers.value[page.id] = page.submission.answer_text;
+      }
+      savedCanvasSnapshots.value = { ...canvasSnapshots.value };
+      // Fetch curiosities for loading screen
+      if (notebook.value.course_id) {
+        fetchCuriosities(notebook.value.course_id);
       }
     } finally {
       loading.value = false;
       await nextTick();
-      initCanvas();
       registerAssistantHooks();
     }
   });
 
   onUnmounted(() => {
     unregisterAssistantHooks();
+    if (loadingMsgInterval) clearInterval(loadingMsgInterval);
   });
 
   watch(currentPageIndex, async () => {
     await nextTick();
-    initCanvas();
     registerAssistantHooks();
-    if (currentPage.value) {
-      textAnswer.value = textAnswers.value[currentPage.value.id] || "";
-    }
   });
 
-  function drawNotebookBackground(
-    ctx: CanvasRenderingContext2D,
-    w: number,
-    h: number,
-  ) {
-    // Fondo crema
-    ctx.fillStyle = "#fafaf7";
-    ctx.fillRect(0, 0, w, h);
-    // Línea de margen roja
-    ctx.strokeStyle = "rgba(239,68,68,0.25)";
-    ctx.lineWidth = 1.5;
-    ctx.beginPath();
-    ctx.moveTo(56, 0);
-    ctx.lineTo(56, h);
-    ctx.stroke();
-    // Líneas horizontales
-    ctx.strokeStyle = "rgba(124,58,237,0.1)";
-    ctx.lineWidth = 1;
-    for (let y = 32; y < h; y += 32) {
-      ctx.beginPath();
-      ctx.moveTo(0, y);
-      ctx.lineTo(w, y);
-      ctx.stroke();
-    }
+  function isAwaitingTeacher(submission?: {
+    needs_teacher_review?: boolean;
+    teacher_reviewed_at?: string;
+  }) {
+    return !!submission?.needs_teacher_review && !submission?.teacher_reviewed_at;
   }
 
-  function initCanvas() {
-    const canvas = answerCanvas.value;
-    if (!canvas || !currentPage.value) return;
-
-    const doInit = () => {
-      const w = canvas.offsetWidth || 700;
-      const h = canvas.offsetHeight || 300;
-      canvas.width = w;
-      canvas.height = h;
-      const ctx = canvas.getContext("2d")!;
-      drawNotebookBackground(ctx, w, h);
-      undoStack.value = [];
-
-      const snap = currentPage.value?.id
-        ? canvasSnapshots.value[currentPage.value.id]
-        : null;
-      if (snap) {
-        const img = new Image();
-        img.onload = () => ctx.drawImage(img, 0, 0, w, h);
-        img.src = snap;
-      }
-    };
-
-    // Esperar un frame para que el canvas tenga dimensiones reales
-    requestAnimationFrame(doInit);
-  }
-
-  function getCtx() {
-    return answerCanvas.value?.getContext("2d") ?? null;
-  }
-
-  function getPoint(e: MouseEvent) {
-    const canvas = answerCanvas.value!;
-    const rect = canvas.getBoundingClientRect();
-    return {
-      x: (e.clientX - rect.left) * (canvas.width / rect.width),
-      y: (e.clientY - rect.top) * (canvas.height / rect.height),
-    };
-  }
-
-  function startDraw(e: MouseEvent) {
-    const ctx = getCtx();
-    if (!ctx || !answerCanvas.value) return;
-    undoStack.value.push(
-      ctx.getImageData(
-        0,
-        0,
-        answerCanvas.value.width,
-        answerCanvas.value.height,
-      ),
-    );
-    isDrawing.value = true;
-    const { x, y } = getPoint(e);
-    ctx.beginPath();
-    ctx.moveTo(x, y);
-  }
-
-  function draw(e: MouseEvent) {
-    if (!isDrawing.value) return;
-    const ctx = getCtx();
-    if (!ctx) return;
-    const { x, y } = getPoint(e);
-    ctx.globalCompositeOperation =
-      tool.value === "eraser" ? "destination-out" : "source-over";
-    ctx.strokeStyle = penColor.value;
-    ctx.lineWidth = tool.value === "eraser" ? penSize.value * 4 : penSize.value;
-    ctx.lineCap = "round";
-    ctx.lineJoin = "round";
-    ctx.lineTo(x, y);
-    ctx.stroke();
-  }
-
-  function endDraw() {
-    isDrawing.value = false;
-    getCtx()?.beginPath();
-  }
-
-  function startDrawTouch(e: TouchEvent) {
-    const t = e.touches[0];
-    startDraw({ clientX: t.clientX, clientY: t.clientY } as MouseEvent);
-  }
-
-  function drawTouch(e: TouchEvent) {
-    const t = e.touches[0];
-    draw({ clientX: t.clientX, clientY: t.clientY } as MouseEvent);
-  }
-
-  function undoDraw() {
-    const ctx = getCtx();
-    if (!ctx || !answerCanvas.value || undoStack.value.length === 0) return;
-    ctx.putImageData(undoStack.value.pop()!, 0, 0);
-  }
-
-  function clearCanvas() {
-    const canvas = answerCanvas.value;
-    const ctx = getCtx();
-    if (!canvas || !ctx) return;
-    undoStack.value = [];
-    drawNotebookBackground(ctx, canvas.width, canvas.height);
-  }
-
-  function getReviewBoxClass(submission: { ai_is_correct?: boolean }) {
+  function getReviewBoxClass(submission: {
+    ai_is_correct?: boolean;
+    needs_teacher_review?: boolean;
+    teacher_reviewed_at?: string;
+  }) {
+    if (isAwaitingTeacher(submission)) return "ai-review-box--pending";
     if (submission.ai_is_correct === true) return "ai-review-box--success";
     if (submission.ai_is_correct === false) return "ai-review-box--error";
     return "ai-review-box--pending";
   }
 
-  function captureCanvas(): string {
-    const source = answerCanvas.value;
-    if (!source) return "";
+  function hasUnreadableAIFeedback(feedback?: string) {
+    return !!feedback?.includes("UNREADABLE");
+  }
 
-    const scale = 2;
-    const temp = document.createElement("canvas");
-    temp.width = Math.max(1, Math.floor(source.width * scale));
-    temp.height = Math.max(1, Math.floor(source.height * scale));
-    const tempCtx = temp.getContext("2d");
-    if (!tempCtx) {
-      return source.toDataURL("image/jpeg", 0.92);
-    }
+  function getReviewBadgeLabel(submission: {
+    ai_is_correct?: boolean;
+    ai_feedback?: string;
+    needs_teacher_review?: boolean;
+    teacher_reviewed_at?: string;
+  }) {
+    if (isAwaitingTeacher(submission)) return "Pendiente de revisión docente";
+    if (submission.ai_is_correct === true) return "Correcto";
+    if (submission.ai_is_correct === false) return "Incorrecto";
+    if (hasUnreadableAIFeedback(submission.ai_feedback)) return "No legible";
+    return "Pendiente de revision";
+  }
 
-    tempCtx.fillStyle = "#ffffff";
-    tempCtx.fillRect(0, 0, temp.width, temp.height);
-    tempCtx.imageSmoothingEnabled = false;
-    tempCtx.drawImage(source, 0, 0, temp.width, temp.height);
-
-    const baseImage = tempCtx.getImageData(0, 0, temp.width, temp.height);
-    const basePixels = baseImage.data;
-    const threshold = 188;
-
-    let minX = temp.width;
-    let minY = temp.height;
-    let maxX = -1;
-    let maxY = -1;
-
-    for (let y = 0; y < temp.height; y++) {
-      for (let x = 0; x < temp.width; x++) {
-        const idx = (y * temp.width + x) * 4;
-        const r = basePixels[idx];
-        const g = basePixels[idx + 1];
-        const b = basePixels[idx + 2];
-        const alpha = basePixels[idx + 3];
-        const gray = 0.299 * r + 0.587 * g + 0.114 * b;
-        const isInk = alpha >= 8 && gray <= threshold;
-        if (!isInk) continue;
-
-        if (x < minX) minX = x;
-        if (y < minY) minY = y;
-        if (x > maxX) maxX = x;
-        if (y > maxY) maxY = y;
-      }
-    }
-
-    const pad = Math.floor(28 * scale);
-    if (maxX < minX || maxY < minY) {
-      minX = 0;
-      minY = 0;
-      maxX = temp.width - 1;
-      maxY = temp.height - 1;
-    } else {
-      minX = Math.max(0, minX - pad);
-      minY = Math.max(0, minY - pad);
-      maxX = Math.min(temp.width - 1, maxX + pad);
-      maxY = Math.min(temp.height - 1, maxY + pad);
-    }
-
-    const cropW = Math.max(1, maxX - minX + 1);
-    const cropH = Math.max(1, maxY - minY + 1);
-
-    const out = document.createElement("canvas");
-    out.width = cropW;
-    out.height = cropH;
-    const ctx = out.getContext("2d");
-    if (!ctx) {
-      return source.toDataURL("image/jpeg", 0.92);
-    }
-
-    ctx.fillStyle = "#ffffff";
-    ctx.fillRect(0, 0, out.width, out.height);
-    ctx.imageSmoothingEnabled = false;
-    ctx.drawImage(temp, minX, minY, cropW, cropH, 0, 0, cropW, cropH);
-
-    const image = ctx.getImageData(0, 0, out.width, out.height);
-    const pixels = image.data;
-    for (let i = 0; i < pixels.length; i += 4) {
-      const r = pixels[i];
-      const g = pixels[i + 1];
-      const b = pixels[i + 2];
-      const alpha = pixels[i + 3];
-
-      if (alpha < 8) {
-        pixels[i] = 255;
-        pixels[i + 1] = 255;
-        pixels[i + 2] = 255;
-        pixels[i + 3] = 255;
-        continue;
-      }
-
-      const gray = 0.299 * r + 0.587 * g + 0.114 * b;
-      const value = gray > threshold ? 255 : 0;
-      pixels[i] = value;
-      pixels[i + 1] = value;
-      pixels[i + 2] = value;
-      pixels[i + 3] = 255;
-    }
-    ctx.putImageData(image, 0, 0);
-
-    return out.toDataURL("image/jpeg", 0.92);
+  // Was ~115 lines that flattened on white, cropped to the ink and then
+  // thresholded to pure black and white. The crop was worth keeping and the
+  // other two screens lacked it; the threshold was not, and they had already
+  // dropped it. Both now live in prepareHandwritingImage so the same
+  // handwriting reaches the grader the same way from every screen.
+  function captureCanvas(): Promise<string> {
+    const pageId = currentPage.value?.id || "";
+    return prepareHandwritingImage(canvasSnapshots.value[pageId] || "");
   }
 
   async function getBestStudentNotebookImage(): Promise<string> {
     const pageId = currentPage.value?.id || "";
     return pickBestStudentImage([
-      captureCanvas(),
+      await captureCanvas(),
       canvasSnapshots.value[pageId],
       currentPage.value?.submission?.canvas_data,
     ]);
@@ -379,10 +207,17 @@
       dataUrlLength: dataUrl.length,
     });
 
+    // The capture is produced as PNG, but this used to declare JPEG. An
+    // integration that validates or decodes by the declared type rejects or
+    // misreads it, so the label follows the payload instead of a constant.
+    const mime = dataUrl.slice(5, dataUrl.indexOf(";")) || "image/png";
+    const extension = mime.split("/")[1] || "png";
+    const page = currentPage.value.page_number || currentPageIndex.value + 1;
+
     return {
       dataUrl,
-      filename: `notebook-page-${currentPage.value.page_number || currentPageIndex.value + 1}.jpg`,
-      contentType: "image/jpeg",
+      filename: `notebook-page-${page}.${extension}`,
+      contentType: mime,
     };
   };
 
@@ -461,13 +296,26 @@
     delete (window as any).__practiqAssistantHookSource;
   }
 
+  function getNextCuriosity(): string {
+    if (curiosities.value.length > 0) {
+      const msg = curiosities.value[curiosityIndex.value % curiosities.value.length];
+      curiosityIndex.value++;
+      return `💡 ${msg}`;
+    }
+    return randomMessage(loadingMessages);
+  }
+
   async function saveAndNext() {
-    if (!currentPage.value) return;
+    if (!currentPage.value || saveStatus.value === "saving") return;
     saveStatus.value = "saving";
+    loadingMessage.value = getNextCuriosity();
+    loadingMsgInterval = setInterval(() => {
+      loadingMessage.value = getNextCuriosity();
+    }, 3000);
+
     try {
       const pageId = currentPage.value.id;
-      const data = captureCanvas();
-      canvasSnapshots.value[pageId] = data;
+      const data = await captureCanvas();
 
       const start = await saveSubmissionAsync(pageId, { canvas_data: data });
       const jobId = start.job_id;
@@ -488,16 +336,33 @@
       saveStatus.value = "saved";
       const notebookId = route.params.id as string;
       notebook.value = await loadNotebook(notebookId, studentId.value);
+      savedCanvasSnapshots.value = {
+        ...savedCanvasSnapshots.value,
+        [pageId]: canvasSnapshots.value[pageId] || "",
+      };
+
+      // Check if submission was correct and celebrate
+      const updatedPage = pages.value.find((p) => p.id === pageId);
+      if (!isAwaitingTeacher(updatedPage?.submission)) {
+        if (updatedPage?.submission?.ai_is_correct === true) {
+          fireCorrect();
+          playSound("correct");
+        } else if (updatedPage?.submission?.ai_is_correct === false) {
+          playSound("incorrect");
+        }
+      }
+
       setTimeout(() => {
         saveStatus.value = "";
       }, 2000);
-
-      if (currentPageIndex.value < pages.value.length - 1) {
-        goToPage(currentPageIndex.value + 1);
-      }
     } catch (err) {
       console.error(err);
       saveStatus.value = "";
+    } finally {
+      if (loadingMsgInterval) {
+        clearInterval(loadingMsgInterval);
+        loadingMsgInterval = null;
+      }
     }
   }
 
@@ -622,7 +487,8 @@
               <div class="draw-tools">
                 <button
                   class="tool-btn"
-                  :class="{ 'tool-btn--active': tool === 'pen' }"
+                  :class="{ 'tool-btn--active': tool === 'pen', 'tool-btn--pen-active': tool === 'pen' }"
+                  :style="{ backgroundColor: penColor }"
                   @click="tool = 'pen'"
                   title="Lápiz"
                 >
@@ -636,18 +502,13 @@
                 >
                   <i class="pi pi-times-circle"></i>
                 </button>
-                <button class="tool-btn" @click="undoDraw" title="Deshacer">
+                <button class="tool-btn" @click="canvasRef?.undo()" title="Deshacer">
                   <i class="pi pi-undo"></i>
                 </button>
-                <button class="tool-btn" @click="clearCanvas" title="Limpiar">
+                <button class="tool-btn" @click="canvasRef?.clear()" title="Limpiar">
                   <i class="pi pi-trash"></i>
                 </button>
-                <input
-                  type="color"
-                  v-model="penColor"
-                  class="color-picker"
-                  title="Color"
-                />
+                <ColorPalette v-model="penColor" />
                 <input
                   type="range"
                   v-model.number="penSize"
@@ -659,18 +520,14 @@
               </div>
             </div>
 
-            <canvas
-              ref="answerCanvas"
-              class="answer-canvas"
-              :style="{ cursor: canvasCursor }"
-              @mousedown="startDraw"
-              @mousemove="draw"
-              @mouseup="endDraw"
-              @mouseleave="endDraw"
-              @touchstart.prevent="startDrawTouch"
-              @touchmove.prevent="drawTouch"
-              @touchend="endDraw"
-            ></canvas>
+            <DrawingCanvas
+              ref="canvasRef"
+              v-model="canvasSnapshots[currentPage.id]"
+              :height="300"
+              :tool="tool"
+              :pen-size="penSize"
+              :pen-color="penColor"
+            />
           </section>
 
           <!-- Save bar -->
@@ -696,7 +553,11 @@
               <div class="ai-review-head">
                 <div class="ai-review-icon">
                   <i
-                    v-if="currentPage.submission.ai_is_correct === true"
+                    v-if="isAwaitingTeacher(currentPage.submission)"
+                    class="pi pi-clock"
+                  ></i>
+                  <i
+                    v-else-if="currentPage.submission.ai_is_correct === true"
                     class="pi pi-check-circle"
                   ></i>
                   <i
@@ -707,25 +568,32 @@
                 </div>
                 <div class="ai-review-status">
                   <span
-                    v-if="currentPage.submission.ai_is_correct !== undefined"
+                    v-if="
+                      isAwaitingTeacher(currentPage.submission) ||
+                      currentPage.submission.ai_is_correct !== undefined ||
+                      hasUnreadableAIFeedback(currentPage.submission.ai_feedback)
+                    "
                     class="ai-review-badge"
                     :class="
-                      currentPage.submission.ai_is_correct
-                        ? 'ai-review-badge--ok'
-                        : 'ai-review-badge--fail'
+                      isAwaitingTeacher(currentPage.submission)
+                        ? 'ai-review-badge--warn'
+                        : currentPage.submission.ai_is_correct === true
+                          ? 'ai-review-badge--ok'
+                          : currentPage.submission.ai_is_correct === false
+                            ? 'ai-review-badge--fail'
+                            : 'ai-review-badge--warn'
                     "
                   >
-                    {{
-                      currentPage.submission.ai_is_correct
-                        ? "Correcto"
-                        : "Incorrecto"
-                    }}
+                    {{ getReviewBadgeLabel(currentPage.submission) }}
                   </span>
                   <span v-else class="ai-review-badge ai-review-badge--warn"
                     >Pendiente de revision</span
                   >
                   <span
-                    v-if="currentPage.submission.ai_reviewed_at"
+                    v-if="
+                      currentPage.submission.ai_reviewed_at &&
+                      !isAwaitingTeacher(currentPage.submission)
+                    "
                     class="ai-review-time"
                   >
                     Revisado
@@ -735,7 +603,11 @@
                   </span>
                 </div>
               </div>
-              <p class="ai-review-text">
+              <p v-if="isAwaitingTeacher(currentPage.submission)" class="ai-review-text">
+                Tu docente va a revisar esta página. Cuando la corrija vas a ver
+                el resultado acá.
+              </p>
+              <p v-else class="ai-review-text">
                 {{ formatAIFeedback(currentPage.submission.ai_feedback) }}
               </p>
 
@@ -775,12 +647,16 @@
               >
                 <i class="pi pi-chevron-left"></i> Anterior
               </button>
-              <button class="btn-save" @click="saveAndNext">
-                {{
-                  currentPageIndex < pages.length - 1
-                    ? "Guardar y seguir →"
-                    : "Guardar y finalizar ✓"
-                }}
+              <button
+                class="btn-save"
+                :disabled="saveStatus === 'saving'"
+                @click="saveAndNext"
+              >
+                <i
+                  v-if="saveStatus === 'saving'"
+                  class="pi pi-spin pi-spinner"
+                ></i>
+                Guardar
               </button>
               <button
                 class="btn-nav"
@@ -795,13 +671,25 @@
       </template>
     </div>
   </StudentLayout>
+
+  <AiLoadingModal
+    :show="saveStatus === 'saving'"
+    badge-label="IA evaluando"
+    title="Evaluando con IA"
+    :message="loadingMessage"
+  />
+  <ConfirmModal
+    v-bind="leaveConfirmState"
+    @confirm="onLeaveConfirm"
+    @cancel="onLeaveCancel"
+  />
 </template>
 
 <style scoped>
   .notebook-shell {
     max-width: 860px;
     margin: 0 auto;
-    padding: 24px 20px 48px;
+    padding: 24px 20px 104px;
     display: flex;
     flex-direction: column;
     gap: 16px;
@@ -877,6 +765,8 @@
     gap: 6px;
     flex-wrap: wrap;
     padding: 4px 0;
+    overflow-x: auto;
+    scrollbar-width: thin;
   }
 
   .page-tab {
@@ -984,14 +874,30 @@
   .page-instructions {
     margin-top: 14px;
     padding: 10px 14px;
-    background: rgba(var(--practiq-violet-rgb), 0.9);
+    background: linear-gradient(
+      135deg,
+      var(--practiq-violet),
+      var(--practiq-indigo)
+    );
     border-left: 3px solid var(--practiq-violet);
     border-radius: 0 8px 8px 0;
     font-size: 0.88rem;
-    color: var(--text-secondary);
+    color: #ffffff;
     display: flex;
     gap: 8px;
     align-items: flex-start;
+  }
+
+  .page-instructions > span {
+    color: #ffffff !important;
+  }
+
+  .page-instructions :deep(*) {
+    color: #ffffff !important;
+  }
+
+  .page-instructions :deep(p) {
+    margin: 0;
   }
 
   /* Answer area */
@@ -1026,8 +932,8 @@
   }
 
   .tool-btn {
-    width: 34px;
-    height: 34px;
+    width: 30px;
+    height: 30px;
     border-radius: var(--radius-sm);
     border: 1.5px solid rgba(var(--practiq-violet-rgb), 0.15);
     background: rgba(var(--surface-card-rgb), 0.8);
@@ -1039,24 +945,23 @@
     color: var(--text-secondary);
     transition: all 0.15s;
   }
-  .tool-btn:hover {
+  .tool-btn:hover:not(.tool-btn--active) {
     border-color: var(--practiq-violet);
     color: var(--practiq-violet);
+  }
+  .tool-btn--active:hover {
+    color: var(--color-on-primary);
+  }
+  .tool-btn--pen-active,
+  .tool-btn--pen-active:hover {
+    border-color: transparent;
+    color: #fff;
+    box-shadow: none;
   }
   .tool-btn--active {
     background: var(--practiq-violet);
     color: var(--color-on-primary);
     border-color: var(--practiq-violet);
-  }
-
-  .color-picker {
-    width: 34px;
-    height: 34px;
-    border-radius: var(--radius-sm);
-    border: 1.5px solid rgba(var(--practiq-violet-rgb), 0.15);
-    padding: 2px;
-    cursor: pointer;
-    background: none;
   }
 
   .size-slider {
@@ -1072,6 +977,16 @@
     display: block;
     touch-action: none;
     box-shadow: 0 2px 12px rgba(var(--practiq-violet-rgb), 0.06);
+    background-color: var(--surface-bg-soft);
+    background-image:
+      linear-gradient(90deg, transparent 56px, rgba(var(--color-error-rgb), 0.25) 56px, rgba(var(--color-error-rgb), 0.25) 57.5px, transparent 57.5px),
+      repeating-linear-gradient(
+        transparent,
+        transparent 31px,
+        rgba(var(--practiq-violet-rgb), 0.1) 31px,
+        rgba(var(--practiq-violet-rgb), 0.1) 32px
+      );
+    background-repeat: no-repeat, repeat;
   }
 
   .answer-textarea {
@@ -1108,11 +1023,16 @@
     display: flex;
     align-items: center;
     justify-content: space-between;
-    padding: 16px 28px;
+    padding: 18px 28px;
     border-top: 1.5px solid rgba(var(--practiq-violet-rgb), 0.08);
-    background: rgba(var(--practiq-violet-rgb), 0.5);
-    gap: 12px;
+    background: linear-gradient(180deg, var(--surface-card), var(--surface-bg));
+    gap: 16px;
     flex-wrap: wrap;
+    position: sticky;
+    bottom: 16px;
+    z-index: 3;
+    border-radius: var(--radius-xl);
+    box-shadow: var(--shadow-card-lg);
   }
 
   .save-status {
@@ -1125,39 +1045,27 @@
 
   .ai-review-box {
     width: 100%;
-    margin-top: 8px;
-    padding: 14px 16px;
-    border-radius: var(--radius-lg);
-    background: var(--practiq-violet-bg);
-    border: 1.5px solid var(--practiq-violet-200);
-    transition: all 0.2s;
+    order: 1;
+    padding: 16px 18px;
+    border-radius: var(--radius-md);
+    background: var(--surface-card);
+    border: 1.5px solid rgba(var(--practiq-violet-rgb), 0.14);
+    box-shadow: 0 8px 22px rgba(var(--practiq-violet-rgb), 0.08);
   }
 
   .ai-review-box--success {
-    background: linear-gradient(
-      135deg,
-      rgba(var(--color-success-rgb), 0.06),
-      rgba(var(--color-success-rgb), 0.02)
-    );
-    border-color: rgba(var(--color-success-rgb), 0.3);
+    background: var(--color-success-bg);
+    border-color: rgba(var(--color-success-rgb), 0.32);
   }
 
   .ai-review-box--error {
-    background: linear-gradient(
-      135deg,
-      rgba(var(--color-error-rgb), 0.06),
-      rgba(var(--color-error-rgb), 0.02)
-    );
-    border-color: rgba(var(--color-error-rgb), 0.3);
+    background: var(--color-error-bg);
+    border-color: rgba(var(--color-error-rgb), 0.32);
   }
 
   .ai-review-box--pending {
-    background: linear-gradient(
-      135deg,
-      rgba(var(--color-warning-rgb), 0.06),
-      rgba(var(--color-warning-rgb), 0.02)
-    );
-    border-color: rgba(var(--color-warning-rgb), 0.3);
+    background: var(--color-warning-bg);
+    border-color: rgba(var(--color-warning-rgb), 0.38);
   }
 
   .ai-review-head {
@@ -1178,17 +1086,17 @@
   }
 
   .ai-review-box--success .ai-review-icon {
-    background: rgba(var(--color-success-rgb), 0.15);
+    background: rgba(var(--color-success-rgb), 0.18);
     color: var(--color-success-dark);
   }
 
   .ai-review-box--error .ai-review-icon {
-    background: rgba(var(--color-error-rgb), 0.15);
+    background: rgba(var(--color-error-rgb), 0.18);
     color: var(--color-error-dark);
   }
 
   .ai-review-box--pending .ai-review-icon {
-    background: rgba(var(--color-warning-rgb), 0.15);
+    background: rgba(var(--color-warning-rgb), 0.2);
     color: var(--color-warning-strong);
   }
 
@@ -1225,13 +1133,13 @@
 
   .ai-review-time {
     font-size: var(--text-xs);
-    color: var(--text-muted);
+    color: var(--text-secondary);
   }
 
   .ai-review-text {
     margin: 10px 0 0;
     font-size: var(--text-base);
-    color: var(--text-secondary);
+    color: var(--text-primary);
     line-height: 1.6;
     padding-left: 48px;
   }
@@ -1283,13 +1191,14 @@
     align-items: center;
     gap: 10px;
     margin-left: auto;
+    order: 2;
   }
 
   .btn-nav {
     padding: 8px 16px;
     border-radius: var(--radius-sm);
     border: 1.5px solid rgba(var(--practiq-violet-rgb), 0.2);
-    background: rgba(var(--surface-card-rgb), 0.8);
+    background: var(--surface-card);
     cursor: pointer;
     font-size: 0.88rem;
     color: var(--text-secondary);
@@ -1301,6 +1210,7 @@
   .btn-nav:hover:not(:disabled) {
     border-color: var(--practiq-violet);
     color: var(--practiq-violet);
+    background: var(--practiq-violet-bg);
   }
   .btn-nav:disabled {
     opacity: 0.4;
@@ -1317,9 +1227,17 @@
     font-size: 0.9rem;
     cursor: pointer;
     transition: opacity 0.15s;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
   }
   .btn-save:hover {
     opacity: 0.9;
+  }
+  .btn-save:disabled {
+    cursor: wait;
+    opacity: 0.72;
   }
 
   @media (max-width: 1024px) {
@@ -1342,7 +1260,7 @@
 
   @media (max-width: 600px) {
     .notebook-shell {
-      padding: 12px 8px 32px;
+      padding: 12px 8px 116px;
       gap: 10px;
     }
     .nb-header {
@@ -1374,15 +1292,68 @@
       padding: 12px 14px;
       flex-direction: column;
       align-items: stretch;
+      bottom: 0;
+      border-radius: var(--radius-xl) var(--radius-xl) 0 0;
+      margin-left: -8px;
+      margin-right: -8px;
+      border-bottom: 0;
+      padding-bottom: max(12px, env(safe-area-inset-bottom));
     }
     .page-nav {
       margin-left: 0;
+      order: 2;
       justify-content: space-between;
       width: 100%;
+    }
+    .btn-nav {
+      flex: 1;
+      justify-content: center;
+      padding: 8px 10px;
     }
     .btn-save {
       width: 100%;
       text-align: center;
+      order: -1;
+    }
+    /* Tap targets >= 44px en mobile */
+    .btn-nav,
+    .btn-save {
+      min-height: 48px;
+    }
+    .btn-back {
+      width: 44px;
+      height: 44px;
+    }
+    .tool-btn {
+      width: 40px;
+      height: 40px;
+      font-size: 1rem;
+    }
+    .page-tab {
+      min-width: 44px;
+      height: 44px;
+      flex: 0 0 auto;
+    }
+    .ai-review-head {
+      align-items: flex-start;
+    }
+    .ai-review-status {
+      flex-direction: column;
+      align-items: flex-start;
+      gap: 6px;
+    }
+    .ai-review-text,
+    .teacher-review-section {
+      padding-left: 0;
+    }
+  }
+
+  @media (min-width: 921px) {
+    :global(.practiq-assistant-focus-target--open .notebook-shell) {
+      width: calc(100% - var(--practiq-assistant-rail));
+      max-width: calc(100% - var(--practiq-assistant-rail));
+      margin-left: 0;
+      margin-right: auto;
     }
   }
 </style>

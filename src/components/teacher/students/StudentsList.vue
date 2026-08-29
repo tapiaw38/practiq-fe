@@ -102,4 +102,12 @@
     font-size: var(--text-sm);
     margin-top: 3px;
   }
+
+  @media (max-width: 600px) {
+    .tab-content { padding: 14px; }
+    .section-copy { line-height: 1.45; }
+    .list-item { padding: 12px; }
+    .item-info > div:last-child { min-width: 0; }
+    .item-title, .item-subtitle { overflow-wrap: anywhere; }
+  }
 </style>
