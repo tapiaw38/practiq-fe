@@ -12,11 +12,11 @@
   import type { AssignedUser, AuthApiUser, Grade, UserProfile } from "@/types";
 
   const VIEW_KEY = "admin-users-view";
-  const viewMode = ref<"table" | "cards">(
-    localStorage.getItem(VIEW_KEY) === "cards" ? "cards" : "table",
+  const viewMode = ref<"list" | "cards">(
+    localStorage.getItem(VIEW_KEY) === "cards" ? "cards" : "list",
   );
 
-  function setViewMode(mode: "table" | "cards") {
+  function setViewMode(mode: "list" | "cards") {
     viewMode.value = mode;
     localStorage.setItem(VIEW_KEY, mode);
   }
@@ -64,7 +64,14 @@
   const teacherSelection = ref<Record<string, string>>({});
   const gradeSelection = ref<Record<string, string>>({});
   const assistantForms = ref<
-    Record<string, { assistant_base_url: string; assistant_api_key: string }>
+    Record<
+      string,
+      {
+        assistant_base_url: string;
+        assistant_api_key: string;
+        ui_theme: "primary" | "secondary";
+      }
+    >
   >({});
   const savingAssistant = ref(false);
   const assistantSaveSuccess = ref(false);
@@ -235,18 +242,36 @@
   function syncAssistantForms() {
     const next: Record<
       string,
-      { assistant_base_url: string; assistant_api_key: string }
+      {
+        assistant_base_url: string;
+        assistant_api_key: string;
+        ui_theme: "primary" | "secondary";
+      }
     > = {};
     for (const item of rows.value) {
       next[practiqUserId(item.user)] = {
         assistant_base_url: item.profile?.assistant_base_url || "",
         assistant_api_key: item.profile?.assistant_api_key || "",
+        ui_theme: item.profile?.ui_theme || "primary",
       };
     }
     assistantForms.value = next;
   }
 
   function openStudentEditor(item: UserRow) {
+    const userId = practiqUserId(item.user);
+    // The editor can be opened before an async profile refresh completes.
+    // Always create its form first so v-model never dereferences undefined.
+    if (!assistantForms.value[userId]) {
+      assistantForms.value = {
+        ...assistantForms.value,
+        [userId]: {
+          assistant_base_url: item.profile?.assistant_base_url || "",
+          assistant_api_key: item.profile?.assistant_api_key || "",
+          ui_theme: item.profile?.ui_theme || "primary",
+        },
+      };
+    }
     editingStudent.value = item;
   }
 
@@ -457,11 +482,11 @@
             <button
               type="button"
               class="view-btn"
-              :class="{ 'view-btn--active': viewMode === 'table' }"
-              :aria-pressed="viewMode === 'table'"
-              title="Vista de tabla"
-              aria-label="Vista de tabla"
-              @click="setViewMode('table')"
+              :class="{ 'view-btn--active': viewMode === 'list' }"
+              :aria-pressed="viewMode === 'list'"
+              title="Vista de lista"
+              aria-label="Vista de lista"
+              @click="setViewMode('list')"
             >
               <i class="pi pi-list"></i>
             </button>
@@ -783,12 +808,18 @@
           </div>
         </section>
 
-        <div
-          v-if="editingStudent"
-          class="modal-backdrop"
-          @click.self="closeStudentEditor"
-        >
-          <div class="modal-card">
+        <Teleport to="body">
+          <div
+            v-if="editingStudent"
+            class="modal-backdrop"
+            @click.self="closeStudentEditor"
+          >
+            <div
+              class="modal-card"
+              role="dialog"
+              aria-modal="true"
+              aria-label="Editar alumno"
+            >
             <div class="modal-head">
               <div>
                 <div class="panel-kicker">Alumno</div>
@@ -899,6 +930,31 @@
                 </div>
               </div>
 
+              <div class="detail-card theme-config-card">
+                <span class="detail-label">Tema visual</span>
+                <p class="detail-copy">
+                  Se aplica a dashboard, prácticas y cuadernos del alumno.
+                </p>
+                <div class="action-row">
+                  <select
+                    id="student-ui-theme"
+                    v-model="assistantForms[currentEditingStudentId].ui_theme"
+                    class="form-select"
+                  >
+                    <option value="primary">Primaria</option>
+                    <option value="secondary">Secundaria</option>
+                  </select>
+                  <button
+                    class="btn btn-secondary btn-sm"
+                    type="button"
+                    :disabled="savingAssistant"
+                    @click="saveAssistantConfig(currentEditingStudentId)"
+                  >
+                    Guardar tema
+                  </button>
+                </div>
+              </div>
+
               <div class="action-row action-row--split">
                 <button
                   class="btn"
@@ -921,7 +977,10 @@
               </div>
 
               <div class="assistant-box">
-                <div class="assistant-title">Asistente del alumno</div>
+                <div>
+                  <div class="assistant-title">Asistente del alumno</div>
+                  <p class="assistant-copy">URL y clave del asistente. Se guardan por separado del tema visual.</p>
+                </div>
                 <input
                   v-model="
                     assistantForms[currentEditingStudentId].assistant_base_url
@@ -955,8 +1014,9 @@
                 </button>
               </div>
             </div>
+            </div>
           </div>
-        </div>
+        </Teleport>
       </template>
     </div>
   </TeacherLayout>
@@ -1327,6 +1387,10 @@
     display: grid;
     gap: 8px;
     margin-top: 12px;
+    padding: 16px;
+    border: 1px solid var(--surface-border);
+    border-radius: var(--radius-md);
+    background: var(--surface-bg-soft);
   }
   .assistant-title {
     font-size: var(--text-sm);
@@ -1334,6 +1398,12 @@
     text-transform: uppercase;
     letter-spacing: 0.08em;
     color: var(--text-secondary);
+  }
+  .assistant-copy,
+  .detail-copy {
+    margin: 4px 0 0;
+    color: var(--text-secondary);
+    font-size: var(--text-sm);
   }
   .form-input,
   .form-select {
@@ -1402,7 +1472,8 @@
     z-index: 50;
   }
   .modal-card {
-    width: min(760px, 100%);
+    width: 720px;
+    max-width: 100%;
     max-height: calc(100vh - 48px);
     overflow: auto;
     padding: 16px;
@@ -1476,7 +1547,28 @@
       width: auto;
     }
     .stats-row {
-      flex-direction: column;
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 8px;
+    }
+    .stat-card {
+      min-width: 0;
+      padding: 12px 8px 12px 46px;
+    }
+    .stat-icon {
+      left: 10px;
+      top: 12px;
+      width: 28px;
+      height: 28px;
+      font-size: 13px;
+    }
+    .stat-value {
+      font-size: 1.25rem;
+    }
+    .stat-label {
+      font-size: var(--text-xs);
+      line-height: 1.2;
+      overflow-wrap: anywhere;
     }
     .modal-head {
       flex-direction: column;
@@ -1592,11 +1684,14 @@
       display: none;
     }
     .modal-backdrop {
-      padding: 10px;
+      padding: 10px 10px max(10px, env(safe-area-inset-bottom));
       align-items: end;
     }
     .modal-card {
-      max-height: 92vh;
+      width: min(720px, 100%);
+      max-height: calc(100dvh - 20px);
+      overflow-y: auto;
+      -webkit-overflow-scrolling: touch;
       border-radius: var(--radius-2xl) var(--radius-2xl) 0 0;
     }
     .action-row {

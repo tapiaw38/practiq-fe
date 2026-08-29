@@ -50,7 +50,7 @@
     description: string;
   } | null>(null);
 
-  const gradeForm = reactive({ name: "", description: "" });
+  const gradeForm = reactive({ name: "", description: "", visualTheme: "primary" as "primary" | "secondary" });
   const courseForm = reactive({
     subjectId: "",
     title: "",
@@ -92,6 +92,7 @@
     editingGrade.value = null;
     gradeForm.name = "";
     gradeForm.description = "";
+    gradeForm.visualTheme = "primary";
     showGradeModal.value = true;
   }
 
@@ -99,6 +100,7 @@
     editingGrade.value = grade;
     gradeForm.name = grade.name;
     gradeForm.description = grade.description || "";
+    gradeForm.visualTheme = grade.visual_theme || "primary";
     showGradeModal.value = true;
   }
 
@@ -114,11 +116,13 @@
         await updateGradeService(editingGrade.value.id, {
           name: gradeForm.name,
           description: gradeForm.description,
+          visual_theme: gradeForm.visualTheme,
         });
       } else {
         const grade = await createGradeService({
           name: gradeForm.name,
           description: gradeForm.description,
+          visual_theme: gradeForm.visualTheme,
         });
         selectedGradeId.value = grade.id;
       }
@@ -536,6 +540,13 @@
                   placeholder="Ej: 1er grado"
                   required
                 />
+              </div>
+              <div class="form-group">
+                <label class="form-label">Tema visual</label>
+                <select v-model="gradeForm.visualTheme" class="form-select">
+                  <option value="primary">Primaria — expresivo</option>
+                  <option value="secondary">Secundaria — sobrio y compacto</option>
+                </select>
               </div>
               <div class="form-group">
                 <label class="form-label"

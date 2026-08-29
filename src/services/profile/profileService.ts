@@ -12,6 +12,7 @@ export type SyncProfileParams = {
 export type AssistantConfigParams = {
   assistant_base_url: string;
   assistant_api_key: string;
+  ui_theme?: "primary" | "secondary";
 };
 
 export type AcademicStatusParams = {

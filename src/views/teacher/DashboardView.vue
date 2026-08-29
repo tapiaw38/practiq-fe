@@ -31,6 +31,11 @@
   const showCreateModal = ref(false);
   const showInviteModal = ref(false);
   const creating = ref(false);
+  const courseView = ref<"grid" | "list">(
+    localStorage.getItem("practiq-teacher-course-view") === "list"
+      ? "list"
+      : "grid",
+  );
   const currentStudentPage = ref(1);
   const studentsPerPage = 20;
 
@@ -158,6 +163,10 @@
 
   function goToCourse(id: string) {
     router.push(`/teacher/courses/${id}`);
+  }
+  function setCourseView(view: "grid" | "list") {
+    courseView.value = view;
+    localStorage.setItem("practiq-teacher-course-view", view);
   }
   function goToAdminUsers() {
     router.push("/teacher/admin/users");
@@ -390,12 +399,25 @@
                 Accedé a los contenidos y ejercicios de cada curso.
               </p>
             </div>
-            <button
-              class="btn btn-outline btn-sm"
-              @click="showCreateModal = true"
-            >
-              <i class="pi pi-plus"></i> Nuevo
-            </button>
+            <div class="courses-actions">
+              <div class="view-toggle" role="group" aria-label="Vista de cursos">
+                <button
+                  type="button"
+                  :class="{ 'view-toggle__active': courseView === 'grid' }"
+                  title="Vista de tarjetas"
+                  @click="setCourseView('grid')"
+                ><i class="pi pi-th-large"></i></button>
+                <button
+                  type="button"
+                  :class="{ 'view-toggle__active': courseView === 'list' }"
+                  title="Vista de lista"
+                  @click="setCourseView('list')"
+                ><i class="pi pi-list"></i></button>
+              </div>
+              <button class="btn btn-outline btn-sm" @click="showCreateModal = true">
+                <i class="pi pi-plus"></i> Nuevo
+              </button>
+            </div>
           </div>
 
           <div v-if="courses.length === 0" class="empty-state">
@@ -411,7 +433,7 @@
             </button>
           </div>
 
-          <div v-else class="courses-grid">
+          <div v-else class="courses-grid" :class="{ 'courses-grid--list': courseView === 'list' }">
             <div
               v-for="course in courses"
               :key="course.id"
@@ -889,6 +911,52 @@
     grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
     gap: 16px;
   }
+  .courses-actions,
+  .view-toggle {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .view-toggle {
+    padding: 3px;
+    border: 1px solid var(--surface-border);
+    border-radius: var(--radius-sm);
+    background: var(--surface-card);
+  }
+  .view-toggle button {
+    width: 30px;
+    height: 28px;
+    border: 0;
+    border-radius: var(--radius-xs);
+    background: transparent;
+    color: var(--text-secondary);
+    cursor: pointer;
+  }
+  .view-toggle button.view-toggle__active {
+    background: var(--fill-primary-soft);
+    color: var(--practiq-violet-dark);
+  }
+  .courses-grid--list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+  .courses-grid--list .course-card {
+    display: grid;
+    grid-template-columns: 4px minmax(0, 1fr);
+  }
+  .courses-grid--list .course-card__stripe { height: auto; }
+  .courses-grid--list .course-card__body {
+    display: grid;
+    grid-template-columns: minmax(220px, 1fr) minmax(180px, 1.4fr) auto;
+    align-items: center;
+    gap: 18px;
+    padding: 13px 16px;
+  }
+  .courses-grid--list .course-card__top { grid-column: 1; grid-row: 1; }
+  .courses-grid--list .course-title { grid-column: 1; grid-row: 2; }
+  .courses-grid--list .course-desc { grid-column: 2; grid-row: 1 / span 2; }
+  .courses-grid--list .course-card__footer { grid-column: 3; grid-row: 1 / span 2; margin: 0; padding: 0; border: 0; gap: 18px; }
 
   .course-card {
     position: relative;

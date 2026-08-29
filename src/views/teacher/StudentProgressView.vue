@@ -1207,24 +1207,12 @@
     gap: 20px;
     margin-bottom: 18px;
     padding: 24px 28px;
-    border-radius: 28px;
+    border-radius: var(--radius-md);
     background: var(--gradient-card-accent);
     border: 1px solid var(--surface-elevated-strong);
     box-shadow: var(--shadow-soft);
     backdrop-filter: blur(18px);
     overflow: hidden;
-  }
-
-  .sp-header::after {
-    content: "";
-    position: absolute;
-    right: 28px;
-    bottom: -48px;
-    width: 170px;
-    height: 170px;
-    border-radius: 50%;
-    background: var(--gradient-brand-soft);
-    pointer-events: none;
   }
 
   .sp-header > * {

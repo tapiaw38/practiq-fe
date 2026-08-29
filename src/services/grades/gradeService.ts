@@ -6,10 +6,11 @@ export interface IGradeService {
   create(params: {
     name: string;
     description: string;
+    visual_theme?: "primary" | "secondary";
   }): Promise<{ data: Grade }>;
   update(
     id: string,
-    params: { name: string; description: string },
+    params: { name: string; description: string; visual_theme: "primary" | "secondary" },
   ): Promise<{ data: Grade }>;
   delete(id: string): Promise<void>;
   addMember(
@@ -38,6 +39,7 @@ export class GradeService implements IGradeService {
   async create(params: {
     name: string;
     description: string;
+    visual_theme?: "primary" | "secondary";
   }): Promise<{ data: Grade }> {
     const { data } = await this.api.post("/grades", params);
     return data;
@@ -45,7 +47,7 @@ export class GradeService implements IGradeService {
 
   async update(
     id: string,
-    params: { name: string; description: string },
+    params: { name: string; description: string; visual_theme: "primary" | "secondary" },
   ): Promise<{ data: Grade }> {
     const { data } = await this.api.put(`/grades/${id}`, params);
     return data;

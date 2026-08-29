@@ -24,6 +24,7 @@ export const useGradeStore = (service: IGradeService) =>
     const createGrade = async (params: {
       name: string;
       description: string;
+      visual_theme?: "primary" | "secondary";
     }) => {
       loading.value = true;
       try {
@@ -37,7 +38,7 @@ export const useGradeStore = (service: IGradeService) =>
 
     const updateGrade = async (
       id: string,
-      params: { name: string; description: string },
+      params: { name: string; description: string; visual_theme: "primary" | "secondary" },
     ) => {
       loading.value = true;
       try {

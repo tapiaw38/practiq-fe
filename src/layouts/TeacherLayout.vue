@@ -64,7 +64,7 @@
       </div>
 
       <nav class="sidebar-nav">
-        <div class="nav-section-label">Docente</div>
+        <div class="nav-section-label">Espacio docente</div>
         <RouterLink
           to="/teacher/dashboard"
           class="nav-item"
@@ -74,6 +74,7 @@
           <span class="nav-icon"><i class="pi pi-home"></i></span>
           <span>Inicio</span>
         </RouterLink>
+        <div v-if="isSuperAdmin" class="nav-section-label nav-section-label--spaced">Gestión</div>
         <RouterLink
           v-if="isSuperAdmin"
           to="/teacher/admin/users"
@@ -94,6 +95,7 @@
           <span class="nav-icon"><i class="pi pi-sitemap"></i></span>
           <span>Académico</span>
         </RouterLink>
+        <div class="nav-section-label nav-section-label--spaced">Revisar</div>
         <RouterLink
           to="/teacher/notebook-reviews"
           class="nav-item"
@@ -112,6 +114,7 @@
           <span class="nav-icon"><i class="pi pi-paperclip"></i></span>
           <span>Pruebas de nivel</span>
         </RouterLink>
+        <div class="nav-section-label nav-section-label--spaced">Herramientas</div>
         <RouterLink
           to="/teacher/strategies"
           class="nav-item"

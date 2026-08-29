@@ -67,8 +67,9 @@
         loadMaterials(courseId),
       ]);
       if (levelsRes.status === "fulfilled") data.value = levelsRes.value;
-      if (courseRes.status === "fulfilled")
+      if (courseRes.status === "fulfilled") {
         courseTitle.value = courseRes.value?.title || "";
+      }
       // Materials are extra context, never a reason to fail the whole view.
       if (materialsRes.status === "fulfilled")
         materials.value = materialsRes.value || [];

@@ -278,4 +278,13 @@
     color: var(--text-secondary);
     font-size: var(--text-sm);
   }
+
+  @media (max-width: 600px) {
+    .fb-row { align-items: stretch; flex-direction: column; }
+    .fb-row .btn { width: 100%; min-height: 44px; justify-content: center; }
+    .fb-layout { min-height: 44px; }
+    .fb-blank { align-items: stretch; }
+    .fb-blank .form-input { min-width: 0; }
+    .fb-statement { overflow-wrap: anywhere; }
+  }
 </style>

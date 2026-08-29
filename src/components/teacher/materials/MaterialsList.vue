@@ -158,4 +158,16 @@
     color: var(--practiq-violet);
     flex: 0 0 auto;
   }
+
+  @media (max-width: 600px) {
+    .tab-content { padding: 14px; }
+    .section-header { align-items: stretch; flex-direction: column; gap: 10px; }
+    .section-header .btn { width: 100%; min-height: 44px; justify-content: center; }
+    .list-item { align-items: flex-start; flex-direction: column; gap: 12px; }
+    .item-info { width: 100%; }
+    .item-info > div { min-width: 0; }
+    .item-title, .item-subtitle { overflow-wrap: anywhere; }
+    .item-actions { width: 100%; justify-content: flex-end; }
+    .item-actions .btn { min-width: 44px; min-height: 44px; }
+  }
 </style>

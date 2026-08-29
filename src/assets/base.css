@@ -253,3 +253,373 @@ select {
   outline: 3px solid rgba(var(--practiq-violet-rgb), 0.28);
   outline-offset: 3px;
 }
+
+/* Secondary: denser, restrained identity. Components only consume tokens. */
+:root[data-ui-theme="secondary"],
+:root[data-ui-theme="serious"] {
+  font-family: 'IBM Plex Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  --radius-xs: 3px;
+  --radius-sm: 4px;
+  --radius-md: 6px;
+  --radius-lg: 7px;
+  --radius-xl: 8px;
+  --radius-2xl: 10px;
+
+  --text-xs: 11px;
+  --text-sm: 12px;
+  --text-base: 13px;
+  --text-md: 13px;
+  --text-lg: 14px;
+
+  --space-1: 3px;
+  --space-2: 6px;
+  --space-3: 10px;
+  --space-4: 13px;
+  --space-5: 16px;
+  --space-6: 20px;
+  --space-8: 26px;
+
+  --practiq-violet: #4f46e5;
+  --practiq-violet-rgb: 79, 70, 229;
+  --practiq-violet-light: #4f46e5;
+  --practiq-violet-dark: #3730a3;
+
+  /* Flat instead of the two-hue sweep: a gradient reads as decoration here. */
+  --gradient-brand: linear-gradient(135deg, #4f46e5, #4338ca);
+  --gradient-brand-soft: rgba(79, 70, 229, 0.08);
+  --gradient-app-bg: var(--surface-bg);
+
+  --shadow-card: 0 1px 2px rgba(15, 23, 42, 0.06);
+  --shadow-card-lg: 0 2px 6px rgba(15, 23, 42, 0.08);
+  --shadow-violet: 0 1px 3px rgba(79, 70, 229, 0.18);
+  --shadow-indigo: 0 1px 3px rgba(79, 70, 229, 0.18);
+  --elevation-tint-shadow: 0 1px 2px rgba(15, 23, 42, 0.06);
+}
+
+:root[data-ui-theme="secondary"] .dashboard-mascot {
+  display: none;
+}
+
+/* Some student views still use local 20–32px radii. Keep secondary compact
+   without changing circular controls, avatars, or progress indicators. */
+:root[data-ui-theme="secondary"] main article,
+:root[data-ui-theme="secondary"] main [class*="card"],
+:root[data-ui-theme="secondary"] main [class*="panel"],
+:root[data-ui-theme="secondary"] main [class*="banner"],
+:root[data-ui-theme="secondary"] main [class*="shell"],
+:root[data-ui-theme="secondary"] main [class*="sheet"] {
+  border-radius: var(--radius-md) !important;
+}
+
+:root[data-ui-theme="secondary"] .sidebar,
+:root[data-ui-theme="secondary"] .sidebar-brand,
+:root[data-ui-theme="secondary"] .sidebar-nav,
+:root[data-ui-theme="secondary"] .nav-item,
+:root[data-ui-theme="secondary"] .nav-item--continue {
+  border-radius: var(--radius-sm) !important;
+}
+
+:root[data-ui-theme="secondary"] .bell-btn,
+:root[data-ui-theme="secondary"] .bell-panel,
+:root[data-ui-theme="secondary"] .bell-item {
+  border-radius: var(--radius-sm) !important;
+}
+
+:root[data-ui-theme="secondary"] .color-palette .swatch,
+:root[data-ui-theme="secondary"] .color-palette .more-btn,
+:root[data-ui-theme="secondary"] .color-palette .pop,
+:root[data-ui-theme="secondary"] .color-palette .pop-swatch,
+:root[data-ui-theme="secondary"] .color-palette .pop-custom {
+  border-radius: var(--radius-xs) !important;
+}
+
+:root[data-ui-theme="secondary"] .stepper,
+:root[data-ui-theme="secondary"] .stepper-dot,
+:root[data-ui-theme="secondary"] .btn-back {
+  border-radius: var(--radius-sm) !important;
+}
+
+:root[data-ui-theme="secondary"] .btn-back {
+  border-radius: 8px !important;
+}
+
+/* Teacher: default professional identity, independent from student themes. */
+:root[data-ui-theme="teacher"] {
+  font-family: 'IBM Plex Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  --radius-xs: 3px;
+  --radius-sm: 4px;
+  --radius-md: 6px;
+  --radius-lg: 8px;
+  --radius-xl: 10px;
+  --radius-2xl: 12px;
+
+  --practiq-violet-50: #f0fdfa;
+  --practiq-violet-100: #ccfbf1;
+  --practiq-violet-200: #99f6e4;
+  --practiq-violet-300: #5eead4;
+  --practiq-violet-400: #2dd4bf;
+  --practiq-violet-500: #14b8a6;
+  --practiq-violet-600: #0d9488;
+  --practiq-violet-700: #0f766e;
+  --practiq-violet-800: #115e59;
+  --practiq-violet-900: #134e4a;
+  --practiq-violet-950: #042f2e;
+  --practiq-violet: #0f766e;
+  --practiq-violet-rgb: 15, 118, 110;
+  --practiq-violet-light: #14b8a6;
+  --practiq-violet-light-rgb: 20, 184, 166;
+  --practiq-violet-dark: #115e59;
+  --practiq-indigo: #155e75;
+  --practiq-indigo-rgb: 21, 94, 117;
+  --gradient-brand: linear-gradient(135deg, #0f766e, #155e75);
+  --gradient-brand-panel: linear-gradient(155deg, #042f2e, #0f766e 46%, #155e75);
+  --gradient-app-bg: linear-gradient(180deg, #f8fafc 0%, #f0fdfa 100%);
+  --shadow-violet: 0 2px 8px rgba(15, 118, 110, 0.2);
+  --shadow-indigo: 0 2px 8px rgba(21, 94, 117, 0.18);
+}
+
+:root[data-ui-theme="teacher"] [class*="card"],
+:root[data-ui-theme="teacher"] [class*="panel"],
+:root[data-ui-theme="teacher"] [class*="modal"],
+:root[data-ui-theme="teacher"] [class*="tile"],
+:root[data-ui-theme="teacher"] [class*="detail"],
+:root[data-ui-theme="teacher"] [class*="list-item"],
+:root[data-ui-theme="teacher"] main article,
+:root[data-ui-theme="teacher"] .page-header,
+:root[data-ui-theme="teacher"] .ac-topbar,
+:root[data-ui-theme="teacher"] .grade-sidebar,
+:root[data-ui-theme="teacher"] .grade-header,
+:root[data-ui-theme="teacher"] .courses-empty,
+:root[data-ui-theme="teacher"] .sidebar,
+:root[data-ui-theme="teacher"] .nav-item {
+  border-radius: var(--radius-md) !important;
+}
+
+:root[data-ui-theme="teacher"] .ac-topbar::after {
+  display: none;
+}
+
+:root[data-ui-theme="teacher"] .page-header::after,
+:root[data-ui-theme="teacher"] .hero-card::after {
+  display: none;
+}
+
+/* Teacher workspace: predictable hierarchy across dashboard, management and
+   review screens. These are deliberately theme-scoped so student UI stays
+   playful and spacious. */
+:root[data-ui-theme="teacher"] .app-shell {
+  background: #f6f8fa;
+}
+
+:root[data-ui-theme="teacher"] .sidebar {
+  width: 256px !important;
+  margin: 12px 0 12px 12px !important;
+  height: calc(100vh - 24px) !important;
+  padding: 16px 12px 12px !important;
+  background: rgba(255, 255, 255, 0.96) !important;
+  border-color: #dce5e8 !important;
+  box-shadow: 0 8px 24px rgba(15, 23, 42, 0.08) !important;
+}
+
+:root[data-ui-theme="teacher"] .sidebar-nav {
+  gap: 3px;
+  margin-top: 14px;
+}
+
+:root[data-ui-theme="teacher"] .nav-section-label {
+  padding: 14px 10px 5px;
+  color: #7b8794;
+  letter-spacing: 0.1em;
+}
+
+:root[data-ui-theme="teacher"] .nav-section-label:first-child {
+  padding-top: 4px;
+}
+
+:root[data-ui-theme="teacher"] .nav-section-label--spaced {
+  border-top: 1px solid #edf1f2;
+  margin-top: 10px;
+}
+
+:root[data-ui-theme="teacher"] .nav-item {
+  min-height: 42px;
+  padding: 8px 10px;
+  font-weight: 650;
+}
+
+:root[data-ui-theme="teacher"] .nav-item-active {
+  background: #e6f5f2;
+  color: #0f5f59;
+  box-shadow: none;
+}
+
+:root[data-ui-theme="teacher"] .nav-item-active::before {
+  display: none;
+}
+
+:root[data-ui-theme="teacher"] .main-content {
+  padding: 8px 16px 32px;
+}
+
+:root[data-ui-theme="teacher"] .page-header,
+:root[data-ui-theme="teacher"] .ac-topbar,
+:root[data-ui-theme="teacher"] .hero-card {
+  background: #ffffff;
+  border-color: #dfe7e8;
+  box-shadow: 0 2px 8px rgba(15, 23, 42, 0.05);
+  backdrop-filter: none;
+}
+
+:root[data-ui-theme="teacher"] .section-header {
+  padding-bottom: 10px;
+  border-bottom: 1px solid #e6ecee;
+}
+
+:root[data-ui-theme="teacher"] .btn-primary {
+  box-shadow: 0 2px 5px rgba(15, 118, 110, 0.2);
+}
+
+:root[data-ui-theme="teacher"] .stat-item,
+:root[data-ui-theme="teacher"] .course-card,
+:root[data-ui-theme="teacher"] .student-card,
+:root[data-ui-theme="teacher"] .detail-card {
+  border-color: #e0e7e9;
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.05);
+}
+
+/* Teacher mobile system: every teacher route shares this shell. Local view
+   styles can keep their content-specific layout while headers, actions, grids
+   and dialogs retain usable width and 44px touch targets. */
+@media (max-width: 920px) {
+  :root[data-ui-theme="teacher"] {
+    overflow-x: hidden;
+  }
+
+  :root[data-ui-theme="teacher"] .app-shell,
+  :root[data-ui-theme="teacher"] .main-content {
+    min-width: 0;
+    overflow-x: clip;
+  }
+
+  :root[data-ui-theme="teacher"] .sidebar {
+    width: min(320px, calc(100vw - 24px)) !important;
+    margin: 0 !important;
+    height: calc(100dvh - 24px) !important;
+  }
+
+  :root[data-ui-theme="teacher"] .mobile-topbar {
+    min-height: 64px;
+    padding: 10px 12px !important;
+  }
+
+  :root[data-ui-theme="teacher"] .main-content {
+    padding: 8px 12px 28px !important;
+  }
+
+  :root[data-ui-theme="teacher"] .dashboard,
+  :root[data-ui-theme="teacher"] .course-detail,
+  :root[data-ui-theme="teacher"] .courses-page,
+  :root[data-ui-theme="teacher"] .reviews-page,
+  :root[data-ui-theme="teacher"] .review-dashboard,
+  :root[data-ui-theme="teacher"] .strategy-dashboard,
+  :root[data-ui-theme="teacher"] .sp-page,
+  :root[data-ui-theme="teacher"] .admin-shell,
+  :root[data-ui-theme="teacher"] .ac-root,
+  :root[data-ui-theme="teacher"] .editor-shell {
+    width: 100%;
+    max-width: none !important;
+    padding-left: 0 !important;
+    padding-right: 0 !important;
+  }
+
+  :root[data-ui-theme="teacher"] .page-header,
+  :root[data-ui-theme="teacher"] .ac-topbar,
+  :root[data-ui-theme="teacher"] .hero-card,
+  :root[data-ui-theme="teacher"] .course-header,
+  :root[data-ui-theme="teacher"] .sp-header,
+  :root[data-ui-theme="teacher"] .editor-header,
+  :root[data-ui-theme="teacher"] .grade-header,
+  :root[data-ui-theme="teacher"] .section-header,
+  :root[data-ui-theme="teacher"] .toolbar-card,
+  :root[data-ui-theme="teacher"] .action-row,
+  :root[data-ui-theme="teacher"] .filter-row {
+    flex-wrap: wrap;
+  }
+
+  :root[data-ui-theme="teacher"] .page-header__right,
+  :root[data-ui-theme="teacher"] .grade-header__actions,
+  :root[data-ui-theme="teacher"] .toolbar-actions,
+  :root[data-ui-theme="teacher"] .header-actions {
+    width: 100%;
+    flex-wrap: wrap;
+  }
+
+  :root[data-ui-theme="teacher"] .btn,
+  :root[data-ui-theme="teacher"] button,
+  :root[data-ui-theme="teacher"] select,
+  :root[data-ui-theme="teacher"] input,
+  :root[data-ui-theme="teacher"] textarea {
+    min-height: 44px;
+  }
+
+  :root[data-ui-theme="teacher"] .tabs,
+  :root[data-ui-theme="teacher"] .tab-bar,
+  :root[data-ui-theme="teacher"] .grade-sidebar,
+  :root[data-ui-theme="teacher"] .pages-sidebar {
+    max-width: 100%;
+    overscroll-behavior-x: contain;
+  }
+}
+
+@media (max-width: 600px) {
+  :root[data-ui-theme="teacher"] .page-header,
+  :root[data-ui-theme="teacher"] .ac-topbar,
+  :root[data-ui-theme="teacher"] .hero-card,
+  :root[data-ui-theme="teacher"] .course-header,
+  :root[data-ui-theme="teacher"] .sp-header,
+  :root[data-ui-theme="teacher"] .editor-header,
+  :root[data-ui-theme="teacher"] .grade-header {
+    padding: 16px !important;
+    align-items: stretch !important;
+  }
+
+  :root[data-ui-theme="teacher"] .page-header__right,
+  :root[data-ui-theme="teacher"] .grade-header__actions,
+  :root[data-ui-theme="teacher"] .toolbar-actions,
+  :root[data-ui-theme="teacher"] .header-actions,
+  :root[data-ui-theme="teacher"] .section-header > .btn,
+  :root[data-ui-theme="teacher"] .section-header > button {
+    width: 100%;
+  }
+
+  :root[data-ui-theme="teacher"] .page-header__right .btn,
+  :root[data-ui-theme="teacher"] .grade-header__actions .btn,
+  :root[data-ui-theme="teacher"] .toolbar-actions .btn,
+  :root[data-ui-theme="teacher"] .header-actions .btn {
+    flex: 1 1 140px;
+    justify-content: center;
+  }
+
+  :root[data-ui-theme="teacher"] .stats-grid,
+  :root[data-ui-theme="teacher"] .summary-row,
+  :root[data-ui-theme="teacher"] .courses-grid,
+  :root[data-ui-theme="teacher"] .strategy-grid,
+  :root[data-ui-theme="teacher"] .submissions-grid,
+  :root[data-ui-theme="teacher"] .progress-grid,
+  :root[data-ui-theme="teacher"] .notebooks-grid {
+    grid-template-columns: 1fr !important;
+  }
+
+  :root[data-ui-theme="teacher"] .tab-content,
+  :root[data-ui-theme="teacher"] .detail-card,
+  :root[data-ui-theme="teacher"] .toolbar-card {
+    padding: 14px !important;
+  }
+
+  :root[data-ui-theme="teacher"] .modal,
+  :root[data-ui-theme="teacher"] [class*="modal-content"] {
+    width: calc(100vw - 24px) !important;
+    max-width: none !important;
+    max-height: calc(100dvh - 24px);
+  }
+}

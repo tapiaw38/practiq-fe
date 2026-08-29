@@ -11,5 +11,6 @@ export interface UserProfile {
   timezone?: string;
   assistant_base_url: string;
   assistant_api_key: string;
+  ui_theme: "primary" | "secondary";
   created_at: string;
 }
