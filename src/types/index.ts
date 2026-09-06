@@ -3,6 +3,7 @@ export * from "./assistant";
 export * from "./assignments";
 export * from "./attemptReviews";
 export * from "./auth";
+export * from "./schools";
 export * from "./courses";
 export * from "./exercises";
 export * from "./grades";

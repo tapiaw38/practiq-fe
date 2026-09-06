@@ -3,6 +3,7 @@ import type { AuthApiUser } from '@/types'
 
 export interface IAuthAdminService {
   listUsers(params?: { limit?: number; offset?: number; role?: string }): Promise<{ data: AuthApiUser[] }>
+  getByUsername(username: string): Promise<{ data: AuthApiUser }>
   updateUser(id: string, params: Partial<Pick<AuthApiUser, 'first_name' | 'last_name' | 'email' | 'is_active' | 'verified_email'>>): Promise<{ data: AuthApiUser }>
   updateRoles(id: string, roles: string[]): Promise<{ data: AuthApiUser }>
 }
@@ -17,6 +18,11 @@ export class AuthAdminService implements IAuthAdminService {
 
   async updateUser(id: string, params: Partial<Pick<AuthApiUser, 'first_name' | 'last_name' | 'email' | 'is_active' | 'verified_email'>>): Promise<{ data: AuthApiUser }> {
     const { data } = await this.api.put(`/user/${id}`, params)
+    return data
+  }
+
+  async getByUsername(username: string): Promise<{ data: AuthApiUser }> {
+    const { data } = await this.api.get('/user/by-username', { params: { username } })
     return data
   }
 

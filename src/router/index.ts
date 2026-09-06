@@ -16,6 +16,8 @@ const router = createRouter({
       path: "/dashboard",
       redirect: () => {
         try {
+          const authUser = JSON.parse(localStorage.getItem("practiq_auth_user") || "null");
+          if (authUser?.roles?.some((role: { name: string }) => ["admin", "superadmin"].includes(role.name))) return "/admin/schools";
           const profileStr = localStorage.getItem("practiq_profile");
           if (profileStr) {
             const profile = JSON.parse(profileStr);
@@ -31,6 +33,12 @@ const router = createRouter({
       name: "login",
       component: () => import("@/views/LoginView.vue"),
       meta: { requiresGuest: true },
+    },
+    {
+      path: "/admin/schools",
+      name: "admin-schools",
+      component: () => import("@/views/admin/SchoolManagementView.vue"),
+      meta: { requiresAuth: true, roles: ["admin", "superadmin"] },
     },
     {
       path: "/teacher/dashboard",

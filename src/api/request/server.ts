@@ -1,6 +1,7 @@
 import axios from 'axios'
 
 const TOKEN_KEY = 'practiq_token'
+const ACTIVE_SCHOOL_KEY = 'practiq_active_school'
 
 export function getToken(): string | null {
   return localStorage.getItem(TOKEN_KEY)
@@ -25,6 +26,10 @@ function createAxiosInstance(baseURL: string) {
     const token = getToken()
     if (token) {
       config.headers.Authorization = `Bearer ${token}`
+    }
+    const schoolId = localStorage.getItem(ACTIVE_SCHOOL_KEY)
+    if (schoolId && baseURL.includes('/api')) {
+      config.headers['X-School-ID'] = schoolId
     }
     return config
   })

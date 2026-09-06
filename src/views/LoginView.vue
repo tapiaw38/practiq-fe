@@ -118,7 +118,11 @@
       router.push(redirectUrl.value);
       return;
     }
+    const hasSchoolAdminRole = authStore.authUser?.roles.some((role) => ["admin", "superadmin"].includes(role.name));
     router.push(
+      hasSchoolAdminRole
+        ? "/admin/schools"
+        :
       profile.profile_type === "teacher"
         ? "/teacher/dashboard"
         : "/student/dashboard",
