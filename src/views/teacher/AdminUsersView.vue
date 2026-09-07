@@ -40,7 +40,7 @@
 
   const authStore = useAuthStore();
   const { confirmState, showConfirm, onConfirm, onCancel } = useConfirm();
-  const { loadUsers, updateUser, updateRoles } = useAuthAdmin();
+  const { loadUsers, updateUser } = useAuthAdmin();
   const {
     loadTeacherStudents,
     loadStudentTeachers,
@@ -53,6 +53,7 @@
     loadProfileById,
     updateAssistantConfigById,
     updateAcademicStatusById,
+    updateProfileTypeById,
   } = useProfile();
   const loading = ref(false);
   const errorMessage = ref("");
@@ -381,27 +382,27 @@
     }
   }
 
-  function hasTeacherRole(user: AuthApiUser) {
-    return (user.roles || []).some((role) => role.name === "admin");
-  }
-
   function isSelf(user: AuthApiUser) {
     return authStore.authUser?.id === user.id;
   }
 
   const changingRole = ref<string | null>(null);
 
-  async function setTeacherRole(item: UserRow, makeTeacher: boolean) {
+  async function setProfileType(item: UserRow, makeTeacher: boolean) {
+    if (!item.profile) {
+      errorMessage.value = "El usuario debe iniciar sesión para crear su perfil Practiq.";
+      return;
+    }
     const name = fullName(item.user);
     const ok = await showConfirm(
       makeTeacher
         ? `¿Convertir a ${name} en docente?`
-        : `¿Quitarle el rol de docente a ${name}?`,
+        : `¿Convertir a ${name} en alumno?`,
       {
         description: makeTeacher
           ? "Va a poder crear cursos y ver a los alumnos que tenga asignados. Su sesión actual se cierra y el cambio aplica cuando vuelva a entrar."
-          : "Vuelve a ser alumno y pierde el acceso a sus cursos. Su sesión actual se cierra.",
-        confirmLabel: makeTeacher ? "Convertir en docente" : "Quitar rol",
+          : "Vuelve a ser alumno y pierde acceso a funciones docentes.",
+        confirmLabel: makeTeacher ? "Convertir en docente" : "Convertir en alumno",
         danger: !makeTeacher,
       },
     );
@@ -409,14 +410,14 @@
 
     changingRole.value = item.user.id;
     try {
-      const updated = await updateRoles(item.user.id, [
-        makeTeacher ? "admin" : "user",
-      ]);
+      const updated = await updateProfileTypeById(practiqUserId(item.user), {
+        profile_type: makeTeacher ? "teacher" : "student",
+      });
       rows.value = rows.value.map((row) =>
-        row.user.id === item.user.id ? { ...row, user: updated } : row,
+        row.user.id === item.user.id ? { ...row, profile: updated } : row,
       );
     } catch {
-      errorMessage.value = "No se pudo cambiar el rol.";
+      errorMessage.value = "No se pudo cambiar el tipo de perfil.";
     } finally {
       changingRole.value = null;
     }
@@ -623,11 +624,11 @@
                 </td>
                 <td data-label="Acciones" class="cell-actions">
                   <button
-                    v-if="hasTeacherRole(teacher.user) && !isSelf(teacher.user)"
+                    v-if="!isSelf(teacher.user)"
                     class="btn btn-secondary btn-sm"
                     type="button"
                     :disabled="changingRole === teacher.user.id"
-                    @click="setTeacherRole(teacher, false)"
+                    @click="setProfileType(teacher, false)"
                   >
                     Quitar rol docente
                   </button>
@@ -685,16 +686,7 @@
                   }}</span>
                 </td>
                 <td data-label="Acciones" class="cell-actions">
-                  <button
-                    v-if="!hasTeacherRole(item.user) && !isSelf(item.user)"
-                    class="btn btn-secondary btn-sm"
-                    type="button"
-                    :disabled="changingRole === item.user.id"
-                    @click="setTeacherRole(item, true)"
-                  >
-                    <i class="pi pi-graduation-cap"></i>
-                    Hacer docente
-                  </button>
+                  <span class="detail-empty">Debe iniciar sesión</span>
                 </td>
               </tr>
             </tbody>
@@ -782,11 +774,11 @@
                 </td>
                 <td data-label="Acciones" class="cell-actions">
                   <button
-                    v-if="!hasTeacherRole(item.user) && !isSelf(item.user)"
+                    v-if="!isSelf(item.user)"
                     class="btn btn-secondary btn-sm"
                     type="button"
                     :disabled="changingRole === item.user.id"
-                    @click="setTeacherRole(item, true)"
+                    @click="setProfileType(item, true)"
                   >
                     <i class="pi pi-graduation-cap"></i>
                     Hacer docente

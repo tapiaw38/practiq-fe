@@ -19,6 +19,10 @@ export type AcademicStatusParams = {
   academic_status: "active" | "blocked";
 };
 
+export type ProfileTypeParams = {
+  profile_type: "teacher" | "student";
+};
+
 export interface IProfileService {
   sync(params: SyncProfileParams): Promise<{ data: UserProfile }>;
   get(): Promise<{ data: UserProfile }>;
@@ -33,6 +37,10 @@ export interface IProfileService {
   updateAcademicStatusById(
     id: string,
     params: AcademicStatusParams,
+  ): Promise<{ data: UserProfile }>;
+  updateProfileTypeById(
+    id: string,
+    params: ProfileTypeParams,
   ): Promise<{ data: UserProfile }>;
 }
 
@@ -108,6 +116,14 @@ export class ProfileService implements IProfileService {
       `/profile/${id}/academic-status`,
       params,
     );
+    return data;
+  }
+
+  async updateProfileTypeById(
+    id: string,
+    params: ProfileTypeParams,
+  ): Promise<{ data: UserProfile }> {
+    const { data } = await this.api.put(`/profile/${id}/type`, params);
     return data;
   }
 }
