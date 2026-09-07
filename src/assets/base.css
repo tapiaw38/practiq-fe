@@ -460,8 +460,8 @@ select {
 }
 
 :root[data-ui-theme="teacher"] .nav-item-active {
-  background: #e6f5f2;
-  color: #0f5f59;
+  background: #eef2ff;
+  color: #3730a3;
   box-shadow: none;
 }
 
@@ -488,7 +488,7 @@ select {
 }
 
 :root[data-ui-theme="teacher"] .btn-primary {
-  box-shadow: 0 2px 5px rgba(15, 118, 110, 0.2);
+  box-shadow: 0 2px 5px rgba(79, 70, 229, 0.2);
 }
 
 :root[data-ui-theme="teacher"] .stat-item,
