@@ -23,7 +23,7 @@
   watch(
     () => authStore.profile,
     (profile) => setUiTheme(
-      profile?.profile_type === 'teacher' ? 'secondary' : profile?.ui_theme,
+      profile?.profile_type === 'teacher' ? 'teacher' : profile?.ui_theme,
     ),
     { immediate: true },
   )

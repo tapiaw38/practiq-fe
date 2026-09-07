@@ -353,29 +353,29 @@ select {
   --radius-xl: 10px;
   --radius-2xl: 12px;
 
-  --practiq-violet-50: #f0fdfa;
-  --practiq-violet-100: #ccfbf1;
-  --practiq-violet-200: #99f6e4;
-  --practiq-violet-300: #5eead4;
-  --practiq-violet-400: #2dd4bf;
-  --practiq-violet-500: #14b8a6;
-  --practiq-violet-600: #0d9488;
-  --practiq-violet-700: #0f766e;
-  --practiq-violet-800: #115e59;
-  --practiq-violet-900: #134e4a;
-  --practiq-violet-950: #042f2e;
-  --practiq-violet: #0f766e;
-  --practiq-violet-rgb: 15, 118, 110;
-  --practiq-violet-light: #14b8a6;
-  --practiq-violet-light-rgb: 20, 184, 166;
-  --practiq-violet-dark: #115e59;
-  --practiq-indigo: #155e75;
-  --practiq-indigo-rgb: 21, 94, 117;
-  --gradient-brand: linear-gradient(135deg, #0f766e, #155e75);
-  --gradient-brand-panel: linear-gradient(155deg, #042f2e, #0f766e 46%, #155e75);
-  --gradient-app-bg: linear-gradient(180deg, #f8fafc 0%, #f0fdfa 100%);
-  --shadow-violet: 0 2px 8px rgba(15, 118, 110, 0.2);
-  --shadow-indigo: 0 2px 8px rgba(21, 94, 117, 0.18);
+  --practiq-violet-50: #eef2ff;
+  --practiq-violet-100: #e0e7ff;
+  --practiq-violet-200: #c7d2fe;
+  --practiq-violet-300: #a5b4fc;
+  --practiq-violet-400: #818cf8;
+  --practiq-violet-500: #6366f1;
+  --practiq-violet-600: #4f46e5;
+  --practiq-violet-700: #4338ca;
+  --practiq-violet-800: #3730a3;
+  --practiq-violet-900: #312e81;
+  --practiq-violet-950: #1e1b4b;
+  --practiq-violet: #4f46e5;
+  --practiq-violet-rgb: 79, 70, 229;
+  --practiq-violet-light: #4f46e5;
+  --practiq-violet-light-rgb: 79, 70, 229;
+  --practiq-violet-dark: #3730a3;
+  --practiq-indigo: #4338ca;
+  --practiq-indigo-rgb: 67, 56, 202;
+  --gradient-brand: linear-gradient(135deg, #4f46e5, #4338ca);
+  --gradient-brand-panel: linear-gradient(155deg, #1e1b4b, #4f46e5 46%, #4338ca);
+  --gradient-app-bg: linear-gradient(180deg, #f8fafc 0%, #eef2ff 100%);
+  --shadow-violet: 0 2px 8px rgba(79, 70, 229, 0.2);
+  --shadow-indigo: 0 2px 8px rgba(67, 56, 202, 0.18);
 }
 
 :root[data-ui-theme="teacher"] [class*="card"],
