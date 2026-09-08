@@ -205,6 +205,9 @@
               {{ plan.max_students === 1 ? "alumno" : "alumnos" }}
               · {{ formatAmount(plan) }}
             </span>
+            <span v-if="plan.description" class="plan-description">
+              {{ plan.description }}
+            </span>
           </div>
           <div class="plan-row-actions">
             <span v-if="!plan.active" class="plan-retired">Retirado</span>
@@ -298,6 +301,17 @@
     background: var(--surface-card);
     color: var(--text-primary);
     font-size: 0.9rem;
+    transition: border-color 0.2s ease, box-shadow 0.2s ease;
+  }
+
+  .field input:hover {
+    border-color: rgba(var(--practiq-violet-rgb), 0.35);
+  }
+
+  .field input:focus {
+    outline: none;
+    border-color: var(--practiq-violet);
+    box-shadow: var(--focus-ring-primary);
   }
 
   .form-note {
@@ -329,6 +343,12 @@
     background: var(--surface-card);
     border: 1px solid var(--surface-border);
     border-radius: var(--radius-lg);
+    transition: border-color 0.2s ease, box-shadow 0.2s ease;
+  }
+
+  .plan-row:hover {
+    border-color: rgba(var(--practiq-violet-rgb), 0.3);
+    box-shadow: var(--shadow-card);
   }
 
   /* Retired plans stay listed: subscriptions point at them, and a plan that
@@ -351,6 +371,13 @@
   .plan-meta {
     font-size: 0.82rem;
     color: var(--text-secondary);
+  }
+
+  .plan-description {
+    max-width: 52ch;
+    font-size: 0.8rem;
+    line-height: 1.4;
+    color: var(--text-muted);
   }
 
   .plan-row-actions {
@@ -389,6 +416,12 @@
 
   .btn-quiet--danger {
     color: var(--color-error-dark, #b91c1c);
+  }
+
+  .btn-primary:focus-visible,
+  .btn-quiet:focus-visible {
+    outline: none;
+    box-shadow: var(--focus-ring-primary);
   }
 
   .btn-primary:disabled,

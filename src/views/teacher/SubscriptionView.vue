@@ -497,6 +497,12 @@
     background: var(--surface-card);
     border: 1px solid var(--surface-border);
     border-radius: var(--radius-lg);
+    transition: border-color 0.2s ease, box-shadow 0.2s ease;
+  }
+
+  .plan-item:hover {
+    border-color: rgba(var(--practiq-violet-rgb), 0.3);
+    box-shadow: var(--shadow-card);
   }
 
   .plan-item--current {
@@ -550,6 +556,14 @@
   .btn-plan:disabled {
     opacity: 0.6;
     cursor: not-allowed;
+  }
+
+  .btn-primary:focus-visible,
+  .btn-secondary:focus-visible,
+  .btn-quiet:focus-visible,
+  .btn-plan:focus-visible {
+    outline: none;
+    box-shadow: var(--focus-ring-primary);
   }
 
   .plans-note {
