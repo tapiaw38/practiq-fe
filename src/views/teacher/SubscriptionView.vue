@@ -6,6 +6,7 @@
   import Skeleton from "@/components/ui/Skeleton.vue";
   import {
     SubscriptionService,
+    type CatalogPlan,
     type TeacherSubscription,
   } from "@/services/subscription/subscriptionService";
 
@@ -13,7 +14,20 @@
   const service = new SubscriptionService(practiqApi);
 
   const subscription = ref<TeacherSubscription | null>(null);
+  const plans = ref<CatalogPlan[]>([]);
   const loading = ref(true);
+  const working = ref(false);
+  /**
+   * Cancelling is offered through here, never directly.
+   *
+   * At the gateway a cancellation withdraws the payment authorisation and
+   * cannot be undone — coming back means entering card details again — while a
+   * pause keeps it and resumes with one click. So the modal leads with pausing
+   * and keeps cancelling available rather than hiding it.
+   */
+  const showLeaveModal = ref(false);
+
+  const isPaused = computed(() => subscription.value?.status === "paused");
 
   const usedPct = computed(() => {
     const s = subscription.value;
@@ -31,10 +45,53 @@
     });
   });
 
+  async function reload() {
+    const [mine, catalog] = await Promise.allSettled([
+      service.getMine(),
+      service.listPlans(),
+    ]);
+    if (mine.status === "fulfilled") subscription.value = mine.value.data;
+    // The catalogue is secondary: failing to list plans must not hide the
+    // teacher's own subscription.
+    if (catalog.status === "fulfilled") plans.value = catalog.value.data;
+    if (mine.status === "rejected") throw mine.reason;
+  }
+
+  async function run(action: () => Promise<void>, done: string) {
+    if (working.value) return;
+    working.value = true;
+    try {
+      await action();
+      await reload();
+      toast.add({ severity: "success", summary: done, life: 2500 });
+    } catch {
+      toast.add({
+        severity: "error",
+        summary: "Error",
+        detail: "No se pudo completar la acción. Probá de nuevo.",
+        life: 3000,
+      });
+    } finally {
+      working.value = false;
+      showLeaveModal.value = false;
+    }
+  }
+
+  const pause = () => run(() => service.pause(), "Suscripción pausada");
+  const resume = () => run(() => service.resume(), "Suscripción reanudada");
+  const cancel = () => run(() => service.cancel(), "Suscripción cancelada");
+
+  function formatAmount(plan: CatalogPlan) {
+    return new Intl.NumberFormat("es-AR", {
+      style: "currency",
+      currency: plan.currency || "ARS",
+      maximumFractionDigits: 0,
+    }).format(plan.amount);
+  }
+
   onMounted(async () => {
     try {
-      const { data } = await service.getMine();
-      subscription.value = data;
+      await reload();
     } catch {
       toast.add({
         severity: "error",
@@ -70,9 +127,13 @@
           </div>
           <span
             class="plan-state"
-            :class="subscription.active ? 'plan-state--paid' : 'plan-state--free'"
+            :class="{
+              'plan-state--paid': subscription.active,
+              'plan-state--paused': isPaused,
+              'plan-state--free': !subscription.active && !isPaused,
+            }"
           >
-            {{ subscription.active ? "Activo" : "Gratis" }}
+            {{ subscription.active ? "Activo" : isPaused ? "Pausado" : "Gratis" }}
           </span>
         </div>
 
@@ -101,11 +162,128 @@
           </p>
         </div>
 
-        <p v-if="renewsLabel" class="plan-renews">
+        <p v-if="isPaused" class="plan-renews">
+          Mientras esté pausada no se te cobra, y tus alumnos quedan con el
+          plan gratis. Podés reanudarla cuando quieras.
+        </p>
+        <p v-else-if="renewsLabel" class="plan-renews">
           {{ subscription.active ? "Se renueva el" : "Tu prueba termina el" }}
           {{ renewsLabel }}
         </p>
+
+        <div v-if="subscription.active || isPaused" class="plan-actions">
+          <button
+            v-if="isPaused"
+            class="btn-primary"
+            type="button"
+            :disabled="working"
+            @click="resume"
+          >
+            <i class="pi pi-play"></i>
+            Reanudar
+          </button>
+          <button
+            v-else
+            class="btn-secondary"
+            type="button"
+            :disabled="working"
+            @click="pause"
+          >
+            <i class="pi pi-pause"></i>
+            Pausar
+          </button>
+          <button
+            class="btn-quiet"
+            type="button"
+            :disabled="working"
+            @click="showLeaveModal = true"
+          >
+            Cancelar suscripción
+          </button>
+        </div>
       </div>
+
+      <section v-if="plans.length" class="plans">
+        <h2 class="plans-title">Planes</h2>
+        <ul class="plan-list">
+          <li
+            v-for="plan in plans"
+            :key="plan.plan_id"
+            class="plan-item"
+            :class="{ 'plan-item--current': plan.plan_id === subscription?.plan.plan_id }"
+          >
+            <div class="plan-item-main">
+              <span class="plan-item-name">{{ plan.name }}</span>
+              <span class="plan-item-limit">
+                Hasta {{ plan.max_students }}
+                {{ plan.max_students === 1 ? "alumno" : "alumnos" }}
+              </span>
+            </div>
+            <div class="plan-item-side">
+              <span class="plan-item-price">{{ formatAmount(plan) }}</span>
+              <span
+                v-if="plan.plan_id === subscription?.plan.plan_id"
+                class="plan-item-current"
+              >
+                Tu plan
+              </span>
+            </div>
+          </li>
+        </ul>
+        <p class="plans-note">
+          Para cambiar de plan escribinos y lo activamos con vos.
+        </p>
+      </section>
+
+      <Teleport to="body">
+        <div
+          v-if="showLeaveModal"
+          class="leave-backdrop"
+          @click.self="showLeaveModal = false"
+        >
+          <div
+            class="leave-card"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="leave-title"
+          >
+            <h3 id="leave-title" class="leave-title">
+              ¿Preferís pausarla en vez de cancelar?
+            </h3>
+            <p class="leave-text">
+              Si la pausás dejamos de cobrarte y la reactivás con un clic cuando
+              quieras. Si la cancelás tenés que volver a cargar los datos de tu
+              tarjeta para retomar.
+            </p>
+            <div class="leave-actions">
+              <button
+                class="btn-primary"
+                type="button"
+                :disabled="working"
+                @click="pause"
+              >
+                Pausar
+              </button>
+              <button
+                class="btn-quiet btn-quiet--danger"
+                type="button"
+                :disabled="working"
+                @click="cancel"
+              >
+                Cancelar igual
+              </button>
+              <button
+                class="btn-quiet"
+                type="button"
+                :disabled="working"
+                @click="showLeaveModal = false"
+              >
+                Volver
+              </button>
+            </div>
+          </div>
+        </div>
+      </Teleport>
     </div>
   </TeacherLayout>
 </template>
@@ -180,6 +358,181 @@
     color: var(--practiq-violet-dark);
   }
 
+  .plan-state--paused {
+    background: var(--color-warning-bg);
+    color: var(--color-warning-dark);
+  }
+
+  .plan-actions {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    flex-wrap: wrap;
+    padding-top: 0.25rem;
+    border-top: 1px solid var(--surface-border);
+    margin-top: 0.25rem;
+  }
+
+  .btn-primary,
+  .btn-secondary,
+  .btn-quiet {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    padding: 0.55rem 1rem;
+    border-radius: var(--radius-md);
+    font-size: 0.9rem;
+    font-weight: 600;
+    cursor: pointer;
+    border: 1px solid transparent;
+  }
+
+  .btn-primary {
+    background: var(--practiq-violet);
+    color: #fff;
+  }
+
+  .btn-secondary {
+    background: var(--surface-card);
+    border-color: rgba(var(--practiq-violet-rgb), 0.3);
+    color: var(--practiq-violet);
+  }
+
+  /* Cancelling stays reachable and stays quiet. Hiding it would be a dark
+     pattern; giving it the weight of the primary action would invite the
+     irreversible choice. */
+  .btn-quiet {
+    background: transparent;
+    color: var(--text-secondary);
+  }
+
+  .btn-quiet--danger {
+    color: var(--color-error-dark, #b91c1c);
+  }
+
+  .btn-primary:disabled,
+  .btn-secondary:disabled,
+  .btn-quiet:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+  }
+
+  .plans {
+    display: flex;
+    flex-direction: column;
+    gap: 0.6rem;
+  }
+
+  .plans-title {
+    margin: 0;
+    font-size: 1.05rem;
+    color: var(--text-heading);
+  }
+
+  .plan-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+  }
+
+  .plan-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    padding: 0.8rem 1rem;
+    background: var(--surface-card);
+    border: 1px solid var(--surface-border);
+    border-radius: var(--radius-lg);
+  }
+
+  .plan-item--current {
+    border-color: var(--practiq-violet);
+  }
+
+  .plan-item-main {
+    display: flex;
+    flex-direction: column;
+    gap: 0.15rem;
+  }
+
+  .plan-item-name {
+    font-weight: 600;
+    color: var(--text-primary);
+  }
+
+  .plan-item-limit {
+    font-size: 0.82rem;
+    color: var(--text-secondary);
+  }
+
+  .plan-item-side {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 0.15rem;
+  }
+
+  .plan-item-price {
+    font-weight: 600;
+    color: var(--text-primary);
+  }
+
+  .plan-item-current {
+    font-size: 0.75rem;
+    color: var(--practiq-violet);
+  }
+
+  .plans-note {
+    margin: 0;
+    font-size: 0.82rem;
+    color: var(--text-secondary);
+  }
+
+  .leave-backdrop {
+    position: fixed;
+    inset: 0;
+    background: rgba(15, 23, 42, 0.45);
+    display: grid;
+    place-items: center;
+    padding: 1rem;
+    z-index: 1000;
+  }
+
+  .leave-card {
+    width: min(440px, 100%);
+    background: var(--surface-card);
+    border-radius: var(--radius-xl);
+    padding: 1.5rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+  }
+
+  .leave-title {
+    margin: 0;
+    font-size: 1.1rem;
+    color: var(--text-heading);
+  }
+
+  .leave-text {
+    margin: 0;
+    font-size: 0.9rem;
+    line-height: 1.55;
+    color: var(--text-secondary);
+  }
+
+  .leave-actions {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+    margin-top: 0.25rem;
+  }
+
   .usage {
     display: flex;
     flex-direction: column;
@@ -237,6 +590,29 @@
     .plan-head {
       flex-direction: column;
       gap: 0.5rem;
+    }
+
+    .plan-actions,
+    .leave-actions {
+      flex-direction: column;
+      align-items: stretch;
+    }
+
+    .btn-primary,
+    .btn-secondary,
+    .btn-quiet {
+      justify-content: center;
+      min-height: 44px;
+    }
+
+    .plan-item {
+      flex-direction: column;
+      align-items: flex-start;
+      gap: 0.4rem;
+    }
+
+    .plan-item-side {
+      align-items: flex-start;
     }
   }
 

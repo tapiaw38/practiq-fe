@@ -139,6 +139,12 @@ const router = createRouter({
       meta: { requiresAuth: true, profileType: "teacher" },
     },
     {
+      path: "/teacher/admin/plans",
+      name: "teacher-admin-plans",
+      component: () => import("@/views/teacher/AdminPlansView.vue"),
+      meta: { requiresAuth: true, profileType: "teacher", roles: ["superadmin"] },
+    },
+    {
       path: "/:pathMatch(.*)*",
       redirect: "/",
     },
