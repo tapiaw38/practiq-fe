@@ -133,6 +133,12 @@ const router = createRouter({
       meta: { requiresAuth: true, profileType: "teacher" },
     },
     {
+      path: "/teacher/subscription",
+      name: "teacher-subscription",
+      component: () => import("@/views/teacher/SubscriptionView.vue"),
+      meta: { requiresAuth: true, profileType: "teacher" },
+    },
+    {
       path: "/:pathMatch(.*)*",
       redirect: "/",
     },

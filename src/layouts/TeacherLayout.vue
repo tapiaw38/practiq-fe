@@ -124,6 +124,16 @@
           <span class="nav-icon"><i class="pi pi-cog"></i></span>
           <span>Estrategias</span>
         </RouterLink>
+
+        <RouterLink
+          to="/teacher/subscription"
+          class="nav-item"
+          active-class="nav-item-active"
+          @click="navOpen = false"
+        >
+          <span class="nav-icon"><i class="pi pi-credit-card"></i></span>
+          <span>Suscripción</span>
+        </RouterLink>
       </nav>
 
       <div class="sidebar-footer">
