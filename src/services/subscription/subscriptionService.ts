@@ -45,8 +45,19 @@ export interface PlanInput {
   active?: boolean;
 }
 
+export interface CheckoutConfig {
+  /**
+   * The gateway's public key. Public by design: it can only create card
+   * tokens, never charge them, and the secret half never leaves the payments
+   * service.
+   */
+  public_key: string;
+}
+
 export interface ISubscriptionService {
   getMine(): Promise<{ data: TeacherSubscription }>;
+  checkoutConfig(): Promise<{ data: CheckoutConfig }>;
+  subscribe(planId: number, cardTokenId: string): Promise<void>;
   listPlans(): Promise<{ data: CatalogPlan[] }>;
   pause(): Promise<void>;
   resume(): Promise<void>;
@@ -68,6 +79,24 @@ export class SubscriptionService implements ISubscriptionService {
   async getMine(): Promise<{ data: TeacherSubscription }> {
     const { data } = await this.api.get("/teachers/me/subscription");
     return data;
+  }
+
+  async checkoutConfig(): Promise<{ data: CheckoutConfig }> {
+    const { data } = await this.api.get("/teachers/me/subscription/checkout-config");
+    return data;
+  }
+
+  /**
+   * Starts a subscription with a card token the browser produced.
+   *
+   * Only the token travels. The card number never reaches Practiq, which is
+   * what keeps it out of our logs, our database and our compliance scope.
+   */
+  async subscribe(planId: number, cardTokenId: string): Promise<void> {
+    await this.api.post("/teachers/me/subscription", {
+      plan_id: planId,
+      card_token_id: cardTokenId,
+    });
   }
 
   async listPlans(): Promise<{ data: CatalogPlan[] }> {

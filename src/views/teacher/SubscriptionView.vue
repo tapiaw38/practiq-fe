@@ -4,6 +4,7 @@
   import { practiqApi } from "@/api/request/server";
   import TeacherLayout from "@/layouts/TeacherLayout.vue";
   import Skeleton from "@/components/ui/Skeleton.vue";
+  import CheckoutModal from "@/components/teacher/subscription/CheckoutModal.vue";
   import {
     SubscriptionService,
     type CatalogPlan,
@@ -28,6 +29,38 @@
   const showLeaveModal = ref(false);
 
   const isPaused = computed(() => subscription.value?.status === "paused");
+
+  /** The plan being subscribed to, or null when the checkout is closed. */
+  const checkoutPlan = ref<CatalogPlan | null>(null);
+  const publicKey = ref("");
+
+  async function openCheckout(plan: CatalogPlan) {
+    if (!publicKey.value) {
+      try {
+        const { data } = await service.checkoutConfig();
+        publicKey.value = data.public_key;
+      } catch {
+        publicKey.value = "";
+      }
+    }
+    if (!publicKey.value) {
+      toast.add({
+        severity: "warn",
+        summary: "Pagos no disponible",
+        detail: "Todavía no está configurado el cobro con tarjeta.",
+        life: 4000,
+      });
+      return;
+    }
+    checkoutPlan.value = plan;
+  }
+
+  async function confirmCheckout(cardTokenId: string) {
+    const plan = checkoutPlan.value;
+    if (!plan) return;
+    checkoutPlan.value = null;
+    await run(() => service.subscribe(plan.plan_id, cardTokenId), "Suscripción activada");
+  }
 
   const usedPct = computed(() => {
     const s = subscription.value;
@@ -227,13 +260,30 @@
               >
                 Tu plan
               </span>
+              <button
+                v-else-if="plan.active"
+                class="btn-plan"
+                type="button"
+                :disabled="working"
+                @click="openCheckout(plan)"
+              >
+                {{ subscription?.active ? "Cambiar a este" : "Suscribirme" }}
+              </button>
             </div>
           </li>
         </ul>
         <p class="plans-note">
-          Para cambiar de plan escribinos y lo activamos con vos.
+          Al cambiar de plan se cobra el nuevo desde el próximo período.
         </p>
       </section>
+
+      <CheckoutModal
+        v-if="checkoutPlan"
+        :plan="checkoutPlan"
+        :public-key="publicKey"
+        @confirm="confirmCheckout"
+        @cancel="checkoutPlan = null"
+      />
 
       <Teleport to="body">
         <div
@@ -484,6 +534,22 @@
   .plan-item-current {
     font-size: 0.75rem;
     color: var(--practiq-violet);
+  }
+
+  .btn-plan {
+    padding: 0.4rem 0.85rem;
+    border-radius: var(--radius-md);
+    border: 1px solid rgba(var(--practiq-violet-rgb), 0.3);
+    background: var(--surface-card);
+    color: var(--practiq-violet);
+    font-size: 0.82rem;
+    font-weight: 600;
+    cursor: pointer;
+  }
+
+  .btn-plan:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
   }
 
   .plans-note {
