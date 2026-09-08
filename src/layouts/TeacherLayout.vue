@@ -145,6 +145,16 @@
           <span class="nav-icon"><i class="pi pi-tags"></i></span>
           <span>Planes</span>
         </RouterLink>
+        <RouterLink
+          v-if="isSuperAdmin"
+          to="/teacher/admin/site-contact"
+          class="nav-item"
+          active-class="nav-item-active"
+          @click="navOpen = false"
+        >
+          <span class="nav-icon"><i class="pi pi-phone"></i></span>
+          <span>Contacto landing</span>
+        </RouterLink>
       </nav>
 
       <div class="sidebar-footer">
