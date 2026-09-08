@@ -36,6 +36,19 @@
 
       emit("joined");
     } catch (error: any) {
+      // 402 is the teacher's plan being full, not a bad code. Repeating the
+      // API's wording here would tell the student to check something they got
+      // right, and send them looking for a problem that is not theirs.
+      if (error?.response?.status === 402) {
+        toast.add({
+          severity: "warn",
+          summary: "El curso está completo",
+          detail:
+            "Tu docente llegó al máximo de alumnos de su plan. Avisale para que pueda sumarte.",
+          life: 6000,
+        });
+        return;
+      }
       toast.add({
         severity: "error",
         summary: "No se pudo usar el código",
