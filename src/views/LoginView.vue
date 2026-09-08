@@ -456,13 +456,23 @@
             </div>
           </div>
 
-          <!-- Sin selector de tipo: la cuenta nueva siempre es de estudiante,
-               el rol docente lo habilita el administrador. El selector que
-               había acá prometía un perfil que el backend ya no otorgaba. -->
-          <p class="teacher-note">
-            🧑‍🏫 ¿Sos docente? Registrate igual y pedile al administrador que
-            habilite tu cuenta.
-          </p>
+          <fieldset class="profile-type-picker">
+            <legend>¿Cómo vas a usar Practiq?</legend>
+            <label class="profile-type-option">
+              <input v-model="profileType" type="radio" value="student" />
+              <span>
+                <strong>Alumno</strong>
+                <small>Practicar, resolver actividades y avanzar por niveles.</small>
+              </span>
+            </label>
+            <label class="profile-type-option">
+              <input v-model="profileType" type="radio" value="teacher" />
+              <span>
+                <strong>Docente</strong>
+                <small>Crear tareas, acompañar cursos y revisar entregas.</small>
+              </span>
+            </label>
+          </fieldset>
 
           <div class="form-group">
             <label class="form-label" for="register-email">Email</label>
@@ -588,12 +598,25 @@
             </div>
           </div>
 
-          <!-- El tipo de perfil sale del rol de la cuenta; elegirlo acá era
-               una promesa que el backend no cumplía. -->
-          <p class="teacher-note">
-            Tu perfil se crea según cómo esté habilitada tu cuenta. ¿Sos
-            docente y ves el panel de estudiante? Avisale al administrador.
-          </p>
+          <fieldset class="profile-type-picker">
+            <legend>¿Cómo vas a usar Practiq?</legend>
+            <label class="profile-type-option">
+              <input
+                v-model="pendingProfile.profile_type"
+                type="radio"
+                value="student"
+              />
+              <span><strong>Alumno</strong><small>Acceder a prácticas y niveles.</small></span>
+            </label>
+            <label class="profile-type-option">
+              <input
+                v-model="pendingProfile.profile_type"
+                type="radio"
+                value="teacher"
+              />
+              <span><strong>Docente</strong><small>Acceder al panel docente.</small></span>
+            </label>
+          </fieldset>
 
           <div v-if="errorMsg" class="alert alert--error">
             <i class="pi pi-exclamation-circle"></i>
@@ -928,6 +951,50 @@
     color: var(--text-secondary);
     font-size: var(--text-sm);
     line-height: 1.5;
+  }
+
+  .profile-type-picker {
+    display: grid;
+    gap: 8px;
+    margin: 0;
+    padding: 12px;
+    border: 1px solid var(--surface-border);
+    border-radius: var(--radius-lg);
+    background: var(--surface-subtle);
+  }
+  .profile-type-picker legend {
+    padding: 0 4px;
+    color: var(--text-secondary);
+    font-size: var(--text-sm);
+    font-weight: 700;
+  }
+  .profile-type-option {
+    display: flex;
+    align-items: flex-start;
+    gap: 9px;
+    padding: 8px;
+    border-radius: var(--radius-md);
+    color: var(--text-primary);
+    cursor: pointer;
+  }
+  .profile-type-option:hover {
+    background: var(--fill-primary-subtle);
+  }
+  .profile-type-option input {
+    margin: 3px 0 0;
+    accent-color: var(--practiq-violet);
+  }
+  .profile-type-option span {
+    display: grid;
+    gap: 2px;
+  }
+  .profile-type-option strong {
+    font-size: var(--text-sm);
+  }
+  .profile-type-option small {
+    color: var(--text-secondary);
+    font-size: var(--text-xs);
+    line-height: 1.35;
   }
 
   .form-help {
