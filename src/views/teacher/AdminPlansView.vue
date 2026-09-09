@@ -157,12 +157,16 @@
             <input v-model.number="form.max_students" type="number" min="1" step="1" />
           </label>
           <label class="field field--wide">
-            <span>Descripción</span>
-            <input
+            <span>Características</span>
+            <textarea
               v-model="form.description"
-              type="text"
-              placeholder="Para docentes con varios cursos"
-            />
+              rows="4"
+              placeholder="Una por línea, por ejemplo:&#10;Corrección automática con IA&#10;Casos pendientes para revisión docente&#10;Progreso e historial por alumno"
+            ></textarea>
+            <small class="field-hint">
+              Una característica por línea. Así se listan en la landing, debajo
+              del precio de este plan.
+            </small>
           </label>
         </div>
 
@@ -294,24 +298,34 @@
     grid-column: 1 / -1;
   }
 
-  .field input {
+  .field input,
+  .field textarea {
     padding: 0.55rem 0.7rem;
     border-radius: var(--radius-md);
     border: 1px solid var(--surface-border);
     background: var(--surface-card);
     color: var(--text-primary);
     font-size: 0.9rem;
+    font-family: inherit;
+    resize: vertical;
     transition: border-color 0.2s ease, box-shadow 0.2s ease;
   }
 
-  .field input:hover {
+  .field input:hover,
+  .field textarea:hover {
     border-color: rgba(var(--practiq-violet-rgb), 0.35);
   }
 
-  .field input:focus {
+  .field input:focus,
+  .field textarea:focus {
     outline: none;
     border-color: var(--practiq-violet);
     box-shadow: var(--focus-ring-primary);
+  }
+
+  .field-hint {
+    color: var(--text-muted);
+    font-size: 0.76rem;
   }
 
   .form-note {
@@ -378,6 +392,7 @@
     font-size: 0.8rem;
     line-height: 1.4;
     color: var(--text-muted);
+    white-space: pre-line;
   }
 
   .plan-row-actions {

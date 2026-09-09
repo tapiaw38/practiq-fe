@@ -273,8 +273,8 @@
           <span>avanza con confianza.</span>
         </h1>
         <p>
-          Ejercicios paso a paso, retroalimentación al instante y un asistente
-          que te acompaña en cada tema.
+          Ejercicios paso a paso, retroalimentación al instante y Practi, el
+          asistente que te acompaña en cada tema.
         </p>
       </div>
 
@@ -297,7 +297,7 @@
         <img
           src="@/assets/robot.png"
           class="preview-robot"
-          alt="Copiloto Practiq"
+          alt="Practi, el asistente de Practiq"
         />
       </div>
     </section>

@@ -48,13 +48,17 @@ const router = createRouter({
       path: "/teacher/admin/academic",
       name: "teacher-admin-academic",
       component: () => import("@/views/teacher/AcademicAdminView.vue"),
-      meta: { requiresAuth: true, profileType: "teacher", roles: ["superadmin"] },
+      // No longer superadmin-only: every teacher administers their own school.
+      // Which rows they may touch is decided by the API, per school.
+      meta: { requiresAuth: true, profileType: "teacher" },
     },
     {
       path: "/teacher/admin/academic/subjects/:subjectId/courses",
       name: "teacher-subject-courses",
       component: () => import("@/views/teacher/SubjectCoursesView.vue"),
-      meta: { requiresAuth: true, profileType: "teacher", roles: ["superadmin"] },
+      // Opened with the academic screen it hangs off. Leaving it behind would
+      // give a teacher a catalogue whose subjects lead to a blocked page.
+      meta: { requiresAuth: true, profileType: "teacher" },
     },
     {
       path: "/teacher/courses/:id",
@@ -137,6 +141,12 @@ const router = createRouter({
       name: "teacher-subscription",
       component: () => import("@/views/teacher/SubscriptionView.vue"),
       meta: { requiresAuth: true, profileType: "teacher" },
+    },
+    {
+      path: "/teacher/admin/schools",
+      name: "teacher-admin-schools",
+      component: () => import("@/views/teacher/AdminSchoolsView.vue"),
+      meta: { requiresAuth: true, profileType: "teacher", roles: ["superadmin"] },
     },
     {
       path: "/teacher/admin/plans",

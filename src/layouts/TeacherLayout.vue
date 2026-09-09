@@ -1,14 +1,23 @@
 <script setup lang="ts">
-  import { computed, ref, watch } from "vue";
+  import { computed, ref, watch, onMounted } from "vue";
   import { useRoute, useRouter } from "vue-router";
   import { useAuthStore } from "@/stores/authStore";
+  import { useSchools } from "@/composables/useSchools";
   import ChangePasswordModal from "@/components/auth/ChangePasswordModal.vue";
   import SetPasswordModal from "@/components/auth/SetPasswordModal.vue";
 
   const route = useRoute();
   const router = useRouter();
   const authStore = useAuthStore();
+  const { schools, activeId, hasChoice, active, loadSchools, setActive } = useSchools();
+  // Whoever administers the school in front of them manages its catalogue.
+  // A superadmin always does; a teacher only in their own.
+  const administersActive = computed(
+    () => isSuperAdmin.value || active.value?.role === "admin",
+  );
   const profile = computed(() => authStore.profile);
+
+  onMounted(loadSchools);
   const userInitial = computed(
     () => profile.value?.name?.[0]?.toUpperCase() || "D",
   );
@@ -74,7 +83,17 @@
           <span class="nav-icon"><i class="pi pi-home"></i></span>
           <span>Inicio</span>
         </RouterLink>
-        <div v-if="isSuperAdmin" class="nav-section-label nav-section-label--spaced">Gestión</div>
+        <div v-if="isSuperAdmin" class="nav-section-label nav-section-label--spaced">Plataforma</div>
+        <RouterLink
+          v-if="isSuperAdmin"
+          to="/teacher/admin/schools"
+          class="nav-item"
+          active-class="nav-item-active"
+          @click="navOpen = false"
+        >
+          <span class="nav-icon"><i class="pi pi-building"></i></span>
+          <span>Escuelas</span>
+        </RouterLink>
         <RouterLink
           v-if="isSuperAdmin"
           to="/teacher/admin/users"
@@ -85,8 +104,11 @@
           <span class="nav-icon"><i class="pi pi-users"></i></span>
           <span>Usuarios</span>
         </RouterLink>
+        <div v-if="administersActive" class="nav-section-label nav-section-label--spaced">
+          {{ isSuperAdmin ? "Escuela" : "Mi escuela" }}
+        </div>
         <RouterLink
-          v-if="isSuperAdmin"
+          v-if="administersActive"
           to="/teacher/admin/academic"
           class="nav-item"
           active-class="nav-item-active"
@@ -156,6 +178,20 @@
           <span>Contacto landing</span>
         </RouterLink>
       </nav>
+
+      <div v-if="hasChoice" class="school-picker">
+        <label class="school-picker-label" for="school-picker">Escuela</label>
+        <select
+          id="school-picker"
+          class="school-picker-select"
+          :value="activeId"
+          @change="setActive(($event.target as HTMLSelectElement).value)"
+        >
+          <option v-for="school in schools" :key="school.id" :value="school.id">
+            {{ school.name }}
+          </option>
+        </select>
+      </div>
 
       <div class="sidebar-footer">
         <div class="user-info">
@@ -236,6 +272,32 @@
   .user-info,
   .topbar-brand,
   .nav-item,
+  .school-picker {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+    padding: 10px 12px;
+    margin-top: auto;
+    border-top: 1px solid rgba(var(--surface-border-rgb), 0.12);
+  }
+
+  .school-picker-label {
+    font-size: 0.7rem;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--text-secondary);
+  }
+
+  .school-picker-select {
+    width: 100%;
+    padding: 7px 9px;
+    border-radius: var(--radius-md);
+    border: 1px solid var(--surface-border);
+    background: var(--surface-card);
+    color: var(--text-primary);
+    font-size: 0.85rem;
+  }
+
   .sidebar-footer {
     display: flex;
     align-items: center;

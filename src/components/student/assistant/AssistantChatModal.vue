@@ -2,7 +2,7 @@
   <Teleport to="body">
     <Transition name="acm-fade">
       <div v-if="show" class="acm-overlay" @click.self="requestClose">
-        <div class="acm-modal" role="dialog" aria-label="Asistente de práctica">
+        <div class="acm-modal" role="dialog" aria-label="Practi, el asistente de práctica">
           <!-- ── Header ── -->
           <div class="acm-header">
             <div class="acm-header-info">
@@ -10,7 +10,7 @@
                 <img src="@/assets/robot.png" alt="" />
               </div>
               <div>
-                <div class="acm-title">Mi Asistente</div>
+                <div class="acm-title">Practi</div>
                 <div class="acm-status">
                   <span
                     class="acm-dot"
@@ -1323,7 +1323,7 @@
       conversationId = null;
       addMsg(
         "assistant",
-        "¡Hola! Soy tu asistente de práctica. ¿Qué hacemos hoy?",
+        "¡Hola! Soy Practi. ¿Qué hacemos hoy?",
       );
       await loadHistory();
     },
