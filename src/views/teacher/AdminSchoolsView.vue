@@ -9,8 +9,6 @@
   import {
     SchoolService,
     type School,
-    type SchoolMember,
-    type SchoolRole,
   } from "@/services/schools/schoolService";
 
   const toast = useToast();
@@ -21,12 +19,9 @@
   const schools = ref<School[]>([]);
   const loading = ref(true);
   const saving = ref(false);
-  const selected = ref<School | null>(null);
-  const members = ref<SchoolMember[]>([]);
-  const loadingMembers = ref(false);
+  const showCreateForm = ref(false);
 
   const form = reactive({ name: "", billing: "direct" as School["billing"] });
-  const newMember = reactive({ user_id: "", role: "admin" as SchoolRole });
 
   const institutions = computed(() => schools.value.filter((s) => s.kind === "institution"));
   const personals = computed(() => schools.value.filter((s) => s.kind === "personal"));
@@ -60,50 +55,13 @@
         billing: form.billing,
       });
       form.name = "";
+      showCreateForm.value = false;
       await load();
       toast.add({ severity: "success", summary: "Institución creada", life: 2500 });
     } catch {
       fail("No se pudo crear la institución");
     } finally {
       saving.value = false;
-    }
-  }
-
-  async function openMembers(school: School) {
-    selected.value = school;
-    members.value = [];
-    loadingMembers.value = true;
-    try {
-      const { data } = await service.members(school.id);
-      members.value = data;
-    } catch {
-      fail("No se pudieron cargar los miembros");
-    } finally {
-      loadingMembers.value = false;
-    }
-  }
-
-  async function addMember() {
-    const school = selected.value;
-    if (!school || !newMember.user_id.trim()) return;
-    try {
-      await service.addMember(school.id, newMember.user_id.trim(), newMember.role);
-      newMember.user_id = "";
-      await openMembers(school);
-      toast.add({ severity: "success", summary: "Miembro agregado", life: 2500 });
-    } catch {
-      fail("No se pudo agregar el miembro");
-    }
-  }
-
-  async function removeMember(userId: string) {
-    const school = selected.value;
-    if (!school) return;
-    try {
-      await service.removeMember(school.id, userId);
-      await openMembers(school);
-    } catch {
-      fail("No se pudo quitar el miembro");
     }
   }
 
@@ -120,14 +78,17 @@
   <TeacherLayout>
     <div class="schools-shell">
       <header class="page-header">
-        <h1>Escuelas</h1>
-        <p class="page-sub">
-          Las instituciones se crean acá y se facturan por fuera. Las escuelas
-          personales aparecen solas cuando un docente se registra.
-        </p>
+        <div>
+          <p class="eyebrow">Administración de plataforma</p>
+          <h1>Escuelas e instituciones</h1>
+          <p class="page-sub">Creá instituciones, elegí cuál administrar y revisá espacios personales.</p>
+        </div>
+        <button class="btn-primary" type="button" @click="showCreateForm = !showCreateForm">
+          <i class="pi pi-plus"></i> Nueva institución
+        </button>
       </header>
 
-      <form class="school-form" @submit.prevent="createSchool">
+      <form v-if="showCreateForm" class="school-form" @submit.prevent="createSchool">
         <h2 class="form-title">Nueva institución</h2>
         <div class="form-grid">
           <label class="field field--wide">
@@ -146,9 +107,7 @@
           Con facturación directa no se consulta ningún plan y no hay tope de
           alumnos.
         </p>
-        <button class="btn-primary" type="submit" :disabled="saving">
-          Crear institución
-        </button>
+        <div class="form-actions"><button class="btn-quiet" type="button" @click="showCreateForm = false">Cancelar</button><button class="btn-primary" type="submit" :disabled="saving">Crear institución</button></div>
       </form>
 
       <section>
@@ -166,7 +125,7 @@
               </span>
             </div>
             <button class="btn-quiet" type="button" @click="openSchool(school)">
-              Abrir escuela
+              Administrar
             </button>
           </li>
         </ul>
@@ -183,66 +142,11 @@
               <span class="school-name">{{ school.name }}</span>
             </div>
             <button class="btn-quiet" type="button" @click="openSchool(school)">
-              Abrir escuela
+              Administrar
             </button>
           </li>
         </ul>
       </section>
-
-      <Teleport to="body">
-        <div v-if="selected" class="members-backdrop" @click.self="selected = null">
-          <div class="members-card" role="dialog" aria-modal="true">
-            <h3 class="members-title">{{ selected.name }}</h3>
-
-            <div v-if="loadingMembers" class="member-row">
-              <Skeleton width="100%" height="16px" />
-            </div>
-            <ul v-else-if="members.length" class="member-list">
-              <li v-for="member in members" :key="member.user_id" class="member-row">
-                <div class="member-main">
-                  <span class="member-id">{{ member.user_id }}</span>
-                  <span class="member-role">{{ member.role }}</span>
-                </div>
-                <button
-                  class="btn-quiet btn-quiet--danger"
-                  type="button"
-                  @click="removeMember(member.user_id)"
-                >
-                  Quitar
-                </button>
-              </li>
-            </ul>
-            <p v-else class="empty">Todavía no tiene miembros.</p>
-
-            <form
-              v-if="selected.kind === 'institution'"
-              class="member-form"
-              @submit.prevent="addMember"
-            >
-              <input
-                v-model="newMember.user_id"
-                type="text"
-                placeholder="Usuario"
-                aria-label="Usuario"
-              />
-              <select v-model="newMember.role" aria-label="Rol">
-                <option value="admin">Admin</option>
-                <option value="teacher">Docente</option>
-                <option value="student">Alumno</option>
-              </select>
-              <button class="btn-primary" type="submit">Agregar</button>
-            </form>
-            <p v-else class="form-note">
-              Una escuela personal es un docente y sus alumnos: no se le suman
-              docentes.
-            </p>
-
-            <button class="btn-quiet" type="button" @click="selected = null">
-              Cerrar
-            </button>
-          </div>
-        </div>
-      </Teleport>
     </div>
   </TeacherLayout>
 </template>
@@ -265,6 +169,9 @@
   .page-header h1 {
     font-size: 1.5rem;
   }
+
+  .page-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 1rem; }
+  .eyebrow { margin: 0 0 .35rem; color: var(--practiq-violet); font-size: .72rem; font-weight: 800; letter-spacing: .1em; text-transform: uppercase; }
 
   .section-title {
     font-size: 1.05rem;
@@ -330,6 +237,7 @@
     font-size: 0.8rem;
     color: var(--text-secondary);
   }
+  .form-actions { display: flex; align-items: center; justify-content: flex-end; gap: .5rem; }
 
   .school-list,
   .member-list {
@@ -457,6 +365,8 @@
       flex-direction: column;
       align-items: flex-start;
     }
+
+    .page-header { flex-direction: column; }
 
     .member-form {
       grid-template-columns: 1fr;

@@ -44,9 +44,6 @@
   const administersActive = computed(
     () => isSuperAdmin.value || active.value?.role === "admin",
   );
-  const schoolSectionLabel = computed(() =>
-    active.value?.kind === "personal" ? "Mi escuela" : "Escuela activa",
-  );
   const canRenameActiveSchool = computed(
     () => isSuperAdmin.value || active.value?.role === "admin",
   );
@@ -97,6 +94,30 @@
         </button>
       </div>
 
+      <section v-if="active" class="school-context" aria-label="Escuela activa">
+        <span class="school-context__label">Administrando</span>
+        <strong class="school-context__name" :title="active.name">{{ active.name }}</strong>
+        <select
+          v-if="hasChoice"
+          class="school-context__select"
+          :value="activeId"
+          aria-label="Cambiar escuela activa"
+          @change="setActive(($event.target as HTMLSelectElement).value)"
+        >
+          <option v-for="school in schools" :key="school.id" :value="school.id">
+            {{ school.name }}
+          </option>
+        </select>
+        <details v-if="canRenameActiveSchool" class="school-context__settings">
+          <summary>Editar nombre</summary>
+          <input
+            :value="active.name"
+            aria-label="Nombre de la escuela"
+            @change="renameActive(($event.target as HTMLInputElement).value)"
+          />
+        </details>
+      </section>
+
       <nav class="sidebar-nav">
         <div class="nav-section-label">Espacio docente</div>
         <RouterLink
@@ -140,7 +161,7 @@
           <span>Contacto landing</span>
         </RouterLink>
         <div v-if="administersActive && active" class="nav-section-label nav-section-label--spaced">
-          {{ schoolSectionLabel }}
+          Gestión de escuela
         </div>
         <RouterLink
           v-if="administersActive && active"
@@ -204,30 +225,6 @@
         </RouterLink>
 
       </nav>
-
-      <div v-if="canRenameActiveSchool && active" class="school-rename">
-        <label class="school-picker-label" for="school-name">Nombre de la escuela</label>
-        <input
-          id="school-name"
-          class="school-picker-select"
-          :value="active.name"
-          @change="renameActive(($event.target as HTMLInputElement).value)"
-        />
-      </div>
-
-      <div v-if="hasChoice" class="school-picker">
-        <label class="school-picker-label" for="school-picker">Escuela</label>
-        <select
-          id="school-picker"
-          class="school-picker-select"
-          :value="activeId"
-          @change="setActive(($event.target as HTMLSelectElement).value)"
-        >
-          <option v-for="school in schools" :key="school.id" :value="school.id">
-            {{ school.name }}
-          </option>
-        </select>
-      </div>
 
       <div class="sidebar-footer">
         <div class="user-info">
@@ -304,30 +301,27 @@
     z-index: 25;
   }
 
-  .sidebar-brand,
-  .school-rename,
-  .school-picker {
+  .sidebar-brand {
     display: flex;
     flex-direction: column;
     gap: 0.25rem;
   }
 
-  .school-picker-label {
-    font-size: 0.7rem;
-    text-transform: uppercase;
-    letter-spacing: 0.06em;
-    color: var(--text-secondary);
-  }
-
-  .school-picker-select {
-    width: 100%;
-    padding: 7px 9px;
-    border-radius: var(--radius-md);
+  .school-context {
+    display: grid;
+    gap: 6px;
+    margin: 14px 4px 4px;
+    padding: 12px;
     border: 1px solid var(--surface-border);
-    background: var(--surface-card);
-    color: var(--text-primary);
-    font-size: 0.85rem;
+    border-radius: var(--radius-lg);
+    background: var(--surface-subtle);
   }
+  .school-context__label { color: var(--text-muted); font-size: var(--text-xs); font-weight: 800; letter-spacing: .1em; text-transform: uppercase; }
+  .school-context__name { overflow: hidden; color: var(--text-heading); font-size: var(--text-sm); text-overflow: ellipsis; white-space: nowrap; }
+  .school-context__select, .school-context__settings input { width: 100%; min-height: 36px; padding: 6px 8px; border: 1px solid var(--surface-border); border-radius: var(--radius-md); background: var(--surface-card); color: var(--text-primary); font: inherit; font-size: var(--text-sm); }
+  .school-context__settings { color: var(--text-secondary); font-size: var(--text-xs); }
+  .school-context__settings summary { cursor: pointer; font-weight: 700; }
+  .school-context__settings input { margin-top: 6px; }
 
   .sidebar-footer {
     display: flex;
@@ -387,7 +381,7 @@
     display: flex;
     flex-direction: column;
     gap: 6px;
-    margin-top: 16px;
+    margin-top: 10px;
     overflow-y: auto;
     overflow-x: hidden;
     padding: 0 4px 8px;

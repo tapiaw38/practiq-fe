@@ -10,7 +10,9 @@
   import { useGrade } from "@/composables/useGrade";
   import { useProfile } from "@/composables/useProfile";
   import { useSubject } from "@/composables/useSubject";
-  import { formatDate, formatShortDate } from "@/utils/formatters";
+  import { practiqApi } from "@/api/request/server";
+  import { AttemptReviewService } from "@/services/attemptReviews/attemptReviewService";
+  import { formatDate } from "@/utils/formatters";
   import type { AssignedUser, Grade, Subject } from "@/types";
 
   const router = useRouter();
@@ -38,6 +40,9 @@
   );
   const currentStudentPage = ref(1);
   const studentsPerPage = 20;
+  const pendingReviews = ref(0);
+  const pendingHasMore = ref(false);
+  const attemptReviews = new AttemptReviewService(practiqApi);
 
   const newCourse = reactive({
     title: "",
@@ -56,19 +61,13 @@
     const roles = authStore.authUser?.roles || [];
     return roles.some((role) => role.name === "superadmin");
   });
+  const dashboardKicker = computed(() =>
+    isSuperAdmin.value ? "Administración de plataforma" : "Panel del docente",
+  );
 
   const subjectCount = computed(() => {
     const set = new Set(courses.value.map((c) => c.subject || "general"));
     return set.size;
-  });
-
-  const latestCourseDate = computed(() => {
-    if (!courses.value.length) return "-";
-    const sorted = [...courses.value].sort(
-      (a, b) =>
-        new Date(b.created_at).getTime() - new Date(a.created_at).getTime(),
-    );
-    return formatShortDate(sorted[0].created_at);
   });
 
   const paginatedStudents = computed(() => {
@@ -121,6 +120,7 @@
     await loadCoursesData();
     await loadCatalogs();
     await loadAssignedStudents();
+    await loadPendingReviews();
   });
 
   async function loadCoursesData() {
@@ -168,13 +168,6 @@
     courseView.value = view;
     localStorage.setItem("practiq-teacher-course-view", view);
   }
-  function goToAdminUsers() {
-    router.push("/teacher/admin/users");
-  }
-  function goToAcademicAdmin() {
-    router.push("/teacher/admin/academic");
-  }
-
   function goToStudentProgress(student: AssignedUser) {
     router.push({
       path: `/teacher/students/${student.id}/progress`,
@@ -228,6 +221,16 @@
     }
   }
 
+  async function loadPendingReviews() {
+    try {
+      const page = await attemptReviews.list({ reviewed: "unreviewed", limit: 100 });
+      pendingReviews.value = page.data.length;
+      pendingHasMore.value = page.has_more;
+    } catch { pendingReviews.value = 0; pendingHasMore.value = false; }
+  }
+
+  function goToPendingReviews() { router.push("/teacher/attempt-reviews?reviewed=unreviewed"); }
+
   function stripeClass(subject?: string) {
     const s = (subject || "").toLowerCase();
     if (s.includes("matem")) return "stripe--violet";
@@ -245,7 +248,7 @@
       <!-- Header -->
       <div class="page-header">
         <div class="page-header__left">
-          <div class="page-kicker">Panel del docente</div>
+          <div class="page-kicker">{{ dashboardKicker }}</div>
           <h1 class="page-title">Hola, {{ teacherName }}.</h1>
         </div>
         <div class="page-header__right">
@@ -256,24 +259,6 @@
             <i :class="isSuperAdmin ? 'pi pi-shield' : 'pi pi-user'"></i>
             {{ isSuperAdmin ? "Administrador" : "Docente" }}
           </span>
-          <button
-            v-if="isSuperAdmin"
-            class="btn btn-ghost"
-            @click="goToAcademicAdmin"
-            title="Académico"
-          >
-            <i class="pi pi-sitemap"></i>
-            Académico
-          </button>
-          <button
-            v-if="isSuperAdmin"
-            class="btn btn-ghost"
-            @click="goToAdminUsers"
-            title="Usuarios"
-          >
-            <i class="pi pi-users"></i>
-            Usuarios
-          </button>
           <button class="btn btn-ghost" @click="showInviteModal = true">
             <i class="pi pi-user-plus"></i>
             Invitar alumnos
@@ -323,12 +308,12 @@
             subjectCount === 1 ? "Materia" : "Materias"
           }}</span>
         </div>
-        <div class="stat-divider" v-if="courses.length > 0"></div>
-        <div class="stat-item" v-if="courses.length > 0">
-          <i class="pi pi-calendar stat-item__icon stat-item__icon--orange"></i>
-          <span class="stat-item__val">{{ latestCourseDate }}</span>
-          <span class="stat-item__lbl">Último creado</span>
-        </div>
+        <div class="stat-divider"></div>
+        <button class="stat-item stat-item--action" type="button" @click="goToPendingReviews">
+          <i class="pi pi-check-square stat-item__icon stat-item__icon--orange"></i>
+          <span class="stat-item__val">{{ pendingHasMore ? "99+" : pendingReviews }}</span>
+          <span class="stat-item__lbl">Pendientes</span>
+        </button>
       </div>
 
       <!-- Loading skeletons -->
@@ -818,6 +803,7 @@
     border: 1px solid var(--surface-elevated-strong);
     box-shadow: var(--shadow-card);
   }
+  .stat-item--action { width: 100%; border: 1px solid var(--surface-elevated-strong); cursor: pointer; text-align: left; }.stat-item--action:hover { border-color: var(--practiq-violet-light); transform: translateY(-1px); }
 
   .stat-item__icon {
     width: 36px;
@@ -1404,7 +1390,7 @@
       min-height: 44px;
     }
     .stats-strip {
-      grid-template-columns: 1fr;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
     }
     .stat-item {
       padding: 12px 14px;
@@ -1429,6 +1415,8 @@
 
   /* Mobile */
   @media (max-width: 600px) {
+    .stat-item { gap: 8px; padding: 10px; }
+    .stat-item__icon { width: 32px; height: 32px; }
     .courses-grid {
       grid-template-columns: 1fr;
     }
