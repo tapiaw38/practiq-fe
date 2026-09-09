@@ -11,14 +11,7 @@
   const authStore = useAuthStore();
   const { schools, activeId, hasChoice, active, loadSchools, setActive, service } =
     useSchools();
-  // Whoever administers the school in front of them manages its catalogue.
-  // A superadmin always does; a teacher only in their own.
-  const administersActive = computed(
-    () => isSuperAdmin.value || active.value?.role === "admin",
-  );
   const profile = computed(() => authStore.profile);
-
-  onMounted(loadSchools);
 
   // The school's name is the teacher's to set: the migration could only leave
   // a placeholder, and sign-up guesses from their name.
@@ -28,7 +21,7 @@
     if (!school || !trimmed || trimmed === school.name) return;
     try {
       await service.update(school.id, { name: trimmed });
-      await loadSchools(true);
+      await loadSchools(true, isSuperAdmin.value);
     } catch {
       // Left as it was; the field shows the stored name again on reload.
     }
@@ -48,6 +41,23 @@
   const roleLabel = computed(() =>
     isSuperAdmin.value ? "Administrador" : "Profesor",
   );
+  const administersActive = computed(
+    () => isSuperAdmin.value || active.value?.role === "admin",
+  );
+  const schoolSectionLabel = computed(() =>
+    active.value?.kind === "personal" ? "Mi escuela" : "Escuela activa",
+  );
+  const canRenameActiveSchool = computed(
+    () => isSuperAdmin.value || active.value?.role === "admin",
+  );
+  const canManageSubscription = computed(
+    () =>
+      !isSuperAdmin.value &&
+      active.value?.kind === "personal" &&
+      active.value.role === "admin",
+  );
+
+  onMounted(() => loadSchools(false, isSuperAdmin.value));
 
   watch(
     () => route.fullPath,
@@ -111,7 +121,30 @@
         </RouterLink>
         <RouterLink
           v-if="isSuperAdmin"
-          to="/teacher/admin/users"
+          to="/teacher/admin/plans"
+          class="nav-item"
+          active-class="nav-item-active"
+          @click="navOpen = false"
+        >
+          <span class="nav-icon"><i class="pi pi-tags"></i></span>
+          <span>Planes</span>
+        </RouterLink>
+        <RouterLink
+          v-if="isSuperAdmin"
+          to="/teacher/admin/site-contact"
+          class="nav-item"
+          active-class="nav-item-active"
+          @click="navOpen = false"
+        >
+          <span class="nav-icon"><i class="pi pi-phone"></i></span>
+          <span>Contacto landing</span>
+        </RouterLink>
+        <div v-if="administersActive && active" class="nav-section-label nav-section-label--spaced">
+          {{ schoolSectionLabel }}
+        </div>
+        <RouterLink
+          v-if="administersActive && active"
+          to="/teacher/admin/school-users"
           class="nav-item"
           active-class="nav-item-active"
           @click="navOpen = false"
@@ -119,11 +152,8 @@
           <span class="nav-icon"><i class="pi pi-users"></i></span>
           <span>Usuarios</span>
         </RouterLink>
-        <div v-if="administersActive" class="nav-section-label nav-section-label--spaced">
-          {{ isSuperAdmin ? "Escuela" : "Mi escuela" }}
-        </div>
         <RouterLink
-          v-if="administersActive"
+          v-if="administersActive && active"
           to="/teacher/admin/academic"
           class="nav-item"
           active-class="nav-item-active"
@@ -163,6 +193,7 @@
         </RouterLink>
 
         <RouterLink
+          v-if="canManageSubscription"
           to="/teacher/subscription"
           class="nav-item"
           active-class="nav-item-active"
@@ -172,30 +203,10 @@
           <span>Suscripción</span>
         </RouterLink>
 
-        <RouterLink
-          v-if="isSuperAdmin"
-          to="/teacher/admin/plans"
-          class="nav-item"
-          active-class="nav-item-active"
-          @click="navOpen = false"
-        >
-          <span class="nav-icon"><i class="pi pi-tags"></i></span>
-          <span>Planes</span>
-        </RouterLink>
-        <RouterLink
-          v-if="isSuperAdmin"
-          to="/teacher/admin/site-contact"
-          class="nav-item"
-          active-class="nav-item-active"
-          @click="navOpen = false"
-        >
-          <span class="nav-icon"><i class="pi pi-phone"></i></span>
-          <span>Contacto landing</span>
-        </RouterLink>
       </nav>
 
-      <div v-if="administersActive && active" class="school-rename">
-        <label class="school-picker-label" for="school-name">Mi escuela</label>
+      <div v-if="canRenameActiveSchool && active" class="school-rename">
+        <label class="school-picker-label" for="school-name">Nombre de la escuela</label>
         <input
           id="school-name"
           class="school-picker-select"
@@ -294,17 +305,11 @@
   }
 
   .sidebar-brand,
-  .user-info,
-  .topbar-brand,
-  .nav-item,
   .school-rename,
   .school-picker {
     display: flex;
     flex-direction: column;
     gap: 0.25rem;
-    padding: 10px 12px;
-    margin-top: auto;
-    border-top: 1px solid rgba(var(--surface-border-rgb), 0.12);
   }
 
   .school-picker-label {
@@ -340,6 +345,8 @@
   .topbar-brand,
   .user-info,
   .nav-item {
+    display: flex;
+    align-items: center;
     gap: 12px;
   }
 

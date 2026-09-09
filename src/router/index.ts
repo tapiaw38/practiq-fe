@@ -53,6 +53,13 @@ const router = createRouter({
       meta: { requiresAuth: true, profileType: "teacher" },
     },
     {
+      path: "/teacher/admin/school-users",
+      name: "teacher-admin-school-users",
+      component: () => import("@/views/teacher/SchoolUsersView.vue"),
+      // The API checks that the current teacher administers the active school.
+      meta: { requiresAuth: true, profileType: "teacher" },
+    },
+    {
       path: "/teacher/admin/academic/subjects/:subjectId/courses",
       name: "teacher-subject-courses",
       component: () => import("@/views/teacher/SubjectCoursesView.vue"),

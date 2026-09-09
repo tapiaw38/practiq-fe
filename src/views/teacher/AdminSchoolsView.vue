@@ -1,9 +1,11 @@
 <script setup lang="ts">
   import { computed, onMounted, reactive, ref } from "vue";
+  import { useRouter } from "vue-router";
   import { useToast } from "primevue/usetoast";
   import { practiqApi } from "@/api/request/server";
   import TeacherLayout from "@/layouts/TeacherLayout.vue";
   import Skeleton from "@/components/ui/Skeleton.vue";
+  import { useSchools } from "@/composables/useSchools";
   import {
     SchoolService,
     type School,
@@ -12,6 +14,8 @@
   } from "@/services/schools/schoolService";
 
   const toast = useToast();
+  const router = useRouter();
+  const { loadSchools, setActive } = useSchools();
   const service = new SchoolService(practiqApi);
 
   const schools = ref<School[]>([]);
@@ -103,6 +107,12 @@
     }
   }
 
+  async function openSchool(school: School) {
+    await loadSchools(true, true);
+    setActive(school.id);
+    router.push("/teacher/admin/school-users");
+  }
+
   onMounted(load);
 </script>
 
@@ -155,8 +165,8 @@
                 {{ school.billing === "direct" ? "Facturación directa" : "Por suscripción" }}
               </span>
             </div>
-            <button class="btn-quiet" type="button" @click="openMembers(school)">
-              Miembros
+            <button class="btn-quiet" type="button" @click="openSchool(school)">
+              Abrir escuela
             </button>
           </li>
         </ul>
@@ -172,8 +182,8 @@
             <div class="school-main">
               <span class="school-name">{{ school.name }}</span>
             </div>
-            <button class="btn-quiet" type="button" @click="openMembers(school)">
-              Miembros
+            <button class="btn-quiet" type="button" @click="openSchool(school)">
+              Abrir escuela
             </button>
           </li>
         </ul>

@@ -37,10 +37,12 @@ export function useSchools() {
     localStorage.setItem(STORAGE_KEY, id);
   }
 
-  async function loadSchools(force = false) {
+  async function loadSchools(force = false, includeAll = false) {
     if (loaded.value && !force) return schools.value;
     try {
-      const { data } = await service.mine();
+      // Platform operators choose the school they are administering. Everyone
+      // else only sees schools they belong to.
+      const { data } = includeAll ? await service.list() : await service.mine();
       schools.value = data;
 
       // A remembered school that is no longer ours must not stick: somebody
