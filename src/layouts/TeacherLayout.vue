@@ -79,6 +79,7 @@
 
       <div class="topbar-brand">
         <img src="@/assets/logo.png" class="topbar-logo" alt="Practiq" />
+        <span v-if="active" class="topbar-school" :title="active.name">{{ active.name }}</span>
       </div>
 
       <div class="topbar-avatar">{{ userInitial }}</div>
@@ -353,6 +354,7 @@
     width: 100px;
     display: block;
   }
+  .topbar-school { display: none; min-width: 0; overflow: hidden; color: var(--text-secondary); font-size: var(--text-xs); font-weight: 700; text-overflow: ellipsis; white-space: nowrap; }
 
   .close-btn,
   .topbar-btn,
@@ -619,6 +621,8 @@
       background: var(--gradient-mobile-topbar);
       backdrop-filter: blur(16px);
     }
+    .topbar-brand { display: flex; align-items: center; gap: 8px; min-width: 0; max-width: calc(100vw - 120px); }
+    .topbar-school { display: block; }
 
     .drawer-backdrop {
       display: block;

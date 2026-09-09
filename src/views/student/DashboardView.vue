@@ -147,6 +147,13 @@
   // The API already resolves this, and it only offers a sheet whose course is
   // still active, so the local verification it used to do is redundant.
   const featuredSheetId = computed(() => lastPracticedSheetId.value);
+  const hasPreviousPractice = computed(() => Boolean(featuredSheetId.value));
+  const hasCourses = computed(() => summaries.value.length > 0);
+  const practiceActionLabel = computed(() => {
+    if (hasPreviousPractice.value) return "Continuar práctica";
+    if (hasCourses.value) return "Elegir práctica";
+    return "Aún no tenés prácticas";
+  });
 
   function handleDrawerToggle(e: Event) {
     const customEvent = e as CustomEvent<{ open: boolean }>;
@@ -257,7 +264,14 @@
   }
 
   function startFeaturedPractice() {
-    if (featuredSheetId.value) startPractice(featuredSheetId.value);
+    if (featuredSheetId.value) {
+      startPractice(featuredSheetId.value);
+      return;
+    }
+
+    // A new student has no attempt to resume. The first sheet must be chosen
+    // from its course because availability and unlocked level live there.
+    if (hasCourses.value) scrollToCourses();
   }
 
   function scrollToCourses() {
@@ -471,10 +485,10 @@
             <button
               class="btn btn-primary welcome-btn"
               @click="startFeaturedPractice"
-              :disabled="!featuredSheetId"
+              :disabled="!hasPreviousPractice && !hasCourses"
             >
-              <i class="pi pi-play-circle"></i>
-              Continuar práctica
+              <i :class="hasPreviousPractice ? 'pi pi-play-circle' : 'pi pi-list'" />
+              {{ practiceActionLabel }}
             </button>
             <button
               class="btn btn-secondary welcome-btn assistant-cta"

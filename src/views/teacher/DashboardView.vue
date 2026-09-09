@@ -1,5 +1,5 @@
 <script setup lang="ts">
-  import { ref, reactive, computed, onMounted } from "vue";
+  import { ref, reactive, computed, onMounted, watch } from "vue";
   import { useRouter } from "vue-router";
   import { useAuthStore } from "@/stores/authStore";
   import TeacherLayout from "@/layouts/TeacherLayout.vue";
@@ -14,6 +14,7 @@
   import { AttemptReviewService } from "@/services/attemptReviews/attemptReviewService";
   import { formatDate } from "@/utils/formatters";
   import type { AssignedUser, Grade, Subject } from "@/types";
+  import { useSchools } from "@/composables/useSchools";
 
   const router = useRouter();
   const authStore = useAuthStore();
@@ -41,6 +42,7 @@
   const currentStudentPage = ref(1);
   const studentsPerPage = 20;
   const pendingReviews = ref(0);
+  const { activeId } = useSchools();
   const pendingHasMore = ref(false);
   const attemptReviews = new AttemptReviewService(practiqApi);
 
@@ -122,6 +124,7 @@
     await loadAssignedStudents();
     await loadPendingReviews();
   });
+  watch(activeId, async () => { await Promise.all([loadCoursesData(), loadCatalogs(), loadAssignedStudents(), loadPendingReviews()]); });
 
   async function loadCoursesData() {
     loading.value = true;

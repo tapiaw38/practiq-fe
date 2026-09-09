@@ -1,5 +1,5 @@
 <script setup lang="ts">
-  import { computed, onMounted, reactive, ref } from "vue";
+  import { computed, onMounted, reactive, ref, watch } from "vue";
   import { useRouter } from "vue-router";
   import TeacherLayout from "@/layouts/TeacherLayout.vue";
   import Skeleton from "@/components/ui/Skeleton.vue";
@@ -9,6 +9,7 @@
   import { useGrade } from "@/composables/useGrade";
   import { useSubject } from "@/composables/useSubject";
   import type { Course, Grade, Subject } from "@/types";
+  import { useSchools } from "@/composables/useSchools";
 
   const router = useRouter();
   const { confirmState, showConfirm, onConfirm, onCancel } = useConfirm();
@@ -35,6 +36,7 @@
   } = useSubject();
 
   const loading = ref(false);
+  const { activeId, active } = useSchools();
   const saving = ref(false);
   const selectedGradeId = ref<string | null>(null);
 
@@ -75,6 +77,7 @@
   }
 
   onMounted(loadData);
+  watch(activeId, () => { selectedGradeId.value = null; loadData(); });
 
   async function loadData() {
     loading.value = true;
@@ -266,6 +269,7 @@
         <div class="ac-topbar__left">
           <span class="ac-eyebrow">Organización de escuela</span>
           <h1 class="ac-title">Académico</h1>
+          <p v-if="active" class="school-crumb"><i class="pi pi-building"></i> {{ active.name }}</p>
         </div>
         <button class="catalog-pill" @click="showSubjectCatalog = true">
           <i class="pi pi-book"></i>
@@ -1061,6 +1065,7 @@
     gap: 2px;
   }
   .grade-mobile-select { display: none; }
+  .school-crumb { display: flex; align-items: center; gap: 6px; margin: 6px 0 0; color: var(--text-secondary); font-size: var(--text-sm); font-weight: 700; }
 
   .grade-nav-item {
     display: flex;
