@@ -16,6 +16,8 @@ export interface School {
 
 export interface SchoolMember {
   user_id: string;
+  name: string;
+  email: string;
   role: SchoolRole;
   active: boolean;
 }
