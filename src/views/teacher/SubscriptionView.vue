@@ -8,6 +8,7 @@
   import {
     SubscriptionService,
     type CatalogPlan,
+    type DowngradeState,
     type TeacherSubscription,
   } from "@/services/subscription/subscriptionService";
 
@@ -29,6 +30,24 @@
   const showLeaveModal = ref(false);
 
   const isPaused = computed(() => subscription.value?.status === "paused");
+
+  /**
+   * Who would lose access if the plan were enforced right now.
+   *
+   * Shown rather than applied: the teacher already paid for the period in
+   * course, and the students who would go did not make the decision. Applying
+   * is their call.
+   */
+  const downgrade = ref<DowngradeState | null>(null);
+  const overLimit = computed(() => (downgrade.value?.deactivated.length ?? 0) > 0);
+
+  async function applyDowngrade() {
+    await run(async () => {
+      await service.applyDowngrade([]);
+      const { data } = await service.downgradePreview();
+      downgrade.value = data;
+    }, "Plan ajustado");
+  }
 
   /** The plan being subscribed to, or null when the checkout is closed. */
   const checkoutPlan = ref<CatalogPlan | null>(null);
@@ -79,11 +98,13 @@
   });
 
   async function reload() {
-    const [mine, catalog] = await Promise.allSettled([
+    const [mine, catalog, excess] = await Promise.allSettled([
       service.getMine(),
       service.listPlans(),
+      service.downgradePreview(),
     ]);
     if (mine.status === "fulfilled") subscription.value = mine.value.data;
+    if (excess.status === "fulfilled") downgrade.value = excess.value.data;
     // The catalogue is secondary: failing to list plans must not hide the
     // teacher's own subscription.
     if (catalog.status === "fulfilled") plans.value = catalog.value.data;
@@ -203,6 +224,28 @@
           {{ subscription.active ? "Se renueva el" : "Tu prueba termina el" }}
           {{ renewsLabel }}
         </p>
+
+        <div v-if="overLimit" class="over-limit">
+          <p class="over-limit-title">
+            Tu plan permite {{ downgrade?.max_students }}
+            {{ downgrade?.max_students === 1 ? "alumno" : "alumnos" }} y tenés
+            {{ subscription.students_used }}.
+          </p>
+          <p class="over-limit-text">
+            Cuando lo apliques, dejan de tener acceso los
+            {{ downgrade?.deactivated.length }} que hace más tiempo que no
+            practican. Conservan su cuenta y su historial, y podés reactivarlos
+            cuando amplíes el plan.
+          </p>
+          <button
+            class="btn-secondary"
+            type="button"
+            :disabled="working"
+            @click="applyDowngrade"
+          >
+            Ajustar al plan
+          </button>
+        </div>
 
         <div v-if="subscription.active || isPaused" class="plan-actions">
           <button
@@ -411,6 +454,36 @@
   .plan-state--paused {
     background: var(--color-warning-bg);
     color: var(--color-warning-dark);
+  }
+
+  /* Information, not an error: the teacher chose a smaller plan and nothing
+     has happened yet. */
+  .over-limit {
+    display: flex;
+    flex-direction: column;
+    gap: 0.4rem;
+    padding: 0.85rem 1rem;
+    border-radius: var(--radius-lg);
+    background: var(--color-warning-bg);
+  }
+
+  .over-limit-title {
+    margin: 0;
+    font-weight: 600;
+    font-size: 0.92rem;
+    color: var(--color-warning-dark);
+  }
+
+  .over-limit-text {
+    margin: 0;
+    font-size: 0.85rem;
+    line-height: 1.5;
+    color: var(--text-secondary);
+  }
+
+  .over-limit .btn-secondary {
+    align-self: flex-start;
+    margin-top: 0.25rem;
   }
 
   .plan-actions {

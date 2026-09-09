@@ -3,6 +3,9 @@ import type { TopicProgress } from "@/types";
 
 export interface CourseSummary {
   course_id: string;
+  /** Present once schools exist; absent for courses that predate them. */
+  school_id?: string;
+  school_name?: string;
   title: string;
   subject: string;
   practice_sheets: number;

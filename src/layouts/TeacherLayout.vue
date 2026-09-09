@@ -9,7 +9,8 @@
   const route = useRoute();
   const router = useRouter();
   const authStore = useAuthStore();
-  const { schools, activeId, hasChoice, active, loadSchools, setActive } = useSchools();
+  const { schools, activeId, hasChoice, active, loadSchools, setActive, service } =
+    useSchools();
   // Whoever administers the school in front of them manages its catalogue.
   // A superadmin always does; a teacher only in their own.
   const administersActive = computed(
@@ -18,6 +19,20 @@
   const profile = computed(() => authStore.profile);
 
   onMounted(loadSchools);
+
+  // The school's name is the teacher's to set: the migration could only leave
+  // a placeholder, and sign-up guesses from their name.
+  async function renameActive(name: string) {
+    const school = active.value;
+    const trimmed = name.trim();
+    if (!school || !trimmed || trimmed === school.name) return;
+    try {
+      await service.update(school.id, { name: trimmed });
+      await loadSchools(true);
+    } catch {
+      // Left as it was; the field shows the stored name again on reload.
+    }
+  }
   const userInitial = computed(
     () => profile.value?.name?.[0]?.toUpperCase() || "D",
   );
@@ -179,6 +194,16 @@
         </RouterLink>
       </nav>
 
+      <div v-if="administersActive && active" class="school-rename">
+        <label class="school-picker-label" for="school-name">Mi escuela</label>
+        <input
+          id="school-name"
+          class="school-picker-select"
+          :value="active.name"
+          @change="renameActive(($event.target as HTMLInputElement).value)"
+        />
+      </div>
+
       <div v-if="hasChoice" class="school-picker">
         <label class="school-picker-label" for="school-picker">Escuela</label>
         <select
@@ -272,6 +297,7 @@
   .user-info,
   .topbar-brand,
   .nav-item,
+  .school-rename,
   .school-picker {
     display: flex;
     flex-direction: column;

@@ -22,6 +22,30 @@
 
   const progress = ref<TopicProgress[]>([]);
   const summaries = ref<CourseSummary[]>([]);
+  /**
+   * Which school's courses to show. Empty is "Todas".
+   *
+   * A filter, not a context: a student's access comes from their enrolments,
+   * so this only sorts what is already theirs. It appears when they have
+   * courses at more than one school and never otherwise.
+   */
+  const schoolFilter = ref("");
+
+  const courseSchools = computed(() => {
+    const seen = new Map<string, string>();
+    for (const course of summaries.value) {
+      if (course.school_id && !seen.has(course.school_id)) {
+        seen.set(course.school_id, course.school_name || "Escuela");
+      }
+    }
+    return [...seen].map(([id, name]) => ({ id, name }));
+  });
+
+  const visibleCourses = computed(() =>
+    schoolFilter.value
+      ? summaries.value.filter((c) => c.school_id === schoolFilter.value)
+      : summaries.value,
+  );
   // Computed by the API through the domain rule, so a streak the student
   // already broke is not shown.
   const streakFromApi = ref(0);
@@ -568,8 +592,18 @@
 
         <JoinTeacherCard @joined="reloadDashboard" />
 
+        <div v-if="courseSchools.length > 1" class="school-filter">
+          <label for="school-filter">Escuela</label>
+          <select id="school-filter" v-model="schoolFilter">
+            <option value="">Todas</option>
+            <option v-for="s in courseSchools" :key="s.id" :value="s.id">
+              {{ s.name }}
+            </option>
+          </select>
+        </div>
+
         <StudentCoursesGrid
-          :courses="summaries"
+          :courses="visibleCourses"
           :dismissed-review-cards="dismissedReviewCards"
           :topics-needing-review="topicsNeedingReview"
           :get-course-progress-percent="getCourseProgressPercent"
@@ -596,6 +630,26 @@
 </template>
 
 <style scoped>
+  /* Only shown to a student with courses at more than one school: the filter
+     sorts what is already theirs, it does not grant anything. */
+  .school-filter {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    margin-bottom: 0.75rem;
+    font-size: 0.85rem;
+    color: var(--text-secondary);
+  }
+
+  .school-filter select {
+    padding: 0.4rem 0.6rem;
+    border-radius: var(--radius-md);
+    border: 1px solid var(--surface-border);
+    background: var(--surface-card);
+    color: var(--text-primary);
+    font-size: 0.85rem;
+  }
+
   .student-home {
     position: relative;
     padding: 24px 28px 40px;

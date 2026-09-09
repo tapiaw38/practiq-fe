@@ -54,10 +54,19 @@ export interface CheckoutConfig {
   public_key: string;
 }
 
+export interface DowngradeState {
+  max_students: number;
+  /** Who loses access, or would if applied now. */
+  deactivated: string[];
+}
+
 export interface ISubscriptionService {
   getMine(): Promise<{ data: TeacherSubscription }>;
   checkoutConfig(): Promise<{ data: CheckoutConfig }>;
   subscribe(planId: number, cardTokenId: string): Promise<void>;
+  downgradePreview(): Promise<{ data: DowngradeState }>;
+  applyDowngrade(keep: string[]): Promise<{ data: DowngradeState }>;
+  reactivateStudent(studentId: string): Promise<void>;
   listPlans(): Promise<{ data: CatalogPlan[] }>;
   pause(): Promise<void>;
   resume(): Promise<void>;
@@ -97,6 +106,22 @@ export class SubscriptionService implements ISubscriptionService {
       plan_id: planId,
       card_token_id: cardTokenId,
     });
+  }
+
+  /** Who would lose access if the current plan were enforced right now. */
+  async downgradePreview(): Promise<{ data: DowngradeState }> {
+    const { data } = await this.api.get("/teachers/me/subscription/downgrade");
+    return data;
+  }
+
+  /** `keep` is the teacher's choice; empty takes the automatic order. */
+  async applyDowngrade(keep: string[]): Promise<{ data: DowngradeState }> {
+    const { data } = await this.api.post("/teachers/me/subscription/downgrade", { keep });
+    return data;
+  }
+
+  async reactivateStudent(studentId: string): Promise<void> {
+    await this.api.post(`/teachers/me/students/${studentId}/reactivate`);
   }
 
   async listPlans(): Promise<{ data: CatalogPlan[] }> {
