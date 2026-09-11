@@ -6,6 +6,7 @@
   import { useSchools } from "@/composables/useSchools";
   import { useAssignment } from "@/composables/useAssignment";
   import { useGrade } from "@/composables/useGrade";
+  import { useProfile } from "@/composables/useProfile";
   import type { SchoolMember, SchoolRole } from "@/services/schools/schoolService";
   import { authApi } from "@/api/request/server";
   import { AuthAdminService } from "@/services/auth/authAdminService";
@@ -22,6 +23,7 @@
   } = useAssignment();
   const { loadGrades, loadUserGrades, addGradeMember, removeGradeMember } =
     useGrade();
+  const { loadProfileById, updateAssistantConfigById } = useProfile();
   const members = ref<SchoolMember[]>([]);
   const loading = ref(true);
   const saving = ref(false);
@@ -32,6 +34,13 @@
   const assignLoading = ref(false);
   const teacherToAssign = ref("");
   const gradeToAssign = ref("");
+  const assistantForm = reactive({
+    assistant_base_url: "",
+    assistant_api_key: "",
+    ui_theme: "primary" as "primary" | "secondary",
+  });
+  const savingAssistant = ref(false);
+  const assistantSaveSuccess = ref(false);
   // School memberships store Auth's stable user ID. A superadmin should never
   // need to know it, so their visible field is a lookup and this remains the
   // resolved value sent to Practiq API.
@@ -58,15 +67,20 @@
     assigningMember.value = member;
     teacherToAssign.value = "";
     gradeToAssign.value = "";
+    assistantSaveSuccess.value = false;
     assignLoading.value = true;
     try {
       if (!grades.value.length) grades.value = await loadGrades();
-      const [teachers, memberGrades] = await Promise.all([
+      const [teachers, memberGrades, profile] = await Promise.all([
         loadStudentTeachers(member.user_id),
         loadUserGrades(member.user_id),
+        loadProfileById(member.user_id),
       ]);
       assignedTeachers.value = teachers || [];
       assignedGrades.value = memberGrades || [];
+      assistantForm.assistant_base_url = profile?.assistant_base_url || "";
+      assistantForm.assistant_api_key = profile?.assistant_api_key || "";
+      assistantForm.ui_theme = profile?.ui_theme || "primary";
     } finally {
       assignLoading.value = false;
     }
@@ -74,6 +88,19 @@
 
   function closeAssign() {
     assigningMember.value = null;
+  }
+
+  async function saveAssistantConfig() {
+    if (!assigningMember.value || savingAssistant.value) return;
+    savingAssistant.value = true;
+    assistantSaveSuccess.value = false;
+    try {
+      await updateAssistantConfigById(assigningMember.value.user_id, { ...assistantForm });
+      assistantSaveSuccess.value = true;
+      window.setTimeout(() => (assistantSaveSuccess.value = false), 3000);
+    } finally {
+      savingAssistant.value = false;
+    }
   }
 
   async function refreshAssignments() {
@@ -309,6 +336,29 @@
                   <button type="button" :disabled="!gradeToAssign" @click="assignGrade">Vincular</button>
                 </div>
               </div>
+
+              <div class="assign-block">
+                <span class="assign-label">Asistente</span>
+                <div class="assistant-fields">
+                  <select v-model="assistantForm.ui_theme">
+                    <option value="primary">Primaria</option>
+                    <option value="secondary">Secundaria</option>
+                  </select>
+                  <input v-model="assistantForm.assistant_base_url" placeholder="Assistant Base URL" />
+                  <input v-model="assistantForm.assistant_api_key" placeholder="Assistant API Key" />
+                </div>
+                <div class="assign-row">
+                  <button
+                    type="button"
+                    class="assistant-save"
+                    :class="{ 'assistant-save--ok': assistantSaveSuccess }"
+                    :disabled="savingAssistant"
+                    @click="saveAssistantConfig"
+                  >
+                    {{ savingAssistant ? "Guardando..." : assistantSaveSuccess ? "Guardado" : "Guardar asistente" }}
+                  </button>
+                </div>
+              </div>
             </template>
           </div>
         </div>
@@ -345,5 +395,10 @@
   .assign-row select { flex: 1; min-height: 38px; padding: .4rem .6rem; border: 1px solid var(--surface-border); border-radius: var(--radius-md); background: var(--surface-card); color: var(--text-primary); font: inherit; }
   .assign-row button { padding: 0 .8rem; border: 0; border-radius: var(--radius-md); background: var(--practiq-violet); color: #fff; font-weight: 700; cursor: pointer; }
   .assign-row button:disabled { opacity: .5; cursor: not-allowed; }
+  .assistant-fields { display: grid; gap: .5rem; }
+  .assistant-fields select, .assistant-fields input { min-height: 38px; padding: .4rem .6rem; border: 1px solid var(--surface-border); border-radius: var(--radius-md); background: var(--surface-card); color: var(--text-primary); font: inherit; }
+  .assistant-save { padding: 0 .9rem; min-height: 38px; border: 0; border-radius: var(--radius-md); background: var(--practiq-violet); color: #fff; font-weight: 700; cursor: pointer; }
+  .assistant-save--ok { background: var(--color-success); }
+  .assistant-save:disabled { opacity: .6; cursor: not-allowed; }
   @media (max-width: 640px) { .school-users { padding: 1rem; }.card-heading,.member-row { align-items: flex-start; flex-direction: column; }.member-form { grid-template-columns: 1fr; }.member-form button { width: 100%; }.inactive { margin-left: 0; }.assign-button,.remove-button { width: 100%; min-height: 40px; }.school-kind { white-space: normal; }.assign-row { flex-direction: column; } }
 </style>
