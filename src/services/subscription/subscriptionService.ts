@@ -21,6 +21,17 @@ export interface TeacherSubscription {
   status?: string;
   /** RFC 3339. When the paid period ends, or when the free month does. */
   renews_at?: string;
+  /**
+   * A teacher no student limit applies to: one who teaches at an institution,
+   * or whose school is invoiced outside the product. There is no plan to show
+   * them and no usage to measure.
+   */
+  uncapped?: boolean;
+  /**
+   * The free month has run out. The allowance is already zero; this is what
+   * says why, so the screen does not just read "0 de 0".
+   */
+  trial_expired?: boolean;
 }
 
 export interface CatalogPlan {

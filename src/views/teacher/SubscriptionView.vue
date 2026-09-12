@@ -87,6 +87,16 @@
     return Math.min(100, Math.round((s.students_used / s.plan.max_students) * 100));
   });
 
+  const planStateLabel = computed(() => {
+    const s = subscription.value;
+    if (!s) return "";
+    if (s.uncapped) return "Sin límite";
+    if (s.active) return "Activo";
+    if (isPaused.value) return "Pausado";
+    if (s.trial_expired) return "Prueba terminada";
+    return "Gratis";
+  });
+
   const renewsLabel = computed(() => {
     const renews = subscription.value?.renews_at;
     if (!renews) return "";
@@ -182,16 +192,26 @@
           <span
             class="plan-state"
             :class="{
-              'plan-state--paid': subscription.active,
+              'plan-state--paid': subscription.active || subscription.uncapped,
               'plan-state--paused': isPaused,
-              'plan-state--free': !subscription.active && !isPaused,
+              'plan-state--expired': subscription.trial_expired,
+              'plan-state--free':
+                !subscription.active &&
+                !isPaused &&
+                !subscription.uncapped &&
+                !subscription.trial_expired,
             }"
           >
-            {{ subscription.active ? "Activo" : isPaused ? "Pausado" : "Gratis" }}
+            {{ planStateLabel }}
           </span>
         </div>
 
-        <div class="usage">
+        <p v-if="subscription.uncapped" class="plan-renews">
+          Tus alumnos los administra la institución, así que no tenés tope ni
+          nada que pagar por acá.
+        </p>
+
+        <div v-else class="usage">
           <div class="usage-head">
             <span>Alumnos</span>
             <strong>
@@ -211,7 +231,10 @@
               :style="{ width: `${usedPct}%` }"
             ></div>
           </div>
-          <p v-if="!subscription.can_add_student" class="usage-warn">
+          <p v-if="subscription.trial_expired" class="usage-warn">
+            Tu mes de prueba terminó. Elegí un plan para volver a sumar alumnos.
+          </p>
+          <p v-else-if="!subscription.can_add_student" class="usage-warn">
             Alcanzaste el máximo de tu plan. Para sumar alumnos, pasá a uno más grande.
           </p>
         </div>
@@ -454,6 +477,13 @@
   .plan-state--paused {
     background: var(--color-warning-bg);
     color: var(--color-warning-dark);
+  }
+
+  /* The trial ending is not a failure, but it does stop the teacher until they
+     choose a plan, so it reads stronger than the free state it replaces. */
+  .plan-state--expired {
+    background: var(--color-error-bg);
+    color: var(--color-error-dark);
   }
 
   /* Information, not an error: the teacher chose a smaller plan and nothing
