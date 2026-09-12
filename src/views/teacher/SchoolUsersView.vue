@@ -152,8 +152,20 @@
     } catch { matches.value = []; }
   }
 
+  /**
+   * Practiq identifies a person by their username, not by Auth's uuid: that is
+   * what `user_profiles.id` holds, and school membership points at it.
+   *
+   * Picking somebody from the search used to submit Auth's id, which belongs to
+   * no profile here, so the insert failed on a foreign key the moment a
+   * superadmin tried to add anyone.
+   */
+  function practiqUserId(user: AuthApiUser) {
+    return user.username || user.id;
+  }
+
   function selectUser(user: AuthApiUser) {
-    form.userId = user.id;
+    form.userId = practiqUserId(user);
     form.userQuery = user.email || `${user.first_name} ${user.last_name}`.trim();
     matches.value = [];
   }
