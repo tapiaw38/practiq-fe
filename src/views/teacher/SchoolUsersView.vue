@@ -275,7 +275,7 @@
             <div class="member-avatar">{{ member.name[0]?.toUpperCase() || "U" }}</div>
             <div class="member-data">
               <strong>{{ member.name }}</strong>
-              <span class="member-username" :title="member.user_id">Username: {{ member.user_id }}</span>
+              <span class="member-username">{{ member.email || "(sin email)" }}</span>
               <span :class="['role-badge', `role-badge--${member.role}`]">{{ roleLabel[member.role] }}</span>
             </div>
             <span v-if="!member.active" class="inactive">Sin acceso</span>
