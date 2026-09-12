@@ -9,6 +9,10 @@
   import { formatDateTime } from "@/utils/formatters";
   import type { NotebookSubmissionFull } from "@/types";
 
+  function effectiveVerdict(submission: NotebookSubmissionFull) {
+    return submission.teacher_is_correct ?? submission.ai_is_correct;
+  }
+
   const { courses, students, loadCourses, loadStudents } = useCourse();
   const { grades, loadGrades } = useGrade();
   const { subjects, loadSubjects } = useSubject();
@@ -471,10 +475,10 @@
               'submission-card--needs-review':
                 submission.needs_teacher_review &&
                 !submission.teacher_reviewed_at,
-              'submission-card--correct': submission.ai_is_correct === true,
-              'submission-card--incorrect': submission.ai_is_correct === false,
+              'submission-card--correct': effectiveVerdict(submission) === true,
+              'submission-card--incorrect': effectiveVerdict(submission) === false,
               'submission-card--pending':
-                submission.ai_is_correct === undefined,
+                effectiveVerdict(submission) == null,
             }"
           >
             <div class="submission-header">
@@ -493,13 +497,13 @@
               </div>
               <div class="submission-badges">
                 <span
-                  v-if="submission.ai_is_correct === true"
+                  v-if="effectiveVerdict(submission) === true"
                   class="badge badge--success"
                 >
                   <i class="pi pi-check"></i> Correcto
                 </span>
                 <span
-                  v-else-if="submission.ai_is_correct === false"
+                  v-else-if="effectiveVerdict(submission) === false"
                   class="badge badge--error"
                 >
                   <i class="pi pi-times"></i> Incorrecto
