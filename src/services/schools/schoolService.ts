@@ -2,6 +2,7 @@ import type { AxiosInstance } from "axios";
 
 export type SchoolKind = "personal" | "institution";
 export type SchoolBilling = "subscription" | "direct";
+export type SchoolStatus = "active" | "suspended" | "closed";
 export type SchoolRole = "admin" | "teacher" | "student";
 
 export interface School {
@@ -10,6 +11,7 @@ export interface School {
   kind: SchoolKind;
   /** direct means invoiced outside the product: no plan, no student limit. */
   billing: SchoolBilling;
+  status: SchoolStatus;
   /** The asking user's role in it. Absent when listing as a superadmin. */
   role?: SchoolRole;
 }
@@ -28,12 +30,26 @@ export interface SchoolInput {
   billing?: SchoolBilling;
 }
 
+export interface CloseSchoolInput {
+  confirm_name: string;
+  reason?: string;
+}
+
+export interface SchoolArchive {
+  school: School;
+  members: SchoolMember[];
+  courses: { id: string; title: string; grade_name: string; subject_name: string }[];
+}
+
 export interface ISchoolService {
   /** What the asking user belongs to. Feeds the school selector. */
   mine(): Promise<{ data: School[] }>;
   list(): Promise<{ data: School[] }>;
   create(input: SchoolInput): Promise<{ data: School }>;
   update(id: string, input: SchoolInput): Promise<{ data: School }>;
+  close(id: string, input: CloseSchoolInput): Promise<{ data: School }>;
+  reopen(id: string): Promise<{ data: School }>;
+  archive(id: string): Promise<{ data: SchoolArchive }>;
   members(id: string): Promise<{ data: SchoolMember[] }>;
   addMember(id: string, userId: string, role: SchoolRole): Promise<void>;
   removeMember(id: string, userId: string): Promise<void>;
@@ -60,6 +76,21 @@ export class SchoolService implements ISchoolService {
 
   async update(id: string, input: SchoolInput): Promise<{ data: School }> {
     const { data } = await this.api.put(`/schools/${id}`, input);
+    return data;
+  }
+
+  async close(id: string, input: CloseSchoolInput): Promise<{ data: School }> {
+    const { data } = await this.api.post(`/schools/${id}/close`, input);
+    return data;
+  }
+
+  async reopen(id: string): Promise<{ data: School }> {
+    const { data } = await this.api.post(`/schools/${id}/reopen`);
+    return data;
+  }
+
+  async archive(id: string): Promise<{ data: SchoolArchive }> {
+    const { data } = await this.api.get(`/schools/${id}/archive`);
     return data;
   }
 

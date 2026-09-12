@@ -9,6 +9,7 @@
   import {
     SchoolService,
     type School,
+    type SchoolArchive,
   } from "@/services/schools/schoolService";
 
   const toast = useToast();
@@ -20,11 +21,18 @@
   const loading = ref(true);
   const saving = ref(false);
   const showCreateForm = ref(false);
+  const closeTarget = ref<School | null>(null);
+  const closeConfirmation = ref("");
+  const closeReason = ref("");
+  const archive = ref<SchoolArchive | null>(null);
+  const loadingArchive = ref(false);
 
   const form = reactive({ name: "", billing: "direct" as School["billing"] });
 
-  const institutions = computed(() => schools.value.filter((s) => s.kind === "institution"));
-  const personals = computed(() => schools.value.filter((s) => s.kind === "personal"));
+  const activeSchools = computed(() => schools.value.filter((s) => s.status === "active"));
+  const institutions = computed(() => activeSchools.value.filter((s) => s.kind === "institution"));
+  const personals = computed(() => activeSchools.value.filter((s) => s.kind === "personal"));
+  const closedSchools = computed(() => schools.value.filter((s) => s.status === "closed"));
 
   function fail(detail: string) {
     toast.add({ severity: "error", summary: "Error", detail, life: 3000 });
@@ -69,6 +77,66 @@
     await loadSchools(true, true);
     setActive(school.id);
     router.push("/teacher/admin/school-users");
+  }
+
+  function askToClose(school: School) {
+    closeTarget.value = school;
+    closeConfirmation.value = "";
+    closeReason.value = "";
+  }
+
+  function cancelClose() {
+    closeTarget.value = null;
+    closeConfirmation.value = "";
+    closeReason.value = "";
+  }
+
+  async function closeSchool() {
+    const school = closeTarget.value;
+    if (!school || saving.value) return;
+    if (closeConfirmation.value.trim() !== school.name) {
+      toast.add({ severity: "warn", summary: "El nombre no coincide", detail: "Escribí el nombre exacto de la escuela.", life: 3000 });
+      return;
+    }
+    saving.value = true;
+    try {
+      await service.close(school.id, { confirm_name: closeConfirmation.value.trim(), reason: closeReason.value.trim() || undefined });
+      cancelClose();
+      await loadSchools(true, true);
+      await load();
+      toast.add({ severity: "success", summary: "Escuela cerrada", detail: "Sus datos se conservaron y el acceso fue bloqueado.", life: 3500 });
+    } catch {
+      fail("No se pudo cerrar la escuela");
+    } finally {
+      saving.value = false;
+    }
+  }
+
+  async function reopenSchool(school: School) {
+    if (saving.value) return;
+    saving.value = true;
+    try {
+      await service.reopen(school.id);
+      await loadSchools(true, true);
+      await load();
+      toast.add({ severity: "success", summary: "Escuela reabierta", life: 2500 });
+    } catch {
+      fail("No se pudo reabrir la escuela");
+    } finally {
+      saving.value = false;
+    }
+  }
+
+  async function openArchive(school: School) {
+    loadingArchive.value = true;
+    try {
+      const { data } = await service.archive(school.id);
+      archive.value = data;
+    } catch {
+      fail("No se pudo abrir el archivo de la escuela");
+    } finally {
+      loadingArchive.value = false;
+    }
   }
 
   onMounted(load);
@@ -124,9 +192,10 @@
                 {{ school.billing === "direct" ? "Facturación directa" : "Por suscripción" }}
               </span>
             </div>
-            <button class="btn-quiet" type="button" @click="openSchool(school)">
-              Administrar
-            </button>
+            <div class="row-actions">
+              <button class="btn-quiet" type="button" @click="openSchool(school)">Administrar</button>
+              <button class="btn-quiet btn-quiet--danger" type="button" @click="askToClose(school)">Cerrar</button>
+            </div>
           </li>
         </ul>
       </section>
@@ -141,11 +210,51 @@
             <div class="school-main">
               <span class="school-name">{{ school.name }}</span>
             </div>
-            <button class="btn-quiet" type="button" @click="openSchool(school)">
-              Administrar
-            </button>
+            <div class="row-actions">
+              <button class="btn-quiet" type="button" @click="openSchool(school)">Administrar</button>
+              <button class="btn-quiet btn-quiet--danger" type="button" @click="askToClose(school)">Cerrar</button>
+            </div>
           </li>
         </ul>
+      </section>
+
+      <section v-if="closedSchools.length">
+        <h2 class="section-title">Escuelas cerradas</h2>
+        <p class="section-sub">Sin acceso para miembros. Conservan historial y solo se pueden reabrir.</p>
+        <ul class="school-list">
+          <li v-for="school in closedSchools" :key="school.id" class="school-row school-row--closed">
+            <div class="school-main">
+              <span class="school-name">{{ school.name }}</span>
+              <span class="school-meta"><span class="status-pill">Cerrada</span> {{ school.kind === "institution" ? "Institución" : "Escuela personal" }}</span>
+            </div>
+            <div class="row-actions">
+              <button class="btn-quiet" type="button" :disabled="loadingArchive" @click="openArchive(school)">Ver archivo</button>
+              <button class="btn-quiet" type="button" :disabled="saving" @click="reopenSchool(school)">Reabrir</button>
+            </div>
+          </li>
+        </ul>
+      </section>
+    </div>
+
+    <div v-if="closeTarget" class="close-backdrop" role="presentation" @click.self="cancelClose">
+      <form class="close-card" @submit.prevent="closeSchool">
+        <p class="eyebrow">Acción administrativa</p>
+        <h2>Cerrar {{ closeTarget.name }}</h2>
+        <p>Se bloquea el acceso de todos los miembros. Cursos, prácticas, notas y pagos se conservan; podés reabrirla después.</p>
+        <label class="field"><span>Escribí “{{ closeTarget.name }}” para confirmar</span><input v-model="closeConfirmation" type="text" autocomplete="off" /></label>
+        <label class="field"><span>Motivo <em>(opcional)</em></span><textarea v-model="closeReason" rows="3" placeholder="Ej. institución dada de baja" /></label>
+        <div class="form-actions"><button class="btn-quiet" type="button" @click="cancelClose">Cancelar</button><button class="btn-danger" type="submit" :disabled="saving || closeConfirmation.trim() !== closeTarget.name">Cerrar escuela</button></div>
+      </form>
+    </div>
+
+    <div v-if="archive" class="close-backdrop" role="presentation" @click.self="archive = null">
+      <section class="close-card archive-card">
+        <p class="eyebrow">Archivo · solo lectura</p>
+        <h2>{{ archive.school.name }}</h2>
+        <p>{{ archive.members.length }} miembros · {{ archive.courses.length }} cursos. No se puede editar contenido desde este archivo.</p>
+        <div class="archive-section"><strong>Miembros</strong><ul><li v-for="member in archive.members" :key="member.user_id">{{ member.name }} · {{ member.role }}</li></ul></div>
+        <div class="archive-section"><strong>Cursos</strong><ul><li v-for="course in archive.courses" :key="course.id">{{ course.title }} <span>{{ course.grade_name }} · {{ course.subject_name }}</span></li><li v-if="!archive.courses.length">No hay cursos registrados.</li></ul></div>
+        <button class="btn-quiet" type="button" @click="archive = null">Cerrar archivo</button>
       </section>
     </div>
   </TeacherLayout>
@@ -267,6 +376,10 @@
     opacity: 0.75;
   }
 
+  .school-row--closed { opacity: .78; }
+  .row-actions { display: flex; align-items: center; gap: .25rem; flex: 0 0 auto; }
+  .status-pill { display: inline-block; margin-right: .3rem; padding: .1rem .4rem; border-radius: 999px; background: var(--surface-subtle, #f1f5f9); color: var(--text-secondary); font-size: .7rem; font-weight: 800; text-transform: uppercase; }
+
   .school-main,
   .member-main {
     display: flex;
@@ -289,7 +402,8 @@
   }
 
   .btn-primary,
-  .btn-quiet {
+  .btn-quiet,
+  .btn-danger {
     display: inline-flex;
     align-items: center;
     justify-content: center;
@@ -317,6 +431,8 @@
     color: var(--color-error-dark, #b91c1c);
   }
 
+  .btn-danger { background: var(--color-error, #dc2626); color: #fff; }
+
   .btn-primary:disabled {
     opacity: 0.6;
     cursor: not-allowed;
@@ -342,6 +458,17 @@
     flex-direction: column;
     gap: 0.75rem;
   }
+
+  .close-backdrop { position: fixed; inset: 0; z-index: 1000; display: grid; place-items: center; padding: 1rem; overflow-y: auto; background: rgba(15, 23, 42, .55); }
+  .close-card { width: min(480px, 100%); display: flex; flex-direction: column; gap: .9rem; padding: 1.5rem; border-radius: var(--radius-xl); background: var(--surface-card); box-shadow: var(--shadow-panel); }
+  .close-card h2, .close-card p { margin: 0; color: var(--text-heading); }
+  .close-card p { color: var(--text-secondary); font-size: .9rem; line-height: 1.5; }
+  .close-card textarea { resize: vertical; padding: .55rem .7rem; border: 1px solid var(--surface-border); border-radius: var(--radius-md); background: var(--surface-card); color: var(--text-primary); font: inherit; }
+  .archive-card { max-height: min(720px, 90vh); overflow: auto; }
+  .archive-section { display: flex; flex-direction: column; gap: .35rem; color: var(--text-primary); }
+  .archive-section ul { margin: 0; padding-left: 1.1rem; color: var(--text-secondary); font-size: .88rem; }
+  .archive-section li { margin: .25rem 0; }
+  .archive-section span { color: var(--text-muted); }
 
   .members-title {
     margin: 0;
@@ -373,9 +500,12 @@
     }
 
     .btn-primary,
-    .btn-quiet {
+    .btn-quiet,
+    .btn-danger {
       min-height: 44px;
       width: 100%;
     }
+
+    .row-actions { width: 100%; flex-direction: column; align-items: stretch; }
   }
 </style>
