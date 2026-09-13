@@ -48,6 +48,7 @@
   import FillBlanksEditor from "@/components/teacher/exercises/FillBlanksEditor.vue";
   import { renderContent } from "@/composables/useContentRenderer";
   import { practiqApi } from "@/api/request/server";
+  import { ExerciseService } from "@/services/exercises/exerciseService";
 
   const route = useRoute();
   const router = useRouter();
@@ -187,6 +188,9 @@
     fillBlanks: { blanks: [], distractors: [], layout: "text" } as FillBlanksConfig,
   });
   type AIDraft = { type: "open_text" | "multiple_choice" | "equation"; question: string; correct_answer: string; explanation: string; difficulty: number; metadata?: { options?: string[] } };
+  // The batch writes straight through the service: the composable toasts on
+  // every single create, which for five drafts meant six notifications.
+  const exerciseService = new ExerciseService(practiqApi);
   const showAIDraftsModal = ref(false);
   const aiSource = ref<File | null>(null);
   const aiDrafts = ref<AIDraft[]>([]);
@@ -196,34 +200,114 @@
   const aiGenerating = ref(false);
   const aiSaving = ref(false);
 
+  // Either a file or a written topic is enough: the API accepts one of the two
+  // and says so when neither is there.
+  const canGenerateDrafts = computed(
+    () => Boolean(selectedTopicId.value) && Boolean(aiSource.value || aiInstruction.value.trim()),
+  );
+
+  // A multiple-choice draft is only usable with options, and the review step is
+  // where a teacher would notice they are missing. Every draft gets its four
+  // slots on arrival rather than on render, so switching a draft's type later
+  // has somewhere to write and the template stays free of side effects.
+  function normalizeDraft(draft: AIDraft): AIDraft {
+    const options = [...(draft.metadata?.options || [])];
+    while (options.length < 4) options.push("");
+    return { ...draft, metadata: { ...draft.metadata, options } };
+  }
+
+  // Editing the option that is marked correct has to carry the answer with it:
+  // with a plain v-model the selection came undone on the first keystroke.
+  function setDraftOption(draft: AIDraft, position: number, value: string) {
+    const options = draft.metadata?.options;
+    if (!options) return;
+    const previous = (options[position] || "").trim();
+    options[position] = value;
+    if (previous && draft.correct_answer.trim() === previous) {
+      draft.correct_answer = value.trim();
+    }
+  }
+
+  function draftIsComplete(draft: AIDraft) {
+    if (!draft.question.trim() || !draft.correct_answer.trim()) return false;
+    if (draft.type !== "multiple_choice") return true;
+    const options = (draft.metadata?.options || []).map((o) => o.trim()).filter(Boolean);
+    return options.length >= 2 && options.includes(draft.correct_answer.trim());
+  }
+
+  const incompleteDrafts = computed(() => aiDrafts.value.filter((d) => !draftIsComplete(d)).length);
+
+  function apiMessage(error: unknown, fallback: string) {
+    const response = (error as { response?: { data?: { message?: string } } })?.response;
+    return response?.data?.message || fallback;
+  }
+
   async function generateExerciseDrafts() {
-    if (!aiSource.value || !selectedTopicId.value) return;
+    if (!canGenerateDrafts.value) return;
     aiGenerating.value = true;
     try {
       const form = new FormData();
-      form.append("source", aiSource.value);
+      if (aiSource.value) form.append("source", aiSource.value);
       form.append("count", String(aiCount.value));
       form.append("difficulty", String(aiDifficulty.value));
       form.append("instruction", aiInstruction.value);
       const { data } = await practiqApi.post(`/topics/${selectedTopicId.value}/exercise-drafts/ai`, form, { headers: { "Content-Type": "multipart/form-data" } });
-      aiDrafts.value = data.data || [];
+      aiDrafts.value = (data.data || []).map(normalizeDraft);
     } catch (error) {
-      toast.add({ severity: "error", summary: "No se pudo generar", detail: "Verificá el archivo y la configuración de Gillie.", life: 4500 });
+      // The API distinguishes a file that is too big, an unsupported format,
+      // a topic the teacher cannot write to and an assistant that answered
+      // with nothing usable. Showing one message for all four sent a teacher
+      // looking at the wrong thing.
+      toast.add({ severity: "error", summary: "No se pudo generar", detail: apiMessage(error, "Revisá el archivo o el tema e intentá de nuevo."), life: 4500 });
     } finally { aiGenerating.value = false; }
   }
 
   async function saveAIDrafts() {
-    if (!selectedTopicId.value || !aiDrafts.value.length) return;
+    if (!selectedTopicId.value || !aiDrafts.value.length || incompleteDrafts.value) return;
     aiSaving.value = true;
+    // Each draft is written on its own, so a failure halfway leaves the ones
+    // already created in the course. Dropping them from the list as they land
+    // is what makes a retry save the rest instead of duplicating the lot.
+    const pending: AIDraft[] = [];
+    let saved = 0;
+    let failure: unknown = null;
     try {
       for (const draft of aiDrafts.value) {
-        await createExerciseService(selectedTopicId.value, { ...draft, metadata: JSON.stringify(draft.metadata || {}) } as Partial<Exercise>);
+        if (failure) {
+          pending.push(draft);
+          continue;
+        }
+        try {
+          await exerciseService.create(selectedTopicId.value, {
+            ...draft,
+            metadata: JSON.stringify(draftMetadata(draft)),
+          } as Partial<Exercise>);
+          saved += 1;
+        } catch (error) {
+          failure = error;
+          pending.push(draft);
+        }
       }
-      await loadExercises(selectedTopicId.value);
-      showAIDraftsModal.value = false;
-      aiDrafts.value = [];
-      toast.add({ severity: "success", summary: "Ejercicios creados", detail: "Los borradores revisados ya están disponibles.", life: 3500 });
+      aiDrafts.value = pending;
+      if (saved) await loadExercises(selectedTopicId.value);
+
+      if (!failure) {
+        showAIDraftsModal.value = false;
+        toast.add({ severity: "success", summary: "Ejercicios creados", detail: `${saved} ${saved === 1 ? "ejercicio agregado" : "ejercicios agregados"} al tema.`, life: 3500 });
+        return;
+      }
+      toast.add({
+        severity: "warn",
+        summary: "Guardado incompleto",
+        detail: `${saved} de ${saved + pending.length} se guardaron. Quedan ${pending.length} en la lista: ${apiMessage(failure, "volvé a intentar.")}`,
+        life: 6000,
+      });
     } finally { aiSaving.value = false; }
+  }
+
+  function draftMetadata(draft: AIDraft) {
+    if (draft.type !== "multiple_choice") return {};
+    return { options: (draft.metadata?.options || []).map((o) => o.trim()).filter(Boolean) };
   }
   const newMaterial = reactive({
     title: "",
@@ -1380,17 +1464,39 @@
         <div v-if="showAIDraftsModal" class="modal-overlay" @click.self="showAIDraftsModal = false">
           <div class="modal-box ai-drafts-modal">
             <h3 class="modal-title"><i class="pi pi-sparkles"></i> Crear ejercicios con IA</h3>
-            <p class="field-hint">Subí una guía, evaluación o imagen. Gillie crea borradores; vos los revisás antes de publicarlos.</p>
+            <p class="field-hint">Subí una guía, evaluación o imagen, o escribí el tema. Gillie crea borradores; vos los revisás antes de publicarlos.</p>
             <template v-if="!aiDrafts.length">
-              <div class="form-group"><label class="form-label">Archivo fuente</label><input type="file" accept=".pdf,.docx,image/png,image/jpeg,image/webp" @change="aiSource = (($event.target as HTMLInputElement).files?.[0] || null)" /></div>
+              <div class="form-group"><label class="form-label">Archivo fuente <span class="label-optional">(opcional)</span></label><input type="file" accept=".pdf,.docx,image/png,image/jpeg,image/webp" @change="aiSource = (($event.target as HTMLInputElement).files?.[0] || null)" /></div>
               <div class="form-grid"><div class="form-group"><label class="form-label">Cantidad</label><input v-model.number="aiCount" class="form-input" type="number" min="1" max="10" /></div><div class="form-group"><label class="form-label">Dificultad</label><input v-model.number="aiDifficulty" class="form-input" type="number" min="1" max="10" /></div></div>
-              <div class="form-group"><label class="form-label">Indicación adicional</label><textarea v-model="aiInstruction" class="form-textarea" rows="2" placeholder="Ej.: priorizá problemas de fracciones" /></div>
-              <div class="modal-actions"><button class="btn btn-secondary" @click="showAIDraftsModal = false">Cancelar</button><button class="btn btn-primary" :disabled="!aiSource || aiGenerating" @click="generateExerciseDrafts"><i class="pi" :class="aiGenerating ? 'pi-spin pi-spinner' : 'pi-sparkles'"></i> {{ aiGenerating ? "Generando…" : "Generar borradores" }}</button></div>
+              <div class="form-group"><label class="form-label">Tema o indicación</label><textarea v-model="aiInstruction" class="form-textarea" rows="2" placeholder="Ej.: fracciones equivalentes con denominadores hasta 12" /><small class="field-hint">Sin archivo, esto es lo único que usa Gillie para generar los ejercicios.</small></div>
+              <div class="modal-actions"><button class="btn btn-secondary" @click="showAIDraftsModal = false">Cancelar</button><button class="btn btn-primary" :disabled="!canGenerateDrafts || aiGenerating" @click="generateExerciseDrafts"><i class="pi" :class="aiGenerating ? 'pi-spin pi-spinner' : 'pi-sparkles'"></i> {{ aiGenerating ? "Generando…" : "Generar borradores" }}</button></div>
             </template>
             <template v-else>
               <p class="field-hint">Editá o quitá los que no quieras. Nada se guarda hasta confirmar.</p>
-              <div v-for="(draft, index) in aiDrafts" :key="index" class="ai-draft-card"><button class="btn btn-ghost btn-sm ai-draft-remove" @click="aiDrafts.splice(index, 1)"><i class="pi pi-times"></i></button><select v-model="draft.type" class="form-select"><option value="open_text">Texto abierto</option><option value="multiple_choice">Opción múltiple</option><option value="equation">Ecuación</option></select><textarea v-model="draft.question" class="form-textarea" rows="2" /><input v-model="draft.correct_answer" class="form-input" placeholder="Respuesta correcta" /><textarea v-model="draft.explanation" class="form-textarea" rows="2" placeholder="Explicación" /></div>
-              <div class="modal-actions"><button class="btn btn-secondary" @click="aiDrafts = []">Volver</button><button class="btn btn-primary" :disabled="!aiDrafts.length || aiSaving" @click="saveAIDrafts">{{ aiSaving ? "Guardando…" : `Guardar ${aiDrafts.length} ejercicios` }}</button></div>
+              <div v-for="(draft, index) in aiDrafts" :key="index" class="ai-draft-card" :class="{ 'ai-draft-card--incomplete': !draftIsComplete(draft) }">
+                <button class="btn btn-ghost btn-sm ai-draft-remove" @click="aiDrafts.splice(index, 1)"><i class="pi pi-times"></i></button>
+                <select v-model="draft.type" class="form-select"><option value="open_text">Texto abierto</option><option value="multiple_choice">Opción múltiple</option><option value="equation">Ecuación</option></select>
+                <textarea v-model="draft.question" class="form-textarea" rows="2" placeholder="Consigna" />
+                <template v-if="draft.type === 'multiple_choice'">
+                  <span class="ai-draft-label">Opciones — marcá la correcta</span>
+                  <label v-for="(_, position) in (draft.metadata?.options || [])" :key="position" class="ai-draft-option">
+                    <input
+                      type="radio"
+                      :name="`draft-${index}-correct`"
+                      :checked="Boolean(draft.metadata?.options?.[position]?.trim()) && draft.correct_answer.trim() === draft.metadata?.options?.[position]?.trim()"
+                      :disabled="!draft.metadata?.options?.[position]?.trim()"
+                      @change="draft.correct_answer = (draft.metadata?.options?.[position] || '').trim()"
+                    />
+                    <input :value="draft.metadata?.options?.[position]" class="form-input" :placeholder="`Opción ${position + 1}`" @input="setDraftOption(draft, position, ($event.target as HTMLInputElement).value)" />
+                  </label>
+                </template>
+                <input v-else v-model="draft.correct_answer" class="form-input" placeholder="Respuesta correcta" />
+                <textarea v-model="draft.explanation" class="form-textarea" rows="2" placeholder="Explicación" />
+              </div>
+              <p v-if="incompleteDrafts" class="ai-draft-warning">
+                {{ incompleteDrafts === 1 ? "Hay un borrador incompleto" : `Hay ${incompleteDrafts} borradores incompletos` }}: revisá consigna, respuesta y, en opción múltiple, que la correcta sea una de las opciones.
+              </p>
+              <div class="modal-actions"><button class="btn btn-secondary" @click="aiDrafts = []">Volver</button><button class="btn btn-primary" :disabled="!aiDrafts.length || aiSaving || incompleteDrafts > 0" @click="saveAIDrafts">{{ aiSaving ? "Guardando…" : `Guardar ${aiDrafts.length} ${aiDrafts.length === 1 ? "ejercicio" : "ejercicios"}` }}</button></div>
             </template>
           </div>
         </div>
@@ -2414,5 +2520,11 @@
   .ai-draft-card { position: relative; display: grid; gap: 10px; padding: 14px; margin: 12px 0; border: 1px solid var(--surface-border); border-radius: var(--radius-lg); background: var(--surface-base); }
   .ai-draft-remove { position: absolute; top: 6px; right: 6px; }
   .ai-draft-card .form-select { padding-right: 42px; }
+  .ai-draft-card--incomplete { border-color: var(--color-warning); }
+  .ai-draft-label { color: var(--text-secondary); font-size: 12px; font-weight: 700; }
+  .ai-draft-option { display: flex; align-items: center; gap: 8px; }
+  .ai-draft-option input[type="radio"] { flex: 0 0 auto; }
+  .ai-draft-warning { margin: 4px 0 0; color: var(--color-warning-dark); font-size: 13px; }
+  .label-optional { color: var(--text-muted); font-weight: 500; }
   @media (max-width: 600px) { .form-grid { grid-template-columns: 1fr; } .ai-drafts-modal { max-height: 92vh; } }
 </style>
