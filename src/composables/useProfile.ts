@@ -33,13 +33,15 @@ export const useProfile = () => {
   const loadProfile = async () => {
     try {
       return await store.fetchProfile();
-    } catch (error) {
-      toast.add({
-        severity: "error",
-        summary: "Error",
-        detail: "No se pudo cargar el perfil",
-        life: 3000,
-      });
+    } catch (error: any) {
+      if (error?.response?.status !== 404) {
+        toast.add({
+          severity: "error",
+          summary: "Error",
+          detail: "No se pudo cargar el perfil",
+          life: 3000,
+        });
+      }
       throw error;
     }
   };
