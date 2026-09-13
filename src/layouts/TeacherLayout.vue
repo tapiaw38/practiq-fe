@@ -161,6 +161,16 @@
           <span class="nav-icon"><i class="pi pi-phone"></i></span>
           <span>Contacto landing</span>
         </RouterLink>
+        <RouterLink
+          v-if="isSuperAdmin"
+          to="/teacher/admin/assistant"
+          class="nav-item"
+          active-class="nav-item-active"
+          @click="navOpen = false"
+        >
+          <span class="nav-icon"><i class="pi pi-sparkles"></i></span>
+          <span>Asistente IA</span>
+        </RouterLink>
         <div v-if="administersActive && active" class="nav-section-label nav-section-label--spaced">
           Gestión de escuela
         </div>

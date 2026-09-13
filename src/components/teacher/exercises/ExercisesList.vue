@@ -53,13 +53,14 @@
           </option>
         </select>
       </div>
-      <button
-        class="btn btn-primary btn-sm"
-        :disabled="!selectedTopicId"
-        @click="emit('create')"
-      >
-        <i class="pi pi-plus"></i> Nuevo Ejercicio
-      </button>
+      <div class="flex gap-2">
+        <button class="btn btn-secondary btn-sm" :disabled="!selectedTopicId" @click="emit('create-ai')">
+          <i class="pi pi-sparkles"></i> Crear con IA
+        </button>
+        <button class="btn btn-primary btn-sm" :disabled="!selectedTopicId" @click="emit('create')">
+          <i class="pi pi-plus"></i> Nuevo Ejercicio
+        </button>
+      </div>
     </div>
     <div v-if="!selectedTopicId" class="empty-inline">
       Selecciona un tema para ver sus ejercicios.

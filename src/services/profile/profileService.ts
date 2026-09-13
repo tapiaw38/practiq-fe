@@ -5,14 +5,10 @@ export type SyncProfileParams = {
   name: string;
   email: string;
   profile_type: "teacher" | "student";
-  assistant_base_url?: string;
-  assistant_api_key?: string;
 };
 
-export type AssistantConfigParams = {
-  assistant_base_url: string;
-  assistant_api_key: string;
-  ui_theme?: "primary" | "secondary";
+export type UIThemeParams = {
+  ui_theme: "primary" | "secondary";
 };
 
 export type AcademicStatusParams = {
@@ -27,12 +23,10 @@ export interface IProfileService {
   sync(params: SyncProfileParams): Promise<{ data: UserProfile }>;
   get(): Promise<{ data: UserProfile }>;
   getById(id: string): Promise<{ data: UserProfile }>;
-  updateAssistantConfig(
-    params: AssistantConfigParams,
-  ): Promise<{ data: UserProfile }>;
-  updateAssistantConfigById(
+  updateUITheme(params: UIThemeParams): Promise<{ data: UserProfile }>;
+  updateUIThemeById(
     id: string,
-    params: AssistantConfigParams,
+    params: UIThemeParams,
   ): Promise<{ data: UserProfile }>;
   updateAcademicStatusById(
     id: string,
@@ -56,13 +50,7 @@ function detectTimezone(): string {
 export class ProfileService implements IProfileService {
   constructor(private readonly api: AxiosInstance) {}
 
-  async sync(params: {
-    name: string;
-    email: string;
-    profile_type: "teacher" | "student";
-    assistant_base_url?: string;
-    assistant_api_key?: string;
-  }): Promise<{ data: UserProfile }> {
+  async sync(params: SyncProfileParams): Promise<{ data: UserProfile }> {
     // The browser is the only place that knows the student's zone, and the
     // streak counts calendar days in it. Reported here so the server owns the
     // value: taking it from each request would let a client pick whichever
@@ -84,25 +72,16 @@ export class ProfileService implements IProfileService {
     return data;
   }
 
-  async updateAssistantConfig(params: {
-    assistant_base_url: string;
-    assistant_api_key: string;
-  }): Promise<{ data: UserProfile }> {
-    const { data } = await this.api.put("/profile/assistant-config", params);
+  async updateUITheme(params: UIThemeParams): Promise<{ data: UserProfile }> {
+    const { data } = await this.api.put("/profile/ui-theme", params);
     return data;
   }
 
-  async updateAssistantConfigById(
+  async updateUIThemeById(
     id: string,
-    params: {
-      assistant_base_url: string;
-      assistant_api_key: string;
-    },
+    params: UIThemeParams,
   ): Promise<{ data: UserProfile }> {
-    const { data } = await this.api.put(
-      `/profile/${id}/assistant-config`,
-      params,
-    );
+    const { data } = await this.api.put(`/profile/${id}/ui-theme`, params);
     return data;
   }
 

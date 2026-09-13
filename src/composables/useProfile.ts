@@ -4,7 +4,7 @@ import { practiqApi } from "@/api/request/server";
 import {
   ProfileService,
   type AcademicStatusParams,
-  type AssistantConfigParams,
+  type UIThemeParams,
   type ProfileTypeParams,
   type SyncProfileParams,
 } from "@/services/profile/profileService";
@@ -58,9 +58,9 @@ export const useProfile = () => {
     }
   };
 
-  const updateAssistantConfig = async (params: AssistantConfigParams) => {
+  const updateUITheme = async (params: UIThemeParams) => {
     try {
-      const profile = await store.updateAssistantConfig(params);
+      const profile = await store.updateUITheme(params);
       toast.add({
         severity: "success",
         summary: "Éxito",
@@ -79,12 +79,12 @@ export const useProfile = () => {
     }
   };
 
-  const updateAssistantConfigById = async (
+  const updateUIThemeById = async (
     id: string,
-    params: AssistantConfigParams,
+    params: UIThemeParams,
   ) => {
     try {
-      const profile = await store.updateAssistantConfigById(id, params);
+      const profile = await store.updateUIThemeById(id, params);
       toast.add({
         severity: "success",
         summary: "Éxito",
@@ -144,8 +144,8 @@ export const useProfile = () => {
     syncProfile,
     loadProfile,
     loadProfileById,
-    updateAssistantConfig,
-    updateAssistantConfigById,
+    updateUITheme,
+    updateUIThemeById,
     updateAcademicStatusById,
     updateProfileTypeById,
   };

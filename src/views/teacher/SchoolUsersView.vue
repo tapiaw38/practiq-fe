@@ -23,7 +23,7 @@
   } = useAssignment();
   const { loadGrades, loadUserGrades, addGradeMember, removeGradeMember } =
     useGrade();
-  const { loadProfileById, updateAssistantConfigById } = useProfile();
+  const { loadProfileById, updateUIThemeById } = useProfile();
   const members = ref<SchoolMember[]>([]);
   const loading = ref(true);
   const saving = ref(false);
@@ -34,13 +34,9 @@
   const assignLoading = ref(false);
   const teacherToAssign = ref("");
   const gradeToAssign = ref("");
-  const assistantForm = reactive({
-    assistant_base_url: "",
-    assistant_api_key: "",
-    ui_theme: "primary" as "primary" | "secondary",
-  });
-  const savingAssistant = ref(false);
-  const assistantSaveSuccess = ref(false);
+  const themeForm = reactive({ ui_theme: "primary" as "primary" | "secondary" });
+  const savingTheme = ref(false);
+  const themeSaveSuccess = ref(false);
   // School memberships store Auth's stable user ID. A superadmin should never
   // need to know it, so their visible field is a lookup and this remains the
   // resolved value sent to Practiq API.
@@ -67,7 +63,7 @@
     assigningMember.value = member;
     teacherToAssign.value = "";
     gradeToAssign.value = "";
-    assistantSaveSuccess.value = false;
+    themeSaveSuccess.value = false;
     assignLoading.value = true;
     try {
       if (!grades.value.length) grades.value = await loadGrades();
@@ -78,9 +74,7 @@
       ]);
       assignedTeachers.value = teachers || [];
       assignedGrades.value = memberGrades || [];
-      assistantForm.assistant_base_url = profile?.assistant_base_url || "";
-      assistantForm.assistant_api_key = profile?.assistant_api_key || "";
-      assistantForm.ui_theme = profile?.ui_theme || "primary";
+      themeForm.ui_theme = profile?.ui_theme || "primary";
     } finally {
       assignLoading.value = false;
     }
@@ -90,16 +84,16 @@
     assigningMember.value = null;
   }
 
-  async function saveAssistantConfig() {
-    if (!assigningMember.value || savingAssistant.value) return;
-    savingAssistant.value = true;
-    assistantSaveSuccess.value = false;
+  async function saveTheme() {
+    if (!assigningMember.value || savingTheme.value) return;
+    savingTheme.value = true;
+    themeSaveSuccess.value = false;
     try {
-      await updateAssistantConfigById(assigningMember.value.user_id, { ...assistantForm });
-      assistantSaveSuccess.value = true;
-      window.setTimeout(() => (assistantSaveSuccess.value = false), 3000);
+      await updateUIThemeById(assigningMember.value.user_id, { ...themeForm });
+      themeSaveSuccess.value = true;
+      window.setTimeout(() => (themeSaveSuccess.value = false), 3000);
     } finally {
-      savingAssistant.value = false;
+      savingTheme.value = false;
     }
   }
 
@@ -244,7 +238,7 @@
           <label>
             <span>{{ isSuperAdmin ? "Buscar usuario" : "Usuario" }}</span>
             <input v-if="isSuperAdmin" v-model="form.userQuery" type="search" placeholder="Email o nombre" autocomplete="off" @input="searchUsers" @blur="clearMatchesSoon" />
-            <input v-else v-model="form.userId" placeholder="Username exacto" autocomplete="off" />
+            <input v-else v-model="form.userId" placeholder="Identificador de Practiq" autocomplete="off" />
             <div v-if="matches.length" class="user-suggestions">
               <button v-for="user in matches" :key="user.id" type="button" @mousedown.prevent="selectUser(user)">
                 <strong>{{ user.first_name }} {{ user.last_name }}</strong><span>{{ user.email }}</span>
@@ -265,8 +259,8 @@
         </form>
         <p class="form-note">
           <template v-if="isSuperAdmin">Buscá por email o nombre y elegí la persona sugerida. Podés sumar administradores, docentes y alumnos.</template>
-          <template v-else-if="isInstitution">Ingresá el username exacto. Podés sumar administradores, docentes y alumnos.</template>
-          <template v-else>Ingresá el username exacto del alumno. Los docentes gestionan su propio espacio.</template>
+          <template v-else-if="isInstitution">Pedile su identificador de Practiq a la persona. Podés sumar administradores, docentes y alumnos.</template>
+          <template v-else>Para sumar un alumno conviene generarle una invitación desde tu panel. Los docentes gestionan su propio espacio.</template>
         </p>
 
         <div v-if="loading" class="loading-list"><Skeleton width="100%" height="50px" /><Skeleton width="100%" height="50px" /></div>
@@ -350,24 +344,22 @@
               </div>
 
               <div class="assign-block">
-                <span class="assign-label">Asistente</span>
+                <span class="assign-label">Nivel</span>
                 <div class="assistant-fields">
-                  <select v-model="assistantForm.ui_theme">
+                  <select v-model="themeForm.ui_theme">
                     <option value="primary">Primaria</option>
                     <option value="secondary">Secundaria</option>
                   </select>
-                  <input v-model="assistantForm.assistant_base_url" placeholder="Assistant Base URL" />
-                  <input v-model="assistantForm.assistant_api_key" placeholder="Assistant API Key" />
                 </div>
                 <div class="assign-row">
                   <button
                     type="button"
                     class="assistant-save"
-                    :class="{ 'assistant-save--ok': assistantSaveSuccess }"
-                    :disabled="savingAssistant"
-                    @click="saveAssistantConfig"
+                    :class="{ 'assistant-save--ok': themeSaveSuccess }"
+                    :disabled="savingTheme"
+                    @click="saveTheme"
                   >
-                    {{ savingAssistant ? "Guardando..." : assistantSaveSuccess ? "Guardado" : "Guardar asistente" }}
+                    {{ savingTheme ? "Guardando..." : themeSaveSuccess ? "Guardado" : "Guardar nivel" }}
                   </button>
                 </div>
               </div>

@@ -51,7 +51,7 @@
     useGrade();
   const {
     loadProfileById,
-    updateAssistantConfigById,
+    updateUIThemeById,
     updateAcademicStatusById,
     updateProfileTypeById,
   } = useProfile();
@@ -64,18 +64,11 @@
   const userGrades = ref<Record<string, Grade[]>>({});
   const teacherSelection = ref<Record<string, string>>({});
   const gradeSelection = ref<Record<string, string>>({});
-  const assistantForms = ref<
-    Record<
-      string,
-      {
-        assistant_base_url: string;
-        assistant_api_key: string;
-        ui_theme: "primary" | "secondary";
-      }
-    >
+  const themeForms = ref<
+    Record<string, { ui_theme: "primary" | "secondary" }>
   >({});
-  const savingAssistant = ref(false);
-  const assistantSaveSuccess = ref(false);
+  const savingTheme = ref(false);
+  const themeSaveSuccess = ref(false);
   const searchTerm = ref("");
   const statusFilter = ref<"all" | "active" | "blocked" | "pending">("all");
   const editingStudent = ref<UserRow | null>(null);
@@ -243,34 +236,24 @@
   function syncAssistantForms() {
     const next: Record<
       string,
-      {
-        assistant_base_url: string;
-        assistant_api_key: string;
-        ui_theme: "primary" | "secondary";
-      }
+      { ui_theme: "primary" | "secondary" }
     > = {};
     for (const item of rows.value) {
       next[practiqUserId(item.user)] = {
-        assistant_base_url: item.profile?.assistant_base_url || "",
-        assistant_api_key: item.profile?.assistant_api_key || "",
         ui_theme: item.profile?.ui_theme || "primary",
       };
     }
-    assistantForms.value = next;
+    themeForms.value = next;
   }
 
   function openStudentEditor(item: UserRow) {
     const userId = practiqUserId(item.user);
     // The editor can be opened before an async profile refresh completes.
     // Always create its form first so v-model never dereferences undefined.
-    if (!assistantForms.value[userId]) {
-      assistantForms.value = {
-        ...assistantForms.value,
-        [userId]: {
-          assistant_base_url: item.profile?.assistant_base_url || "",
-          assistant_api_key: item.profile?.assistant_api_key || "",
-          ui_theme: item.profile?.ui_theme || "primary",
-        },
+    if (!themeForms.value[userId]) {
+      themeForms.value = {
+        ...themeForms.value,
+        [userId]: { ui_theme: item.profile?.ui_theme || "primary" },
       };
     }
     editingStudent.value = item;
@@ -280,13 +263,13 @@
     editingStudent.value = null;
   }
 
-  async function saveAssistantConfig(userId: string) {
-    if (savingAssistant.value) return;
-    savingAssistant.value = true;
-    assistantSaveSuccess.value = false;
+  async function saveUITheme(userId: string) {
+    if (savingTheme.value) return;
+    savingTheme.value = true;
+    themeSaveSuccess.value = false;
     try {
-      const form = assistantForms.value[userId];
-      const profile = await updateAssistantConfigById(userId, form);
+      const form = themeForms.value[userId];
+      const profile = await updateUIThemeById(userId, form);
       rows.value = rows.value.map((item) =>
         practiqUserId(item.user) === userId ? { ...item, profile } : item,
       );
@@ -296,15 +279,15 @@
       ) {
         editingStudent.value = { ...editingStudent.value, profile };
       }
-      assistantSaveSuccess.value = true;
+      themeSaveSuccess.value = true;
       setTimeout(() => {
-        assistantSaveSuccess.value = false;
+        themeSaveSuccess.value = false;
       }, 3000);
     } catch (error) {
       console.error(error);
-      errorMessage.value = "No se pudo guardar la configuración del asistente.";
+      errorMessage.value = "No se pudo guardar el tema visual.";
     } finally {
-      savingAssistant.value = false;
+      savingTheme.value = false;
     }
   }
 
@@ -508,7 +491,7 @@
             <input
               v-model.trim="searchTerm"
               class="search-input"
-              placeholder="Buscar por nombre, correo o username"
+              placeholder="Buscar por nombre o correo"
             />
           </div>
           <div class="filter-row">
@@ -930,7 +913,7 @@
                 <div class="action-row">
                   <select
                     id="student-ui-theme"
-                    v-model="assistantForms[currentEditingStudentId].ui_theme"
+                    v-model="themeForms[currentEditingStudentId].ui_theme"
                     class="form-select"
                   >
                     <option value="primary">Primaria</option>
@@ -939,8 +922,8 @@
                   <button
                     class="btn btn-secondary btn-sm"
                     type="button"
-                    :disabled="savingAssistant"
-                    @click="saveAssistantConfig(currentEditingStudentId)"
+                    :disabled="savingTheme"
+                    @click="saveUITheme(currentEditingStudentId)"
                   >
                     Guardar tema
                   </button>
@@ -968,43 +951,6 @@
                 </button>
               </div>
 
-              <div class="assistant-box">
-                <div>
-                  <div class="assistant-title">Asistente del alumno</div>
-                  <p class="assistant-copy">URL y clave del asistente. Se guardan por separado del tema visual.</p>
-                </div>
-                <input
-                  v-model="
-                    assistantForms[currentEditingStudentId].assistant_base_url
-                  "
-                  class="form-input"
-                  placeholder="Assistant Base URL"
-                />
-                <input
-                  v-model="
-                    assistantForms[currentEditingStudentId].assistant_api_key
-                  "
-                  class="form-input"
-                  placeholder="Assistant API Key"
-                />
-                <button
-                  class="btn btn-sm modal-save"
-                  :class="assistantSaveSuccess ? 'btn-success' : 'btn-primary'"
-                  type="button"
-                  :disabled="savingAssistant"
-                  @click="saveAssistantConfig(currentEditingStudentId)"
-                >
-                  <i v-if="savingAssistant" class="pi pi-spin pi-spinner"></i>
-                  <i v-else-if="assistantSaveSuccess" class="pi pi-check"></i>
-                  {{
-                    savingAssistant
-                      ? "Guardando..."
-                      : assistantSaveSuccess
-                        ? "Guardado"
-                        : "Guardar asistente"
-                  }}
-                </button>
-              </div>
             </div>
             </div>
           </div>

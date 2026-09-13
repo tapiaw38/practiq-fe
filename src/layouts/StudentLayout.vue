@@ -238,8 +238,14 @@
           </button>
 
           <div v-if="coursesOpen" id="student-courses-nav" class="nav-sub">
-            <div v-if="loadingCourses" class="nav-sub-loading" aria-busy="true" aria-label="Cargando cursos">
-              <span v-for="n in 3" :key="n" class="nav-loading-line"></span>
+            <div
+              v-if="loadingCourses"
+              class="nav-sub-loading"
+              role="status"
+              aria-busy="true"
+              aria-label="Cargando cursos"
+            >
+              <i class="pi pi-spin pi-spinner" aria-hidden="true"></i>
             </div>
             <template v-else-if="coursesData.length">
               <div
@@ -649,29 +655,17 @@
   }
 
   .nav-sub-loading {
-    display: grid;
-    gap: 8px;
+    display: flex;
+    align-items: center;
     padding: 8px 12px;
+    color: var(--text-secondary);
+    font-size: var(--text-sm);
+    font-weight: 600;
   }
 
-  .nav-loading-line {
-    display: block;
-    height: 12px;
-    width: 100%;
-    border-radius: var(--radius-pill);
-    background: linear-gradient(
-      90deg,
-      var(--surface-elevated) 25%,
-      var(--surface-card) 50%,
-      var(--surface-elevated) 75%
-    );
-    background-size: 200% 100%;
-    animation: nav-loading 1.2s ease-in-out infinite;
-  }
-
-  @keyframes nav-loading {
-    from { background-position: 100% 0; }
-    to { background-position: -100% 0; }
+  .nav-sub-loading .pi-spinner {
+    color: var(--practiq-violet);
+    font-size: var(--text-sm);
   }
 
   .nav-sub-empty {

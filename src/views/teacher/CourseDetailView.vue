@@ -47,6 +47,7 @@
   } from "@/utils/fillBlanks";
   import FillBlanksEditor from "@/components/teacher/exercises/FillBlanksEditor.vue";
   import { renderContent } from "@/composables/useContentRenderer";
+  import { practiqApi } from "@/api/request/server";
 
   const route = useRoute();
   const router = useRouter();
@@ -185,6 +186,45 @@
     // Fill-in-the-blanks: blanks come from the statement, options include distractors.
     fillBlanks: { blanks: [], distractors: [], layout: "text" } as FillBlanksConfig,
   });
+  type AIDraft = { type: "open_text" | "multiple_choice" | "equation"; question: string; correct_answer: string; explanation: string; difficulty: number; metadata?: { options?: string[] } };
+  const showAIDraftsModal = ref(false);
+  const aiSource = ref<File | null>(null);
+  const aiDrafts = ref<AIDraft[]>([]);
+  const aiCount = ref(5);
+  const aiDifficulty = ref(5);
+  const aiInstruction = ref("");
+  const aiGenerating = ref(false);
+  const aiSaving = ref(false);
+
+  async function generateExerciseDrafts() {
+    if (!aiSource.value || !selectedTopicId.value) return;
+    aiGenerating.value = true;
+    try {
+      const form = new FormData();
+      form.append("source", aiSource.value);
+      form.append("count", String(aiCount.value));
+      form.append("difficulty", String(aiDifficulty.value));
+      form.append("instruction", aiInstruction.value);
+      const { data } = await practiqApi.post(`/topics/${selectedTopicId.value}/exercise-drafts/ai`, form, { headers: { "Content-Type": "multipart/form-data" } });
+      aiDrafts.value = data.data || [];
+    } catch (error) {
+      toast.add({ severity: "error", summary: "No se pudo generar", detail: "Verificá el archivo y la configuración de Gillie.", life: 4500 });
+    } finally { aiGenerating.value = false; }
+  }
+
+  async function saveAIDrafts() {
+    if (!selectedTopicId.value || !aiDrafts.value.length) return;
+    aiSaving.value = true;
+    try {
+      for (const draft of aiDrafts.value) {
+        await createExerciseService(selectedTopicId.value, { ...draft, metadata: JSON.stringify(draft.metadata || {}) } as Partial<Exercise>);
+      }
+      await loadExercises(selectedTopicId.value);
+      showAIDraftsModal.value = false;
+      aiDrafts.value = [];
+      toast.add({ severity: "success", summary: "Ejercicios creados", detail: "Los borradores revisados ya están disponibles.", life: 3500 });
+    } finally { aiSaving.value = false; }
+  }
   const newMaterial = reactive({
     title: "",
     type: "text" as Material["type"],
@@ -1083,6 +1123,7 @@
         :exercises="exercises"
         @update:selected-topic-id="selectedTopicId = $event"
         @create="showExerciseModal = true"
+        @create-ai="showAIDraftsModal = true"
         @edit="openEditExercise"
         @delete="deleteExercise"
       />
@@ -1329,6 +1370,28 @@
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      </Transition>
+    </Teleport>
+
+    <Teleport to="body">
+      <Transition name="fade">
+        <div v-if="showAIDraftsModal" class="modal-overlay" @click.self="showAIDraftsModal = false">
+          <div class="modal-box ai-drafts-modal">
+            <h3 class="modal-title"><i class="pi pi-sparkles"></i> Crear ejercicios con IA</h3>
+            <p class="field-hint">Subí una guía, evaluación o imagen. Gillie crea borradores; vos los revisás antes de publicarlos.</p>
+            <template v-if="!aiDrafts.length">
+              <div class="form-group"><label class="form-label">Archivo fuente</label><input type="file" accept=".pdf,.docx,image/png,image/jpeg,image/webp" @change="aiSource = (($event.target as HTMLInputElement).files?.[0] || null)" /></div>
+              <div class="form-grid"><div class="form-group"><label class="form-label">Cantidad</label><input v-model.number="aiCount" class="form-input" type="number" min="1" max="10" /></div><div class="form-group"><label class="form-label">Dificultad</label><input v-model.number="aiDifficulty" class="form-input" type="number" min="1" max="10" /></div></div>
+              <div class="form-group"><label class="form-label">Indicación adicional</label><textarea v-model="aiInstruction" class="form-textarea" rows="2" placeholder="Ej.: priorizá problemas de fracciones" /></div>
+              <div class="modal-actions"><button class="btn btn-secondary" @click="showAIDraftsModal = false">Cancelar</button><button class="btn btn-primary" :disabled="!aiSource || aiGenerating" @click="generateExerciseDrafts"><i class="pi" :class="aiGenerating ? 'pi-spin pi-spinner' : 'pi-sparkles'"></i> {{ aiGenerating ? "Generando…" : "Generar borradores" }}</button></div>
+            </template>
+            <template v-else>
+              <p class="field-hint">Editá o quitá los que no quieras. Nada se guarda hasta confirmar.</p>
+              <div v-for="(draft, index) in aiDrafts" :key="index" class="ai-draft-card"><button class="btn btn-ghost btn-sm ai-draft-remove" @click="aiDrafts.splice(index, 1)"><i class="pi pi-times"></i></button><select v-model="draft.type" class="form-select"><option value="open_text">Texto abierto</option><option value="multiple_choice">Opción múltiple</option><option value="equation">Ecuación</option></select><textarea v-model="draft.question" class="form-textarea" rows="2" /><input v-model="draft.correct_answer" class="form-input" placeholder="Respuesta correcta" /><textarea v-model="draft.explanation" class="form-textarea" rows="2" placeholder="Explicación" /></div>
+              <div class="modal-actions"><button class="btn btn-secondary" @click="aiDrafts = []">Volver</button><button class="btn btn-primary" :disabled="!aiDrafts.length || aiSaving" @click="saveAIDrafts">{{ aiSaving ? "Guardando…" : `Guardar ${aiDrafts.length} ejercicios` }}</button></div>
+            </template>
           </div>
         </div>
       </Transition>
@@ -2345,4 +2408,11 @@
     color: var(--text-secondary);
     font-weight: 500;
   }
+
+  .ai-drafts-modal { max-width: 760px; max-height: min(88vh, 820px); overflow: auto; }
+  .form-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+  .ai-draft-card { position: relative; display: grid; gap: 10px; padding: 14px; margin: 12px 0; border: 1px solid var(--surface-border); border-radius: var(--radius-lg); background: var(--surface-base); }
+  .ai-draft-remove { position: absolute; top: 6px; right: 6px; }
+  .ai-draft-card .form-select { padding-right: 42px; }
+  @media (max-width: 600px) { .form-grid { grid-template-columns: 1fr; } .ai-drafts-modal { max-height: 92vh; } }
 </style>

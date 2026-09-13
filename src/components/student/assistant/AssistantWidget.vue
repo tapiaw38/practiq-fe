@@ -124,8 +124,7 @@
     Boolean(
       authStore.isAuthenticated &&
       authStore.isStudent &&
-      authStore.profile?.assistant_base_url &&
-      authStore.profile?.assistant_api_key &&
+      authStore.profile?.assistant_enabled &&
       authStore.token,
     ),
   );
@@ -244,8 +243,7 @@
     () => [
       authStore.token,
       authStore.profile?.id,
-      authStore.profile?.assistant_base_url,
-      authStore.profile?.assistant_api_key,
+      authStore.profile?.assistant_enabled,
       authStore.profile?.profile_type,
     ],
     () => {

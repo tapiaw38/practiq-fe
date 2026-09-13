@@ -2,7 +2,7 @@ import { defineStore } from "pinia";
 import { ref } from "vue";
 import type {
   AcademicStatusParams,
-  AssistantConfigParams,
+  UIThemeParams,
   IProfileService,
   ProfileTypeParams,
   SyncProfileParams,
@@ -50,10 +50,10 @@ export const useProfileStore = (service: IProfileService) =>
       }
     };
 
-    const updateAssistantConfig = async (params: AssistantConfigParams) => {
+    const updateUITheme = async (params: UIThemeParams) => {
       loading.value = true;
       try {
-        const response = await service.updateAssistantConfig(params);
+        const response = await service.updateUITheme(params);
         currentProfile.value = response.data;
         profilesById.value[response.data.id] = response.data;
         return response.data;
@@ -62,13 +62,13 @@ export const useProfileStore = (service: IProfileService) =>
       }
     };
 
-    const updateAssistantConfigById = async (
+    const updateUIThemeById = async (
       id: string,
-      params: AssistantConfigParams,
+      params: UIThemeParams,
     ) => {
       loading.value = true;
       try {
-        const response = await service.updateAssistantConfigById(id, params);
+        const response = await service.updateUIThemeById(id, params);
         profilesById.value[id] = response.data;
         if (currentProfile.value?.id === id)
           currentProfile.value = response.data;
@@ -116,8 +116,8 @@ export const useProfileStore = (service: IProfileService) =>
       syncProfile,
       fetchProfile,
       fetchProfileById,
-      updateAssistantConfig,
-      updateAssistantConfigById,
+      updateUITheme,
+      updateUIThemeById,
       updateAcademicStatusById,
       updateProfileTypeById,
     };
