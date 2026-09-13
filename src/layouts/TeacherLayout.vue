@@ -9,8 +9,16 @@
   const route = useRoute();
   const router = useRouter();
   const authStore = useAuthStore();
-  const { schools, activeId, hasChoice, active, loadSchools, setActive, service } =
-    useSchools();
+  const {
+    schools,
+    activeId,
+    hasChoice,
+    active,
+    loadSchools,
+    setActive,
+    resetSchools,
+    service,
+  } = useSchools();
   const profile = computed(() => authStore.profile);
 
   // The school's name is the teacher's to set: the migration could only leave
@@ -66,6 +74,7 @@
   function logout() {
     authStore.clearAuth();
     localStorage.removeItem("practiq_profile");
+    resetSchools();
     router.push("/login");
   }
 </script>

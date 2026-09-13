@@ -46,11 +46,21 @@ export function useSchools() {
       schools.value = data;
 
       // A remembered school that is no longer ours must not stick: somebody
-      // removed from an institution would keep pointing at it and see nothing.
+      // removed from an institution -- or signed in as somebody else on this
+      // browser -- would keep pointing at it and see nothing, or worse, have
+      // every write rejected because it names a school they don't administer.
       const remembered = localStorage.getItem(STORAGE_KEY) || "";
       activeId.value = data.some((s) => s.id === remembered)
         ? remembered
         : (data[0]?.id ?? "");
+      // Write-through: the axios interceptor reads STORAGE_KEY directly, not
+      // activeId, so a correction made here must be persisted or the header
+      // keeps sending the stale id for as long as nobody opens the selector.
+      if (activeId.value) {
+        localStorage.setItem(STORAGE_KEY, activeId.value);
+      } else {
+        localStorage.removeItem(STORAGE_KEY);
+      }
     } catch {
       schools.value = [];
       activeId.value = "";
@@ -65,6 +75,7 @@ export function useSchools() {
     schools.value = [];
     activeId.value = "";
     loaded.value = false;
+    localStorage.removeItem(STORAGE_KEY);
   }
 
   return {
