@@ -13,7 +13,7 @@
   } from "vue";
   import { useRoute } from "vue-router";
   import { useAuthStore } from "@/stores/authStore";
-  import { createAssistant, type Assistant } from "practiq-assistant-package";
+  import { createAssistant, type Assistant } from "@/lib/assistant";
   import {
     assistantVoiceEnabled,
     ASSISTANT_VOICE_EVENT,
