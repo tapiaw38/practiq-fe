@@ -8,6 +8,7 @@ import {
   type ProfileTypeParams,
   type SyncProfileParams,
 } from "@/services/profile/profileService";
+export type { FoundUser } from "@/services/profile/profileService";
 import { useProfileStore } from "@/stores/profileStore";
 
 export const useProfile = () => {
@@ -58,6 +59,14 @@ export const useProfile = () => {
       });
       throw error;
     }
+  };
+
+  // No toast here: a miss is the expected outcome of "does this email have a
+  // Practiq account yet", not a failure, and the caller shows its own
+  // message either way.
+  const findByEmail = async (email: string) => {
+    const { data } = await service.findByEmail(email);
+    return data;
   };
 
   const updateUITheme = async (params: UIThemeParams) => {
@@ -146,6 +155,7 @@ export const useProfile = () => {
     syncProfile,
     loadProfile,
     loadProfileById,
+    findByEmail,
     updateUITheme,
     updateUIThemeById,
     updateAcademicStatusById,

@@ -23,7 +23,7 @@
   } = useAssignment();
   const { loadGrades, loadUserGrades, addGradeMember, removeGradeMember } =
     useGrade();
-  const { loadProfileById, updateUIThemeById } = useProfile();
+  const { loadProfileById, updateUIThemeById, findByEmail } = useProfile();
   const members = ref<SchoolMember[]>([]);
   const loading = ref(true);
   const saving = ref(false);
@@ -183,10 +183,32 @@
   }
 
   async function addMember() {
-    if (!active.value || !form.userId.trim() || saving.value) return;
+    if (!active.value || saving.value) return;
+    const email = form.userQuery.trim();
+    if (isSuperAdmin.value ? !form.userId.trim() : !email) return;
+
     saving.value = true;
     try {
-      await service.addMember(active.value.id, form.userId.trim(), form.role);
+      let userId = form.userId.trim();
+      // A non-superadmin never sees Auth's whole user list (privacy), so
+      // they give us the person's email instead of a Practiq id -- resolved
+      // here to the same id the superadmin path already has by this point.
+      if (!isSuperAdmin.value) {
+        try {
+          userId = (await findByEmail(email)).id;
+        } catch (error: any) {
+          toast.add({
+            severity: "error",
+            summary: "Error",
+            detail: error.response?.status === 404
+              ? "No hay ninguna cuenta de Practiq con ese email. Tiene que iniciar sesión en Practiq al menos una vez antes de sumarla."
+              : "No se pudo buscar ese email",
+            life: 4000,
+          });
+          return;
+        }
+      }
+      await service.addMember(active.value.id, userId, form.role);
       form.userId = "";
       form.userQuery = "";
       await loadMembers();
@@ -236,9 +258,9 @@
 
         <form class="member-form" @submit.prevent="addMember">
           <label>
-            <span>{{ isSuperAdmin ? "Buscar usuario" : "Usuario" }}</span>
+            <span>{{ isSuperAdmin ? "Buscar usuario" : "Email" }}</span>
             <input v-if="isSuperAdmin" v-model="form.userQuery" type="search" placeholder="Email o nombre" autocomplete="off" @input="searchUsers" @blur="clearMatchesSoon" />
-            <input v-else v-model="form.userId" placeholder="Identificador de Practiq" autocomplete="off" />
+            <input v-else v-model="form.userQuery" type="email" placeholder="email@ejemplo.com" autocomplete="off" />
             <div v-if="matches.length" class="user-suggestions">
               <button v-for="user in matches" :key="user.id" type="button" @mousedown.prevent="selectUser(user)">
                 <strong>{{ user.first_name }} {{ user.last_name }}</strong><span>{{ user.email }}</span>
@@ -253,13 +275,13 @@
               <option value="student">Alumno</option>
             </select>
           </label>
-          <button type="submit" :disabled="saving || !form.userId.trim()">
+          <button type="submit" :disabled="saving || (isSuperAdmin ? !form.userId.trim() : !form.userQuery.trim())">
             <i class="pi pi-user-plus"></i> Agregar
           </button>
         </form>
         <p class="form-note">
           <template v-if="isSuperAdmin">Buscá por email o nombre y elegí la persona sugerida. Podés sumar administradores, docentes y alumnos.</template>
-          <template v-else-if="isInstitution">Pedile su identificador de Practiq a la persona. Podés sumar administradores, docentes y alumnos.</template>
+          <template v-else-if="isInstitution">Pedile el email con el que se registró en Practiq. Tiene que haber iniciado sesión al menos una vez. Podés sumar administradores, docentes y alumnos.</template>
           <template v-else>Para sumar un alumno conviene generarle una invitación desde tu panel. Los docentes gestionan su propio espacio.</template>
         </p>
 

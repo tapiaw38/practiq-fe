@@ -19,10 +19,18 @@ export type ProfileTypeParams = {
   profile_type: "teacher" | "student";
 };
 
+export type FoundUser = {
+  id: string;
+  first_name: string;
+  last_name: string;
+  email: string;
+};
+
 export interface IProfileService {
   sync(params: SyncProfileParams): Promise<{ data: UserProfile }>;
   get(): Promise<{ data: UserProfile }>;
   getById(id: string): Promise<{ data: UserProfile }>;
+  findByEmail(email: string): Promise<{ data: FoundUser }>;
   updateUITheme(params: UIThemeParams): Promise<{ data: UserProfile }>;
   updateUIThemeById(
     id: string,
@@ -69,6 +77,13 @@ export class ProfileService implements IProfileService {
 
   async getById(id: string): Promise<{ data: UserProfile }> {
     const { data } = await this.api.get(`/profile/${id}`);
+    return data;
+  }
+
+  async findByEmail(email: string): Promise<{ data: FoundUser }> {
+    const { data } = await this.api.get("/profile/find-by-email", {
+      params: { email },
+    });
     return data;
   }
 
