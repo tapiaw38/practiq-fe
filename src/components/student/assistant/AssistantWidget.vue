@@ -18,6 +18,7 @@
     assistantVoiceEnabled,
     ASSISTANT_VOICE_EVENT,
   } from "@/utils/assistantPreferences";
+  import { getToken, refreshAssistantToken } from "@/api/request/server";
 
   const authStore = useAuthStore();
   const route = useRoute();
@@ -192,6 +193,8 @@
       copilotBaseUrl,
       authToken: token,
       authMode: "bearer",
+      getAuthToken: getToken,
+      refreshAuthToken: refreshAssistantToken,
       conversationStorageKey: authStore.profile?.id,
       title: "Practi",
       placeholder: "Preguntale a Practi…",

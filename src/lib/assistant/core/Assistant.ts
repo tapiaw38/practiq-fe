@@ -20,6 +20,10 @@ export interface AssistantOptions {
   apiKey?: string;
   /** Authentication strategy used in requests */
   authMode?: "bearer" | "x-api-key";
+  /** Read latest bearer token instead of retaining token from mount time. */
+  getAuthToken?: () => string | null;
+  /** Refresh expired bearer token before retrying one failed request. */
+  refreshAuthToken?: () => Promise<string | null>;
   /** Title of the chat window */
   title?: string;
   /** Placeholder text for the text area */
@@ -154,12 +158,29 @@ export function createAssistant(options: AssistantOptions): Assistant {
     if (contentType) {
       headers["Content-Type"] = contentType;
     }
+    const currentCredential =
+      authMode === "bearer" ? options.getAuthToken?.() || credential : credential;
     if (authMode === "bearer") {
-      headers.Authorization = `Bearer ${credential}`;
+      headers.Authorization = `Bearer ${currentCredential}`;
     } else {
       headers["x-api-key"] = credential;
     }
     return headers;
+  }
+
+  async function authenticatedFetch(input: RequestInfo | URL, init: RequestInit = {}) {
+    const withAuth = () => {
+      const headers = new Headers(init.headers);
+      const current = getAuthHeaders();
+      if (current.Authorization) headers.set("Authorization", current.Authorization);
+      if (current["x-api-key"]) headers.set("x-api-key", current["x-api-key"]);
+      return headers;
+    };
+    let response = await fetch(input, { ...init, headers: withAuth() });
+    if (response.status !== 401 || authMode !== "bearer" || !options.refreshAuthToken) return response;
+    const refreshed = await options.refreshAuthToken();
+    if (!refreshed) return response;
+    return fetch(input, { ...init, headers: withAuth() });
   }
 
   async function sendCopilotMessage(message: string): Promise<string | null> {
@@ -180,7 +201,7 @@ export function createAssistant(options: AssistantOptions): Assistant {
       // Copilot needs the latter to review placements precisely.
       student_answer: active?.student_answer_raw ?? active?.student_answer ?? "",
     };
-    const streamResponse = await fetch(`${options.copilotBaseUrl}/stream`, {
+    const streamResponse = await authenticatedFetch(`${options.copilotBaseUrl}/stream`, {
       method: "POST", headers: { ...getAuthHeaders("application/json"), Accept: "text/event-stream" }, body: JSON.stringify(payload),
     });
     if (streamResponse.ok && streamResponse.body) {
@@ -205,7 +226,7 @@ export function createAssistant(options: AssistantOptions): Assistant {
       }
       if (Array.isArray(result?.blocks)) return JSON.stringify({ copilot_blocks: result.blocks, suggested_actions: result.suggested_actions || [] });
     }
-    const response = await fetch(options.copilotBaseUrl, {
+    const response = await authenticatedFetch(options.copilotBaseUrl, {
       method: "POST", headers: getAuthHeaders("application/json"), body: JSON.stringify(payload),
     });
     if (!response.ok) throw new Error(`Copilot request failed: ${response.status}`);
@@ -760,16 +781,31 @@ export function createAssistant(options: AssistantOptions): Assistant {
     }
   }
 
-  function buildMessageContext(rawContext: string, structuredContextText: string): string {
+  function buildMessageContext(rawContext: string, structuredContextText: string, userMessage: string): string {
     const sanitizedContext = sanitizeContext(rawContext);
-    const structuredPrefix = "Contexto estructurado de Practiq (fuente confiable):\n";
+    const structuredPrefix =
+      "Contexto estructurado de Practiq (fuente confiable). Si el alumno pregunta de forma generica (\"este ejercicio\", \"el ejercicio actual\", sin numero), respondele solo sobre active_exercise. exercise_list trae todos los ejercicios de la hoja solo como referencia de numeracion; usalo unicamente si el alumno pide explicitamente otro ejercicio por numero.\n";
     const visiblePrefix = "Contexto visible de la página:\n";
     let combinedContext = "";
 
-    if (structuredContextText) {
+    // Generic requests must never invite the model to choose from the whole
+    // sheet. Keep the list only when student explicitly names an exercise.
+    let scopedContext = structuredContextText;
+    const namesExercise = /\b(?:ejercicio|pregunta)\s*(?:n[º°.]?\s*)?\d+\b/i.test(userMessage);
+    if (scopedContext && !namesExercise) {
+      try {
+        const parsed = JSON.parse(scopedContext);
+        delete parsed.exercise_list;
+        scopedContext = JSON.stringify(parsed);
+      } catch {
+        // Context is optional; retain it if an external host supplied text.
+      }
+    }
+
+    if (scopedContext) {
       // shrinkStructuredContext guarantees this fits inside the structured
       // budget, so this never cuts a JSON document mid-object.
-      combinedContext = `${structuredPrefix}${structuredContextText}`;
+      combinedContext = `${structuredPrefix}${scopedContext}`;
     }
 
     if (sanitizedContext) {
@@ -785,7 +821,7 @@ export function createAssistant(options: AssistantOptions): Assistant {
 
   // Function to create conversation with title
   async function createConversation(title: string): Promise<void> {
-    const response = await fetch(`${options.apiBaseUrl}/conversation/`, {
+    const response = await authenticatedFetch(`${options.apiBaseUrl}/conversation/`, {
       method: "POST",
       mode: "cors",
       headers: getAuthHeaders("application/json"),
@@ -818,7 +854,7 @@ export function createAssistant(options: AssistantOptions): Assistant {
     }
 
     const structuredContextText = await collectStructuredContextText();
-    const normalizedContext = buildMessageContext(context, structuredContextText);
+    const normalizedContext = buildMessageContext(context, structuredContextText, (formData.get("content") as string) || "");
 
     // Every turn operates on current work, including hints and explanations.
     // Image bytes can change while structured text stays identical.
@@ -850,7 +886,7 @@ export function createAssistant(options: AssistantOptions): Assistant {
         textToVoiceParam,
       });
 
-      const response = await fetch(url, {
+      const response = await authenticatedFetch(url, {
         method: "POST",
         mode: "cors",
         headers: getAuthHeaders(),
@@ -903,7 +939,7 @@ export function createAssistant(options: AssistantOptions): Assistant {
     }
 
     const structuredContextText = await collectStructuredContextText();
-    const normalizedContext = buildMessageContext(context, structuredContextText);
+    const normalizedContext = buildMessageContext(context, structuredContextText, message);
 
     const contextToSend = normalizedContext;
 
@@ -946,7 +982,7 @@ export function createAssistant(options: AssistantOptions): Assistant {
         textToVoiceParam,
       });
 
-      const response = await fetch(url, {
+      const response = await authenticatedFetch(url, {
         method: "POST",
         mode: "cors",
         headers: hasMediaAttachment ? getAuthHeaders() : getAuthHeaders("application/json"),

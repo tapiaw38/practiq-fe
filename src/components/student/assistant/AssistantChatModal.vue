@@ -734,6 +734,7 @@
       "Da solo pistas, explicaciones breves, preguntas guia o el siguiente paso.",
       gradeInstruction,
       "Si existe contexto estructurado de Practiq, usalo para ubicar curso, hoja y numero de ejercicio.",
+      "El contexto puede traer 'exercise_list' con todos los ejercicios de la hoja y 'active_exercise' con el que el alumno tiene abierto ahora. Cuando el alumno pregunta de forma generica (\"este ejercicio\", \"el ejercicio actual\", sin numero), respondele solo sobre active_exercise. Usa exercise_list unicamente si el alumno pide explicitamente otro ejercicio por numero.",
       hasImageAttachment
         ? [
             "Hay una imagen adjunta de la actividad actual.",

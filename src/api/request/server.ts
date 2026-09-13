@@ -60,6 +60,12 @@ function refreshOnce(): Promise<string | null> {
   return refreshing
 }
 
+// Raw fetch clients (assistant package) do not pass through Axios interceptors.
+// Export same single-flight refresh so they never keep using expired JWTs.
+export function refreshAssistantToken(): Promise<string | null> {
+  return refreshOnce()
+}
+
 function createAxiosInstance(baseURL: string) {
   const instance = axios.create({
     baseURL,
