@@ -40,11 +40,11 @@
     description: "",
   });
 
-  const isAdmin = computed(() => {
+  // El CRUD de estrategias es del administrador; el profesor solo las asigna
+  // a sus cursos.
+  const isSuperAdmin = computed(() => {
     const roles = authStore.authUser?.roles || [];
-    return roles.some(
-      (role) => role.name === "admin" || role.name === "superadmin",
-    );
+    return roles.some((role) => role.name === "superadmin");
   });
 
   onMounted(async () => {
@@ -174,7 +174,7 @@
         </div>
         <div class="page-header__right">
           <button
-            v-if="isAdmin"
+            v-if="isSuperAdmin"
             class="btn btn-primary"
             @click="openCreateModal"
           >
@@ -188,7 +188,7 @@
       <template v-if="loading">
         <section class="content-section">
           <div class="section-header">
-            <div>
+            <div style="display: flex; flex-direction: column; gap: 8px">
               <Skeleton width="180px" height="24px" />
               <Skeleton width="320px" height="14px" />
             </div>
@@ -220,7 +220,7 @@
       <template v-else>
         <StrategyCatalog
           :strategies="strategies"
-          :is-admin="isAdmin"
+          :is-super-admin="isSuperAdmin"
           @create="openCreateModal"
           @edit="editStrategy"
           @delete="confirmDeleteStrategy"
@@ -539,6 +539,12 @@
       align-items: flex-start;
       gap: 16px;
       padding: 20px;
+    }
+
+    /* Tap targets >= 44px en mobile */
+    .icon-btn {
+      width: 44px;
+      height: 44px;
     }
   }
 </style>

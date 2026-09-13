@@ -1,4 +1,10 @@
-import { authApi, getToken, setToken, removeToken } from "@/api/request/server";
+import {
+  authApi,
+  getToken,
+  setToken,
+  setRefreshToken,
+  removeToken,
+} from "@/api/request/server";
 import type {
   LoginParams,
   LoginResponse,
@@ -33,6 +39,10 @@ export class AuthService implements IAuthService {
         };
 
     const { data } = await authApi.post("/auth/login", payload);
+    // Stored here rather than at the call sites: every screen that signs
+    // somebody in goes through this method, and a session missing its
+    // refresh token only shows up much later, as a surprise logout.
+    if (data?.refresh_token) setRefreshToken(data.refresh_token);
     return data;
   }
 

@@ -1,9 +1,15 @@
 import type { AxiosInstance } from "axios";
-import type { AssignedUser } from "@/types";
+import type { AssignedUser, OperationResult } from "@/types";
 
 export interface IAssignmentService {
-  assign(teacherId: string, studentId: string): Promise<{ message: string }>;
-  unassign(teacherId: string, studentId: string): Promise<{ message: string }>;
+  assign(
+    teacherId: string,
+    studentId: string,
+  ): Promise<{ data: OperationResult }>;
+  unassign(
+    teacherId: string,
+    studentId: string,
+  ): Promise<{ data: OperationResult }>;
   listStudents(teacherId: string): Promise<{ data: AssignedUser[] }>;
   listTeachers(studentId: string): Promise<{ data: AssignedUser[] }>;
   listMyStudents(): Promise<{ data: AssignedUser[] }>;
@@ -15,7 +21,7 @@ export class AssignmentService implements IAssignmentService {
   async assign(
     teacherId: string,
     studentId: string,
-  ): Promise<{ message: string }> {
+  ): Promise<{ data: OperationResult }> {
     const { data } = await this.api.post("/teacher-student-assignments", {
       teacher_id: teacherId,
       student_id: studentId,
@@ -26,7 +32,7 @@ export class AssignmentService implements IAssignmentService {
   async unassign(
     teacherId: string,
     studentId: string,
-  ): Promise<{ message: string }> {
+  ): Promise<{ data: OperationResult }> {
     const { data } = await this.api.delete(
       `/teacher-student-assignments/${teacherId}/${studentId}`,
     );

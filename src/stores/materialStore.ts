@@ -33,6 +33,18 @@ export const useMaterialStore = (service: IMaterialService) =>
       }
     };
 
+    const updateMaterial = async (id: string, params: Partial<Material>) => {
+      loading.value = true;
+      try {
+        const response = await service.update(id, params);
+        const index = materials.value.findIndex((m) => m.id === id);
+        if (index !== -1) materials.value[index] = response.data;
+        return response.data;
+      } finally {
+        loading.value = false;
+      }
+    };
+
     const deleteMaterial = async (id: string) => {
       loading.value = true;
       try {
@@ -48,6 +60,7 @@ export const useMaterialStore = (service: IMaterialService) =>
       loading,
       fetchMaterials,
       createMaterial,
+      updateMaterial,
       deleteMaterial,
     };
   });

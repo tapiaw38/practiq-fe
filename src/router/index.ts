@@ -42,18 +42,29 @@ const router = createRouter({
       path: "/teacher/admin/users",
       name: "teacher-admin-users",
       component: () => import("@/views/teacher/AdminUsersView.vue"),
-      meta: { requiresAuth: true, profileType: "teacher" },
+      meta: { requiresAuth: true, profileType: "teacher", roles: ["superadmin"] },
     },
     {
       path: "/teacher/admin/academic",
       name: "teacher-admin-academic",
       component: () => import("@/views/teacher/AcademicAdminView.vue"),
+      // No longer superadmin-only: every teacher administers their own school.
+      // Which rows they may touch is decided by the API, per school.
+      meta: { requiresAuth: true, profileType: "teacher" },
+    },
+    {
+      path: "/teacher/admin/school-users",
+      name: "teacher-admin-school-users",
+      component: () => import("@/views/teacher/SchoolUsersView.vue"),
+      // The API checks that the current teacher administers the active school.
       meta: { requiresAuth: true, profileType: "teacher" },
     },
     {
       path: "/teacher/admin/academic/subjects/:subjectId/courses",
       name: "teacher-subject-courses",
       component: () => import("@/views/teacher/SubjectCoursesView.vue"),
+      // Opened with the academic screen it hangs off. Leaving it behind would
+      // give a teacher a catalogue whose subjects lead to a blocked page.
       meta: { requiresAuth: true, profileType: "teacher" },
     },
     {
@@ -91,6 +102,12 @@ const router = createRouter({
       meta: { requiresAuth: true, profileType: "student" },
     },
     {
+      path: "/student/progress",
+      name: "student-progress",
+      component: () => import("@/views/student/ProgressView.vue"),
+      meta: { requiresAuth: true, profileType: "student" },
+    },
+    {
       path: "/student/courses/:courseId/levels",
       name: "student-course-levels",
       component: () => import("@/views/student/CourseLevelsView.vue"),
@@ -109,6 +126,12 @@ const router = createRouter({
       meta: { requiresAuth: true, profileType: "teacher" },
     },
     {
+      path: "/teacher/attempt-reviews",
+      name: "teacher-attempt-reviews",
+      component: () => import("@/views/teacher/AttemptReviewsView.vue"),
+      meta: { requiresAuth: true, profileType: "teacher" },
+    },
+    {
       path: "/teacher/notebook-reviews",
       name: "teacher-notebook-reviews",
       component: () => import("@/views/teacher/NotebookReviewView.vue"),
@@ -119,6 +142,30 @@ const router = createRouter({
       name: "teacher-strategies",
       component: () => import("@/views/teacher/StrategyManagementView.vue"),
       meta: { requiresAuth: true, profileType: "teacher" },
+    },
+    {
+      path: "/teacher/subscription",
+      name: "teacher-subscription",
+      component: () => import("@/views/teacher/SubscriptionView.vue"),
+      meta: { requiresAuth: true, profileType: "teacher" },
+    },
+    {
+      path: "/teacher/admin/schools",
+      name: "teacher-admin-schools",
+      component: () => import("@/views/teacher/AdminSchoolsView.vue"),
+      meta: { requiresAuth: true, profileType: "teacher", roles: ["superadmin"] },
+    },
+    {
+      path: "/teacher/admin/plans",
+      name: "teacher-admin-plans",
+      component: () => import("@/views/teacher/AdminPlansView.vue"),
+      meta: { requiresAuth: true, profileType: "teacher", roles: ["superadmin"] },
+    },
+    {
+      path: "/teacher/admin/site-contact",
+      name: "teacher-admin-site-contact",
+      component: () => import("@/views/teacher/AdminSiteContactView.vue"),
+      meta: { requiresAuth: true, profileType: "teacher", roles: ["superadmin"] },
     },
     {
       path: "/:pathMatch(.*)*",
@@ -156,6 +203,26 @@ router.beforeEach((to, _from, next) => {
         }
       }
     } catch {}
+  }
+
+  // Las vistas de administración son del superadmin. El backend es quien
+  // decide de verdad: esto solo evita mostrarle a un profesor una pantalla que
+  // le va a responder 403 en cada acción.
+  const requiredRoles = to.meta.roles as string[] | undefined;
+  if (to.meta.requiresAuth && requiredRoles?.length) {
+    try {
+      const authUserStr = localStorage.getItem("practiq_auth_user");
+      const roles: { name: string }[] = authUserStr
+        ? JSON.parse(authUserStr).roles || []
+        : [];
+      if (!roles.some((role) => requiredRoles.includes(role.name))) {
+        next("/teacher/dashboard");
+        return;
+      }
+    } catch {
+      next("/teacher/dashboard");
+      return;
+    }
   }
 
   next();

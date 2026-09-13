@@ -24,6 +24,7 @@ export const useGradeStore = (service: IGradeService) =>
     const createGrade = async (params: {
       name: string;
       description: string;
+      visual_theme?: "primary" | "secondary";
     }) => {
       loading.value = true;
       try {
@@ -37,7 +38,7 @@ export const useGradeStore = (service: IGradeService) =>
 
     const updateGrade = async (
       id: string,
-      params: { name: string; description: string },
+      params: { name: string; description: string; visual_theme: "primary" | "secondary" },
     ) => {
       loading.value = true;
       try {
@@ -100,6 +101,18 @@ export const useGradeStore = (service: IGradeService) =>
       }
     };
 
+    const fetchGradesByUsers = async (userIds: string[]) => {
+      if (!userIds.length) return {};
+      loading.value = true;
+      try {
+        const response = await service.listGradesByUsers(userIds);
+        Object.assign(userGrades.value, response.data || {});
+        return response.data || {};
+      } finally {
+        loading.value = false;
+      }
+    };
+
     return {
       grades,
       members,
@@ -113,5 +126,6 @@ export const useGradeStore = (service: IGradeService) =>
       removeMember,
       fetchMembers,
       fetchUserGrades,
+      fetchGradesByUsers,
     };
   });

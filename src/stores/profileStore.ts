@@ -4,6 +4,7 @@ import type {
   AcademicStatusParams,
   AssistantConfigParams,
   IProfileService,
+  ProfileTypeParams,
   SyncProfileParams,
 } from "@/services/profile/profileService";
 import type { UserProfile } from "@/types";
@@ -93,6 +94,21 @@ export const useProfileStore = (service: IProfileService) =>
       }
     };
 
+    const updateProfileTypeById = async (
+      id: string,
+      params: ProfileTypeParams,
+    ) => {
+      loading.value = true;
+      try {
+        const response = await service.updateProfileTypeById(id, params);
+        profilesById.value[id] = response.data;
+        if (currentProfile.value?.id === id) currentProfile.value = response.data;
+        return response.data;
+      } finally {
+        loading.value = false;
+      }
+    };
+
     return {
       currentProfile,
       profilesById,
@@ -103,5 +119,6 @@ export const useProfileStore = (service: IProfileService) =>
       updateAssistantConfig,
       updateAssistantConfigById,
       updateAcademicStatusById,
+      updateProfileTypeById,
     };
   });

@@ -26,6 +26,16 @@ export const useMaterial = () => {
     }
   };
 
+  /** Reads one material in full; returns null rather than breaking a screen. */
+  const loadMaterial = async (id: string): Promise<Material | null> => {
+    try {
+      const { data } = await service.get(id);
+      return data;
+    } catch {
+      return null;
+    }
+  };
+
   const createMaterial = async (
     courseId: string,
     params: Partial<Material>,
@@ -44,6 +54,27 @@ export const useMaterial = () => {
         severity: "error",
         summary: "Error",
         detail: "No se pudo crear el material",
+        life: 3000,
+      });
+      throw error;
+    }
+  };
+
+  const updateMaterial = async (id: string, params: Partial<Material>) => {
+    try {
+      const result = await store.updateMaterial(id, params);
+      toast.add({
+        severity: "success",
+        summary: "Éxito",
+        detail: "Material actualizado correctamente",
+        life: 3000,
+      });
+      return result;
+    } catch (error) {
+      toast.add({
+        severity: "error",
+        summary: "Error",
+        detail: "No se pudo actualizar el material",
         life: 3000,
       });
       throw error;
@@ -74,7 +105,9 @@ export const useMaterial = () => {
     materials,
     loading,
     loadMaterials,
+    loadMaterial,
     createMaterial,
+    updateMaterial,
     deleteMaterial,
   };
 };

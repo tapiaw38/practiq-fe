@@ -65,6 +65,6 @@ export function formatDuration(secs: number) {
 export function formatAIFeedback(value?: string) {
   const feedback = (value || "").trim();
   if (!feedback) return "Sin observaciones de IA";
-  if (feedback.includes("UNREADABLE")) return "Sin observaciones de IA";
+  if (feedback.includes("UNREADABLE")) return "Respuesta no legible por IA";
   return feedback;
 }

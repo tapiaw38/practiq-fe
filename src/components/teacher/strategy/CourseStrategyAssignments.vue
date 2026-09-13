@@ -219,5 +219,11 @@
       flex-direction: column;
       align-items: stretch;
     }
+
+    /* Tap targets >= 44px en mobile */
+    .btn-remove {
+      width: 44px;
+      height: 44px;
+    }
   }
 </style>

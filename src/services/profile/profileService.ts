@@ -12,10 +12,15 @@ export type SyncProfileParams = {
 export type AssistantConfigParams = {
   assistant_base_url: string;
   assistant_api_key: string;
+  ui_theme?: "primary" | "secondary";
 };
 
 export type AcademicStatusParams = {
   academic_status: "active" | "blocked";
+};
+
+export type ProfileTypeParams = {
+  profile_type: "teacher" | "student";
 };
 
 export interface IProfileService {
@@ -33,6 +38,19 @@ export interface IProfileService {
     id: string,
     params: AcademicStatusParams,
   ): Promise<{ data: UserProfile }>;
+  updateProfileTypeById(
+    id: string,
+    params: ProfileTypeParams,
+  ): Promise<{ data: UserProfile }>;
+}
+
+/** Empty when the browser cannot tell; the API falls back to its default. */
+function detectTimezone(): string {
+  try {
+    return Intl.DateTimeFormat().resolvedOptions().timeZone || "";
+  } catch {
+    return "";
+  }
 }
 
 export class ProfileService implements IProfileService {
@@ -45,7 +63,14 @@ export class ProfileService implements IProfileService {
     assistant_base_url?: string;
     assistant_api_key?: string;
   }): Promise<{ data: UserProfile }> {
-    const { data } = await this.api.post("/profile", params);
+    // The browser is the only place that knows the student's zone, and the
+    // streak counts calendar days in it. Reported here so the server owns the
+    // value: taking it from each request would let a client pick whichever
+    // zone grows their streak, and server-side reports have no browser to ask.
+    const { data } = await this.api.post("/profile", {
+      ...params,
+      timezone: detectTimezone(),
+    });
     return data;
   }
 
@@ -91,6 +116,14 @@ export class ProfileService implements IProfileService {
       `/profile/${id}/academic-status`,
       params,
     );
+    return data;
+  }
+
+  async updateProfileTypeById(
+    id: string,
+    params: ProfileTypeParams,
+  ): Promise<{ data: UserProfile }> {
+    const { data } = await this.api.put(`/profile/${id}/type`, params);
     return data;
   }
 }

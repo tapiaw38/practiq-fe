@@ -5,6 +5,7 @@ import {
   ProfileService,
   type AcademicStatusParams,
   type AssistantConfigParams,
+  type ProfileTypeParams,
   type SyncProfileParams,
 } from "@/services/profile/profileService";
 import { useProfileStore } from "@/stores/profileStore";
@@ -119,6 +120,23 @@ export const useProfile = () => {
     }
   };
 
+  const updateProfileTypeById = async (
+    id: string,
+    params: ProfileTypeParams,
+  ) => {
+    try {
+      return await store.updateProfileTypeById(id, params);
+    } catch (error) {
+      toast.add({
+        severity: "error",
+        summary: "Error",
+        detail: "No se pudo actualizar el tipo de perfil",
+        life: 3000,
+      });
+      throw error;
+    }
+  };
+
   return {
     currentProfile,
     profilesById,
@@ -129,5 +147,6 @@ export const useProfile = () => {
     updateAssistantConfig,
     updateAssistantConfigById,
     updateAcademicStatusById,
+    updateProfileTypeById,
   };
 };

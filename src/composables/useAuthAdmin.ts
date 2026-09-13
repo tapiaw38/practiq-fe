@@ -51,10 +51,27 @@ export const useAuthAdmin = () => {
     }
   };
 
+  const updateRoles = async (id: string, roles: string[]) => {
+    try {
+      return await store.updateRoles(id, roles);
+    } catch (error: any) {
+      toast.add({
+        severity: "error",
+        summary: "No se pudo cambiar el rol",
+        detail:
+          error?.response?.data?.message ||
+          "Revisá los permisos y volvé a intentar.",
+        life: 4000,
+      });
+      throw error;
+    }
+  };
+
   return {
     users,
     loading,
     loadUsers,
     updateUser,
+    updateRoles,
   };
 };
