@@ -188,21 +188,9 @@
             </div>
           </template>
 
-          <!-- ── ORAL / ESCRITA: message list ── -->
+          <!-- ── CONVERSAR: texto y voz en una misma conversación ── -->
           <template v-else>
             <div class="acm-messages" ref="messagesEl">
-              <!-- Oral mode empty-state hint -->
-              <div
-                v-if="mode === 'oral' && messages.length <= 1"
-                class="acm-oral-hint"
-              >
-                <div class="acm-oral-hint-icon">🎙️</div>
-                <p>
-                  Mantén presionado el botón de micrófono para grabar tu
-                  pregunta
-                </p>
-              </div>
-
               <div
                 v-for="msg in messages"
                 :key="msg.id"
@@ -334,7 +322,7 @@
               {{ recordingError }}
             </div>
 
-            <!-- Recording bar (oral) -->
+            <!-- Recording bar -->
             <div v-if="isRecording" class="acm-recording-bar">
               <span class="acm-recording-dot"></span>
               Grabando… suelta para enviar
@@ -450,8 +438,7 @@
   // Computed
 
   const modes = [
-    { value: "escrita" as AssistantMode, label: "Escrita", icon: "✍️" },
-    { value: "oral" as AssistantMode, label: "Oral", icon: "🎙️" },
+    { value: "escrita" as AssistantMode, label: "Conversar", icon: "💬" },
     { value: "pizarron" as AssistantMode, label: "Pizarrón", icon: "🖊️" },
   ];
 
@@ -866,7 +853,7 @@
     }
   }
 
-  // Send: escrita
+  // Send: conversar
 
   async function sendText() {
     const text = draft.value.trim();
@@ -898,7 +885,7 @@
     }
   }
 
-  // Send: oral
+  // Send: voice in conversation mode
 
   async function startRecording() {
     if (responding.value || isRecording.value) return;
@@ -1514,7 +1501,7 @@
     background: rgba(var(--surface-card-rgb), 0.3);
   }
 
-  /* Messages (escrita/oral) */
+  /* Messages (conversar) */
   .acm-messages {
     flex: 1;
     overflow-y: auto;
