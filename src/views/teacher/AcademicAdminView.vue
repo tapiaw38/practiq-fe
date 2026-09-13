@@ -554,13 +554,6 @@
                 />
               </div>
               <div class="form-group">
-                <label class="form-label">Tema visual</label>
-                <select v-model="gradeForm.visualTheme" class="form-select">
-                  <option value="primary">Primaria — expresivo</option>
-                  <option value="secondary">Secundaria — sobrio y compacto</option>
-                </select>
-              </div>
-              <div class="form-group">
                 <label class="form-label"
                   >Descripción <span class="optional">(opcional)</span></label
                 >
