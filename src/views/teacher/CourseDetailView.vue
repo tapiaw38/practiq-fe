@@ -208,6 +208,7 @@
   const aiCount = ref(5);
   const aiDifficulty = ref(5);
   const aiInstruction = ref("");
+  const aiType = ref("");
   const aiGenerating = ref(false);
   const aiSaving = ref(false);
 
@@ -283,6 +284,7 @@
       form.append("count", String(aiCount.value));
       form.append("difficulty", String(aiDifficulty.value));
       form.append("instruction", aiInstruction.value);
+      form.append("exercise_type", aiType.value);
       const { data } = await practiqApi.post(`/topics/${selectedTopicId.value}/exercise-drafts/ai`, form, { headers: { "Content-Type": "multipart/form-data" } });
       aiDrafts.value = (data.data || []).map(normalizeDraft);
     } catch (error) {
@@ -1514,6 +1516,7 @@
             <p class="field-hint">Subí una guía, evaluación o imagen, o escribí el tema. Gillie crea borradores; vos los revisás antes de publicarlos.</p>
             <template v-if="!aiDrafts.length">
               <div class="form-group"><label class="form-label">Archivo fuente <span class="label-optional">(opcional)</span></label><input type="file" accept=".pdf,.docx,image/png,image/jpeg,image/webp" @change="aiSource = (($event.target as HTMLInputElement).files?.[0] || null)" /></div>
+              <div class="form-group"><label class="form-label">Tipo de ejercicio</label><select v-model="aiType" class="form-select"><option value="">Variado</option><option value="open_text">Texto abierto</option><option value="multiple_choice">Opción múltiple</option><option value="equation">Ecuación</option><option value="fill_blanks">🧩 Completar huecos</option></select></div>
               <div class="form-grid"><div class="form-group"><label class="form-label">Cantidad</label><input v-model.number="aiCount" class="form-input" type="number" min="1" max="10" /></div><div class="form-group"><label class="form-label">Dificultad</label><input v-model.number="aiDifficulty" class="form-input" type="number" min="1" max="10" /></div></div>
               <div class="form-group"><label class="form-label">Tema o indicación</label><textarea v-model="aiInstruction" class="form-textarea" rows="2" placeholder="Ej.: fracciones equivalentes con denominadores hasta 12" /><small class="field-hint">Sin archivo, esto es lo único que usa Gillie para generar los ejercicios.</small></div>
               <div class="modal-actions"><button class="btn btn-secondary" @click="showAIDraftsModal = false">Cancelar</button><button class="btn btn-primary" :disabled="!canGenerateDrafts || aiGenerating" @click="generateExerciseDrafts"><i class="pi" :class="aiGenerating ? 'pi-spin pi-spinner' : 'pi-sparkles'"></i> {{ aiGenerating ? "Generando…" : "Generar borradores" }}</button></div>
