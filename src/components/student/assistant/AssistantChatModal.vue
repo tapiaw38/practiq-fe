@@ -360,7 +360,7 @@
 </template>
 
 <script setup lang="ts">
-  import { ref, computed, watch, nextTick, onBeforeUnmount } from "vue";
+  import { ref, computed, watch, nextTick, onMounted, onBeforeUnmount } from "vue";
   import { useAuthStore } from "@/stores/authStore";
   import { renderContent } from "@/composables/useContentRenderer";
   import { parseAssistantReply, type AssistantReply } from "@/utils/assistantReply";
@@ -369,6 +369,7 @@
   import { useLeaveWarning } from "@/composables/useLeaveWarning";
   import { BASE_COLORS } from "@/utils/palette";
   import AiLoadingModal from "@/components/student/ai/AiLoadingModal.vue";
+  import { getToken, refreshAssistantToken } from "@/api/request/server";
   import type {
     AssistantChatModalEmits,
     AssistantChatModalProps,
@@ -390,6 +391,7 @@
 
   const mode = ref<AssistantMode>("escrita");
   const showModes = ref(false);
+  const isMobile = ref(false);
 
   const messages = ref<AssistantMessage[]>([]);
   const draft = ref("");
@@ -475,8 +477,12 @@
 
   const inputPlaceholder = computed(() =>
     mode.value === "pizarron"
-      ? "¿Qué tema quieres practicar? (ej: ecuaciones de segundo grado)"
-      : "Escribe o mantén el micrófono para hablar…",
+      ? isMobile.value
+        ? "Tema a practicar…"
+        : "¿Qué tema quieres practicar? (ej: ecuaciones de segundo grado)"
+      : isMobile.value
+        ? "Escribí o mantené el micrófono…"
+        : "Escribe o mantén el micrófono para hablar…",
   );
 
   // Helpers
@@ -486,7 +492,8 @@
   function authHeaders(contentType?: string): Record<string, string> {
     const h: Record<string, string> = {};
     if (contentType) h["Content-Type"] = contentType;
-    const token = authStore.token;
+    // Axios can refresh localStorage before Pinia receives the new token.
+    const token = getToken() || authStore.token;
     if (token) h["Authorization"] = `Bearer ${token}`;
     return h;
   }
@@ -503,6 +510,23 @@
     } finally {
       clearTimeout(timeoutId);
     }
+  }
+
+  async function fetchAssistant(
+    url: string,
+    options: RequestInit,
+  ): Promise<Response> {
+    const response = await fetchWithTimeout(url, {
+      ...options,
+      headers: options.headers ?? authHeaders(),
+    });
+    if (response.status !== 401) return response;
+
+    const token = await refreshAssistantToken();
+    if (!token) return response;
+    const headers = new Headers(options.headers);
+    headers.set("Authorization", `Bearer ${token}`);
+    return fetchWithTimeout(url, { ...options, headers });
   }
 
   function escapeHtml(s: string) {
@@ -756,7 +780,7 @@
   // API
 
   async function createConversation(title: string) {
-    const res = await fetchWithTimeout(`${API_BASE}/conversation/`, {
+    const res = await fetchAssistant(`${API_BASE}/conversation/`, {
       method: "POST",
       headers: authHeaders("application/json"),
       body: JSON.stringify({ title }),
@@ -786,7 +810,7 @@
         fd.has("image_content"),
       ),
     );
-    const res = await fetchWithTimeout(url, {
+    const res = await fetchAssistant(url, {
       method: "POST",
       headers: authHeaders(),
       body: fd,
@@ -807,7 +831,7 @@
     const storedClientId = localStorage.getItem(STORAGE_KEY);
     if (!storedClientId) return;
     try {
-      const res = await fetch(`${API_BASE}/conversation/user`, {
+      const res = await fetchAssistant(`${API_BASE}/conversation/user`, {
         headers: authHeaders(),
       });
       if (!res.ok) return;
@@ -816,7 +840,7 @@
       const match = convs.find((c: any) => c.client_id === storedClientId);
       if (!match) return;
       conversationId = match.id;
-      const msgRes = await fetch(`${API_BASE}/conversation/${conversationId}`, {
+      const msgRes = await fetchAssistant(`${API_BASE}/conversation/${conversationId}`, {
         headers: authHeaders(),
       });
       if (!msgRes.ok) return;
@@ -1315,6 +1339,15 @@
 
   let initialized = false;
 
+  function updateMobile() {
+    isMobile.value = window.matchMedia("(max-width: 640px)").matches;
+  }
+
+  onMounted(() => {
+    updateMobile();
+    window.addEventListener("resize", updateMobile);
+  });
+
   watch(
     () => authStore.token,
     async (token) => {
@@ -1346,6 +1379,7 @@
   onBeforeUnmount(() => {
     document.body.classList.remove("assistant-modal-open");
     canvasResizeObserver?.disconnect();
+    window.removeEventListener("resize", updateMobile);
   });
 </script>
 
