@@ -187,7 +187,18 @@
     // Fill-in-the-blanks: blanks come from the statement, options include distractors.
     fillBlanks: { blanks: [], distractors: [], layout: "text" } as FillBlanksConfig,
   });
-  type AIDraft = { type: "open_text" | "multiple_choice" | "equation"; question: string; correct_answer: string; explanation: string; difficulty: number; metadata?: { options?: string[] } };
+  type AIDraft = {
+    type: "open_text" | "multiple_choice" | "equation" | "fill_blanks";
+    question: string;
+    correct_answer: string;
+    explanation: string;
+    difficulty: number;
+    metadata?: { options?: string[]; blanks?: { id: number; answer: string }[]; distractors?: string[]; layout?: string };
+    // Held apart from metadata because the editor owns this shape and the
+    // answer/pool are derived from it at save time, exactly as in the manual
+    // exercise form.
+    fillBlanks: FillBlanksConfig;
+  };
   // The batch writes straight through the service: the composable toasts on
   // every single create, which for five drafts meant six notifications.
   const exerciseService = new ExerciseService(practiqApi);
@@ -213,7 +224,17 @@
   function normalizeDraft(draft: AIDraft): AIDraft {
     const options = [...(draft.metadata?.options || [])];
     while (options.length < 4) options.push("");
-    return { ...draft, metadata: { ...draft.metadata, options } };
+    // A fill_blanks draft arrives as blanks plus distractors; the editor reads
+    // the blanks from the statement, so anything the assistant numbered for a
+    // marker it did not write is dropped here rather than saved.
+    const fillBlanks: FillBlanksConfig = {
+      blanks: (draft.metadata?.blanks || [])
+        .map((blank) => ({ id: Number(blank?.id), answer: String(blank?.answer ?? "") }))
+        .filter((blank) => Number.isFinite(blank.id)),
+      distractors: (draft.metadata?.distractors || []).map((option) => String(option)).filter(Boolean),
+      layout: draft.metadata?.layout === "code" ? "code" : "text",
+    };
+    return { ...draft, metadata: { ...draft.metadata, options }, fillBlanks: pruneFillBlanks(fillBlanks, draft.question || "") };
   }
 
   // Editing the option that is marked correct has to carry the answer with it:
@@ -228,11 +249,22 @@
     }
   }
 
-  function draftIsComplete(draft: AIDraft) {
-    if (!draft.question.trim() || !draft.correct_answer.trim()) return false;
-    if (draft.type !== "multiple_choice") return true;
+  // fill_blanks has its own rules (markers present, no repeats, every blank
+  // answered), and they already live in validateFillBlanks, which is what the
+  // manual form uses. Reusing it keeps one definition of a valid exercise.
+  function draftProblem(draft: AIDraft): string {
+    if (!draft.question.trim()) return "Falta la consigna.";
+    if (draft.type === "fill_blanks") return validateFillBlanks(draft.question, draft.fillBlanks);
+    if (!draft.correct_answer.trim()) return "Falta la respuesta correcta.";
+    if (draft.type !== "multiple_choice") return "";
     const options = (draft.metadata?.options || []).map((o) => o.trim()).filter(Boolean);
-    return options.length >= 2 && options.includes(draft.correct_answer.trim());
+    if (options.length < 2) return "Cargá al menos dos opciones.";
+    if (!options.includes(draft.correct_answer.trim())) return "Marcá cuál de las opciones es la correcta.";
+    return "";
+  }
+
+  function draftIsComplete(draft: AIDraft) {
+    return draftProblem(draft) === "";
   }
 
   const incompleteDrafts = computed(() => aiDrafts.value.filter((d) => !draftIsComplete(d)).length);
@@ -279,7 +311,11 @@
         }
         try {
           await exerciseService.create(selectedTopicId.value, {
-            ...draft,
+            type: draft.type,
+            question: draft.question,
+            correct_answer: draftCorrectAnswer(draft),
+            explanation: draft.explanation,
+            difficulty: draft.difficulty,
             metadata: JSON.stringify(draftMetadata(draft)),
           } as Partial<Exercise>);
           saved += 1;
@@ -306,8 +342,19 @@
   }
 
   function draftMetadata(draft: AIDraft) {
-    if (draft.type !== "multiple_choice") return {};
-    return { options: (draft.metadata?.options || []).map((o) => o.trim()).filter(Boolean) };
+    if (draft.type === "multiple_choice") {
+      return { options: (draft.metadata?.options || []).map((o) => o.trim()).filter(Boolean) };
+    }
+    if (draft.type === "fill_blanks") {
+      const config = pruneFillBlanks(draft.fillBlanks, draft.question);
+      return { blanks: config.blanks, options: buildOptions(config), layout: config.layout };
+    }
+    return {};
+  }
+
+  function draftCorrectAnswer(draft: AIDraft) {
+    if (draft.type !== "fill_blanks") return draft.correct_answer;
+    return buildCorrectAnswer(pruneFillBlanks(draft.fillBlanks, draft.question).blanks);
   }
   const newMaterial = reactive({
     title: "",
@@ -1475,8 +1522,8 @@
               <p class="field-hint">Editá o quitá los que no quieras. Nada se guarda hasta confirmar.</p>
               <div v-for="(draft, index) in aiDrafts" :key="index" class="ai-draft-card" :class="{ 'ai-draft-card--incomplete': !draftIsComplete(draft) }">
                 <button class="btn btn-ghost btn-sm ai-draft-remove" @click="aiDrafts.splice(index, 1)"><i class="pi pi-times"></i></button>
-                <select v-model="draft.type" class="form-select"><option value="open_text">Texto abierto</option><option value="multiple_choice">Opción múltiple</option><option value="equation">Ecuación</option></select>
-                <textarea v-model="draft.question" class="form-textarea" rows="2" placeholder="Consigna" />
+                <select v-model="draft.type" class="form-select"><option value="open_text">Texto abierto</option><option value="multiple_choice">Opción múltiple</option><option value="equation">Ecuación</option><option value="fill_blanks">🧩 Completar huecos</option></select>
+                <textarea v-model="draft.question" class="form-textarea" rows="2" :placeholder="draft.type === 'fill_blanks' ? 'Enunciado con huecos: El agua hierve a {{1}} grados.' : 'Consigna'" />
                 <template v-if="draft.type === 'multiple_choice'">
                   <span class="ai-draft-label">Opciones — marcá la correcta</span>
                   <label v-for="(_, position) in (draft.metadata?.options || [])" :key="position" class="ai-draft-option">
@@ -1490,11 +1537,18 @@
                     <input :value="draft.metadata?.options?.[position]" class="form-input" :placeholder="`Opción ${position + 1}`" @input="setDraftOption(draft, position, ($event.target as HTMLInputElement).value)" />
                   </label>
                 </template>
+                <FillBlanksEditor
+                  v-else-if="draft.type === 'fill_blanks'"
+                  v-model="draft.fillBlanks"
+                  :statement="draft.question"
+                  @insert-blank="(marker: string) => (draft.question += marker)"
+                />
                 <input v-else v-model="draft.correct_answer" class="form-input" placeholder="Respuesta correcta" />
                 <textarea v-model="draft.explanation" class="form-textarea" rows="2" placeholder="Explicación" />
+                <p v-if="draftProblem(draft)" class="ai-draft-problem">{{ draftProblem(draft) }}</p>
               </div>
               <p v-if="incompleteDrafts" class="ai-draft-warning">
-                {{ incompleteDrafts === 1 ? "Hay un borrador incompleto" : `Hay ${incompleteDrafts} borradores incompletos` }}: revisá consigna, respuesta y, en opción múltiple, que la correcta sea una de las opciones.
+                {{ incompleteDrafts === 1 ? "Hay un borrador incompleto." : `Hay ${incompleteDrafts} borradores incompletos.` }} Cada uno dice qué le falta.
               </p>
               <div class="modal-actions"><button class="btn btn-secondary" @click="aiDrafts = []">Volver</button><button class="btn btn-primary" :disabled="!aiDrafts.length || aiSaving || incompleteDrafts > 0" @click="saveAIDrafts">{{ aiSaving ? "Guardando…" : `Guardar ${aiDrafts.length} ${aiDrafts.length === 1 ? "ejercicio" : "ejercicios"}` }}</button></div>
             </template>
@@ -2525,6 +2579,7 @@
   .ai-draft-option { display: flex; align-items: center; gap: 8px; }
   .ai-draft-option input[type="radio"] { flex: 0 0 auto; }
   .ai-draft-warning { margin: 4px 0 0; color: var(--color-warning-dark); font-size: 13px; }
+  .ai-draft-problem { margin: 0; color: var(--color-warning-dark); font-size: 12px; font-weight: 600; }
   .label-optional { color: var(--text-muted); font-weight: 500; }
   @media (max-width: 600px) { .form-grid { grid-template-columns: 1fr; } .ai-drafts-modal { max-height: 92vh; } }
 </style>
