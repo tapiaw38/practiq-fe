@@ -30,10 +30,18 @@
     !!sheet?.available_until && new Date(sheet.available_until).getTime() < now.value;
 
   const isClosed = (sheet?: LevelSheetSummary | null) =>
-    isScheduled(sheet) || isExpired(sheet);
+    isScheduled(sheet) || isExpired(sheet) || !!sheet?.submitted;
 
   const levelTestState = (sheet?: LevelSheetSummary | null) =>
-    isExpired(sheet) ? "expired" : isScheduled(sheet) ? "scheduled" : "available";
+    sheet?.submitted
+      ? sheet.pending_review
+        ? "pending"
+        : "submitted"
+      : isExpired(sheet)
+        ? "expired"
+        : isScheduled(sheet)
+          ? "scheduled"
+          : "available";
 
   const formatSchedule = (value: string) =>
     new Date(value).toLocaleString("es-AR", {
@@ -162,7 +170,14 @@
               </span>
             </div>
             <div class="test-cta">
-              <template v-if="isExpired(level.level_test)">
+              <template v-if="level.level_test.submitted">
+                <i :class="level.level_test.pending_review ? 'pi pi-clock' : 'pi pi-check-circle'"></i>
+                {{ level.level_test.pending_review ? "En revisión" : "Prueba realizada" }}
+                <small v-if="level.level_test.score !== undefined">
+                  {{ level.level_test.score }}%
+                </small>
+              </template>
+              <template v-else-if="isExpired(level.level_test)">
                 <i class="pi pi-ban"></i>
                 Plazo vencido
               </template>
@@ -172,11 +187,7 @@
               </template>
               <template v-else>
                 <i class="pi pi-play-circle"></i>
-                {{
-                  level.level === data.current_level
-                    ? "Rendir prueba"
-                    : "Ver prueba"
-                }}
+                Rendir prueba
                 <i class="pi pi-arrow-right"></i>
               </template>
             </div>
@@ -355,12 +366,20 @@
     color: var(--text-secondary);
   }
 
+  .lc-item--test-submitted,
+  .lc-item--test-pending {
+    background: var(--surface-hover);
+    color: var(--text-secondary);
+  }
+
   .lc-item--test-available:hover {
     background: rgba(var(--color-success-rgb), 0.14);
   }
 
   .lc-item--test-scheduled:hover,
-  .lc-item--test-expired:hover {
+  .lc-item--test-expired:hover,
+  .lc-item--test-submitted:hover,
+  .lc-item--test-pending:hover {
     background: var(--surface-hover);
   }
   .lc-item--test-big {
@@ -419,6 +438,14 @@
 
   .lc-item--test-expired .test-cta {
     color: var(--text-secondary);
+  }
+  .lc-item--test-submitted .test-cta,
+  .lc-item--test-pending .test-cta {
+    color: var(--text-secondary);
+  }
+  .test-cta small {
+    font-weight: 800;
+    margin-left: 2px;
   }
   .lc-locked-hint {
     display: flex;

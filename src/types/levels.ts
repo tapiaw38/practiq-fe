@@ -14,6 +14,10 @@ export interface LevelSheetSummary {
   /** UTC ISO string. Absent means the sheet stays open once it opens. */
   available_until?: string;
   exercises: number;
+  submitted?: boolean;
+  pending_review?: boolean;
+  score?: number;
+  passed?: boolean;
 }
 
 export interface LevelNotebookSummary {

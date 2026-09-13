@@ -351,10 +351,16 @@
                           <div class="nav-section-tag">Prueba de Nivel</div>
                           <button
                             class="nav-book-item nav-book-item--test"
+                            :disabled="lv.level_test.submitted"
                             @click="goLevelTest(lv.level_test!.id)"
                           >
                             <i class="pi pi-star"></i>
-                            <span>{{ lv.level_test.title }}</span>
+                            <span>
+                              {{ lv.level_test.title }}
+                              <small v-if="lv.level_test.submitted">
+                                · {{ lv.level_test.pending_review ? "En revisión" : "Realizada" }}
+                              </small>
+                            </span>
                           </button>
                         </template>
 
