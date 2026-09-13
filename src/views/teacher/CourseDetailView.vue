@@ -668,6 +668,20 @@
   }
 
   async function createSheet() {
+    if (newSheet.sheet_type === "level_test") {
+      const existing = teacherLevels.value.find(
+        (item) => item.level === newSheet.level,
+      )?.levelTest;
+      if (existing) {
+        toast.add({
+          severity: "info",
+          summary: "Este nivel ya tiene una prueba",
+          detail: "Podés editarla o eliminarla antes de crear otra.",
+          life: 4000,
+        });
+        return;
+      }
+    }
     await createPracticeSheet(courseId, {
       ...newSheet,
       scheduled_at: toUtcISO(newSheet.scheduled_at, newSheet.sheet_type),
@@ -832,9 +846,18 @@
 
   async function deleteSheet(id: string) {
     const ok = await showConfirm("¿Eliminar esta hoja de práctica?");
-    if (!ok) return;
+    if (!ok) return false;
     await deletePracticeSheetService(id);
     await loadSheetsPage(courseId, sheetsPage.value);
+    return true;
+  }
+
+  async function deleteEditingSheet() {
+    if (!editingSheetId.value) return;
+    if (await deleteSheet(editingSheetId.value)) {
+      showEditSheetModal.value = false;
+      editingSheetId.value = null;
+    }
   }
 
   // Blocks saving an exercise the student could not solve: a fill_blanks with
@@ -1995,6 +2018,13 @@
                 </div>
               </div>
               <div class="modal-actions">
+                <button
+                  type="button"
+                  class="btn btn-danger"
+                  @click="deleteEditingSheet"
+                >
+                  <i class="pi pi-trash"></i> Eliminar
+                </button>
                 <button
                   type="button"
                   class="btn btn-secondary"

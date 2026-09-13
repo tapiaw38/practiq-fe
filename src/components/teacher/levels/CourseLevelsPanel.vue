@@ -48,9 +48,14 @@
             </button>
             <button
               class="btn btn-secondary btn-sm"
-              @click="emit('createLevelTest', lv.level)"
+              @click="
+                lv.levelTest
+                  ? emit('openSheet', lv.levelTest.id)
+                  : emit('createLevelTest', lv.level)
+              "
             >
-              <i class="pi pi-star"></i> Prueba
+              <i :class="lv.levelTest ? 'pi pi-pencil' : 'pi pi-star'"></i>
+              {{ lv.levelTest ? "Editar prueba" : "Prueba" }}
             </button>
             <button
               class="btn btn-secondary btn-sm"

@@ -1131,13 +1131,6 @@
             >
               Ir al inicio
             </button>
-            <button
-              v-if="!result.should_level_up"
-              class="btn-retry"
-              @click="retry"
-            >
-              Intentar de nuevo
-            </button>
           </div>
         </div>
       </div>
