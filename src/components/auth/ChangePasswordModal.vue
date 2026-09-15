@@ -183,4 +183,16 @@
     color: var(--text-heading);
     margin: 0;
   }
+
+  /* The scoped width/border-radius above outrank common.css's bottom-sheet
+     block, so the sheet has to be restated here or this modal stays a
+     centred 420px card while every other one snaps to the bottom edge. */
+  @media (max-width: 820px) {
+    .modal-box {
+      width: 100%;
+      max-height: 95dvh;
+      overflow-y: auto;
+      border-radius: var(--radius-2xl) var(--radius-2xl) 0 0;
+    }
+  }
 </style>

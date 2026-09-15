@@ -3,6 +3,7 @@ export interface Course {
   teacher_id: string;
   grade_id: string;
   grade_name: string;
+  grade_theme: "primary" | "secondary";
   subject_id: string;
   subject_name: string;
   title: string;

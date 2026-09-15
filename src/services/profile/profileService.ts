@@ -5,47 +5,68 @@ export type SyncProfileParams = {
   name: string;
   email: string;
   profile_type: "teacher" | "student";
-  assistant_base_url?: string;
-  assistant_api_key?: string;
 };
 
-export type AssistantConfigParams = {
-  assistant_base_url: string;
-  assistant_api_key: string;
+export type UIThemeParams = {
+  ui_theme: "primary" | "secondary";
 };
 
 export type AcademicStatusParams = {
   academic_status: "active" | "blocked";
 };
 
+export type ProfileTypeParams = {
+  profile_type: "teacher" | "student";
+};
+
+export type FoundUser = {
+  id: string;
+  first_name: string;
+  last_name: string;
+  email: string;
+};
+
 export interface IProfileService {
   sync(params: SyncProfileParams): Promise<{ data: UserProfile }>;
   get(): Promise<{ data: UserProfile }>;
   getById(id: string): Promise<{ data: UserProfile }>;
-  updateAssistantConfig(
-    params: AssistantConfigParams,
-  ): Promise<{ data: UserProfile }>;
-  updateAssistantConfigById(
+  findByEmail(email: string): Promise<{ data: FoundUser }>;
+  updateUITheme(params: UIThemeParams): Promise<{ data: UserProfile }>;
+  updateUIThemeById(
     id: string,
-    params: AssistantConfigParams,
+    params: UIThemeParams,
   ): Promise<{ data: UserProfile }>;
   updateAcademicStatusById(
     id: string,
     params: AcademicStatusParams,
   ): Promise<{ data: UserProfile }>;
+  updateProfileTypeById(
+    id: string,
+    params: ProfileTypeParams,
+  ): Promise<{ data: UserProfile }>;
+}
+
+/** Empty when the browser cannot tell; the API falls back to its default. */
+function detectTimezone(): string {
+  try {
+    return Intl.DateTimeFormat().resolvedOptions().timeZone || "";
+  } catch {
+    return "";
+  }
 }
 
 export class ProfileService implements IProfileService {
   constructor(private readonly api: AxiosInstance) {}
 
-  async sync(params: {
-    name: string;
-    email: string;
-    profile_type: "teacher" | "student";
-    assistant_base_url?: string;
-    assistant_api_key?: string;
-  }): Promise<{ data: UserProfile }> {
-    const { data } = await this.api.post("/profile", params);
+  async sync(params: SyncProfileParams): Promise<{ data: UserProfile }> {
+    // The browser is the only place that knows the student's zone, and the
+    // streak counts calendar days in it. Reported here so the server owns the
+    // value: taking it from each request would let a client pick whichever
+    // zone grows their streak, and server-side reports have no browser to ask.
+    const { data } = await this.api.post("/profile", {
+      ...params,
+      timezone: detectTimezone(),
+    });
     return data;
   }
 
@@ -59,25 +80,23 @@ export class ProfileService implements IProfileService {
     return data;
   }
 
-  async updateAssistantConfig(params: {
-    assistant_base_url: string;
-    assistant_api_key: string;
-  }): Promise<{ data: UserProfile }> {
-    const { data } = await this.api.put("/profile/assistant-config", params);
+  async findByEmail(email: string): Promise<{ data: FoundUser }> {
+    const { data } = await this.api.get("/profile/find-by-email", {
+      params: { email },
+    });
     return data;
   }
 
-  async updateAssistantConfigById(
+  async updateUITheme(params: UIThemeParams): Promise<{ data: UserProfile }> {
+    const { data } = await this.api.put("/profile/ui-theme", params);
+    return data;
+  }
+
+  async updateUIThemeById(
     id: string,
-    params: {
-      assistant_base_url: string;
-      assistant_api_key: string;
-    },
+    params: UIThemeParams,
   ): Promise<{ data: UserProfile }> {
-    const { data } = await this.api.put(
-      `/profile/${id}/assistant-config`,
-      params,
-    );
+    const { data } = await this.api.put(`/profile/${id}/ui-theme`, params);
     return data;
   }
 
@@ -91,6 +110,14 @@ export class ProfileService implements IProfileService {
       `/profile/${id}/academic-status`,
       params,
     );
+    return data;
+  }
+
+  async updateProfileTypeById(
+    id: string,
+    params: ProfileTypeParams,
+  ): Promise<{ data: UserProfile }> {
+    const { data } = await this.api.put(`/profile/${id}/type`, params);
     return data;
   }
 }

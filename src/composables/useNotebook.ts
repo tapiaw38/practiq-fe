@@ -16,6 +16,9 @@ export const useNotebook = () => {
     submitJob,
     jobStatus,
     loading,
+    submissionsPage,
+    submissionsPageSize,
+    submissionsHasMore,
   } = storeToRefs(store);
 
   const loadNotebooks = async (courseId: string) => {
@@ -122,6 +125,8 @@ export const useNotebook = () => {
       content_type: "canvas" | "text";
       content_data: string;
       instructions: string;
+      statement_text?: string;
+      statement_verified?: boolean;
     },
   ) => {
     try {
@@ -151,6 +156,8 @@ export const useNotebook = () => {
       content_type: "canvas" | "text";
       content_data: string;
       instructions: string;
+      statement_text?: string;
+      statement_verified?: boolean;
     },
   ) => {
     try {
@@ -303,6 +310,66 @@ export const useNotebook = () => {
     }
   };
 
+  const loadSubmissionsPage = async (
+    page: number,
+    filters?: {
+      notebook_id?: string;
+      student_id?: string;
+      reviewed?: boolean;
+      course_id?: string;
+    },
+  ) => {
+    try {
+      return await store.loadSubmissionsPage(page, filters);
+    } catch (error) {
+      toast.add({
+        severity: "error",
+        summary: "Error",
+        detail: "No se pudo cargar la página",
+        life: 3000,
+      });
+      throw error;
+    }
+  };
+
+  const nextSubmissionsPage = async (filters?: {
+    notebook_id?: string;
+    student_id?: string;
+    reviewed?: boolean;
+    course_id?: string;
+  }) => {
+    try {
+      return await store.nextSubmissionsPage(filters);
+    } catch (error) {
+      toast.add({
+        severity: "error",
+        summary: "Error",
+        detail: "No se pudo cargar la siguiente página",
+        life: 3000,
+      });
+      throw error;
+    }
+  };
+
+  const prevSubmissionsPage = async (filters?: {
+    notebook_id?: string;
+    student_id?: string;
+    reviewed?: boolean;
+    course_id?: string;
+  }) => {
+    try {
+      return await store.prevSubmissionsPage(filters);
+    } catch (error) {
+      toast.add({
+        severity: "error",
+        summary: "Error",
+        detail: "No se pudo cargar la página anterior",
+        life: 3000,
+      });
+      throw error;
+    }
+  };
+
   return {
     notebooks,
     currentNotebook,
@@ -310,6 +377,9 @@ export const useNotebook = () => {
     submitJob,
     jobStatus,
     loading,
+    submissionsPage,
+    submissionsPageSize,
+    submissionsHasMore,
     loadNotebooks,
     loadNotebook,
     createNotebook,
@@ -321,6 +391,9 @@ export const useNotebook = () => {
     saveSubmissionAsync,
     loadSubmissionJob,
     loadSubmissions,
+    loadSubmissionsPage,
+    nextSubmissionsPage,
+    prevSubmissionsPage,
     triggerAIReview,
     updateManualReview,
   };

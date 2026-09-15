@@ -1,4 +1,7 @@
 <script setup lang="ts">
+  import { ref } from "vue";
+  import FileViewer from "@/components/ui/FileViewer.vue";
+  import type { Material } from "@/types";
   import type {
     MaterialsListEmits,
     MaterialsListProps,
@@ -6,6 +9,8 @@
 
   defineProps<MaterialsListProps>();
   const emit = defineEmits<MaterialsListEmits>();
+
+  const viewing = ref<Material | null>(null);
 
   const materialIcon = (type: string) =>
     ({
@@ -39,14 +44,39 @@
             </div>
           </div>
         </div>
-        <button
-          class="btn btn-ghost btn-sm"
-          @click="emit('delete', material.id)"
-        >
-          <i class="pi pi-trash"></i>
-        </button>
+        <div class="item-actions">
+          <button
+            v-if="material.file_url"
+            class="btn btn-ghost btn-sm"
+            title="Ver"
+            @click="viewing = material"
+          >
+            <i class="pi pi-eye"></i>
+          </button>
+          <button
+            class="btn btn-ghost btn-sm"
+            title="Editar"
+            @click="emit('edit', material)"
+          >
+            <i class="pi pi-pencil"></i>
+          </button>
+          <button
+            class="btn btn-ghost btn-sm"
+            title="Eliminar"
+            @click="emit('delete', material.id)"
+          >
+            <i class="pi pi-trash"></i>
+          </button>
+        </div>
       </div>
     </div>
+
+    <FileViewer
+      :show="!!viewing"
+      :url="viewing?.view_url || viewing?.file_url || ''"
+      :title="viewing?.title || 'Material'"
+      @close="viewing = null"
+    />
   </div>
 </template>
 
@@ -103,6 +133,12 @@
     gap: 12px;
     min-width: 0;
   }
+  .item-actions {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex: 0 0 auto;
+  }
   .item-title {
     font-weight: 800;
     color: var(--text-primary);
@@ -121,5 +157,17 @@
     background: var(--fill-primary-soft);
     color: var(--practiq-violet);
     flex: 0 0 auto;
+  }
+
+  @media (max-width: 600px) {
+    .tab-content { padding: 14px; }
+    .section-header { align-items: stretch; flex-direction: column; gap: 10px; }
+    .section-header .btn { width: 100%; min-height: 44px; justify-content: center; }
+    .list-item { align-items: flex-start; flex-direction: column; gap: 12px; }
+    .item-info { width: 100%; }
+    .item-info > div { min-width: 0; }
+    .item-title, .item-subtitle { overflow-wrap: anywhere; }
+    .item-actions { width: 100%; justify-content: flex-end; }
+    .item-actions .btn { min-width: 44px; min-height: 44px; }
   }
 </style>

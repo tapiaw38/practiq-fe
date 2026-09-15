@@ -426,7 +426,7 @@
             class="summary-card summary-card--skeleton"
           >
             <Skeleton variant="circle" size="34px" />
-            <div>
+            <div style="display: flex; flex-direction: column; gap: 6px">
               <Skeleton width="50px" height="22px" />
               <Skeleton width="100px" height="14px" />
             </div>
@@ -450,7 +450,7 @@
         <!-- Progress grid skeleton -->
         <div class="tab-content">
           <div class="tab-section-head">
-            <div>
+            <div style="display: flex; flex-direction: column; gap: 8px">
               <Skeleton width="80px" height="12px" />
               <Skeleton width="160px" height="24px" />
             </div>
@@ -689,7 +689,8 @@
             <i class="pi pi-file empty-icon"></i>
             <p>No hay hojas de práctica disponibles.</p>
           </div>
-          <div v-else class="sheets-list">
+          <div v-else class="sheets-layout" :class="{ 'sheets-layout--open': !!selectedSheet }">
+          <div class="sheets-list">
             <div
               v-for="sheet in filteredSheets"
               :key="sheet.id"
@@ -731,8 +732,8 @@
             </div>
           </div>
 
-          <!-- Attempts drawer -->
-          <Transition name="slide-up">
+          <!-- Attempts panel -->
+          <Transition name="slide-in">
             <div
               v-if="selectedSheet && attempts.length > 0"
               class="attempts-panel"
@@ -789,8 +790,8 @@
                       :key="a.id"
                       :class="a.is_correct ? 'row--correct' : 'row--incorrect'"
                     >
-                      <td>{{ i + 1 }}</td>
-                      <td class="answer-cell">
+                      <td data-label="#">{{ i + 1 }}</td>
+                      <td class="answer-cell" data-label="Respuesta">
                         <template v-if="getAttemptImageSrc(a)">
                           <button
                             class="btn btn-secondary btn-sm"
@@ -803,7 +804,7 @@
                           {{ a.answer_text || "—" }}
                         </template>
                       </td>
-                      <td>
+                      <td data-label="Correcto">
                         <span
                           class="result-chip"
                           :class="
@@ -815,11 +816,17 @@
                           {{ a.is_correct ? "Sí" : "No" }}
                         </span>
                       </td>
-                      <td>{{ formatAIFeedback(a.ai_feedback) }}</td>
-                      <td>{{ (a.score * 100).toFixed(0) }}%</td>
-                      <td>{{ a.time_spent_seconds }}</td>
-                      <td>{{ a.hints_used }}</td>
-                      <td>{{ formatDate(a.created_at) }}</td>
+                      <td data-label="Comentario IA">
+                        {{ formatAIFeedback(a.ai_feedback) }}
+                      </td>
+                      <td data-label="Puntaje">
+                        {{ Math.round(a.score) }}%
+                      </td>
+                      <td data-label="Tiempo (s)">
+                        {{ a.time_spent_seconds }}
+                      </td>
+                      <td data-label="Pistas">{{ a.hints_used }}</td>
+                      <td data-label="Fecha">{{ formatDate(a.created_at) }}</td>
                     </tr>
                   </tbody>
                 </table>
@@ -846,6 +853,7 @@
               </div>
             </div>
           </Transition>
+          </div>
         </div>
 
         <!-- TAB: Cuadernos -->
@@ -1199,24 +1207,12 @@
     gap: 20px;
     margin-bottom: 18px;
     padding: 24px 28px;
-    border-radius: 28px;
+    border-radius: var(--radius-md);
     background: var(--gradient-card-accent);
     border: 1px solid var(--surface-elevated-strong);
     box-shadow: var(--shadow-soft);
     backdrop-filter: blur(18px);
     overflow: hidden;
-  }
-
-  .sp-header::after {
-    content: "";
-    position: absolute;
-    right: 28px;
-    bottom: -48px;
-    width: 170px;
-    height: 170px;
-    border-radius: 50%;
-    background: var(--gradient-brand-soft);
-    pointer-events: none;
   }
 
   .sp-header > * {
@@ -1678,6 +1674,24 @@
   }
 
   /* Sheets */
+  .sheets-layout {
+    display: grid;
+    gap: 16px;
+    align-items: start;
+  }
+  @media (min-width: 1100px) {
+    .sheets-layout--open {
+      grid-template-columns: minmax(0, 1fr) minmax(0, 1.05fr);
+    }
+    .sheets-layout--open .attempts-panel {
+      position: sticky;
+      top: 16px;
+      max-height: calc(100vh - 32px);
+      overflow-y: auto;
+      margin-top: 0;
+    }
+  }
+
   .sheets-list {
     display: flex;
     flex-direction: column;
@@ -2197,6 +2211,28 @@
     opacity: 0.4;
   }
 
+  /* Slide-in transition: from the side on desktop, from below when stacked */
+  .slide-in-enter-active,
+  .slide-in-leave-active {
+    transition: all 0.25s ease;
+  }
+  .slide-in-enter-from {
+    opacity: 0;
+    transform: translateY(16px);
+  }
+  .slide-in-leave-to {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  @media (min-width: 1100px) {
+    .slide-in-enter-from {
+      transform: translateX(16px);
+    }
+    .slide-in-leave-to {
+      transform: translateX(8px);
+    }
+  }
+
   /* Slide-up transition */
   .slide-up-enter-active,
   .slide-up-leave-active {
@@ -2415,6 +2451,62 @@
     .sheet-card {
       flex-direction: column;
       align-items: flex-start;
+    }
+
+    /* Tap targets >= 44px en mobile */
+    .icon-btn {
+      width: 44px;
+      height: 44px;
+    }
+    .tab-btn {
+      min-height: 48px;
+      flex-shrink: 0;
+    }
+
+    /* 8 columnas no entran: cada intento pasa a tarjeta con la
+       cabecera como etiqueta (mismo patron que .data-table en AdminUsersView). */
+    .attempts-table-wrap {
+      overflow: visible;
+    }
+    .attempts-table thead {
+      display: none;
+    }
+    .attempts-table,
+    .attempts-table tbody,
+    .attempts-table tr,
+    .attempts-table td {
+      display: block;
+      width: 100%;
+    }
+    .attempts-table tbody {
+      display: grid;
+      gap: 10px;
+    }
+    .attempts-table tbody tr {
+      padding: 12px;
+      border: 1px solid rgba(var(--surface-border-rgb), 0.16);
+      border-radius: var(--radius-xl);
+      background: var(--surface-card);
+      box-shadow: var(--shadow-sm);
+    }
+    .attempts-table td {
+      display: grid;
+      grid-template-columns: minmax(92px, 34%) 1fr;
+      gap: 10px;
+      align-items: start;
+      padding: 8px 0;
+      border-bottom: 1px solid rgba(var(--surface-border-rgb), 0.1);
+    }
+    .attempts-table td:last-child {
+      border-bottom: none;
+    }
+    .attempts-table td::before {
+      content: attr(data-label);
+      color: var(--text-secondary);
+      font-size: var(--text-xs);
+      font-weight: 800;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
     }
   }
 </style>

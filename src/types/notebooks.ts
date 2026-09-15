@@ -21,6 +21,7 @@ export interface NotebookSubmission {
   ai_is_correct?: boolean;
   ai_feedback?: string;
   ai_reviewed_at?: string;
+  needs_teacher_review?: boolean;
   teacher_is_correct?: boolean;
   teacher_feedback?: string;
   teacher_reviewed_at?: string;
@@ -33,6 +34,8 @@ export interface NotebookPage {
   title: string;
   content_type: NotebookPageContentType;
   content_data: string;
+  statement_text?: string;
+  statement_verified?: boolean;
   instructions: string;
   submission?: NotebookSubmission;
 }
@@ -64,6 +67,7 @@ export interface NotebookSubmissionFull {
   ai_is_correct?: boolean;
   ai_feedback?: string;
   ai_reviewed_at?: string;
+  needs_teacher_review?: boolean;
   teacher_is_correct?: boolean;
   teacher_feedback?: string;
   teacher_reviewed_at?: string;

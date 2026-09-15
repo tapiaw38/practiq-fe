@@ -4,9 +4,11 @@ import { practiqApi } from "@/api/request/server";
 import {
   ProfileService,
   type AcademicStatusParams,
-  type AssistantConfigParams,
+  type UIThemeParams,
+  type ProfileTypeParams,
   type SyncProfileParams,
 } from "@/services/profile/profileService";
+export type { FoundUser } from "@/services/profile/profileService";
 import { useProfileStore } from "@/stores/profileStore";
 
 export const useProfile = () => {
@@ -32,13 +34,15 @@ export const useProfile = () => {
   const loadProfile = async () => {
     try {
       return await store.fetchProfile();
-    } catch (error) {
-      toast.add({
-        severity: "error",
-        summary: "Error",
-        detail: "No se pudo cargar el perfil",
-        life: 3000,
-      });
+    } catch (error: any) {
+      if (error?.response?.status !== 404) {
+        toast.add({
+          severity: "error",
+          summary: "Error",
+          detail: "No se pudo cargar el perfil",
+          life: 3000,
+        });
+      }
       throw error;
     }
   };
@@ -57,9 +61,17 @@ export const useProfile = () => {
     }
   };
 
-  const updateAssistantConfig = async (params: AssistantConfigParams) => {
+  // No toast here: a miss is the expected outcome of "does this email have a
+  // Practiq account yet", not a failure, and the caller shows its own
+  // message either way.
+  const findByEmail = async (email: string) => {
+    const { data } = await service.findByEmail(email);
+    return data;
+  };
+
+  const updateUITheme = async (params: UIThemeParams) => {
     try {
-      const profile = await store.updateAssistantConfig(params);
+      const profile = await store.updateUITheme(params);
       toast.add({
         severity: "success",
         summary: "Éxito",
@@ -78,12 +90,12 @@ export const useProfile = () => {
     }
   };
 
-  const updateAssistantConfigById = async (
+  const updateUIThemeById = async (
     id: string,
-    params: AssistantConfigParams,
+    params: UIThemeParams,
   ) => {
     try {
-      const profile = await store.updateAssistantConfigById(id, params);
+      const profile = await store.updateUIThemeById(id, params);
       toast.add({
         severity: "success",
         summary: "Éxito",
@@ -119,6 +131,23 @@ export const useProfile = () => {
     }
   };
 
+  const updateProfileTypeById = async (
+    id: string,
+    params: ProfileTypeParams,
+  ) => {
+    try {
+      return await store.updateProfileTypeById(id, params);
+    } catch (error) {
+      toast.add({
+        severity: "error",
+        summary: "Error",
+        detail: "No se pudo actualizar el tipo de perfil",
+        life: 3000,
+      });
+      throw error;
+    }
+  };
+
   return {
     currentProfile,
     profilesById,
@@ -126,8 +155,10 @@ export const useProfile = () => {
     syncProfile,
     loadProfile,
     loadProfileById,
-    updateAssistantConfig,
-    updateAssistantConfigById,
+    findByEmail,
+    updateUITheme,
+    updateUIThemeById,
     updateAcademicStatusById,
+    updateProfileTypeById,
   };
 };

@@ -1,5 +1,5 @@
 import type { AxiosInstance } from "axios";
-import type { Course, Student } from "@/types";
+import type { Course, OperationResult, Student } from "@/types";
 
 export interface ICourseService {
   create(params: Partial<Course>): Promise<{ data: Course }>;
@@ -7,7 +7,7 @@ export interface ICourseService {
   get(id: string): Promise<{ data: Course }>;
   update(id: string, params: Partial<Course>): Promise<{ data: Course }>;
   delete(id: string): Promise<void>;
-  enroll(courseId: string): Promise<{ message: string }>;
+  enroll(courseId: string): Promise<{ data: OperationResult }>;
   getStudents(courseId: string): Promise<{ data: Student[] }>;
 }
 
@@ -38,7 +38,7 @@ export class CourseService implements ICourseService {
     await this.api.delete(`/courses/${id}`);
   }
 
-  async enroll(courseId: string): Promise<{ message: string }> {
+  async enroll(courseId: string): Promise<{ data: OperationResult }> {
     const { data } = await this.api.post(`/courses/${courseId}/enroll`);
     return data;
   }

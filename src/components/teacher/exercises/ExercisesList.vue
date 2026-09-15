@@ -1,8 +1,11 @@
 <script setup lang="ts">
+  import { ref } from "vue";
   import {
     renderEquation,
     renderInlineEquation,
   } from "@/composables/useContentRenderer";
+  import FileViewer from "@/components/ui/FileViewer.vue";
+  import type { Exercise } from "@/types";
   import type {
     ExercisesListEmits,
     ExercisesListProps,
@@ -10,6 +13,17 @@
 
   defineProps<ExercisesListProps>();
   const emit = defineEmits<ExercisesListEmits>();
+
+  // Statement media opens in a modal: the list is dense enough without players
+  // inline, and audio only needs somewhere to hit play.
+  const preview = ref<{ url: string; title: string } | null>(null);
+
+  function openPreview(exercise: Exercise) {
+    preview.value = {
+      url: exercise.media_view_url ?? "",
+      title: exercise.question || "Material del enunciado",
+    };
+  }
 
   const diffColor = (difficulty: number) => {
     if (difficulty <= 3) return "var(--color-success-bg)";
@@ -39,13 +53,30 @@
           </option>
         </select>
       </div>
-      <button
-        class="btn btn-primary btn-sm"
-        :disabled="!selectedTopicId"
-        @click="emit('create')"
-      >
-        <i class="pi pi-plus"></i> Nuevo Ejercicio
-      </button>
+      <div class="flex gap-2">
+        <button
+          class="btn btn-secondary btn-sm"
+          title="Exportar los ejercicios de este tema a un archivo JSON"
+          :disabled="!selectedTopicId || exercises.length === 0"
+          @click="emit('export-json')"
+        >
+          <i class="pi pi-download"></i> Exportar
+        </button>
+        <button
+          class="btn btn-secondary btn-sm"
+          title="Importar ejercicios desde un archivo JSON"
+          :disabled="!selectedTopicId"
+          @click="emit('import-json')"
+        >
+          <i class="pi pi-upload"></i> Importar
+        </button>
+        <button class="btn btn-secondary btn-sm" :disabled="!selectedTopicId" @click="emit('create-ai')">
+          <i class="pi pi-sparkles"></i> Crear con IA
+        </button>
+        <button class="btn btn-primary btn-sm" :disabled="!selectedTopicId" @click="emit('create')">
+          <i class="pi pi-plus"></i> Nuevo Ejercicio
+        </button>
+      </div>
     </div>
     <div v-if="!selectedTopicId" class="empty-inline">
       Selecciona un tema para ver sus ejercicios.
@@ -87,6 +118,15 @@
           </div>
         </div>
         <div class="item-actions">
+          <button
+            v-if="exercise.media_view_url"
+            class="btn btn-ghost btn-sm"
+            title="Ver material del enunciado"
+            aria-label="Ver material del enunciado"
+            @click="openPreview(exercise)"
+          >
+            <i class="pi pi-play-circle"></i>
+          </button>
           <button class="btn btn-ghost btn-sm" @click="emit('edit', exercise)">
             <i class="pi pi-pencil"></i>
           </button>
@@ -99,6 +139,13 @@
         </div>
       </div>
     </div>
+
+    <FileViewer
+      :show="!!preview"
+      :url="preview?.url"
+      :title="preview?.title"
+      @close="preview = null"
+    />
   </div>
 </template>
 

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-  import { computed, onMounted, reactive, ref } from "vue";
+  import { computed, onMounted, reactive, ref, watch } from "vue";
   import { useRouter } from "vue-router";
   import TeacherLayout from "@/layouts/TeacherLayout.vue";
   import Skeleton from "@/components/ui/Skeleton.vue";
@@ -9,6 +9,7 @@
   import { useGrade } from "@/composables/useGrade";
   import { useSubject } from "@/composables/useSubject";
   import type { Course, Grade, Subject } from "@/types";
+  import { useSchools } from "@/composables/useSchools";
 
   const router = useRouter();
   const { confirmState, showConfirm, onConfirm, onCancel } = useConfirm();
@@ -35,6 +36,7 @@
   } = useSubject();
 
   const loading = ref(false);
+  const { activeId, active } = useSchools();
   const saving = ref(false);
   const selectedGradeId = ref<string | null>(null);
 
@@ -50,7 +52,7 @@
     description: string;
   } | null>(null);
 
-  const gradeForm = reactive({ name: "", description: "" });
+  const gradeForm = reactive({ name: "", description: "", visualTheme: "primary" as "primary" | "secondary" });
   const courseForm = reactive({
     subjectId: "",
     title: "",
@@ -75,6 +77,7 @@
   }
 
   onMounted(loadData);
+  watch(activeId, () => { selectedGradeId.value = null; loadData(); });
 
   async function loadData() {
     loading.value = true;
@@ -92,6 +95,7 @@
     editingGrade.value = null;
     gradeForm.name = "";
     gradeForm.description = "";
+    gradeForm.visualTheme = "primary";
     showGradeModal.value = true;
   }
 
@@ -99,6 +103,7 @@
     editingGrade.value = grade;
     gradeForm.name = grade.name;
     gradeForm.description = grade.description || "";
+    gradeForm.visualTheme = grade.visual_theme || "primary";
     showGradeModal.value = true;
   }
 
@@ -114,11 +119,13 @@
         await updateGradeService(editingGrade.value.id, {
           name: gradeForm.name,
           description: gradeForm.description,
+          visual_theme: gradeForm.visualTheme,
         });
       } else {
         const grade = await createGradeService({
           name: gradeForm.name,
           description: gradeForm.description,
+          visual_theme: gradeForm.visualTheme,
         });
         selectedGradeId.value = grade.id;
       }
@@ -175,6 +182,7 @@
         await updateCourseService(editingCourse.value.id, {
           title: courseForm.title,
           description: courseForm.description,
+          grade_id: selectedGrade.value.id,
           subject_id: courseForm.subjectId,
           subject: subjectName,
           level: courseForm.level,
@@ -259,8 +267,9 @@
       <!-- Top bar -->
       <header class="ac-topbar">
         <div class="ac-topbar__left">
-          <span class="ac-eyebrow">Panel del docente</span>
+          <span class="ac-eyebrow">Organización de escuela</span>
           <h1 class="ac-title">Académico</h1>
+          <p v-if="active" class="school-crumb"><i class="pi pi-building"></i> {{ active.name }}</p>
         </div>
         <button class="catalog-pill" @click="showSubjectCatalog = true">
           <i class="pi pi-book"></i>
@@ -288,7 +297,7 @@
         </aside>
         <main class="ac-main">
           <div class="main-header">
-            <div>
+            <div style="display: flex; flex-direction: column; gap: 8px">
               <Skeleton width="100px" height="14px" />
               <Skeleton width="180px" height="28px" />
             </div>
@@ -299,7 +308,14 @@
               :key="i"
               class="course-tile course-tile--skeleton"
             >
-              <div class="course-tile__top">
+              <div
+                class="course-tile__top"
+                style="
+                  display: flex;
+                  align-items: center;
+                  justify-content: space-between;
+                "
+              >
                 <Skeleton width="70px" height="20px" rounded />
                 <Skeleton width="24px" height="24px" variant="circle" />
               </div>
@@ -375,6 +391,14 @@
               Nuevo
             </button>
           </div>
+          <label class="grade-mobile-select">
+            <span>Grado activo</span>
+            <select v-model="selectedGradeId">
+              <option v-for="grade in grades" :key="grade.id" :value="grade.id">
+                {{ grade.name }} · {{ gradeCourses(grade.id).length }} cursos
+              </option>
+            </select>
+          </label>
           <nav class="grade-nav">
             <button
               v-for="grade in grades"
@@ -439,7 +463,7 @@
                     Cada curso combina este grado con una materia del catálogo.
                   </p>
                 </div>
-                <button class="btn-add-course" @click="openCreateCourse">
+                <button v-if="selectedCourses.length" class="btn-add-course" @click="openCreateCourse">
                   <i class="pi pi-plus"></i> Nuevo curso
                 </button>
               </div>
@@ -1033,6 +1057,8 @@
     flex-direction: column;
     gap: 2px;
   }
+  .grade-mobile-select { display: none; }
+  .school-crumb { display: flex; align-items: center; gap: 6px; margin: 6px 0 0; color: var(--text-secondary); font-size: var(--text-sm); font-weight: 700; }
 
   .grade-nav-item {
     display: flex;
@@ -1507,7 +1533,10 @@
     background: var(--surface-card);
     border-radius: var(--radius-2xl);
     width: min(500px, 100%);
-    max-height: calc(100vh - 48px);
+    /* dvh, not vh: on mobile vh is the viewport with the URL bar retracted,
+       so the card could end up taller than what is actually on screen and
+       push its own buttons under the browser chrome. */
+    max-height: calc(100dvh - 48px);
     overflow-y: auto;
     box-shadow: var(--shadow-panel);
   }
@@ -1761,19 +1790,10 @@
       grid-template-columns: 1fr;
       grid-template-rows: auto 1fr;
     }
-    .grade-sidebar {
-      border-right: none;
-      max-height: 180px;
-    }
-    .grade-nav {
-      flex-direction: row;
-      flex-wrap: nowrap;
-      overflow-x: auto;
-      padding: 4px 8px;
-    }
-    .grade-nav-item {
-      flex-shrink: 0;
-    }
+    .grade-sidebar { border-right: none; }
+    .grade-nav { display: none; }
+    .grade-mobile-select { display: grid; gap: 5px; padding: 10px 12px 12px; color: var(--text-secondary); font-size: var(--text-xs); font-weight: 700; }
+    .grade-mobile-select select { min-height: 44px; width: 100%; padding: 0 10px; border: 1px solid var(--surface-border); border-radius: var(--radius-md); background: var(--surface-card); color: var(--text-primary); font: inherit; }
     .subject-create-row {
       grid-template-columns: 1fr;
     }
@@ -1783,6 +1803,67 @@
     .courses-area,
     .grade-header {
       padding: 16px;
+    }
+    .grade-header__actions { align-self: flex-start; }
+
+    /* Tap targets >= 44px en mobile */
+    .icon-btn,
+    .icon-btn--sm,
+    .card-action-btn,
+    .modal-close {
+      width: 44px;
+      height: 44px;
+    }
+
+    /* At 44px the filled grey square reads as a heavy block next to the
+       title. Keep the tap target, drop the weight. */
+    .modal-close {
+      background: transparent;
+      font-size: 22px;
+    }
+  }
+
+  /* Mobile: these modals are their own system (head/body split with a
+     divider, which .modal-box does not have), so they were missing the
+     bottom-sheet treatment common.css gives .modal-overlay.
+     820px and not common.css's 600px on purpose: that is the width where
+     this view already becomes mobile (sidebar nav out, grade select in), and
+     a phone reporting ~720 CSS px was landing between the two — wide enough
+     to keep the centred card floating with 24px of air on every side. */
+  @media (max-width: 820px) {
+    .modal-backdrop {
+      place-items: end stretch;
+      padding: 0;
+      /* The real reason the two short forms stayed narrow while the subject
+         catalogue — same classes — filled the width: common.css styles
+         .modal-backdrop as flex and sets justify-content: center. The rule
+         above only overrides display, so that centre leaks into a grid
+         context, where it aligns the *tracks* and stops an auto column from
+         stretching. The column then sizes to its content, which is why the
+         widest content was the one that looked right. An explicit 1fr leaves
+         no free space for justify-content to distribute. */
+      grid-template-columns: 1fr;
+    }
+
+    /* Descendant selector on purpose: .modal-card--wide sets its own width
+       at the same specificity as a lone .modal-card, so matching that from
+       here would leave the winner decided by source order. */
+    .modal-backdrop .modal-card,
+    .modal-backdrop .modal-card--wide {
+      width: 100%;
+      max-width: 100%;
+      max-height: 95dvh;
+    }
+
+    .modal-actions {
+      flex-direction: column-reverse;
+      /* The global .modal-actions fallback adds margin-top: 20px on top of
+         this block's padding-top, which read as dead space above the
+         buttons once they went full-width. */
+      margin-top: 4px;
+    }
+    .modal-actions > * {
+      width: 100%;
     }
   }
 </style>
