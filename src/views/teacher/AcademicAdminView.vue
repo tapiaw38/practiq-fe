@@ -1832,12 +1832,17 @@
      to keep the centred card floating with 24px of air on every side. */
   @media (max-width: 820px) {
     .modal-backdrop {
-      /* stretch, not center: with justify-items centre the card falls back to
-         sizing itself from its content whenever the width below loses, which
-         is what left the two short forms narrow while the subject catalogue —
-         same classes, wider content — reached both edges. */
       place-items: end stretch;
       padding: 0;
+      /* The real reason the two short forms stayed narrow while the subject
+         catalogue — same classes — filled the width: common.css styles
+         .modal-backdrop as flex and sets justify-content: center. The rule
+         above only overrides display, so that centre leaks into a grid
+         context, where it aligns the *tracks* and stops an auto column from
+         stretching. The column then sizes to its content, which is why the
+         widest content was the one that looked right. An explicit 1fr leaves
+         no free space for justify-content to distribute. */
+      grid-template-columns: 1fr;
     }
 
     /* Descendant selector on purpose: .modal-card--wide sets its own width
@@ -1845,11 +1850,8 @@
        here would leave the winner decided by source order. */
     .modal-backdrop .modal-card,
     .modal-backdrop .modal-card--wide {
-      /* !important because base.css's teacher theme reaches these through
-         [class*="modal"] with !important of its own; without matching it the
-         width here is not what actually decides the rendered box. */
-      width: 100% !important;
-      max-width: 100% !important;
+      width: 100%;
+      max-width: 100%;
       max-height: 95dvh;
     }
 

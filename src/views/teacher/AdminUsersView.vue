@@ -1616,6 +1616,11 @@
     .modal-backdrop {
       padding: 0 0 env(safe-area-inset-bottom);
       align-items: end;
+      /* Same trap as AcademicAdminView: common.css sets justify-content:
+         center for its flex .modal-backdrop, and overriding only display
+         leaves that centring to align the grid tracks, which keeps an auto
+         column from stretching and sizes it to its content instead. */
+      grid-template-columns: 1fr;
     }
     .modal-card {
       width: 100%;
