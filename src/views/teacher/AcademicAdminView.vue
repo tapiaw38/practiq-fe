@@ -1832,13 +1832,21 @@
      to keep the centred card floating with 24px of air on every side. */
   @media (max-width: 820px) {
     .modal-backdrop {
-      place-items: end center;
+      /* stretch, not center: with justify-items centre the card falls back to
+         sizing itself from its content whenever the width below loses, which
+         is what left the two short forms narrow while the subject catalogue —
+         same classes, wider content — reached both edges. */
+      place-items: end stretch;
       padding: 0;
     }
 
-    .modal-card,
-    .modal-card--wide {
+    /* Descendant selector on purpose: .modal-card--wide sets its own width
+       at the same specificity as a lone .modal-card, so matching that from
+       here would leave the winner decided by source order. */
+    .modal-backdrop .modal-card,
+    .modal-backdrop .modal-card--wide {
       width: 100%;
+      max-width: 100%;
       max-height: 95dvh;
       border-radius: var(--radius-2xl) var(--radius-2xl) 0 0;
     }
