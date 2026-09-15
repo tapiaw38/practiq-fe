@@ -1412,7 +1412,9 @@
   .modal-card {
     width: 720px;
     max-width: 100%;
-    max-height: calc(100vh - 48px);
+    /* dvh: vh is the viewport with the URL bar retracted, so a tall card
+       could push its own buttons under the browser chrome. */
+    max-height: calc(100dvh - 48px);
     overflow: auto;
     padding: 16px;
     border-radius: var(--radius-xl);
@@ -1606,6 +1608,24 @@
     color: var(--practiq-violet);
   }
 
+  /* Bottom sheet at the same 820px the rest of the app's modals use. These
+     rules were in the 720px block below, which left a phone reporting
+     ~720-820px CSS with a card floating centred in the scrim. The layout
+     rules stay at 720px — only the modal moved. */
+  @media (max-width: 820px) {
+    .modal-backdrop {
+      padding: 0 0 env(safe-area-inset-bottom);
+      align-items: end;
+    }
+    .modal-card {
+      width: 100%;
+      max-height: 95dvh;
+      overflow-y: auto;
+      -webkit-overflow-scrolling: touch;
+      border-radius: var(--radius-2xl) var(--radius-2xl) 0 0;
+    }
+  }
+
   @media (max-width: 720px) {
     .toolbar-card {
       align-items: stretch;
@@ -1620,17 +1640,6 @@
        card layout is forced. The rules live in .data-table--cards above. */
     .view-toggle {
       display: none;
-    }
-    .modal-backdrop {
-      padding: 10px 10px max(10px, env(safe-area-inset-bottom));
-      align-items: end;
-    }
-    .modal-card {
-      width: min(720px, 100%);
-      max-height: calc(100dvh - 20px);
-      overflow-y: auto;
-      -webkit-overflow-scrolling: touch;
-      border-radius: var(--radius-2xl) var(--radius-2xl) 0 0;
     }
     .action-row {
       flex-direction: column;
