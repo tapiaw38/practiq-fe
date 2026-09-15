@@ -407,6 +407,22 @@ select {
   border-radius: var(--radius-md) !important;
 }
 
+/* The rule above reaches modals through [class*="modal"], and its !important
+   beat the top-only radius every bottom sheet asks for, so on a phone a sheet
+   flush to the bottom edge still had all four corners rounded and read as a
+   floating card. Restoring the sheet shape needs !important too — that is the
+   only way past the declaration above.
+
+   Kept here rather than in each modal's own stylesheet because the app has
+   four separate modal implementations and this is the one place that covers
+   all of them: .modal-box is the shared shell, .modal-card the bespoke one. */
+@media (max-width: 820px) {
+  :root[data-ui-theme="teacher"] .modal-box,
+  :root[data-ui-theme="teacher"] .modal-card {
+    border-radius: var(--radius-2xl) var(--radius-2xl) 0 0 !important;
+  }
+}
+
 :root[data-ui-theme="teacher"] .ac-topbar::after {
   display: none;
 }

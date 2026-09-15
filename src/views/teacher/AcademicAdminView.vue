@@ -1845,10 +1845,12 @@
        here would leave the winner decided by source order. */
     .modal-backdrop .modal-card,
     .modal-backdrop .modal-card--wide {
-      width: 100%;
-      max-width: 100%;
+      /* !important because base.css's teacher theme reaches these through
+         [class*="modal"] with !important of its own; without matching it the
+         width here is not what actually decides the rendered box. */
+      width: 100% !important;
+      max-width: 100% !important;
       max-height: 95dvh;
-      border-radius: var(--radius-2xl) var(--radius-2xl) 0 0;
     }
 
     .modal-actions {
