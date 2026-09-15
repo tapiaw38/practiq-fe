@@ -1825,9 +1825,12 @@
 
   /* Mobile: these modals are their own system (head/body split with a
      divider, which .modal-box does not have), so they were missing the
-     bottom-sheet treatment common.css gives .modal-overlay at this width.
-     Same shape as the rest of the app. */
-  @media (max-width: 600px) {
+     bottom-sheet treatment common.css gives .modal-overlay.
+     820px and not common.css's 600px on purpose: that is the width where
+     this view already becomes mobile (sidebar nav out, grade select in), and
+     a phone reporting ~720 CSS px was landing between the two — wide enough
+     to keep the centred card floating with 24px of air on every side. */
+  @media (max-width: 820px) {
     .modal-backdrop {
       place-items: end center;
       padding: 0;
@@ -1842,6 +1845,10 @@
 
     .modal-actions {
       flex-direction: column-reverse;
+      /* The global .modal-actions fallback adds margin-top: 20px on top of
+         this block's padding-top, which read as dead space above the
+         buttons once they went full-width. */
+      margin-top: 4px;
     }
     .modal-actions > * {
       width: 100%;
