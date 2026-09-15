@@ -25,6 +25,15 @@
     };
   }
 
+  const importInput = ref<HTMLInputElement | null>(null);
+
+  function onImportFileChange(event: Event) {
+    const file = (event.target as HTMLInputElement).files?.[0];
+    if (file) emit("import-json", file);
+    // Reset so picking the same file twice in a row still fires @change.
+    (event.target as HTMLInputElement).value = "";
+  }
+
   const diffColor = (difficulty: number) => {
     if (difficulty <= 3) return "var(--color-success-bg)";
     if (difficulty <= 6) return "var(--color-warning-bg)";
@@ -54,6 +63,29 @@
         </select>
       </div>
       <div class="flex gap-2">
+        <button
+          class="btn btn-secondary btn-sm"
+          title="Exportar los ejercicios de este tema a un archivo JSON"
+          :disabled="!selectedTopicId || exercises.length === 0"
+          @click="emit('export-json')"
+        >
+          <i class="pi pi-download"></i> Exportar
+        </button>
+        <button
+          class="btn btn-secondary btn-sm"
+          title="Importar ejercicios desde un archivo JSON"
+          :disabled="!selectedTopicId"
+          @click="importInput?.click()"
+        >
+          <i class="pi pi-upload"></i> Importar
+        </button>
+        <input
+          ref="importInput"
+          type="file"
+          accept="application/json"
+          class="sr-only"
+          @change="onImportFileChange"
+        />
         <button class="btn btn-secondary btn-sm" :disabled="!selectedTopicId" @click="emit('create-ai')">
           <i class="pi pi-sparkles"></i> Crear con IA
         </button>

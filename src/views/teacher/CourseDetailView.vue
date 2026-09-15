@@ -715,6 +715,77 @@
     await deleteExerciseService(id);
   }
 
+  // Only the fields create() accepts travel in the file, so the same export
+  // re-imports into any topic without dragging along ids or signed URLs that
+  // would not mean anything there.
+  function exportExercisesJSON() {
+    const payload = exercises.value.map((ex) => ({
+      type: ex.type,
+      question: ex.question,
+      correct_answer: ex.correct_answer,
+      explanation: ex.explanation,
+      difficulty: ex.difficulty,
+      metadata: ex.metadata,
+    }));
+    const topic = topics.value.find((t) => t.id === selectedTopicId.value);
+    const blob = new Blob([JSON.stringify(payload, null, 2)], {
+      type: "application/json",
+    });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `ejercicios-${topic?.title || selectedTopicId.value}.json`;
+    link.click();
+    URL.revokeObjectURL(url);
+  }
+
+  async function importExercisesJSON(file: File) {
+    if (!selectedTopicId.value) return;
+    let drafts: Partial<Exercise>[];
+    try {
+      const parsed = JSON.parse(await file.text());
+      if (!Array.isArray(parsed)) throw new Error("not an array");
+      drafts = parsed;
+    } catch {
+      toast.add({ severity: "error", summary: "Archivo inválido", detail: "El JSON debe ser una lista de ejercicios.", life: 4000 });
+      return;
+    }
+
+    // Same pattern as saveAIDrafts: each exercise is created on its own, so a
+    // failure partway through leaves the ones already created instead of
+    // losing the whole batch.
+    let saved = 0;
+    let failure: unknown = null;
+    for (const draft of drafts) {
+      if (failure) break;
+      try {
+        await exerciseService.create(selectedTopicId.value, {
+          type: draft.type,
+          question: draft.question,
+          correct_answer: draft.correct_answer,
+          explanation: draft.explanation,
+          difficulty: draft.difficulty,
+          metadata: draft.metadata,
+        } as Partial<Exercise>);
+        saved += 1;
+      } catch (error) {
+        failure = error;
+      }
+    }
+    if (saved) await loadExercises(selectedTopicId.value);
+
+    if (failure) {
+      toast.add({
+        severity: "warn",
+        summary: "Importación parcial",
+        detail: `${saved} de ${drafts.length} se importaron. ${apiMessage(failure, "Revisá el resto e intentá de nuevo.")}`,
+        life: 5000,
+      });
+    } else {
+      toast.add({ severity: "success", summary: "Ejercicios importados", detail: `${saved} ${saved === 1 ? "ejercicio agregado" : "ejercicios agregados"} al tema.`, life: 3500 });
+    }
+  }
+
   function openNewSheet() {
     newSheet.topic_id = selectedTopicId.value;
     loadSheetExercises(newSheet.topic_id);
@@ -1282,6 +1353,8 @@
         @create-ai="showAIDraftsModal = true"
         @edit="openEditExercise"
         @delete="deleteExercise"
+        @export-json="exportExercisesJSON"
+        @import-json="importExercisesJSON"
       />
 
       <!-- TAB: Materiales -->

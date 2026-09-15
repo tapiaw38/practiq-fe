@@ -12,4 +12,6 @@ export interface ExercisesListEmits {
   (e: "create-ai"): void;
   (e: "edit", exercise: Exercise): void;
   (e: "delete", exerciseId: string): void;
+  (e: "export-json"): void;
+  (e: "import-json", file: File): void;
 }
