@@ -300,7 +300,7 @@
           ></i>
           <span class="stat-item__val">{{ assignedStudents.length }}</span>
           <span class="stat-item__lbl">{{
-            assignedStudents.length === 1 ? "Alumno" : "Alumnos"
+            assignedStudents.length === 1 ? "Alumno asignado" : "Alumnos asignados"
           }}</span>
         </div>
         <div class="stat-divider"></div>

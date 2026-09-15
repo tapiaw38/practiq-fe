@@ -1533,7 +1533,10 @@
     background: var(--surface-card);
     border-radius: var(--radius-2xl);
     width: min(500px, 100%);
-    max-height: calc(100vh - 48px);
+    /* dvh, not vh: on mobile vh is the viewport with the URL bar retracted,
+       so the card could end up taller than what is actually on screen and
+       push its own buttons under the browser chrome. */
+    max-height: calc(100dvh - 48px);
     overflow-y: auto;
     box-shadow: var(--shadow-panel);
   }
@@ -1810,6 +1813,38 @@
     .modal-close {
       width: 44px;
       height: 44px;
+    }
+
+    /* At 44px the filled grey square reads as a heavy block next to the
+       title. Keep the tap target, drop the weight. */
+    .modal-close {
+      background: transparent;
+      font-size: 22px;
+    }
+  }
+
+  /* Mobile: these modals are their own system (head/body split with a
+     divider, which .modal-box does not have), so they were missing the
+     bottom-sheet treatment common.css gives .modal-overlay at this width.
+     Same shape as the rest of the app. */
+  @media (max-width: 600px) {
+    .modal-backdrop {
+      place-items: end center;
+      padding: 0;
+    }
+
+    .modal-card,
+    .modal-card--wide {
+      width: 100%;
+      max-height: 95dvh;
+      border-radius: var(--radius-2xl) var(--radius-2xl) 0 0;
+    }
+
+    .modal-actions {
+      flex-direction: column-reverse;
+    }
+    .modal-actions > * {
+      width: 100%;
     }
   }
 </style>
