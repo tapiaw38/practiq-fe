@@ -715,11 +715,37 @@
     await deleteExerciseService(id);
   }
 
+  // --- Exportar ejercicios a JSON ---
   // Only the fields create() accepts travel in the file, so the same export
   // re-imports into any topic without dragging along ids or signed URLs that
   // would not mean anything there.
-  function exportExercisesJSON() {
-    const payload = exercises.value.map((ex) => ({
+  const showExportModal = ref(false);
+  const exportSelectedIds = ref<Set<string>>(new Set());
+  const exportAllSelected = computed(
+    () => exercises.value.length > 0 && exportSelectedIds.value.size === exercises.value.length,
+  );
+
+  function openExportModal() {
+    exportSelectedIds.value = new Set(exercises.value.map((e) => e.id));
+    showExportModal.value = true;
+  }
+
+  function toggleExportExercise(id: string) {
+    const next = new Set(exportSelectedIds.value);
+    if (next.has(id)) next.delete(id);
+    else next.add(id);
+    exportSelectedIds.value = next;
+  }
+
+  function toggleExportAll() {
+    exportSelectedIds.value = exportAllSelected.value
+      ? new Set()
+      : new Set(exercises.value.map((e) => e.id));
+  }
+
+  function confirmExport() {
+    const selected = exercises.value.filter((e) => exportSelectedIds.value.has(e.id));
+    const payload = selected.map((ex) => ({
       type: ex.type,
       question: ex.question,
       correct_answer: ex.correct_answer,
@@ -737,52 +763,103 @@
     link.download = `ejercicios-${topic?.title || selectedTopicId.value}.json`;
     link.click();
     URL.revokeObjectURL(url);
+    showExportModal.value = false;
   }
 
-  async function importExercisesJSON(file: File) {
-    if (!selectedTopicId.value) return;
-    let drafts: Partial<Exercise>[];
+  // --- Importar ejercicios desde JSON ---
+  interface ImportDraft extends Partial<Exercise> {
+    selected: boolean;
+  }
+
+  const showImportModal = ref(false);
+  const importDrafts = ref<ImportDraft[]>([]);
+  const importFileError = ref("");
+  const importSaving = ref(false);
+  const importSelectedCount = computed(
+    () => importDrafts.value.filter((d) => d.selected).length,
+  );
+  const importAllSelected = computed(
+    () => importDrafts.value.length > 0 && importSelectedCount.value === importDrafts.value.length,
+  );
+
+  function openImportModal() {
+    importDrafts.value = [];
+    importFileError.value = "";
+    showImportModal.value = true;
+  }
+
+  async function onImportFileChange(event: Event) {
+    const file = (event.target as HTMLInputElement).files?.[0];
+    (event.target as HTMLInputElement).value = "";
+    if (!file) return;
+    importFileError.value = "";
     try {
       const parsed = JSON.parse(await file.text());
-      if (!Array.isArray(parsed)) throw new Error("not an array");
-      drafts = parsed;
+      if (!Array.isArray(parsed) || !parsed.length) throw new Error("empty or not an array");
+      importDrafts.value = parsed.map((d) => ({ ...d, selected: true }));
     } catch {
-      toast.add({ severity: "error", summary: "Archivo inválido", detail: "El JSON debe ser una lista de ejercicios.", life: 4000 });
-      return;
+      importDrafts.value = [];
+      importFileError.value = "El archivo debe ser un JSON con una lista de ejercicios.";
     }
+  }
 
+  function toggleImportDraft(index: number) {
+    importDrafts.value[index].selected = !importDrafts.value[index].selected;
+  }
+
+  function toggleImportAll() {
+    const next = !importAllSelected.value;
+    importDrafts.value.forEach((d) => (d.selected = next));
+  }
+
+  async function confirmImport() {
+    const unselected = importDrafts.value.filter((d) => !d.selected);
+    const toImport = importDrafts.value.filter((d) => d.selected);
+    if (!selectedTopicId.value || !toImport.length) return;
+    importSaving.value = true;
     // Same pattern as saveAIDrafts: each exercise is created on its own, so a
     // failure partway through leaves the ones already created instead of
-    // losing the whole batch.
+    // losing the whole batch — the ones still pending stay in the list to retry.
+    const pending: ImportDraft[] = [];
     let saved = 0;
     let failure: unknown = null;
-    for (const draft of drafts) {
-      if (failure) break;
-      try {
-        await exerciseService.create(selectedTopicId.value, {
-          type: draft.type,
-          question: draft.question,
-          correct_answer: draft.correct_answer,
-          explanation: draft.explanation,
-          difficulty: draft.difficulty,
-          metadata: draft.metadata,
-        } as Partial<Exercise>);
-        saved += 1;
-      } catch (error) {
-        failure = error;
+    try {
+      for (const draft of toImport) {
+        if (failure) {
+          pending.push(draft);
+          continue;
+        }
+        try {
+          await exerciseService.create(selectedTopicId.value, {
+            type: draft.type,
+            question: draft.question,
+            correct_answer: draft.correct_answer,
+            explanation: draft.explanation,
+            difficulty: draft.difficulty,
+            metadata: draft.metadata,
+          } as Partial<Exercise>);
+          saved += 1;
+        } catch (error) {
+          failure = error;
+          pending.push(draft);
+        }
       }
-    }
-    if (saved) await loadExercises(selectedTopicId.value);
+      importDrafts.value = [...unselected, ...pending];
+      if (saved) await loadExercises(selectedTopicId.value);
 
-    if (failure) {
-      toast.add({
-        severity: "warn",
-        summary: "Importación parcial",
-        detail: `${saved} de ${drafts.length} se importaron. ${apiMessage(failure, "Revisá el resto e intentá de nuevo.")}`,
-        life: 5000,
-      });
-    } else {
-      toast.add({ severity: "success", summary: "Ejercicios importados", detail: `${saved} ${saved === 1 ? "ejercicio agregado" : "ejercicios agregados"} al tema.`, life: 3500 });
+      if (failure) {
+        toast.add({
+          severity: "warn",
+          summary: "Importación parcial",
+          detail: `${saved} de ${toImport.length} se importaron. ${apiMessage(failure, "Revisá el resto e intentá de nuevo.")}`,
+          life: 5000,
+        });
+      } else {
+        toast.add({ severity: "success", summary: "Ejercicios importados", detail: `${saved} ${saved === 1 ? "ejercicio agregado" : "ejercicios agregados"} al tema.`, life: 3500 });
+        showImportModal.value = false;
+      }
+    } finally {
+      importSaving.value = false;
     }
   }
 
@@ -1353,8 +1430,8 @@
         @create-ai="showAIDraftsModal = true"
         @edit="openEditExercise"
         @delete="deleteExercise"
-        @export-json="exportExercisesJSON"
-        @import-json="importExercisesJSON"
+        @export-json="openExportModal"
+        @import-json="openImportModal"
       />
 
       <!-- TAB: Materiales -->
@@ -1650,6 +1727,80 @@
                 {{ incompleteDrafts === 1 ? "Hay un borrador incompleto." : `Hay ${incompleteDrafts} borradores incompletos.` }} Cada uno dice qué le falta.
               </p>
               <div class="modal-actions"><button class="btn btn-secondary" @click="aiDrafts = []">Volver</button><button class="btn btn-primary" :disabled="!aiDrafts.length || aiSaving || incompleteDrafts > 0" @click="saveAIDrafts">{{ aiSaving ? "Guardando…" : `Guardar ${aiDrafts.length} ${aiDrafts.length === 1 ? "ejercicio" : "ejercicios"}` }}</button></div>
+            </template>
+          </div>
+        </div>
+      </Transition>
+    </Teleport>
+
+    <!-- Export Exercises Modal -->
+    <Teleport to="body">
+      <Transition name="fade">
+        <div v-if="showExportModal" class="modal-overlay" @click.self="showExportModal = false">
+          <div class="modal-box">
+            <h3 class="modal-title"><i class="pi pi-download"></i> Exportar ejercicios</h3>
+            <p class="field-hint">Elegí qué ejercicios de este tema exportar a un archivo JSON.</p>
+            <label class="picker-select-all">
+              <input type="checkbox" :checked="exportAllSelected" @change="toggleExportAll" />
+              Seleccionar todos ({{ exercises.length }})
+            </label>
+            <div class="picker-list">
+              <label v-for="exercise in exercises" :key="exercise.id" class="picker-row">
+                <input
+                  type="checkbox"
+                  :checked="exportSelectedIds.has(exercise.id)"
+                  @change="toggleExportExercise(exercise.id)"
+                />
+                <span class="picker-row-text">{{ exercise.question || "(sin enunciado)" }}</span>
+                <span class="picker-row-tag">{{ exercise.type }}</span>
+              </label>
+            </div>
+            <div class="modal-actions">
+              <button class="btn btn-secondary" @click="showExportModal = false">Cancelar</button>
+              <button class="btn btn-primary" :disabled="exportSelectedIds.size === 0" @click="confirmExport">
+                Exportar {{ exportSelectedIds.size }} {{ exportSelectedIds.size === 1 ? "ejercicio" : "ejercicios" }}
+              </button>
+            </div>
+          </div>
+        </div>
+      </Transition>
+    </Teleport>
+
+    <!-- Import Exercises Modal -->
+    <Teleport to="body">
+      <Transition name="fade">
+        <div v-if="showImportModal" class="modal-overlay" @click.self="showImportModal = false">
+          <div class="modal-box">
+            <h3 class="modal-title"><i class="pi pi-upload"></i> Importar ejercicios</h3>
+            <template v-if="!importDrafts.length">
+              <p class="field-hint">Elegí un archivo JSON exportado desde Practiq (una lista de ejercicios).</p>
+              <div class="form-group">
+                <input type="file" accept="application/json" @change="onImportFileChange" />
+              </div>
+              <p v-if="importFileError" class="ai-draft-problem">{{ importFileError }}</p>
+              <div class="modal-actions">
+                <button class="btn btn-secondary" @click="showImportModal = false">Cancelar</button>
+              </div>
+            </template>
+            <template v-else>
+              <p class="field-hint">Elegí qué ejercicios importar a este tema.</p>
+              <label class="picker-select-all">
+                <input type="checkbox" :checked="importAllSelected" @change="toggleImportAll" />
+                Seleccionar todos ({{ importDrafts.length }})
+              </label>
+              <div class="picker-list">
+                <label v-for="(draft, index) in importDrafts" :key="index" class="picker-row">
+                  <input type="checkbox" :checked="draft.selected" @change="toggleImportDraft(index)" />
+                  <span class="picker-row-text">{{ draft.question || "(sin enunciado)" }}</span>
+                  <span class="picker-row-tag">{{ draft.type }}</span>
+                </label>
+              </div>
+              <div class="modal-actions">
+                <button class="btn btn-secondary" @click="importDrafts = []">Volver</button>
+                <button class="btn btn-primary" :disabled="importSelectedCount === 0 || importSaving" @click="confirmImport">
+                  {{ importSaving ? "Importando…" : `Importar ${importSelectedCount} ${importSelectedCount === 1 ? "ejercicio" : "ejercicios"}` }}
+                </button>
+              </div>
             </template>
           </div>
         </div>
@@ -2686,6 +2837,11 @@
   .ai-draft-option input[type="radio"] { flex: 0 0 auto; }
   .ai-draft-warning { margin: 4px 0 0; color: var(--color-warning-dark); font-size: 13px; }
   .ai-draft-problem { margin: 0; color: var(--color-warning-dark); font-size: 12px; font-weight: 600; }
+  .picker-select-all { display: flex; align-items: center; gap: 8px; margin: 10px 0; font-weight: 700; font-size: 13px; }
+  .picker-list { display: grid; gap: 6px; max-height: 320px; overflow-y: auto; margin-bottom: 12px; }
+  .picker-row { display: flex; align-items: center; gap: 10px; padding: 8px 10px; border: 1px solid var(--surface-border); border-radius: var(--radius-md); background: var(--surface-base); }
+  .picker-row-text { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13px; }
+  .picker-row-tag { flex: 0 0 auto; color: var(--text-secondary); font-size: 11px; text-transform: uppercase; }
   .label-optional { color: var(--text-muted); font-weight: 500; }
   @media (max-width: 600px) { .form-grid { grid-template-columns: 1fr; } .ai-drafts-modal { max-height: 92vh; } }
 </style>

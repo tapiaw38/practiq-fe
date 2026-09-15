@@ -25,15 +25,6 @@
     };
   }
 
-  const importInput = ref<HTMLInputElement | null>(null);
-
-  function onImportFileChange(event: Event) {
-    const file = (event.target as HTMLInputElement).files?.[0];
-    if (file) emit("import-json", file);
-    // Reset so picking the same file twice in a row still fires @change.
-    (event.target as HTMLInputElement).value = "";
-  }
-
   const diffColor = (difficulty: number) => {
     if (difficulty <= 3) return "var(--color-success-bg)";
     if (difficulty <= 6) return "var(--color-warning-bg)";
@@ -75,17 +66,10 @@
           class="btn btn-secondary btn-sm"
           title="Importar ejercicios desde un archivo JSON"
           :disabled="!selectedTopicId"
-          @click="importInput?.click()"
+          @click="emit('import-json')"
         >
           <i class="pi pi-upload"></i> Importar
         </button>
-        <input
-          ref="importInput"
-          type="file"
-          accept="application/json"
-          class="sr-only"
-          @change="onImportFileChange"
-        />
         <button class="btn btn-secondary btn-sm" :disabled="!selectedTopicId" @click="emit('create-ai')">
           <i class="pi pi-sparkles"></i> Crear con IA
         </button>

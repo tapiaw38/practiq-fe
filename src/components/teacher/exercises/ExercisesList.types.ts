@@ -13,5 +13,5 @@ export interface ExercisesListEmits {
   (e: "edit", exercise: Exercise): void;
   (e: "delete", exerciseId: string): void;
   (e: "export-json"): void;
-  (e: "import-json", file: File): void;
+  (e: "import-json"): void;
 }
