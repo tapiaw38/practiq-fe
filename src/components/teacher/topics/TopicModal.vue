@@ -20,7 +20,12 @@
 <template>
   <UiModal :visible="visible" label="Nuevo Tema" @close="emit('close')">
     <div class="modal-box">
-      <h3 class="modal-title">Nuevo Tema</h3>
+      <div class="modal-header">
+        <h3 class="modal-title">Nuevo Tema</h3>
+        <button type="button" class="modal-close" aria-label="Cerrar" @click="emit('close')">
+          <i class="pi pi-times"></i>
+        </button>
+      </div>
       <form @submit.prevent="emit('submit')">
         <div class="form-group">
           <label class="form-label">Título *</label>

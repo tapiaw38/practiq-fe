@@ -244,9 +244,14 @@
       >
         <template v-if="showCreateModal">
           <div class="modal-box">
-            <h3 class="modal-title">
-              Crear curso en {{ subject?.name || "materia" }}
-            </h3>
+            <div class="modal-header">
+              <h3 class="modal-title">
+                Crear curso en {{ subject?.name || "materia" }}
+              </h3>
+              <button type="button" class="modal-close" aria-label="Cerrar" @click="showCreateModal = false">
+                <i class="pi pi-times"></i>
+              </button>
+            </div>
 
             <div v-if="grades.length === 0" class="setup-notice">
               <i class="pi pi-info-circle"></i>

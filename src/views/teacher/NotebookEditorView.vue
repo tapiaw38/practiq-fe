@@ -572,7 +572,12 @@
     >
       <template v-if="showAddPage">
         <div class="modal-box">
-          <h3 class="modal-title">Nueva Página</h3>
+          <div class="modal-header">
+            <h3 class="modal-title">Nueva Página</h3>
+            <button type="button" class="modal-close" aria-label="Cerrar" @click="showAddPage = false">
+              <i class="pi pi-times"></i>
+            </button>
+          </div>
           <form @submit.prevent="addPage">
             <div class="form-group">
               <label class="form-label">Título</label>

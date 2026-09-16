@@ -1887,7 +1887,12 @@
     >
       <template v-if="showMaterialModal">
         <div class="modal-box">
-          <h3 class="modal-title">Agregar Material</h3>
+          <div class="modal-header">
+            <h3 class="modal-title">Agregar Material</h3>
+            <button type="button" class="modal-close" aria-label="Cerrar" @click="showMaterialModal = false">
+              <i class="pi pi-times"></i>
+            </button>
+          </div>
           <form @submit.prevent="createMaterial">
             <div class="form-group">
               <label class="form-label">Título *</label>
@@ -1961,7 +1966,12 @@
     >
       <template v-if="showEditMaterialModal">
         <div class="modal-box">
-          <h3 class="modal-title">Editar Material</h3>
+          <div class="modal-header">
+            <h3 class="modal-title">Editar Material</h3>
+            <button type="button" class="modal-close" aria-label="Cerrar" @click="showEditMaterialModal = false">
+              <i class="pi pi-times"></i>
+            </button>
+          </div>
           <form @submit.prevent="saveMaterial">
             <div class="form-group">
               <label class="form-label">Título *</label>
@@ -2027,7 +2037,12 @@
       >
         <template v-if="showNotebookModal">
           <div class="modal-box">
-            <h3 class="modal-title">Nuevo Cuaderno</h3>
+            <div class="modal-header">
+              <h3 class="modal-title">Nuevo Cuaderno</h3>
+              <button type="button" class="modal-close" aria-label="Cerrar" @click="showNotebookModal = false">
+                <i class="pi pi-times"></i>
+              </button>
+            </div>
             <form @submit.prevent="createNotebook">
               <div class="form-group">
                 <label class="form-label">Título *</label>
@@ -2079,7 +2094,12 @@
       >
         <template v-if="showSheetModal">
           <div class="modal-box">
-            <h3 class="modal-title">Nueva Hoja de Práctica</h3>
+            <div class="modal-header">
+              <h3 class="modal-title">Nueva Hoja de Práctica</h3>
+              <button type="button" class="modal-close" aria-label="Cerrar" @click="showSheetModal = false">
+                <i class="pi pi-times"></i>
+              </button>
+            </div>
             <form @submit.prevent="createSheet">
               <div class="form-group">
                 <label class="form-label">Título *</label>
@@ -2240,7 +2260,12 @@
     >
       <template v-if="showEditSheetModal">
         <div class="modal-box">
-          <h3 class="modal-title">Editar Hoja de Práctica</h3>
+          <div class="modal-header">
+            <h3 class="modal-title">Editar Hoja de Práctica</h3>
+            <button type="button" class="modal-close" aria-label="Cerrar" @click="showEditSheetModal = false">
+              <i class="pi pi-times"></i>
+            </button>
+          </div>
           <form @submit.prevent="saveSheetEdit">
             <div class="form-group">
               <label class="form-label">Título *</label>
@@ -2613,7 +2638,12 @@
     >
       <template v-if="showEditNotebookModal">
         <div class="modal-box">
-          <h3 class="modal-title">Editar Cuaderno</h3>
+          <div class="modal-header">
+            <h3 class="modal-title">Editar Cuaderno</h3>
+            <button type="button" class="modal-close" aria-label="Cerrar" @click="showEditNotebookModal = false">
+              <i class="pi pi-times"></i>
+            </button>
+          </div>
           <form @submit.prevent="saveNotebookEdit">
             <div class="form-group">
               <label class="form-label">Título *</label>
