@@ -1,5 +1,10 @@
 <template>
-  <UiModal :visible="Boolean(show)" :dismissable="false" :label="title">
+  <UiModal
+    class="ai-loading-dialog"
+    :visible="Boolean(show)"
+    :dismissable="false"
+    :label="title"
+  >
     <template v-if="show">
       <div class="ai-loading-modal">
         <div class="ai-loading-badge">
@@ -93,5 +98,12 @@
     margin: 2px 0 0;
     font-size: 0.8rem;
     color: var(--text-muted);
+  }
+</style>
+
+<style>
+  /* Spinner card, not a bottom-sheet form: stay centered on mobile too. */
+  .ai-loading-dialog[open] {
+    align-items: center !important;
   }
 </style>
