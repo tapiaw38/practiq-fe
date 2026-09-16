@@ -28,6 +28,7 @@ export interface SchoolInput {
   name?: string;
   kind?: SchoolKind;
   billing?: SchoolBilling;
+  admin_user_id?: string;
 }
 
 export interface CloseSchoolInput {
@@ -48,6 +49,7 @@ export interface ISchoolService {
   create(input: SchoolInput): Promise<{ data: School }>;
   update(id: string, input: SchoolInput): Promise<{ data: School }>;
   close(id: string, input: CloseSchoolInput): Promise<{ data: School }>;
+  suspend(id: string): Promise<{ data: School }>;
   reopen(id: string): Promise<{ data: School }>;
   archive(id: string): Promise<{ data: SchoolArchive }>;
   members(id: string): Promise<{ data: SchoolMember[] }>;
@@ -81,6 +83,11 @@ export class SchoolService implements ISchoolService {
 
   async close(id: string, input: CloseSchoolInput): Promise<{ data: School }> {
     const { data } = await this.api.post(`/schools/${id}/close`, input);
+    return data;
+  }
+
+  async suspend(id: string): Promise<{ data: School }> {
+    const { data } = await this.api.post(`/schools/${id}/suspend`);
     return data;
   }
 

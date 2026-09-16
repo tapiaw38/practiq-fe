@@ -212,9 +212,9 @@
       form.userId = "";
       form.userQuery = "";
       await loadMembers();
-      toast.add({ severity: "success", summary: "Usuario agregado", life: 2500 });
-    } catch {
-      toast.add({ severity: "error", summary: "Error", detail: "No se pudo agregar el usuario", life: 3000 });
+      toast.add({ severity: "success", summary: "Membresía actualizada", detail: "El rol y el acceso quedaron activos.", life: 2500 });
+    } catch (error: any) {
+      toast.add({ severity: "error", summary: "Error", detail: error.response?.data?.message || "No se pudo actualizar el usuario", life: 3500 });
     } finally {
       saving.value = false;
     }
@@ -233,7 +233,9 @@
 
   watch(activeId, loadMembers);
   onMounted(async () => {
-    await loadSchools();
+    // This view can be opened directly. A platform superadmin belongs to no
+    // school by design, so /schools/mine would otherwise leave it blank.
+    await loadSchools(false, isSuperAdmin.value);
     await loadMembers();
   });
 </script>

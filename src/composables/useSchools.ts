@@ -14,6 +14,7 @@ const service = new SchoolService(practiqApi);
 const schools = ref<School[]>([]);
 const activeId = ref<string>("");
 const loaded = ref(false);
+let loadedAll = false;
 
 const STORAGE_KEY = "practiq.activeSchool";
 
@@ -38,21 +39,26 @@ export function useSchools() {
   }
 
   async function loadSchools(force = false, includeAll = false) {
-    if (loaded.value && !force) return schools.value;
+    if (loaded.value && !force && (!includeAll || loadedAll)) return schools.value;
     try {
       // Platform operators choose the school they are administering. Everyone
       // else only sees schools they belong to.
       const { data } = includeAll ? await service.list() : await service.mine();
-      schools.value = data;
+      // Operators may list every lifecycle state in AdminSchoolsView, but
+      // the shared selector is operational scope: suspended/closed schools
+      // must never become an accidental academic workspace.
+      const selectable = data.filter((school) => school.status === "active");
+      schools.value = selectable;
+      loadedAll = includeAll;
 
       // A remembered school that is no longer ours must not stick: somebody
       // removed from an institution -- or signed in as somebody else on this
       // browser -- would keep pointing at it and see nothing, or worse, have
       // every write rejected because it names a school they don't administer.
       const remembered = localStorage.getItem(STORAGE_KEY) || "";
-      activeId.value = data.some((s) => s.id === remembered)
+      activeId.value = selectable.some((s) => s.id === remembered)
         ? remembered
-        : (data[0]?.id ?? "");
+        : (selectable[0]?.id ?? "");
       // Write-through: the axios interceptor reads STORAGE_KEY directly, not
       // activeId, so a correction made here must be persisted or the header
       // keeps sending the stale id for as long as nobody opens the selector.
@@ -75,6 +81,7 @@ export function useSchools() {
     schools.value = [];
     activeId.value = "";
     loaded.value = false;
+    loadedAll = false;
     localStorage.removeItem(STORAGE_KEY);
   }
 

@@ -3,6 +3,7 @@
   import { useRouter } from "vue-router";
   import { useToast } from "primevue/usetoast";
   import { practiqApi } from "@/api/request/server";
+  import { authApi } from "@/api/request/server";
   import TeacherLayout from "@/layouts/TeacherLayout.vue";
   import Skeleton from "@/components/ui/Skeleton.vue";
   import { useSchools } from "@/composables/useSchools";
@@ -11,6 +12,8 @@
     type School,
     type SchoolArchive,
   } from "@/services/schools/schoolService";
+  import { AuthAdminService } from "@/services/auth/authAdminService";
+  import type { AuthApiUser } from "@/types";
 
   const toast = useToast();
   const router = useRouter();
@@ -26,13 +29,20 @@
   const closeReason = ref("");
   const archive = ref<SchoolArchive | null>(null);
   const loadingArchive = ref(false);
+  const editingSchool = ref<School | null>(null);
+  const adminQuery = ref("");
+  const adminUserId = ref("");
+  const adminMatches = ref<AuthApiUser[]>([]);
+  const authAdmin = new AuthAdminService(authApi);
 
   const form = reactive({ name: "", billing: "direct" as School["billing"] });
+  const editForm = reactive({ name: "", billing: "direct" as School["billing"] });
 
   const activeSchools = computed(() => schools.value.filter((s) => s.status === "active"));
   const institutions = computed(() => activeSchools.value.filter((s) => s.kind === "institution"));
   const personals = computed(() => activeSchools.value.filter((s) => s.kind === "personal"));
   const closedSchools = computed(() => schools.value.filter((s) => s.status === "closed"));
+  const suspendedSchools = computed(() => schools.value.filter((s) => s.status === "suspended"));
 
   function fail(detail: string) {
     toast.add({ severity: "error", summary: "Error", detail, life: 3000 });
@@ -55,22 +65,85 @@
       toast.add({ severity: "warn", summary: "Poné un nombre", life: 2500 });
       return;
     }
+    if (!adminUserId.value) {
+      toast.add({ severity: "warn", summary: "Elegí administrador inicial", life: 2500 });
+      return;
+    }
     saving.value = true;
     try {
       await service.create({
         name: form.name.trim(),
         kind: "institution",
         billing: form.billing,
+        admin_user_id: adminUserId.value,
       });
       form.name = "";
+      adminQuery.value = "";
+      adminUserId.value = "";
       showCreateForm.value = false;
       await load();
       toast.add({ severity: "success", summary: "Institución creada", life: 2500 });
-    } catch {
-      fail("No se pudo crear la institución");
+    } catch (error: any) {
+      fail(error.response?.data?.message || "No se pudo crear la institución");
     } finally {
       saving.value = false;
     }
+  }
+
+  function practiqUserId(user: AuthApiUser) { return user.username || user.id; }
+
+  async function searchAdmins() {
+    adminUserId.value = "";
+    const query = adminQuery.value.trim().toLowerCase();
+    if (query.length < 2) { adminMatches.value = []; return; }
+    try {
+      const { data } = await authAdmin.listUsers({ limit: 100 });
+      adminMatches.value = data.filter((user) =>
+        [user.username, user.first_name, user.last_name, user.email].join(" ").toLowerCase().includes(query),
+      ).slice(0, 8);
+    } catch { adminMatches.value = []; }
+  }
+
+  function selectAdmin(user: AuthApiUser) {
+    adminUserId.value = practiqUserId(user);
+    adminQuery.value = user.email || `${user.first_name} ${user.last_name}`.trim();
+    adminMatches.value = [];
+  }
+
+  function clearAdminMatchesSoon() { window.setTimeout(() => (adminMatches.value = []), 150); }
+
+  function openEdit(school: School) {
+    editingSchool.value = school;
+    editForm.name = school.name;
+    editForm.billing = school.billing;
+  }
+
+  function cancelEdit() { editingSchool.value = null; }
+
+  async function saveEdit() {
+    const school = editingSchool.value;
+    if (!school || saving.value || !editForm.name.trim()) return;
+    saving.value = true;
+    try {
+      await service.update(school.id, { name: editForm.name.trim(), kind: "institution", billing: editForm.billing });
+      cancelEdit();
+      await loadSchools(true, true);
+      await load();
+      toast.add({ severity: "success", summary: "Institución actualizada", life: 2500 });
+    } catch { fail("No se pudo actualizar la institución"); }
+    finally { saving.value = false; }
+  }
+
+  async function suspendSchool(school: School) {
+    if (saving.value || !window.confirm(`¿Suspender ${school.name}? Sus miembros perderán acceso hasta reactivarla.`)) return;
+    saving.value = true;
+    try {
+      await service.suspend(school.id);
+      await loadSchools(true, true);
+      await load();
+      toast.add({ severity: "success", summary: "Institución suspendida", life: 2500 });
+    } catch { fail("No se pudo suspender la institución"); }
+    finally { saving.value = false; }
   }
 
   async function openSchool(school: School) {
@@ -170,6 +243,14 @@
               <option value="subscription">Por suscripción</option>
             </select>
           </label>
+          <label class="field field--wide admin-picker">
+            <span>Administrador inicial</span>
+            <input v-model="adminQuery" type="search" placeholder="Nombre o email" autocomplete="off" @input="searchAdmins" @blur="clearAdminMatchesSoon" />
+            <ul v-if="adminMatches.length" class="user-matches">
+              <li v-for="user in adminMatches" :key="user.id"><button type="button" @mousedown.prevent="selectAdmin(user)"><strong>{{ user.first_name }} {{ user.last_name }}</strong><span>{{ user.email }}</span></button></li>
+            </ul>
+            <small v-if="adminUserId">Seleccionado. Debe haber iniciado sesión en Practiq.</small>
+          </label>
         </div>
         <p class="form-note">
           Con facturación directa no se consulta ningún plan y no hay tope de
@@ -194,8 +275,21 @@
             </div>
             <div class="row-actions">
               <button class="btn-quiet" type="button" @click="openSchool(school)">Administrar</button>
+              <button class="btn-quiet" type="button" @click="openEdit(school)">Editar</button>
+              <button class="btn-quiet" type="button" @click="suspendSchool(school)">Suspender</button>
               <button class="btn-quiet btn-quiet--danger" type="button" @click="askToClose(school)">Cerrar</button>
             </div>
+          </li>
+        </ul>
+      </section>
+
+      <section v-if="suspendedSchools.length">
+        <h2 class="section-title">Instituciones suspendidas</h2>
+        <p class="section-sub">No están disponibles para sus miembros. Podés reactivarlas sin perder información.</p>
+        <ul class="school-list">
+          <li v-for="school in suspendedSchools" :key="school.id" class="school-row school-row--closed">
+            <div class="school-main"><span class="school-name">{{ school.name }}</span><span class="school-meta"><span class="status-pill">Suspendida</span> {{ school.billing === "direct" ? "Facturación directa" : "Por suscripción" }}</span></div>
+            <div class="row-actions"><button class="btn-quiet" type="button" :disabled="saving" @click="reopenSchool(school)">Reactivar</button><button class="btn-quiet" type="button" @click="openEdit(school)">Editar</button></div>
           </li>
         </ul>
       </section>
@@ -244,6 +338,16 @@
         <label class="field"><span>Escribí “{{ closeTarget.name }}” para confirmar</span><input v-model="closeConfirmation" type="text" autocomplete="off" /></label>
         <label class="field"><span>Motivo <em>(opcional)</em></span><textarea v-model="closeReason" rows="3" placeholder="Ej. institución dada de baja" /></label>
         <div class="form-actions"><button class="btn-quiet" type="button" @click="cancelClose">Cancelar</button><button class="btn-danger" type="submit" :disabled="saving || closeConfirmation.trim() !== closeTarget.name">Cerrar escuela</button></div>
+      </form>
+    </div>
+
+    <div v-if="editingSchool" class="close-backdrop" role="presentation" @click.self="cancelEdit">
+      <form class="close-card" @submit.prevent="saveEdit">
+        <p class="eyebrow">Configuración institucional</p>
+        <h2>Editar institución</h2>
+        <label class="field"><span>Nombre</span><input v-model="editForm.name" type="text" /></label>
+        <label class="field"><span>Facturación</span><select v-model="editForm.billing"><option value="direct">Directa (por fuera)</option><option value="subscription">Por suscripción</option></select></label>
+        <div class="form-actions"><button class="btn-quiet" type="button" @click="cancelEdit">Cancelar</button><button class="btn-primary" type="submit" :disabled="saving || !editForm.name.trim()">Guardar</button></div>
       </form>
     </div>
 
@@ -346,6 +450,12 @@
     font-size: 0.8rem;
     color: var(--text-secondary);
   }
+  .admin-picker { position: relative; }
+  .admin-picker small { color: var(--text-secondary); font-size: .75rem; }
+  .user-matches { position: absolute; z-index: 3; top: calc(100% - .2rem); right: 0; left: 0; overflow: hidden; margin: 0; padding: .25rem; list-style: none; border: 1px solid var(--surface-border); border-radius: var(--radius-md); background: var(--surface-card); box-shadow: var(--shadow-card); }
+  .user-matches button { display: grid; width: 100%; gap: .1rem; padding: .55rem .65rem; border: 0; border-radius: .35rem; background: transparent; color: var(--text-primary); cursor: pointer; text-align: left; }
+  .user-matches button:hover { background: var(--surface-subtle); }
+  .user-matches span { color: var(--text-secondary); font-size: .76rem; }
   .form-actions { display: flex; align-items: center; justify-content: flex-end; gap: .5rem; }
 
   .school-list,
