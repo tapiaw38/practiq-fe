@@ -22,6 +22,16 @@ export interface PracticeSheet {
   scheduled_at?: string;
   /** UTC ISO string. Absent means the sheet stays open once it opens. */
   available_until?: string;
+  /** How many times a student may submit. null means the sheet sets no limit:
+   *  a level test still allows one, a practice is not counted. */
+  max_attempts?: number | null;
+  /** Minutes from when the student opens the test. null means no limit. */
+  time_limit_minutes?: number | null;
+  /** The asking student's own standing, absent for a teacher. */
+  attempts_used?: number;
+  attempts_allowed?: number;
+  /** UTC ISO string: when this student runs out of time. */
+  deadline?: string;
   created_by: string;
   created_at: string;
   exercises: PracticeSheetExercise[];

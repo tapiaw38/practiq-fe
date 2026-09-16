@@ -99,6 +99,8 @@ export const usePracticeSheetStore = (service: IPracticeSheetService) =>
         scheduled_at?: string;
         /** RFC 3339 UTC string; empty leaves the window open. */
         available_until?: string;
+        max_attempts?: number | null;
+        time_limit_minutes?: number | null;
         exercise_ids: string[];
       },
     ) => {
@@ -124,6 +126,8 @@ export const usePracticeSheetStore = (service: IPracticeSheetService) =>
         scheduled_at?: string;
         /** RFC 3339 UTC string; empty leaves the window open. */
         available_until?: string;
+        max_attempts?: number | null;
+        time_limit_minutes?: number | null;
         exercise_ids?: string[];
       },
     ) => {

@@ -144,6 +144,10 @@
     test_style: "keyboard",
     scheduled_at: "",
     available_until: "",
+    // null, not 0: an empty number input reads as null, and the API takes
+    // null to mean "no limit".
+    max_attempts: null as number | null,
+    time_limit_minutes: null as number | null,
     exercise_ids: [] as string[],
   });
   const editSheetExercises = ref<Exercise[]>([]);
@@ -439,6 +443,10 @@
     // datetime-local value in the teacher's timezone; converted on submit.
     scheduled_at: "",
     available_until: "",
+    // null, not 0: an empty number input reads as null, and the API takes
+    // null to mean "no limit".
+    max_attempts: null as number | null,
+    time_limit_minutes: null as number | null,
     exercise_ids: [] as string[],
   });
   const newNotebook = reactive({ title: "", description: "", level: 1 });
@@ -651,6 +659,13 @@
    * start disables the input but left its value in the form, so the sheet was
    * saved as "habilitada siempre" and students hit isExpired anyway.
    */
+  // A limit only means something on a level test, and an emptied field has to
+  // travel as null so the API clears it rather than keeping the old value.
+  function sheetLimit(value: number | null, sheetType: string) {
+    if (sheetType !== "level_test") return null;
+    return typeof value === "number" && value > 0 ? value : null;
+  }
+
   function closingUtcISO(form: {
     scheduled_at: string;
     available_until: string;
@@ -687,6 +702,8 @@
       ...newSheet,
       scheduled_at: toUtcISO(newSheet.scheduled_at, newSheet.sheet_type),
       available_until: closingUtcISO(newSheet),
+      max_attempts: sheetLimit(newSheet.max_attempts, newSheet.sheet_type),
+      time_limit_minutes: sheetLimit(newSheet.time_limit_minutes, newSheet.sheet_type),
     });
     showSheetModal.value = false;
     newSheet.title = "";
@@ -959,6 +976,8 @@
     editSheet.test_style = sheet.test_style || "keyboard";
     editSheet.scheduled_at = toLocalInput(sheet.scheduled_at);
     editSheet.available_until = toLocalInput(sheet.available_until);
+    editSheet.max_attempts = sheet.max_attempts ?? null;
+    editSheet.time_limit_minutes = sheet.time_limit_minutes ?? null;
     editSheet.exercise_ids = (sheet.exercises || []).map((e) => e.exercise.id);
     await loadEditSheetExercises(editSheet.topic_id);
     showEditSheetModal.value = true;
@@ -987,6 +1006,8 @@
       test_style: editSheet.test_style,
       scheduled_at: toUtcISO(editSheet.scheduled_at, editSheet.sheet_type),
       available_until: closingUtcISO(editSheet),
+      max_attempts: sheetLimit(editSheet.max_attempts, editSheet.sheet_type),
+      time_limit_minutes: sheetLimit(editSheet.time_limit_minutes, editSheet.sheet_type),
       exercise_ids: editSheet.exercise_ids,
     });
     showEditSheetModal.value = false;
@@ -2080,6 +2101,42 @@
                   no pueden rendirla; vacío queda sin plazo.
                 </small>
               </div>
+              <div
+                v-if="newSheet.sheet_type === 'level_test'"
+                class="form-group"
+              >
+                <label class="form-label">Intentos permitidos</label>
+                <input
+                  v-model.number="newSheet.max_attempts"
+                  type="number"
+                  min="1"
+                  max="20"
+                  class="form-input"
+                  placeholder="1"
+                />
+                <small class="form-hint">
+                  Cuántas veces puede enviarla cada alumno. Vacío deja un
+                  intento, que es lo que valía hasta ahora.
+                </small>
+              </div>
+              <div
+                v-if="newSheet.sheet_type === 'level_test'"
+                class="form-group"
+              >
+                <label class="form-label">Tiempo límite (minutos)</label>
+                <input
+                  v-model.number="newSheet.time_limit_minutes"
+                  type="number"
+                  min="1"
+                  max="600"
+                  class="form-input"
+                  placeholder="Sin límite"
+                />
+                <small class="form-hint">
+                  Corre desde que el alumno abre la prueba, no desde la fecha:
+                  cada uno tiene el mismo tiempo. Vacío es sin límite.
+                </small>
+              </div>
               <div class="form-group">
                 <label class="form-label">Nivel</label>
                 <input
@@ -2205,6 +2262,42 @@
                 <small class="form-hint">
                   Elegí primero la fecha de la prueba. Después de esta fecha ya
                   no pueden rendirla; vacío queda sin plazo.
+                </small>
+              </div>
+              <div
+                v-if="editSheet.sheet_type === 'level_test'"
+                class="form-group"
+              >
+                <label class="form-label">Intentos permitidos</label>
+                <input
+                  v-model.number="editSheet.max_attempts"
+                  type="number"
+                  min="1"
+                  max="20"
+                  class="form-input"
+                  placeholder="1"
+                />
+                <small class="form-hint">
+                  Cuántas veces puede enviarla cada alumno. Vacío deja un
+                  intento, que es lo que valía hasta ahora.
+                </small>
+              </div>
+              <div
+                v-if="editSheet.sheet_type === 'level_test'"
+                class="form-group"
+              >
+                <label class="form-label">Tiempo límite (minutos)</label>
+                <input
+                  v-model.number="editSheet.time_limit_minutes"
+                  type="number"
+                  min="1"
+                  max="600"
+                  class="form-input"
+                  placeholder="Sin límite"
+                />
+                <small class="form-hint">
+                  Corre desde que el alumno abre la prueba, no desde la fecha:
+                  cada uno tiene el mismo tiempo. Vacío es sin límite.
                 </small>
               </div>
               <div class="form-group">

@@ -159,6 +159,16 @@
   // Timer — 30 min
   const TEST_DURATION_SECONDS = 30 * 60;
   const timeLeft = ref(TEST_DURATION_SECONDS);
+
+  // The countdown used to be 30 minutes held only here, so reloading the page
+  // handed the student a fresh half hour and the server never checked. When
+  // the teacher set a limit the API answers with the student's own deadline,
+  // which is the same instant it enforces on submit and survives a reload.
+  function secondsUntilDeadline(deadline?: string) {
+    if (!deadline) return null;
+    const remaining = Math.floor((new Date(deadline).getTime() - Date.now()) / 1000);
+    return Number.isFinite(remaining) ? Math.max(remaining, 0) : null;
+  }
   let timer: ReturnType<typeof setInterval> | null = null;
 
   function startTimer() {
@@ -309,6 +319,15 @@
   );
   const formattedTime = computed(() => formatDuration(timeLeft.value));
 
+  // Shown only when the teacher allowed more than one: on a single-attempt
+  // test "te queda 1 intento" is noise next to a countdown.
+  const attemptsLeftLabel = computed(() => {
+    const allowed = sheet.value?.attempts_allowed ?? 0;
+    if (allowed <= 1) return "";
+    const left = Math.max(allowed - (sheet.value?.attempts_used ?? 0), 0);
+    return left === 1 ? "Último intento" : `${left} intentos restantes`;
+  });
+
   // Canvas helpers
 
   function setCanvasRef(id: string, el: InstanceType<typeof DrawingCanvas> | null) {
@@ -340,6 +359,8 @@
     const id = route.params.id as string;
     try {
       sheet.value = await loadPracticeSheet(id);
+      const remaining = secondsUntilDeadline(sheet.value.deadline);
+      if (remaining !== null) timeLeft.value = remaining;
       loadTeacherImages();
       // Publish where the student starts. Nothing else does it now: the label
       // used to be published by the hover handler on every exercise card, and
@@ -746,9 +767,12 @@
             >Prueba de Nivel — respondé correctamente el 75% para avanzar</span
           >
         </div>
-        <div class="timer" :class="{ 'timer--warning': timeLeft < 120 }">
-          <i class="pi pi-clock"></i>
-          {{ formattedTime }}
+        <div class="test-header-aside">
+          <span v-if="attemptsLeftLabel" class="attempts-left">{{ attemptsLeftLabel }}</span>
+          <div class="timer" :class="{ 'timer--warning': timeLeft < 120 }">
+            <i class="pi pi-clock"></i>
+            {{ formattedTime }}
+          </div>
         </div>
       </header>
 
@@ -2517,4 +2541,20 @@
   @keyframes spin {
     to { transform: rotate(360deg); }
   }
+  .test-header-aside {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .attempts-left {
+    padding: 4px 10px;
+    border-radius: 999px;
+    background: var(--fill-primary-soft);
+    color: var(--practiq-violet-dark);
+    font-size: 12px;
+    font-weight: 800;
+    white-space: nowrap;
+  }
+
 </style>
