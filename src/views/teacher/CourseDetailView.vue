@@ -1,4 +1,5 @@
 <script setup lang="ts">
+  import UiModal from "@/components/ui/UiModal.vue";
   import { computed, ref, reactive, onMounted, watch, nextTick } from "vue";
   import { useRoute, useRouter } from "vue-router";
   import { useToast } from "primevue/usetoast";
@@ -120,6 +121,12 @@
     { id: "sheets", label: "Hojas de Práctica", icon: "pi pi-copy" },
     { id: "notebooks", label: "Cuadernos", icon: "pi pi-book" },
   ];
+
+  function focusTab(index: number) {
+    const tab = tabs[(index + tabs.length) % tabs.length];
+    activeTab.value = tab.id;
+    document.getElementById(`tab-${tab.id}`)?.focus();
+  }
 
   const showTopicModal = ref(false);
   const showExerciseModal = ref(false);
@@ -1403,17 +1410,34 @@
       </div>
 
       <!-- Tabs -->
-      <div class="tabs">
+      <div class="tabs" role="tablist" aria-label="Secciones del curso">
         <button
-          v-for="tab in tabs"
+          v-for="(tab, index) in tabs"
+          :id="`tab-${tab.id}`"
           :key="tab.id"
           class="tab"
+          type="button"
+          role="tab"
+          :aria-selected="activeTab === tab.id"
+          aria-controls="course-tabpanel"
+          :tabindex="activeTab === tab.id ? 0 : -1"
           :class="{ 'tab-active': activeTab === tab.id }"
           @click="activeTab = tab.id"
+          @keydown.left.prevent="focusTab(index - 1)"
+          @keydown.right.prevent="focusTab(index + 1)"
+          @keydown.home.prevent="focusTab(0)"
+          @keydown.end.prevent="focusTab(tabs.length - 1)"
         >
           <i :class="tab.icon"></i> {{ tab.label }}
         </button>
       </div>
+
+      <div
+        id="course-tabpanel"
+        role="tabpanel"
+        :aria-labelledby="`tab-${activeTab}`"
+        tabindex="0"
+      >
 
       <!-- TAB: Niveles -->
       <CourseLevelsPanel
@@ -1498,6 +1522,7 @@
         @edit="openEditNotebook"
         @delete="deleteNotebook"
       />
+      </div>
     </div>
 
     <TopicModal
@@ -1509,480 +1534,473 @@
     />
 
     <!-- Exercise Modal -->
-    <Teleport to="body">
-      <Transition name="fade">
-        <div
-          v-if="showExerciseModal"
-          class="modal-overlay"
-          @click.self="showExerciseModal = false"
-        >
-          <div class="modal-box">
-            <h3 class="modal-title">Nuevo Ejercicio</h3>
-            <form @submit.prevent="createExercise">
-              <div class="form-group">
-                <label class="form-label">Tipo *</label>
-                <select v-model="newExercise.type" class="form-select" required>
-                  <option value="open_text">Texto abierto</option>
-                  <option value="equation">Ecuación</option>
-                  <option value="multiple_choice">Opción múltiple</option>
-                  <option value="canvas">Canvas/Dibujo</option>
-                  <option value="handwritten">Escrito a mano</option>
-                  <option value="attachment">📎 Entrega de archivo</option>
-                  <option value="fill_blanks">🧩 Completar huecos</option>
-                </select>
-              </div>
-              <div v-if="newExercise.type === 'fill_blanks'" class="form-group">
-                <label class="form-label">Huecos y opciones</label>
-                <FillBlanksEditor
-                  v-model="newExercise.fillBlanks"
-                  :statement="newExercise.question"
-                  @insert-blank="(marker) => (newExercise.question += marker)"
-                />
-              </div>
-              <div v-if="newExercise.type === 'attachment'" class="form-group">
-                <label class="form-label">Formatos aceptados</label>
-                <div class="accept-options">
-                  <label
-                    v-for="option in ATTACHMENT_KINDS"
-                    :key="option.value"
-                    class="accept-option"
-                  >
-                    <input
-                      v-model="newExercise.accept"
-                      type="checkbox"
-                      :value="option.value"
-                    />
-                    {{ option.label }}
-                  </label>
-                </div>
-                <small class="field-hint">
-                  Sin marcar ninguno se acepta cualquier formato soportado. El
-                  audio y las imágenes los corrige la IA; los PDF y documentos
-                  quedan para tu revisión.
-                </small>
-              </div>
-              <div class="form-group">
-                <label class="form-label">Pregunta *</label>
-                <template v-if="newExercise.type === 'equation'">
-                  <div class="equation-editor-wrap">
-                    <div class="equation-editor-label">Editor de ecuación</div>
-                    <MathFieldEditor v-model="newExercise.question" />
-                  </div>
-                  <div class="field-hint">
-                    Usa el teclado virtual o escribe LaTeX directamente.
-                    Ejemplo: \frac{2x+4}{3}=10
-                  </div>
-                </template>
-                <textarea
-                  v-else
-                  v-model="newExercise.question"
-                  class="form-textarea"
-                  :class="{
-                    'form-textarea--large': needsLargeQuestionInput(
-                      newExercise.type,
-                    ),
-                  }"
-                  :placeholder="questionPlaceholder(newExercise.type)"
-                  :required="newExercise.type !== 'handwritten'"
-                  :rows="needsLargeQuestionInput(newExercise.type) ? 6 : 2"
-                ></textarea>
-              </div>
-              <div v-if="newExercise.type === 'handwritten'" class="form-group">
-                <label class="form-label">Consigna manuscrita</label>
-                <div class="teacher-canvas-wrap">
-                  <div class="teacher-canvas-toolbar">
-                    <span>Escribe aquí el ejercicio que verá el alumno</span>
-                    <button
-                      type="button"
-                      class="btn btn-ghost btn-sm"
-                      @click="clearTeacherCanvas('new')"
-                    >
-                      <i class="pi pi-trash"></i> Limpiar
-                    </button>
-                  </div>
-                  <canvas
-                    :ref="
-                      (el) =>
-                        setTeacherCanvasRef(
-                          'new',
-                          el as HTMLCanvasElement | null,
-                        )
-                    "
-                    class="teacher-canvas"
-                    @mousedown="startTeacherDraw($event, 'new')"
-                    @mousemove="drawTeacherCanvas($event, 'new')"
-                    @mouseup="stopTeacherDraw('new')"
-                    @mouseleave="stopTeacherDraw('new')"
-                    @touchstart.prevent="startTeacherDrawTouch($event, 'new')"
-                    @touchmove.prevent="drawTeacherCanvasTouch($event, 'new')"
-                    @touchend="stopTeacherDraw('new')"
-                  ></canvas>
-                </div>
-              </div>
-              <div class="form-group">
-                <label class="form-label">Material del enunciado</label>
-                <FileUploadField
-                  ref="newExerciseUpload"
-                  v-model="newExercise.media_url"
-                  folder="exercises"
-                  label="Subir archivo"
-                  :accept="STATEMENT_MEDIA_ACCEPT"
-                />
-                <small class="field-hint">
-                  Opcional. Imagen, audio, PDF o documento. El alumno lo recibe
-                  junto a la consigna; el asistente sólo lee imágenes y audio.
-                  Máximo 50 MB.
-                </small>
-              </div>
-              <div class="form-group">
-                <label class="form-label">Respuesta correcta</label>
-                <template v-if="newExercise.type === 'equation'">
-                  <MathFieldEditor
-                    v-model="newExercise.correct_answer"
-                    :show-latex-toggle="false"
-                    virtual-keyboard-mode="manual"
-                  />
-                  <div class="field-hint">
-                    Escribe la respuesta esperada. Ejemplo: x=13
-                  </div>
-                </template>
-                <input
-                  v-else
-                  v-model="newExercise.correct_answer"
-                  class="form-input"
-                  :placeholder="answerPlaceholder(newExercise.type)"
-                />
-              </div>
-              <div
-                v-if="newExercise.type === 'multiple_choice'"
-                class="form-group"
-              >
-                <label class="form-label">Opciones</label>
-                <div class="options-editor">
-                  <input
-                    v-for="(_, idx) in newExercise.options"
-                    :key="idx"
-                    v-model="newExercise.options[idx]"
-                    class="form-input"
-                    :placeholder="`Opción ${idx + 1}`"
-                  />
-                </div>
-              </div>
-              <div class="form-group">
-                <label class="form-label">Explicación</label>
-                <textarea
-                  v-model="newExercise.explanation"
-                  class="form-textarea"
-                  rows="2"
-                ></textarea>
-              </div>
-              <div class="form-group">
-                <label class="form-label">Dificultad (1-10)</label>
-                <input
-                  v-model.number="newExercise.difficulty"
-                  type="number"
-                  class="form-input"
-                  min="1"
-                  max="10"
-                />
-              </div>
-              <div class="modal-actions">
-                <button
-                  type="button"
-                  class="btn btn-secondary"
-                  @click="showExerciseModal = false"
+    <UiModal
+      :visible="Boolean(showExerciseModal)"
+      @close="showExerciseModal = false"
+    >
+      <template v-if="showExerciseModal">
+        <div class="modal-box">
+          <h3 class="modal-title">Nuevo Ejercicio</h3>
+          <form @submit.prevent="createExercise">
+            <div class="form-group">
+              <label class="form-label">Tipo *</label>
+              <select v-model="newExercise.type" class="form-select" required>
+                <option value="open_text">Texto abierto</option>
+                <option value="equation">Ecuación</option>
+                <option value="multiple_choice">Opción múltiple</option>
+                <option value="canvas">Canvas/Dibujo</option>
+                <option value="handwritten">Escrito a mano</option>
+                <option value="attachment">📎 Entrega de archivo</option>
+                <option value="fill_blanks">🧩 Completar huecos</option>
+              </select>
+            </div>
+            <div v-if="newExercise.type === 'fill_blanks'" class="form-group">
+              <label class="form-label">Huecos y opciones</label>
+              <FillBlanksEditor
+                v-model="newExercise.fillBlanks"
+                :statement="newExercise.question"
+                @insert-blank="(marker) => (newExercise.question += marker)"
+              />
+            </div>
+            <div v-if="newExercise.type === 'attachment'" class="form-group">
+              <label class="form-label">Formatos aceptados</label>
+              <div class="accept-options">
+                <label
+                  v-for="option in ATTACHMENT_KINDS"
+                  :key="option.value"
+                  class="accept-option"
                 >
-                  Cancelar
-                </button>
-                <button type="submit" class="btn btn-primary">
-                  Crear Ejercicio
-                </button>
+                  <input
+                    v-model="newExercise.accept"
+                    type="checkbox"
+                    :value="option.value"
+                  />
+                  {{ option.label }}
+                </label>
               </div>
-            </form>
-          </div>
-        </div>
-      </Transition>
-    </Teleport>
-
-    <Teleport to="body">
-      <Transition name="fade">
-        <div v-if="showAIDraftsModal" class="modal-overlay" @click.self="showAIDraftsModal = false">
-          <div class="modal-box ai-drafts-modal">
-            <h3 class="modal-title"><i class="pi pi-sparkles"></i> Crear ejercicios con IA</h3>
-            <p class="field-hint">Subí una guía, evaluación o imagen, o escribí el tema. Gillie crea borradores; vos los revisás antes de publicarlos.</p>
-            <template v-if="!aiDrafts.length">
-              <div class="form-group"><label class="form-label">Archivo fuente <span class="label-optional">(opcional)</span></label><input type="file" accept=".pdf,.docx,image/png,image/jpeg,image/webp" @change="aiSource = (($event.target as HTMLInputElement).files?.[0] || null)" /></div>
-              <div class="form-group"><label class="form-label">Tipo de ejercicio</label><select v-model="aiType" class="form-select"><option value="">Variado</option><option value="open_text">Texto abierto</option><option value="multiple_choice">Opción múltiple</option><option value="equation">Ecuación</option><option value="fill_blanks">🧩 Completar huecos</option></select></div>
-              <div class="form-grid"><div class="form-group"><label class="form-label">Cantidad</label><input v-model.number="aiCount" class="form-input" type="number" min="1" max="10" /></div><div class="form-group"><label class="form-label">Dificultad</label><input v-model.number="aiDifficulty" class="form-input" type="number" min="1" max="10" /></div></div>
-              <div class="form-group"><label class="form-label">Tema o indicación</label><textarea v-model="aiInstruction" class="form-textarea" rows="2" placeholder="Ej.: fracciones equivalentes con denominadores hasta 12" /><small class="field-hint">Sin archivo, esto es lo único que usa Gillie para generar los ejercicios.</small></div>
-              <div class="modal-actions"><button class="btn btn-secondary" @click="showAIDraftsModal = false">Cancelar</button><button class="btn btn-primary" :disabled="!canGenerateDrafts || aiGenerating" @click="generateExerciseDrafts"><i class="pi" :class="aiGenerating ? 'pi-spin pi-spinner' : 'pi-sparkles'"></i> {{ aiGenerating ? "Generando…" : "Generar borradores" }}</button></div>
-            </template>
-            <template v-else>
-              <p class="field-hint">Editá o quitá los que no quieras. Nada se guarda hasta confirmar.</p>
-              <div v-for="(draft, index) in aiDrafts" :key="index" class="ai-draft-card" :class="{ 'ai-draft-card--incomplete': !draftIsComplete(draft) }">
-                <button class="btn btn-ghost btn-sm ai-draft-remove" @click="aiDrafts.splice(index, 1)"><i class="pi pi-times"></i></button>
-                <select v-model="draft.type" class="form-select"><option value="open_text">Texto abierto</option><option value="multiple_choice">Opción múltiple</option><option value="equation">Ecuación</option><option value="fill_blanks">🧩 Completar huecos</option></select>
-                <textarea v-model="draft.question" class="form-textarea" rows="2" :placeholder="draft.type === 'fill_blanks' ? 'Enunciado con huecos: El agua hierve a {{1}} grados.' : 'Consigna'" />
-                <template v-if="draft.type === 'multiple_choice'">
-                  <span class="ai-draft-label">Opciones — marcá la correcta</span>
-                  <label v-for="(_, position) in (draft.metadata?.options || [])" :key="position" class="ai-draft-option">
-                    <input
-                      type="radio"
-                      :name="`draft-${index}-correct`"
-                      :checked="Boolean(draft.metadata?.options?.[position]?.trim()) && draft.correct_answer.trim() === draft.metadata?.options?.[position]?.trim()"
-                      :disabled="!draft.metadata?.options?.[position]?.trim()"
-                      @change="draft.correct_answer = (draft.metadata?.options?.[position] || '').trim()"
-                    />
-                    <input :value="draft.metadata?.options?.[position]" class="form-input" :placeholder="`Opción ${position + 1}`" @input="setDraftOption(draft, position, ($event.target as HTMLInputElement).value)" />
-                  </label>
-                </template>
-                <FillBlanksEditor
-                  v-else-if="draft.type === 'fill_blanks'"
-                  v-model="draft.fillBlanks"
-                  :statement="draft.question"
-                  @insert-blank="(marker: string) => (draft.question += marker)"
+              <small class="field-hint">
+                Sin marcar ninguno se acepta cualquier formato soportado. El
+                audio y las imágenes los corrige la IA; los PDF y documentos
+                quedan para tu revisión.
+              </small>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Pregunta *</label>
+              <template v-if="newExercise.type === 'equation'">
+                <div class="equation-editor-wrap">
+                  <div class="equation-editor-label">Editor de ecuación</div>
+                  <MathFieldEditor v-model="newExercise.question" />
+                </div>
+                <div class="field-hint">
+                  Usa el teclado virtual o escribe LaTeX directamente.
+                  Ejemplo: \frac{2x+4}{3}=10
+                </div>
+              </template>
+              <textarea
+                v-else
+                v-model="newExercise.question"
+                class="form-textarea"
+                :class="{
+                  'form-textarea--large': needsLargeQuestionInput(
+                    newExercise.type,
+                  ),
+                }"
+                :placeholder="questionPlaceholder(newExercise.type)"
+                :required="newExercise.type !== 'handwritten'"
+                :rows="needsLargeQuestionInput(newExercise.type) ? 6 : 2"
+              ></textarea>
+            </div>
+            <div v-if="newExercise.type === 'handwritten'" class="form-group">
+              <label class="form-label">Consigna manuscrita</label>
+              <div class="teacher-canvas-wrap">
+                <div class="teacher-canvas-toolbar">
+                  <span>Escribe aquí el ejercicio que verá el alumno</span>
+                  <button
+                    type="button"
+                    class="btn btn-ghost btn-sm"
+                    @click="clearTeacherCanvas('new')"
+                  >
+                    <i class="pi pi-trash"></i> Limpiar
+                  </button>
+                </div>
+                <canvas
+                  :ref="
+                    (el) =>
+                      setTeacherCanvasRef(
+                        'new',
+                        el as HTMLCanvasElement | null,
+                      )
+                  "
+                  class="teacher-canvas"
+                  @mousedown="startTeacherDraw($event, 'new')"
+                  @mousemove="drawTeacherCanvas($event, 'new')"
+                  @mouseup="stopTeacherDraw('new')"
+                  @mouseleave="stopTeacherDraw('new')"
+                  @touchstart.prevent="startTeacherDrawTouch($event, 'new')"
+                  @touchmove.prevent="drawTeacherCanvasTouch($event, 'new')"
+                  @touchend="stopTeacherDraw('new')"
+                ></canvas>
+              </div>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Material del enunciado</label>
+              <FileUploadField
+                ref="newExerciseUpload"
+                v-model="newExercise.media_url"
+                folder="exercises"
+                label="Subir archivo"
+                :accept="STATEMENT_MEDIA_ACCEPT"
+              />
+              <small class="field-hint">
+                Opcional. Imagen, audio, PDF o documento. El alumno lo recibe
+                junto a la consigna; el asistente sólo lee imágenes y audio.
+                Máximo 50 MB.
+              </small>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Respuesta correcta</label>
+              <template v-if="newExercise.type === 'equation'">
+                <MathFieldEditor
+                  v-model="newExercise.correct_answer"
+                  :show-latex-toggle="false"
+                  virtual-keyboard-mode="manual"
                 />
-                <input v-else v-model="draft.correct_answer" class="form-input" placeholder="Respuesta correcta" />
-                <textarea v-model="draft.explanation" class="form-textarea" rows="2" placeholder="Explicación" />
-                <p v-if="draftProblem(draft)" class="ai-draft-problem">{{ draftProblem(draft) }}</p>
+                <div class="field-hint">
+                  Escribe la respuesta esperada. Ejemplo: x=13
+                </div>
+              </template>
+              <input
+                v-else
+                v-model="newExercise.correct_answer"
+                class="form-input"
+                :placeholder="answerPlaceholder(newExercise.type)"
+              />
+            </div>
+            <div
+              v-if="newExercise.type === 'multiple_choice'"
+              class="form-group"
+            >
+              <label class="form-label">Opciones</label>
+              <div class="options-editor">
+                <input
+                  v-for="(_, idx) in newExercise.options"
+                  :key="idx"
+                  v-model="newExercise.options[idx]"
+                  class="form-input"
+                  :placeholder="`Opción ${idx + 1}`"
+                />
               </div>
-              <p v-if="incompleteDrafts" class="ai-draft-warning">
-                {{ incompleteDrafts === 1 ? "Hay un borrador incompleto." : `Hay ${incompleteDrafts} borradores incompletos.` }} Cada uno dice qué le falta.
-              </p>
-              <div class="modal-actions"><button class="btn btn-secondary" @click="aiDrafts = []">Volver</button><button class="btn btn-primary" :disabled="!aiDrafts.length || aiSaving || incompleteDrafts > 0" @click="saveAIDrafts">{{ aiSaving ? "Guardando…" : `Guardar ${aiDrafts.length} ${aiDrafts.length === 1 ? "ejercicio" : "ejercicios"}` }}</button></div>
-            </template>
-          </div>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Explicación</label>
+              <textarea
+                v-model="newExercise.explanation"
+                class="form-textarea"
+                rows="2"
+              ></textarea>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Dificultad (1-10)</label>
+              <input
+                v-model.number="newExercise.difficulty"
+                type="number"
+                class="form-input"
+                min="1"
+                max="10"
+              />
+            </div>
+            <div class="modal-actions">
+              <button
+                type="button"
+                class="btn btn-secondary"
+                @click="showExerciseModal = false"
+              >
+                Cancelar
+              </button>
+              <button type="submit" class="btn btn-primary">
+                Crear Ejercicio
+              </button>
+            </div>
+          </form>
         </div>
-      </Transition>
-    </Teleport>
+      </template>
+    </UiModal>
+
+    <UiModal
+      :visible="Boolean(showAIDraftsModal)"
+      @close="showAIDraftsModal = false"
+    >
+      <template v-if="showAIDraftsModal">
+        <div class="modal-box ai-drafts-modal">
+          <h3 class="modal-title"><i class="pi pi-sparkles"></i> Crear ejercicios con IA</h3>
+          <p class="field-hint">Subí una guía, evaluación o imagen, o escribí el tema. Gillie crea borradores; vos los revisás antes de publicarlos.</p>
+          <template v-if="!aiDrafts.length">
+            <div class="form-group"><label class="form-label">Archivo fuente <span class="label-optional">(opcional)</span></label><input type="file" accept=".pdf,.docx,image/png,image/jpeg,image/webp" @change="aiSource = (($event.target as HTMLInputElement).files?.[0] || null)" /></div>
+            <div class="form-group"><label class="form-label">Tipo de ejercicio</label><select v-model="aiType" class="form-select"><option value="">Variado</option><option value="open_text">Texto abierto</option><option value="multiple_choice">Opción múltiple</option><option value="equation">Ecuación</option><option value="fill_blanks">🧩 Completar huecos</option></select></div>
+            <div class="form-grid"><div class="form-group"><label class="form-label">Cantidad</label><input v-model.number="aiCount" class="form-input" type="number" min="1" max="10" /></div><div class="form-group"><label class="form-label">Dificultad</label><input v-model.number="aiDifficulty" class="form-input" type="number" min="1" max="10" /></div></div>
+            <div class="form-group"><label class="form-label">Tema o indicación</label><textarea v-model="aiInstruction" class="form-textarea" rows="2" placeholder="Ej.: fracciones equivalentes con denominadores hasta 12" /><small class="field-hint">Sin archivo, esto es lo único que usa Gillie para generar los ejercicios.</small></div>
+            <div class="modal-actions"><button class="btn btn-secondary" @click="showAIDraftsModal = false">Cancelar</button><button class="btn btn-primary" :disabled="!canGenerateDrafts || aiGenerating" @click="generateExerciseDrafts"><i class="pi" :class="aiGenerating ? 'pi-spin pi-spinner' : 'pi-sparkles'"></i> {{ aiGenerating ? "Generando…" : "Generar borradores" }}</button></div>
+          </template>
+          <template v-else>
+            <p class="field-hint">Editá o quitá los que no quieras. Nada se guarda hasta confirmar.</p>
+            <div v-for="(draft, index) in aiDrafts" :key="index" class="ai-draft-card" :class="{ 'ai-draft-card--incomplete': !draftIsComplete(draft) }">
+              <button class="btn btn-ghost btn-sm ai-draft-remove" @click="aiDrafts.splice(index, 1)"><i class="pi pi-times"></i></button>
+              <select v-model="draft.type" class="form-select"><option value="open_text">Texto abierto</option><option value="multiple_choice">Opción múltiple</option><option value="equation">Ecuación</option><option value="fill_blanks">🧩 Completar huecos</option></select>
+              <textarea v-model="draft.question" class="form-textarea" rows="2" :placeholder="draft.type === 'fill_blanks' ? 'Enunciado con huecos: El agua hierve a {{1}} grados.' : 'Consigna'" />
+              <template v-if="draft.type === 'multiple_choice'">
+                <span class="ai-draft-label">Opciones — marcá la correcta</span>
+                <label v-for="(_, position) in (draft.metadata?.options || [])" :key="position" class="ai-draft-option">
+                  <input
+                    type="radio"
+                    :name="`draft-${index}-correct`"
+                    :checked="Boolean(draft.metadata?.options?.[position]?.trim()) && draft.correct_answer.trim() === draft.metadata?.options?.[position]?.trim()"
+                    :disabled="!draft.metadata?.options?.[position]?.trim()"
+                    @change="draft.correct_answer = (draft.metadata?.options?.[position] || '').trim()"
+                  />
+                  <input :value="draft.metadata?.options?.[position]" class="form-input" :placeholder="`Opción ${position + 1}`" @input="setDraftOption(draft, position, ($event.target as HTMLInputElement).value)" />
+                </label>
+              </template>
+              <FillBlanksEditor
+                v-else-if="draft.type === 'fill_blanks'"
+                v-model="draft.fillBlanks"
+                :statement="draft.question"
+                @insert-blank="(marker: string) => (draft.question += marker)"
+              />
+              <input v-else v-model="draft.correct_answer" class="form-input" placeholder="Respuesta correcta" />
+              <textarea v-model="draft.explanation" class="form-textarea" rows="2" placeholder="Explicación" />
+              <p v-if="draftProblem(draft)" class="ai-draft-problem">{{ draftProblem(draft) }}</p>
+            </div>
+            <p v-if="incompleteDrafts" class="ai-draft-warning">
+              {{ incompleteDrafts === 1 ? "Hay un borrador incompleto." : `Hay ${incompleteDrafts} borradores incompletos.` }} Cada uno dice qué le falta.
+            </p>
+            <div class="modal-actions"><button class="btn btn-secondary" @click="aiDrafts = []">Volver</button><button class="btn btn-primary" :disabled="!aiDrafts.length || aiSaving || incompleteDrafts > 0" @click="saveAIDrafts">{{ aiSaving ? "Guardando…" : `Guardar ${aiDrafts.length} ${aiDrafts.length === 1 ? "ejercicio" : "ejercicios"}` }}</button></div>
+          </template>
+        </div>
+      </template>
+    </UiModal>
 
     <!-- Export Exercises Modal -->
-    <Teleport to="body">
-      <Transition name="fade">
-        <div v-if="showExportModal" class="modal-overlay" @click.self="showExportModal = false">
-          <div class="modal-box">
-            <h3 class="modal-title"><i class="pi pi-download"></i> Exportar ejercicios</h3>
-            <p class="field-hint">Elegí qué ejercicios de este tema exportar a un archivo JSON.</p>
+    <UiModal
+      :visible="Boolean(showExportModal)"
+      @close="showExportModal = false"
+    >
+      <template v-if="showExportModal">
+        <div class="modal-box">
+          <h3 class="modal-title"><i class="pi pi-download"></i> Exportar ejercicios</h3>
+          <p class="field-hint">Elegí qué ejercicios de este tema exportar a un archivo JSON.</p>
+          <label class="picker-select-all">
+            <input type="checkbox" :checked="exportAllSelected" @change="toggleExportAll" />
+            Seleccionar todos ({{ exercises.length }})
+          </label>
+          <div class="picker-list">
+            <label v-for="exercise in exercises" :key="exercise.id" class="picker-row">
+              <input
+                type="checkbox"
+                :checked="exportSelectedIds.has(exercise.id)"
+                @change="toggleExportExercise(exercise.id)"
+              />
+              <span class="picker-row-text">{{ exercise.question || "(sin enunciado)" }}</span>
+              <span class="picker-row-tag">{{ exercise.type }}</span>
+            </label>
+          </div>
+          <div class="modal-actions">
+            <button class="btn btn-secondary" @click="showExportModal = false">Cancelar</button>
+            <button class="btn btn-primary" :disabled="exportSelectedIds.size === 0" @click="confirmExport">
+              Exportar {{ exportSelectedIds.size }} {{ exportSelectedIds.size === 1 ? "ejercicio" : "ejercicios" }}
+            </button>
+          </div>
+        </div>
+      </template>
+    </UiModal>
+
+    <!-- Import Exercises Modal -->
+    <UiModal
+      :visible="Boolean(showImportModal)"
+      @close="showImportModal = false"
+    >
+      <template v-if="showImportModal">
+        <div class="modal-box">
+          <h3 class="modal-title"><i class="pi pi-upload"></i> Importar ejercicios</h3>
+          <template v-if="!importDrafts.length">
+            <p class="field-hint">Elegí un archivo JSON exportado desde Practiq (una lista de ejercicios).</p>
+            <div class="form-group">
+              <input type="file" accept="application/json" @change="onImportFileChange" />
+            </div>
+            <p v-if="importFileError" class="ai-draft-problem">{{ importFileError }}</p>
+            <div class="modal-actions">
+              <button class="btn btn-secondary" @click="showImportModal = false">Cancelar</button>
+            </div>
+          </template>
+          <template v-else>
+            <p class="field-hint">Elegí qué ejercicios importar a este tema.</p>
             <label class="picker-select-all">
-              <input type="checkbox" :checked="exportAllSelected" @change="toggleExportAll" />
-              Seleccionar todos ({{ exercises.length }})
+              <input type="checkbox" :checked="importAllSelected" @change="toggleImportAll" />
+              Seleccionar todos ({{ importDrafts.length }})
             </label>
             <div class="picker-list">
-              <label v-for="exercise in exercises" :key="exercise.id" class="picker-row">
-                <input
-                  type="checkbox"
-                  :checked="exportSelectedIds.has(exercise.id)"
-                  @change="toggleExportExercise(exercise.id)"
-                />
-                <span class="picker-row-text">{{ exercise.question || "(sin enunciado)" }}</span>
-                <span class="picker-row-tag">{{ exercise.type }}</span>
+              <label v-for="(draft, index) in importDrafts" :key="index" class="picker-row">
+                <input type="checkbox" :checked="draft.selected" @change="toggleImportDraft(index)" />
+                <span class="picker-row-text">{{ draft.question || "(sin enunciado)" }}</span>
+                <span class="picker-row-tag">{{ draft.type }}</span>
               </label>
             </div>
             <div class="modal-actions">
-              <button class="btn btn-secondary" @click="showExportModal = false">Cancelar</button>
-              <button class="btn btn-primary" :disabled="exportSelectedIds.size === 0" @click="confirmExport">
-                Exportar {{ exportSelectedIds.size }} {{ exportSelectedIds.size === 1 ? "ejercicio" : "ejercicios" }}
+              <button class="btn btn-secondary" @click="importDrafts = []">Volver</button>
+              <button class="btn btn-primary" :disabled="importSelectedCount === 0 || importSaving" @click="confirmImport">
+                {{ importSaving ? "Importando…" : `Importar ${importSelectedCount} ${importSelectedCount === 1 ? "ejercicio" : "ejercicios"}` }}
               </button>
             </div>
-          </div>
+          </template>
         </div>
-      </Transition>
-    </Teleport>
-
-    <!-- Import Exercises Modal -->
-    <Teleport to="body">
-      <Transition name="fade">
-        <div v-if="showImportModal" class="modal-overlay" @click.self="showImportModal = false">
-          <div class="modal-box">
-            <h3 class="modal-title"><i class="pi pi-upload"></i> Importar ejercicios</h3>
-            <template v-if="!importDrafts.length">
-              <p class="field-hint">Elegí un archivo JSON exportado desde Practiq (una lista de ejercicios).</p>
-              <div class="form-group">
-                <input type="file" accept="application/json" @change="onImportFileChange" />
-              </div>
-              <p v-if="importFileError" class="ai-draft-problem">{{ importFileError }}</p>
-              <div class="modal-actions">
-                <button class="btn btn-secondary" @click="showImportModal = false">Cancelar</button>
-              </div>
-            </template>
-            <template v-else>
-              <p class="field-hint">Elegí qué ejercicios importar a este tema.</p>
-              <label class="picker-select-all">
-                <input type="checkbox" :checked="importAllSelected" @change="toggleImportAll" />
-                Seleccionar todos ({{ importDrafts.length }})
-              </label>
-              <div class="picker-list">
-                <label v-for="(draft, index) in importDrafts" :key="index" class="picker-row">
-                  <input type="checkbox" :checked="draft.selected" @change="toggleImportDraft(index)" />
-                  <span class="picker-row-text">{{ draft.question || "(sin enunciado)" }}</span>
-                  <span class="picker-row-tag">{{ draft.type }}</span>
-                </label>
-              </div>
-              <div class="modal-actions">
-                <button class="btn btn-secondary" @click="importDrafts = []">Volver</button>
-                <button class="btn btn-primary" :disabled="importSelectedCount === 0 || importSaving" @click="confirmImport">
-                  {{ importSaving ? "Importando…" : `Importar ${importSelectedCount} ${importSelectedCount === 1 ? "ejercicio" : "ejercicios"}` }}
-                </button>
-              </div>
-            </template>
-          </div>
-        </div>
-      </Transition>
-    </Teleport>
+      </template>
+    </UiModal>
 
     <!-- Material Modal -->
-    <Teleport to="body">
-      <Transition name="fade">
-        <div
-          v-if="showMaterialModal"
-          class="modal-overlay"
-          @click.self="showMaterialModal = false"
-        >
-          <div class="modal-box">
-            <h3 class="modal-title">Agregar Material</h3>
-            <form @submit.prevent="createMaterial">
-              <div class="form-group">
-                <label class="form-label">Título *</label>
-                <input
-                  v-model="newMaterial.title"
-                  class="form-input"
-                  required
-                />
-              </div>
-              <div class="form-group">
-                <label class="form-label">Tipo *</label>
-                <select v-model="newMaterial.type" class="form-select" required>
-                  <option value="text">Texto</option>
-                  <option value="pdf">PDF</option>
-                  <option value="image">Imagen</option>
-                  <option value="video">Video</option>
-                  <option value="worksheet">Hoja de trabajo</option>
-                </select>
-              </div>
-              <div v-if="newMaterial.type !== 'text'" class="form-group">
-                <label class="form-label">Archivo *</label>
-                <FileUploadField
-                  ref="newMaterialUpload"
-                  v-model="newMaterial.file_url"
-                  folder="materials"
-                  label="Subir archivo"
-                  :accept="materialAccept(newMaterial.type)"
-                />
-                <small v-if="missingMaterialFile(newMaterial)" class="field-hint field-hint--error">
-                  Subí el archivo antes de guardar; si la subida falló, el
-                  material quedaría sin nada que abrir.
-                </small>
-                <small v-else class="field-hint">
-                  Los alumnos del curso pueden abrirlo desde su vista del curso.
-                </small>
-              </div>
-              <div class="form-group">
-                <label class="form-label">Contenido</label>
-                <textarea
-                  v-model="newMaterial.extracted_text"
-                  class="form-textarea"
-                  rows="4"
-                  placeholder="Escribe el contenido del material..."
-                ></textarea>
-              </div>
-              <div class="modal-actions">
-                <button
-                  type="button"
-                  class="btn btn-secondary"
-                  @click="showMaterialModal = false"
-                >
-                  Cancelar
-                </button>
-                <button
-                  type="submit"
-                  class="btn btn-primary"
-                  :disabled="missingMaterialFile(newMaterial)"
-                >
-                  Agregar
-                </button>
-              </div>
-            </form>
-          </div>
+    <UiModal
+      :visible="Boolean(showMaterialModal)"
+      @close="showMaterialModal = false"
+    >
+      <template v-if="showMaterialModal">
+        <div class="modal-box">
+          <h3 class="modal-title">Agregar Material</h3>
+          <form @submit.prevent="createMaterial">
+            <div class="form-group">
+              <label class="form-label">Título *</label>
+              <input
+                v-model="newMaterial.title"
+                class="form-input"
+                required
+              />
+            </div>
+            <div class="form-group">
+              <label class="form-label">Tipo *</label>
+              <select v-model="newMaterial.type" class="form-select" required>
+                <option value="text">Texto</option>
+                <option value="pdf">PDF</option>
+                <option value="image">Imagen</option>
+                <option value="video">Video</option>
+                <option value="worksheet">Hoja de trabajo</option>
+              </select>
+            </div>
+            <div v-if="newMaterial.type !== 'text'" class="form-group">
+              <label class="form-label">Archivo *</label>
+              <FileUploadField
+                ref="newMaterialUpload"
+                v-model="newMaterial.file_url"
+                folder="materials"
+                label="Subir archivo"
+                :accept="materialAccept(newMaterial.type)"
+              />
+              <small v-if="missingMaterialFile(newMaterial)" class="field-hint field-hint--error">
+                Subí el archivo antes de guardar; si la subida falló, el
+                material quedaría sin nada que abrir.
+              </small>
+              <small v-else class="field-hint">
+                Los alumnos del curso pueden abrirlo desde su vista del curso.
+              </small>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Contenido</label>
+              <textarea
+                v-model="newMaterial.extracted_text"
+                class="form-textarea"
+                rows="4"
+                placeholder="Escribe el contenido del material..."
+              ></textarea>
+            </div>
+            <div class="modal-actions">
+              <button
+                type="button"
+                class="btn btn-secondary"
+                @click="showMaterialModal = false"
+              >
+                Cancelar
+              </button>
+              <button
+                type="submit"
+                class="btn btn-primary"
+                :disabled="missingMaterialFile(newMaterial)"
+              >
+                Agregar
+              </button>
+            </div>
+          </form>
         </div>
-      </Transition>
-    </Teleport>
+      </template>
+    </UiModal>
 
     <!-- Edit Material Modal -->
-    <Teleport to="body">
-      <Transition name="fade">
-        <div
-          v-if="showEditMaterialModal"
-          class="modal-overlay"
-          @click.self="showEditMaterialModal = false"
-        >
-          <div class="modal-box">
-            <h3 class="modal-title">Editar Material</h3>
-            <form @submit.prevent="saveMaterial">
-              <div class="form-group">
-                <label class="form-label">Título *</label>
-                <input
-                  v-model="editMaterial.title"
-                  class="form-input"
-                  required
-                />
-              </div>
-              <div v-if="editMaterial.type !== 'text'" class="form-group">
-                <label class="form-label">Archivo *</label>
-                <FileUploadField
-                  ref="editMaterialUpload"
-                  v-model="editMaterial.file_url"
-                  folder="materials"
-                  label="Reemplazar archivo"
-                  :accept="materialAccept(editMaterial.type)"
-                />
-                <small v-if="missingMaterialFile(editMaterial)" class="field-hint field-hint--error">
-                  Este material no tiene archivo: el alumno lo ve listado pero
-                  no puede abrirlo.
-                </small>
-              </div>
-              <div class="form-group">
-                <label class="form-label">Contenido</label>
-                <textarea
-                  v-model="editMaterial.extracted_text"
-                  class="form-textarea"
-                  rows="4"
-                  :disabled="!editMaterialReady"
-                ></textarea>
-                <small v-if="!editMaterialReady" class="field-hint">
-                  Cargando contenido completo…
-                </small>
-              </div>
-              <div class="modal-actions">
-                <button
-                  type="button"
-                  class="btn btn-secondary"
-                  @click="showEditMaterialModal = false"
-                >
-                  Cancelar
-                </button>
-                <button
-                  type="submit"
-                  class="btn btn-primary"
-                  :disabled="!editMaterialReady || missingMaterialFile(editMaterial)"
-                >
-                  Guardar
-                </button>
-              </div>
-            </form>
-          </div>
+    <UiModal
+      :visible="Boolean(showEditMaterialModal)"
+      @close="showEditMaterialModal = false"
+    >
+      <template v-if="showEditMaterialModal">
+        <div class="modal-box">
+          <h3 class="modal-title">Editar Material</h3>
+          <form @submit.prevent="saveMaterial">
+            <div class="form-group">
+              <label class="form-label">Título *</label>
+              <input
+                v-model="editMaterial.title"
+                class="form-input"
+                required
+              />
+            </div>
+            <div v-if="editMaterial.type !== 'text'" class="form-group">
+              <label class="form-label">Archivo *</label>
+              <FileUploadField
+                ref="editMaterialUpload"
+                v-model="editMaterial.file_url"
+                folder="materials"
+                label="Reemplazar archivo"
+                :accept="materialAccept(editMaterial.type)"
+              />
+              <small v-if="missingMaterialFile(editMaterial)" class="field-hint field-hint--error">
+                Este material no tiene archivo: el alumno lo ve listado pero
+                no puede abrirlo.
+              </small>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Contenido</label>
+              <textarea
+                v-model="editMaterial.extracted_text"
+                class="form-textarea"
+                rows="4"
+                :disabled="!editMaterialReady"
+              ></textarea>
+              <small v-if="!editMaterialReady" class="field-hint">
+                Cargando contenido completo…
+              </small>
+            </div>
+            <div class="modal-actions">
+              <button
+                type="button"
+                class="btn btn-secondary"
+                @click="showEditMaterialModal = false"
+              >
+                Cancelar
+              </button>
+              <button
+                type="submit"
+                class="btn btn-primary"
+                :disabled="!editMaterialReady || missingMaterialFile(editMaterial)"
+              >
+                Guardar
+              </button>
+            </div>
+          </form>
         </div>
-      </Transition>
-    </Teleport>
+      </template>
+    </UiModal>
 
     <!-- Practice Sheet Modal -->
     <Teleport to="body">
       <!-- Notebook Modal -->
-      <Transition name="fade">
-        <div
-          v-if="showNotebookModal"
-          class="modal-overlay"
-          @click.self="showNotebookModal = false"
-        >
+      <UiModal
+        :visible="Boolean(showNotebookModal)"
+        @close="showNotebookModal = false"
+      >
+        <template v-if="showNotebookModal">
           <div class="modal-box">
             <h3 class="modal-title">Nuevo Cuaderno</h3>
             <form @submit.prevent="createNotebook">
@@ -2027,15 +2045,14 @@
               </div>
             </form>
           </div>
-        </div>
-      </Transition>
+        </template>
+      </UiModal>
 
-      <Transition name="fade">
-        <div
-          v-if="showSheetModal"
-          class="modal-overlay"
-          @click.self="showSheetModal = false"
-        >
+      <UiModal
+        :visible="Boolean(showSheetModal)"
+        @close="showSheetModal = false"
+      >
+        <template v-if="showSheetModal">
           <div class="modal-box">
             <h3 class="modal-title">Nueva Hoja de Práctica</h3>
             <form @submit.prevent="createSheet">
@@ -2187,421 +2204,412 @@
               </div>
             </form>
           </div>
-        </div>
-      </Transition>
+        </template>
+      </UiModal>
     </Teleport>
 
     <!-- Edit Sheet Modal -->
-    <Teleport to="body">
-      <Transition name="fade">
-        <div
-          v-if="showEditSheetModal"
-          class="modal-overlay"
-          @click.self="showEditSheetModal = false"
-        >
-          <div class="modal-box">
-            <h3 class="modal-title">Editar Hoja de Práctica</h3>
-            <form @submit.prevent="saveSheetEdit">
-              <div class="form-group">
-                <label class="form-label">Título *</label>
-                <input v-model="editSheet.title" class="form-input" required />
-              </div>
-              <div class="form-group">
-                <label class="form-label">Tema</label>
-                <select v-model="editSheet.topic_id" class="form-select">
-                  <option value="">Sin tema específico</option>
-                  <option v-for="t in topics" :key="t.id" :value="t.id">
-                    {{ t.title }}
-                  </option>
-                </select>
-              </div>
-              <div class="form-group">
-                <label class="form-label">Tipo</label>
-                <select v-model="editSheet.sheet_type" class="form-select">
-                  <option value="practice">Hoja de Práctica</option>
-                  <option value="level_test">🏆 Prueba de Nivel</option>
-                </select>
-              </div>
-              <div
-                v-if="editSheet.sheet_type === 'level_test'"
-                class="form-group"
-              >
-                <label class="form-label">Estilo de respuesta</label>
-                <select v-model="editSheet.test_style" class="form-select">
-                  <option value="keyboard">⌨️ Teclado (texto)</option>
-                  <option value="canvas">✏️ Hoja (dibujar)</option>
-                </select>
-              </div>
-              <div
-                v-if="editSheet.sheet_type === 'level_test'"
-                class="form-group"
-              >
-                <label class="form-label">Fecha y hora de la prueba</label>
-                <input
-                  v-model="editSheet.scheduled_at"
-                  type="datetime-local"
-                  class="form-input"
-                />
-                <small class="form-hint">
-                  Los alumnos reciben una notificación y no pueden rendirla
-                  antes de esa fecha. Dejalo vacío para habilitarla siempre.
-                </small>
-              </div>
-              <div
-                v-if="editSheet.sheet_type === 'level_test'"
-                class="form-group"
-              >
-                <label class="form-label">Cierre (opcional)</label>
-                <input
-                  v-model="editSheet.available_until"
-                  :min="editSheet.scheduled_at || undefined"
-                  :disabled="!editSheet.scheduled_at"
-                  type="datetime-local"
-                  class="form-input"
-                />
-                <small class="form-hint">
-                  Elegí primero la fecha de la prueba. Después de esta fecha ya
-                  no pueden rendirla; vacío queda sin plazo.
-                </small>
-              </div>
-              <div
-                v-if="editSheet.sheet_type === 'level_test'"
-                class="form-group"
-              >
-                <label class="form-label">Intentos permitidos</label>
-                <input
-                  v-model.number="editSheet.max_attempts"
-                  type="number"
-                  min="1"
-                  max="20"
-                  class="form-input"
-                  placeholder="1"
-                />
-                <small class="form-hint">
-                  Cuántas veces puede enviarla cada alumno. Vacío deja un
-                  intento, que es lo que valía hasta ahora.
-                </small>
-              </div>
-              <div
-                v-if="editSheet.sheet_type === 'level_test'"
-                class="form-group"
-              >
-                <label class="form-label">Tiempo límite (minutos)</label>
-                <input
-                  v-model.number="editSheet.time_limit_minutes"
-                  type="number"
-                  min="1"
-                  max="600"
-                  class="form-input"
-                  placeholder="Sin límite"
-                />
-                <small class="form-hint">
-                  Corre desde que el alumno abre la prueba, no desde la fecha:
-                  cada uno tiene el mismo tiempo. Vacío es sin límite.
-                </small>
-              </div>
-              <div class="form-group">
-                <label class="form-label">Nivel</label>
-                <input
-                  v-model.number="editSheet.level"
-                  type="number"
-                  class="form-input"
-                  min="1"
-                />
-              </div>
-              <div class="form-group">
-                <label class="form-label">Ejercicios</label>
-                <div class="exercise-selector">
-                  <div
-                    v-if="editSheetExercises.length === 0"
-                    class="empty-inline empty-inline--compact"
-                  >
-                    {{
-                      editSheet.topic_id
-                        ? "Este tema no tiene ejercicios aún."
-                        : "Selecciona un tema para ver los ejercicios."
-                    }}
-                  </div>
-                  <label
-                    v-for="ex in editSheetExercises"
-                    :key="ex.id"
-                    class="exercise-checkbox"
-                  >
-                    <input
-                      type="checkbox"
-                      :value="ex.id"
-                      v-model="editSheet.exercise_ids"
-                    />
-                    <span>{{ ex.question.slice(0, 60) }}...</span>
-                  </label>
+    <UiModal
+      :visible="Boolean(showEditSheetModal)"
+      @close="showEditSheetModal = false"
+    >
+      <template v-if="showEditSheetModal">
+        <div class="modal-box">
+          <h3 class="modal-title">Editar Hoja de Práctica</h3>
+          <form @submit.prevent="saveSheetEdit">
+            <div class="form-group">
+              <label class="form-label">Título *</label>
+              <input v-model="editSheet.title" class="form-input" required />
+            </div>
+            <div class="form-group">
+              <label class="form-label">Tema</label>
+              <select v-model="editSheet.topic_id" class="form-select">
+                <option value="">Sin tema específico</option>
+                <option v-for="t in topics" :key="t.id" :value="t.id">
+                  {{ t.title }}
+                </option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Tipo</label>
+              <select v-model="editSheet.sheet_type" class="form-select">
+                <option value="practice">Hoja de Práctica</option>
+                <option value="level_test">🏆 Prueba de Nivel</option>
+              </select>
+            </div>
+            <div
+              v-if="editSheet.sheet_type === 'level_test'"
+              class="form-group"
+            >
+              <label class="form-label">Estilo de respuesta</label>
+              <select v-model="editSheet.test_style" class="form-select">
+                <option value="keyboard">⌨️ Teclado (texto)</option>
+                <option value="canvas">✏️ Hoja (dibujar)</option>
+              </select>
+            </div>
+            <div
+              v-if="editSheet.sheet_type === 'level_test'"
+              class="form-group"
+            >
+              <label class="form-label">Fecha y hora de la prueba</label>
+              <input
+                v-model="editSheet.scheduled_at"
+                type="datetime-local"
+                class="form-input"
+              />
+              <small class="form-hint">
+                Los alumnos reciben una notificación y no pueden rendirla
+                antes de esa fecha. Dejalo vacío para habilitarla siempre.
+              </small>
+            </div>
+            <div
+              v-if="editSheet.sheet_type === 'level_test'"
+              class="form-group"
+            >
+              <label class="form-label">Cierre (opcional)</label>
+              <input
+                v-model="editSheet.available_until"
+                :min="editSheet.scheduled_at || undefined"
+                :disabled="!editSheet.scheduled_at"
+                type="datetime-local"
+                class="form-input"
+              />
+              <small class="form-hint">
+                Elegí primero la fecha de la prueba. Después de esta fecha ya
+                no pueden rendirla; vacío queda sin plazo.
+              </small>
+            </div>
+            <div
+              v-if="editSheet.sheet_type === 'level_test'"
+              class="form-group"
+            >
+              <label class="form-label">Intentos permitidos</label>
+              <input
+                v-model.number="editSheet.max_attempts"
+                type="number"
+                min="1"
+                max="20"
+                class="form-input"
+                placeholder="1"
+              />
+              <small class="form-hint">
+                Cuántas veces puede enviarla cada alumno. Vacío deja un
+                intento, que es lo que valía hasta ahora.
+              </small>
+            </div>
+            <div
+              v-if="editSheet.sheet_type === 'level_test'"
+              class="form-group"
+            >
+              <label class="form-label">Tiempo límite (minutos)</label>
+              <input
+                v-model.number="editSheet.time_limit_minutes"
+                type="number"
+                min="1"
+                max="600"
+                class="form-input"
+                placeholder="Sin límite"
+              />
+              <small class="form-hint">
+                Corre desde que el alumno abre la prueba, no desde la fecha:
+                cada uno tiene el mismo tiempo. Vacío es sin límite.
+              </small>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Nivel</label>
+              <input
+                v-model.number="editSheet.level"
+                type="number"
+                class="form-input"
+                min="1"
+              />
+            </div>
+            <div class="form-group">
+              <label class="form-label">Ejercicios</label>
+              <div class="exercise-selector">
+                <div
+                  v-if="editSheetExercises.length === 0"
+                  class="empty-inline empty-inline--compact"
+                >
+                  {{
+                    editSheet.topic_id
+                      ? "Este tema no tiene ejercicios aún."
+                      : "Selecciona un tema para ver los ejercicios."
+                  }}
                 </div>
-              </div>
-              <div class="modal-actions">
-                <button
-                  type="button"
-                  class="btn btn-danger"
-                  @click="deleteEditingSheet"
+                <label
+                  v-for="ex in editSheetExercises"
+                  :key="ex.id"
+                  class="exercise-checkbox"
                 >
-                  <i class="pi pi-trash"></i> Eliminar
-                </button>
-                <button
-                  type="button"
-                  class="btn btn-secondary"
-                  @click="showEditSheetModal = false"
-                >
-                  Cancelar
-                </button>
-                <button type="submit" class="btn btn-primary">Guardar</button>
+                  <input
+                    type="checkbox"
+                    :value="ex.id"
+                    v-model="editSheet.exercise_ids"
+                  />
+                  <span>{{ ex.question.slice(0, 60) }}...</span>
+                </label>
               </div>
-            </form>
-          </div>
+            </div>
+            <div class="modal-actions">
+              <button
+                type="button"
+                class="btn btn-danger"
+                @click="deleteEditingSheet"
+              >
+                <i class="pi pi-trash"></i> Eliminar
+              </button>
+              <button
+                type="button"
+                class="btn btn-secondary"
+                @click="showEditSheetModal = false"
+              >
+                Cancelar
+              </button>
+              <button type="submit" class="btn btn-primary">Guardar</button>
+            </div>
+          </form>
         </div>
-      </Transition>
-    </Teleport>
+      </template>
+    </UiModal>
 
     <!-- Edit Exercise Modal -->
-    <Teleport to="body">
-      <Transition name="fade">
-        <div
-          v-if="showEditExerciseModal"
-          class="modal-overlay"
-          @click.self="showEditExerciseModal = false"
-        >
-          <div class="modal-box">
-            <h3 class="modal-title">Editar Ejercicio</h3>
-            <form @submit.prevent="saveExerciseEdit">
-              <div class="form-group">
-                <label class="form-label">Tipo *</label>
-                <select
-                  v-model="editExercise.type"
-                  class="form-select"
-                  required
+    <UiModal
+      :visible="Boolean(showEditExerciseModal)"
+      @close="showEditExerciseModal = false"
+    >
+      <template v-if="showEditExerciseModal">
+        <div class="modal-box">
+          <h3 class="modal-title">Editar Ejercicio</h3>
+          <form @submit.prevent="saveExerciseEdit">
+            <div class="form-group">
+              <label class="form-label">Tipo *</label>
+              <select
+                v-model="editExercise.type"
+                class="form-select"
+                required
+              >
+                <option value="open_text">Texto abierto</option>
+                <option value="equation">Ecuación</option>
+                <option value="multiple_choice">Opción múltiple</option>
+                <option value="canvas">Canvas/Dibujo</option>
+                <option value="handwritten">Escrito a mano</option>
+                <option value="attachment">📎 Entrega de archivo</option>
+                <option value="fill_blanks">🧩 Completar huecos</option>
+              </select>
+            </div>
+            <div v-if="editExercise.type === 'fill_blanks'" class="form-group">
+              <label class="form-label">Huecos y opciones</label>
+              <FillBlanksEditor
+                v-model="editExercise.fillBlanks"
+                :statement="editExercise.question"
+                @insert-blank="(marker) => (editExercise.question += marker)"
+              />
+            </div>
+            <div v-if="editExercise.type === 'attachment'" class="form-group">
+              <label class="form-label">Formatos aceptados</label>
+              <div class="accept-options">
+                <label
+                  v-for="option in ATTACHMENT_KINDS"
+                  :key="option.value"
+                  class="accept-option"
                 >
-                  <option value="open_text">Texto abierto</option>
-                  <option value="equation">Ecuación</option>
-                  <option value="multiple_choice">Opción múltiple</option>
-                  <option value="canvas">Canvas/Dibujo</option>
-                  <option value="handwritten">Escrito a mano</option>
-                  <option value="attachment">📎 Entrega de archivo</option>
-                  <option value="fill_blanks">🧩 Completar huecos</option>
-                </select>
-              </div>
-              <div v-if="editExercise.type === 'fill_blanks'" class="form-group">
-                <label class="form-label">Huecos y opciones</label>
-                <FillBlanksEditor
-                  v-model="editExercise.fillBlanks"
-                  :statement="editExercise.question"
-                  @insert-blank="(marker) => (editExercise.question += marker)"
-                />
-              </div>
-              <div v-if="editExercise.type === 'attachment'" class="form-group">
-                <label class="form-label">Formatos aceptados</label>
-                <div class="accept-options">
-                  <label
-                    v-for="option in ATTACHMENT_KINDS"
-                    :key="option.value"
-                    class="accept-option"
-                  >
-                    <input
-                      v-model="editExercise.accept"
-                      type="checkbox"
-                      :value="option.value"
-                    />
-                    {{ option.label }}
-                  </label>
-                </div>
-                <small class="field-hint">
-                  Sin marcar ninguno se acepta cualquier formato soportado. El
-                  audio y las imágenes los corrige la IA; los PDF y documentos
-                  quedan para tu revisión.
-                </small>
-              </div>
-              <div class="form-group">
-                <label class="form-label">Pregunta *</label>
-                <template v-if="editExercise.type === 'equation'">
-                  <div class="equation-editor-wrap">
-                    <div class="equation-editor-label">Editor de ecuación</div>
-                    <MathFieldEditor v-model="editExercise.question" />
-                  </div>
-                  <div class="field-hint">
-                    Usa el teclado virtual o escribe LaTeX directamente.
-                    Ejemplo: \frac{2x+4}{3}=10
-                  </div>
-                </template>
-                <textarea
-                  v-else
-                  v-model="editExercise.question"
-                  class="form-textarea"
-                  :class="{
-                    'form-textarea--large': needsLargeQuestionInput(
-                      editExercise.type,
-                    ),
-                  }"
-                  :placeholder="questionPlaceholder(editExercise.type)"
-                  :rows="needsLargeQuestionInput(editExercise.type) ? 6 : 2"
-                  :required="editExercise.type !== 'handwritten'"
-                ></textarea>
-              </div>
-              <div
-                v-if="editExercise.type === 'handwritten'"
-                class="form-group"
-              >
-                <label class="form-label">Consigna manuscrita</label>
-                <div class="teacher-canvas-wrap">
-                  <div class="teacher-canvas-toolbar">
-                    <span>Escribe aquí el ejercicio que verá el alumno</span>
-                    <button
-                      type="button"
-                      class="btn btn-ghost btn-sm"
-                      @click="clearTeacherCanvas('edit')"
-                    >
-                      <i class="pi pi-trash"></i> Limpiar
-                    </button>
-                  </div>
-                  <canvas
-                    :ref="
-                      (el) =>
-                        setTeacherCanvasRef(
-                          'edit',
-                          el as HTMLCanvasElement | null,
-                        )
-                    "
-                    class="teacher-canvas"
-                    @mousedown="startTeacherDraw($event, 'edit')"
-                    @mousemove="drawTeacherCanvas($event, 'edit')"
-                    @mouseup="stopTeacherDraw('edit')"
-                    @mouseleave="stopTeacherDraw('edit')"
-                    @touchstart.prevent="startTeacherDrawTouch($event, 'edit')"
-                    @touchmove.prevent="drawTeacherCanvasTouch($event, 'edit')"
-                    @touchend="stopTeacherDraw('edit')"
-                  ></canvas>
-                </div>
-              </div>
-              <div class="form-group">
-                <label class="form-label">Material del enunciado</label>
-                <FileUploadField
-                  ref="editExerciseUpload"
-                  v-model="editExercise.media_url"
-                  folder="exercises"
-                  label="Subir archivo"
-                  :accept="STATEMENT_MEDIA_ACCEPT"
-                />
-                <small class="field-hint">
-                  Opcional. Imagen, audio, PDF o documento. El alumno lo recibe
-                  junto a la consigna; el asistente sólo lee imágenes y audio.
-                  Máximo 50 MB.
-                </small>
-              </div>
-              <div class="form-group">
-                <label class="form-label">Respuesta correcta</label>
-                <template v-if="editExercise.type === 'equation'">
-                  <MathFieldEditor
-                    v-model="editExercise.correct_answer"
-                    :show-latex-toggle="false"
-                    virtual-keyboard-mode="manual"
-                  />
-                  <div class="field-hint">
-                    Escribe la respuesta esperada. Ejemplo: x=13
-                  </div>
-                </template>
-                <input
-                  v-else
-                  v-model="editExercise.correct_answer"
-                  class="form-input"
-                  :placeholder="answerPlaceholder(editExercise.type)"
-                />
-              </div>
-              <div
-                v-if="editExercise.type === 'multiple_choice'"
-                class="form-group"
-              >
-                <label class="form-label">Opciones</label>
-                <div class="options-editor">
                   <input
-                    v-for="(_, idx) in editExercise.options"
-                    :key="idx"
-                    v-model="editExercise.options[idx]"
-                    class="form-input"
-                    :placeholder="`Opción ${idx + 1}`"
+                    v-model="editExercise.accept"
+                    type="checkbox"
+                    :value="option.value"
                   />
+                  {{ option.label }}
+                </label>
+              </div>
+              <small class="field-hint">
+                Sin marcar ninguno se acepta cualquier formato soportado. El
+                audio y las imágenes los corrige la IA; los PDF y documentos
+                quedan para tu revisión.
+              </small>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Pregunta *</label>
+              <template v-if="editExercise.type === 'equation'">
+                <div class="equation-editor-wrap">
+                  <div class="equation-editor-label">Editor de ecuación</div>
+                  <MathFieldEditor v-model="editExercise.question" />
                 </div>
+                <div class="field-hint">
+                  Usa el teclado virtual o escribe LaTeX directamente.
+                  Ejemplo: \frac{2x+4}{3}=10
+                </div>
+              </template>
+              <textarea
+                v-else
+                v-model="editExercise.question"
+                class="form-textarea"
+                :class="{
+                  'form-textarea--large': needsLargeQuestionInput(
+                    editExercise.type,
+                  ),
+                }"
+                :placeholder="questionPlaceholder(editExercise.type)"
+                :rows="needsLargeQuestionInput(editExercise.type) ? 6 : 2"
+                :required="editExercise.type !== 'handwritten'"
+              ></textarea>
+            </div>
+            <div
+              v-if="editExercise.type === 'handwritten'"
+              class="form-group"
+            >
+              <label class="form-label">Consigna manuscrita</label>
+              <div class="teacher-canvas-wrap">
+                <div class="teacher-canvas-toolbar">
+                  <span>Escribe aquí el ejercicio que verá el alumno</span>
+                  <button
+                    type="button"
+                    class="btn btn-ghost btn-sm"
+                    @click="clearTeacherCanvas('edit')"
+                  >
+                    <i class="pi pi-trash"></i> Limpiar
+                  </button>
+                </div>
+                <canvas
+                  :ref="
+                    (el) =>
+                      setTeacherCanvasRef(
+                        'edit',
+                        el as HTMLCanvasElement | null,
+                      )
+                  "
+                  class="teacher-canvas"
+                  @mousedown="startTeacherDraw($event, 'edit')"
+                  @mousemove="drawTeacherCanvas($event, 'edit')"
+                  @mouseup="stopTeacherDraw('edit')"
+                  @mouseleave="stopTeacherDraw('edit')"
+                  @touchstart.prevent="startTeacherDrawTouch($event, 'edit')"
+                  @touchmove.prevent="drawTeacherCanvasTouch($event, 'edit')"
+                  @touchend="stopTeacherDraw('edit')"
+                ></canvas>
               </div>
-              <div class="form-group">
-                <label class="form-label">Explicación</label>
-                <textarea
-                  v-model="editExercise.explanation"
-                  class="form-textarea"
-                  rows="2"
-                ></textarea>
-              </div>
-              <div class="form-group">
-                <label class="form-label">Dificultad (1-10)</label>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Material del enunciado</label>
+              <FileUploadField
+                ref="editExerciseUpload"
+                v-model="editExercise.media_url"
+                folder="exercises"
+                label="Subir archivo"
+                :accept="STATEMENT_MEDIA_ACCEPT"
+              />
+              <small class="field-hint">
+                Opcional. Imagen, audio, PDF o documento. El alumno lo recibe
+                junto a la consigna; el asistente sólo lee imágenes y audio.
+                Máximo 50 MB.
+              </small>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Respuesta correcta</label>
+              <template v-if="editExercise.type === 'equation'">
+                <MathFieldEditor
+                  v-model="editExercise.correct_answer"
+                  :show-latex-toggle="false"
+                  virtual-keyboard-mode="manual"
+                />
+                <div class="field-hint">
+                  Escribe la respuesta esperada. Ejemplo: x=13
+                </div>
+              </template>
+              <input
+                v-else
+                v-model="editExercise.correct_answer"
+                class="form-input"
+                :placeholder="answerPlaceholder(editExercise.type)"
+              />
+            </div>
+            <div
+              v-if="editExercise.type === 'multiple_choice'"
+              class="form-group"
+            >
+              <label class="form-label">Opciones</label>
+              <div class="options-editor">
                 <input
-                  v-model.number="editExercise.difficulty"
-                  type="number"
+                  v-for="(_, idx) in editExercise.options"
+                  :key="idx"
+                  v-model="editExercise.options[idx]"
                   class="form-input"
-                  min="1"
-                  max="10"
+                  :placeholder="`Opción ${idx + 1}`"
                 />
               </div>
-              <div class="modal-actions">
-                <button
-                  type="button"
-                  class="btn btn-secondary"
-                  @click="showEditExerciseModal = false"
-                >
-                  Cancelar
-                </button>
-                <button type="submit" class="btn btn-primary">Guardar</button>
-              </div>
-            </form>
-          </div>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Explicación</label>
+              <textarea
+                v-model="editExercise.explanation"
+                class="form-textarea"
+                rows="2"
+              ></textarea>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Dificultad (1-10)</label>
+              <input
+                v-model.number="editExercise.difficulty"
+                type="number"
+                class="form-input"
+                min="1"
+                max="10"
+              />
+            </div>
+            <div class="modal-actions">
+              <button
+                type="button"
+                class="btn btn-secondary"
+                @click="showEditExerciseModal = false"
+              >
+                Cancelar
+              </button>
+              <button type="submit" class="btn btn-primary">Guardar</button>
+            </div>
+          </form>
         </div>
-      </Transition>
-    </Teleport>
+      </template>
+    </UiModal>
 
     <!-- Edit Notebook Modal -->
-    <Teleport to="body">
-      <Transition name="fade">
-        <div
-          v-if="showEditNotebookModal"
-          class="modal-overlay"
-          @click.self="showEditNotebookModal = false"
-        >
-          <div class="modal-box">
-            <h3 class="modal-title">Editar Cuaderno</h3>
-            <form @submit.prevent="saveNotebookEdit">
-              <div class="form-group">
-                <label class="form-label">Título *</label>
-                <input
-                  v-model="editNotebook.title"
-                  class="form-input"
-                  required
-                />
-              </div>
-              <div class="form-group">
-                <label class="form-label">Descripción</label>
-                <textarea
-                  v-model="editNotebook.description"
-                  class="form-textarea"
-                  rows="2"
-                ></textarea>
-              </div>
-              <div class="modal-actions">
-                <button
-                  type="button"
-                  class="btn btn-secondary"
-                  @click="showEditNotebookModal = false"
-                >
-                  Cancelar
-                </button>
-                <button type="submit" class="btn btn-primary">Guardar</button>
-              </div>
-            </form>
-          </div>
+    <UiModal
+      :visible="Boolean(showEditNotebookModal)"
+      @close="showEditNotebookModal = false"
+    >
+      <template v-if="showEditNotebookModal">
+        <div class="modal-box">
+          <h3 class="modal-title">Editar Cuaderno</h3>
+          <form @submit.prevent="saveNotebookEdit">
+            <div class="form-group">
+              <label class="form-label">Título *</label>
+              <input
+                v-model="editNotebook.title"
+                class="form-input"
+                required
+              />
+            </div>
+            <div class="form-group">
+              <label class="form-label">Descripción</label>
+              <textarea
+                v-model="editNotebook.description"
+                class="form-textarea"
+                rows="2"
+              ></textarea>
+            </div>
+            <div class="modal-actions">
+              <button
+                type="button"
+                class="btn btn-secondary"
+                @click="showEditNotebookModal = false"
+              >
+                Cancelar
+              </button>
+              <button type="submit" class="btn btn-primary">Guardar</button>
+            </div>
+          </form>
         </div>
-      </Transition>
-    </Teleport>
+      </template>
+    </UiModal>
 
     <ConfirmModal
       v-bind="confirmState"
@@ -2687,6 +2695,8 @@
     margin-bottom: 24px;
     overflow-x: auto;
     scrollbar-width: thin;
+    scroll-snap-type: x proximity;
+    scroll-padding-inline: 8px;
   }
 
   .tab {
@@ -2703,6 +2713,7 @@
     align-items: center;
     gap: 8px;
     white-space: nowrap;
+    scroll-snap-align: start;
   }
 
   .tab:hover {

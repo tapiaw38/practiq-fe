@@ -309,6 +309,65 @@
   opacity: 0;
 }
 
+/* ── Page and section chrome ─────────────────────────────────────── */
+.page-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+  margin-bottom: 24px;
+  padding: 24px 28px;
+  border-radius: 28px;
+  background: var(--gradient-card-accent);
+  border: 1px solid var(--surface-elevated-strong);
+  box-shadow: var(--shadow-soft);
+}
+
+.page-kicker {
+  margin-bottom: 2px;
+  color: var(--practiq-violet);
+  font-size: var(--text-xs);
+  font-weight: 700;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+}
+
+.page-title {
+  margin: 0;
+  color: var(--text-primary);
+  font-size: var(--font-hero);
+  font-weight: 800;
+}
+
+.section-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 16px;
+}
+
+.section-title {
+  margin: 0 0 4px;
+  color: var(--text-primary);
+  font-size: 1rem;
+  font-weight: 800;
+}
+
+.section-subtitle {
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: var(--text-sm);
+}
+
+.empty-state {
+  padding: 48px 24px;
+  border: 1px dashed rgba(var(--surface-border-rgb), 0.3);
+  border-radius: var(--radius-2xl);
+  background: var(--surface-glass);
+  text-align: center;
+}
+
 /* Modal overlay */
 .modal-overlay {
   position: fixed;

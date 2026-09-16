@@ -1,4 +1,5 @@
 <script setup lang="ts">
+  import UiModal from "@/components/ui/UiModal.vue";
   import { computed, onMounted, reactive, ref, watch } from "vue";
   import { useRouter } from "vue-router";
   import TeacherLayout from "@/layouts/TeacherLayout.vue";
@@ -207,10 +208,6 @@
     const ok = await showConfirm("¿Eliminar este curso?");
     if (!ok) return;
     await deleteCourseService(id);
-  }
-
-  function goToCourse(courseId: string) {
-    router.push(`/teacher/courses/${courseId}`);
   }
 
   async function createSubject() {
@@ -509,21 +506,23 @@
                       </button>
                     </div>
                   </div>
-                  <div class="course-card__body" @click="goToCourse(course.id)">
-                    <h4 class="course-card__title">{{ course.title }}</h4>
-                    <p v-if="course.description" class="course-card__desc">
-                      {{ course.description }}
-                    </p>
-                  </div>
-                  <div
-                    class="course-card__footer"
-                    @click="goToCourse(course.id)"
+                  <RouterLink
+                    class="course-card__open"
+                    :to="`/teacher/courses/${course.id}`"
                   >
-                    <span v-if="course.level" class="level-chip">{{
-                      course.level
-                    }}</span>
-                    <i class="pi pi-arrow-right course-card__go"></i>
-                  </div>
+                    <div class="course-card__body">
+                      <h4 class="course-card__title">{{ course.title }}</h4>
+                      <p v-if="course.description" class="course-card__desc">
+                        {{ course.description }}
+                      </p>
+                    </div>
+                    <div class="course-card__footer">
+                      <span v-if="course.level" class="level-chip">{{
+                        course.level
+                      }}</span>
+                      <i class="pi pi-arrow-right course-card__go"></i>
+                    </div>
+                  </RouterLink>
                 </article>
               </div>
             </div>
@@ -532,12 +531,11 @@
       </div>
 
       <!-- ── Modal: grado ── -->
-      <Teleport to="body">
-        <div
-          v-if="showGradeModal"
-          class="modal-backdrop"
-          @click.self="closeGradeModal"
-        >
+      <UiModal
+        :visible="Boolean(showGradeModal)"
+        @close="closeGradeModal"
+      >
+        <template v-if="showGradeModal">
           <div class="modal-card">
             <div class="modal-head">
               <h3>{{ editingGrade ? "Editar grado" : "Nuevo grado" }}</h3>
@@ -578,16 +576,15 @@
               </div>
             </form>
           </div>
-        </div>
-      </Teleport>
+        </template>
+      </UiModal>
 
       <!-- ── Modal: curso ── -->
-      <Teleport to="body">
-        <div
-          v-if="showCourseModal"
-          class="modal-backdrop"
-          @click.self="closeCourseModal"
-        >
+      <UiModal
+        :visible="Boolean(showCourseModal)"
+        @close="closeCourseModal"
+      >
+        <template v-if="showCourseModal">
           <div class="modal-card modal-card--wide">
             <div class="modal-head">
               <div>
@@ -676,16 +673,15 @@
               </div>
             </form>
           </div>
-        </div>
-      </Teleport>
+        </template>
+      </UiModal>
 
       <!-- ── Modal: catálogo de materias ── -->
-      <Teleport to="body">
-        <div
-          v-if="showSubjectCatalog"
-          class="modal-backdrop"
-          @click.self="showSubjectCatalog = false"
-        >
+      <UiModal
+        :visible="Boolean(showSubjectCatalog)"
+        @close="showSubjectCatalog = false"
+      >
+        <template v-if="showSubjectCatalog">
           <div class="modal-card modal-card--wide">
             <div class="modal-head">
               <div>
@@ -785,8 +781,8 @@
               </ul>
             </div>
           </div>
-        </div>
-      </Teleport>
+        </template>
+      </UiModal>
     </div>
 
     <ConfirmModal
@@ -1286,6 +1282,14 @@
     transform: translateY(-2px);
   }
 
+  .course-card__open {
+    display: flex;
+    flex: 1;
+    flex-direction: column;
+    color: inherit;
+    text-decoration: none;
+  }
+
   .course-card__subject-bar {
     display: flex;
     align-items: center;
@@ -1518,17 +1522,6 @@
   }
 
   /* Modals */
-  .modal-backdrop {
-    position: fixed;
-    inset: 0;
-    background: var(--surface-scrim);
-    display: grid;
-    place-items: center;
-    padding: 24px;
-    z-index: 100;
-    backdrop-filter: blur(2px);
-  }
-
   .modal-card {
     background: var(--surface-card);
     border-radius: var(--radius-2xl);
@@ -1823,33 +1816,9 @@
     }
   }
 
-  /* Mobile: these modals are their own system (head/body split with a
-     divider, which .modal-box does not have), so they were missing the
-     bottom-sheet treatment common.css gives .modal-overlay.
-     820px and not common.css's 600px on purpose: that is the width where
-     this view already becomes mobile (sidebar nav out, grade select in), and
-     a phone reporting ~720 CSS px was landing between the two — wide enough
-     to keep the centred card floating with 24px of air on every side. */
   @media (max-width: 820px) {
-    .modal-backdrop {
-      place-items: end stretch;
-      padding: 0;
-      /* The real reason the two short forms stayed narrow while the subject
-         catalogue — same classes — filled the width: common.css styles
-         .modal-backdrop as flex and sets justify-content: center. The rule
-         above only overrides display, so that centre leaks into a grid
-         context, where it aligns the *tracks* and stops an auto column from
-         stretching. The column then sizes to its content, which is why the
-         widest content was the one that looked right. An explicit 1fr leaves
-         no free space for justify-content to distribute. */
-      grid-template-columns: 1fr;
-    }
-
-    /* Descendant selector on purpose: .modal-card--wide sets its own width
-       at the same specificity as a lone .modal-card, so matching that from
-       here would leave the winner decided by source order. */
-    .modal-backdrop .modal-card,
-    .modal-backdrop .modal-card--wide {
+    .modal-card,
+    .modal-card--wide {
       width: 100%;
       max-width: 100%;
       max-height: 95dvh;

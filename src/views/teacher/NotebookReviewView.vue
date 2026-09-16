@@ -1,4 +1,5 @@
 <script setup lang="ts">
+  import UiModal from "@/components/ui/UiModal.vue";
   import { ref, reactive, computed, onMounted, watch } from "vue";
   import TeacherLayout from "@/layouts/TeacherLayout.vue";
   import Skeleton from "@/components/ui/Skeleton.vue";
@@ -646,141 +647,135 @@
       </div>
 
       <!-- Preview Modal -->
-      <Teleport to="body">
-        <Transition name="fade">
-          <div
-            v-if="previewSubmission"
-            class="modal-overlay"
-            @click.self="previewSubmission = null"
-          >
-            <div class="modal-box modal-box--large">
-              <div class="modal-head">
-                <h3 class="modal-title">
-                  {{ previewSubmission.student_name }} - Pagina
-                  {{ previewSubmission.page_number }}
-                </h3>
-                <button class="icon-btn" @click="previewSubmission = null">
-                  <i class="pi pi-times"></i>
-                </button>
-              </div>
-              <div class="preview-content">
-                <img
-                  :src="previewSubmission.canvas_data"
-                  alt="Vista previa"
-                  class="full-preview-image"
-                />
-              </div>
+      <UiModal
+        :visible="Boolean(previewSubmission)"
+        @close="previewSubmission = null"
+      >
+        <template v-if="previewSubmission">
+          <div class="modal-box modal-box--large">
+            <div class="modal-head">
+              <h3 class="modal-title">
+                {{ previewSubmission.student_name }} - Pagina
+                {{ previewSubmission.page_number }}
+              </h3>
+              <button class="icon-btn" @click="previewSubmission = null">
+                <i class="pi pi-times"></i>
+              </button>
+            </div>
+            <div class="preview-content">
+              <img
+                :src="previewSubmission.canvas_data"
+                alt="Vista previa"
+                class="full-preview-image"
+              />
             </div>
           </div>
-        </Transition>
-      </Teleport>
+        </template>
+      </UiModal>
 
       <!-- Review Modal -->
-      <Teleport to="body">
-        <Transition name="fade">
-          <div
-            v-if="reviewingSubmission"
-            class="modal-overlay"
-            @click.self="closeReviewModal"
-          >
-            <div class="modal-box">
-              <div class="modal-head">
-                <h3 class="modal-title">Revision manual</h3>
-                <button class="icon-btn" @click="closeReviewModal">
-                  <i class="pi pi-times"></i>
-                </button>
+      <UiModal
+        :visible="Boolean(reviewingSubmission)"
+        @close="closeReviewModal"
+      >
+        <template v-if="reviewingSubmission">
+          <div class="modal-box">
+            <div class="modal-head">
+              <h3 class="modal-title">Revision manual</h3>
+              <button class="icon-btn" @click="closeReviewModal">
+                <i class="pi pi-times"></i>
+              </button>
+            </div>
+
+            <div class="review-form">
+              <div class="review-student-info">
+                <div class="student-avatar">
+                  {{ getInitial(reviewingSubmission.student_name) }}
+                </div>
+                <div>
+                  <div class="student-name">
+                    {{ reviewingSubmission.student_name }}
+                  </div>
+                  <div class="meta-item">
+                    {{ reviewingSubmission.notebook_title }} - Pagina
+                    {{ reviewingSubmission.page_number }}
+                  </div>
+                </div>
               </div>
 
-              <div class="review-form">
-                <div class="review-student-info">
-                  <div class="student-avatar">
-                    {{ getInitial(reviewingSubmission.student_name) }}
-                  </div>
-                  <div>
-                    <div class="student-name">
-                      {{ reviewingSubmission.student_name }}
-                    </div>
-                    <div class="meta-item">
-                      {{ reviewingSubmission.notebook_title }} - Pagina
-                      {{ reviewingSubmission.page_number }}
-                    </div>
-                  </div>
-                </div>
+              <div
+                v-if="reviewingSubmission.canvas_data"
+                class="review-preview"
+              >
+                <img
+                  :src="reviewingSubmission.canvas_data"
+                  alt="Respuesta"
+                  class="preview-image"
+                />
+              </div>
 
-                <div
-                  v-if="reviewingSubmission.canvas_data"
-                  class="review-preview"
-                >
-                  <img
-                    :src="reviewingSubmission.canvas_data"
-                    alt="Respuesta"
-                    class="preview-image"
-                  />
-                </div>
+              <div
+                v-if="reviewingSubmission.ai_feedback"
+                class="ai-feedback-mini"
+              >
+                <strong>IA dice:</strong>
+                {{ reviewingSubmission.ai_feedback }}
+              </div>
 
-                <div
-                  v-if="reviewingSubmission.ai_feedback"
-                  class="ai-feedback-mini"
-                >
-                  <strong>IA dice:</strong>
-                  {{ reviewingSubmission.ai_feedback }}
-                </div>
-
-                <div class="form-group">
-                  <label class="form-label">Es correcto?</label>
-                  <div class="correctness-toggle">
-                    <button
-                      type="button"
-                      class="toggle-btn"
-                      :class="{
-                        'toggle-btn--active': reviewForm.isCorrect === true,
-                      }"
-                      @click="reviewForm.isCorrect = true"
-                    >
-                      <i class="pi pi-check"></i> Correcto
-                    </button>
-                    <button
-                      type="button"
-                      class="toggle-btn toggle-btn--danger"
-                      :class="{
-                        'toggle-btn--active': reviewForm.isCorrect === false,
-                      }"
-                      @click="reviewForm.isCorrect = false"
-                    >
-                      <i class="pi pi-times"></i> Incorrecto
-                    </button>
-                  </div>
-                </div>
-
-                <div class="form-group">
-                  <label class="form-label">Comentarios</label>
-                  <textarea
-                    v-model="reviewForm.feedback"
-                    class="form-textarea"
-                    rows="4"
-                    placeholder="Escribe tu feedback para el estudiante..."
-                  ></textarea>
-                </div>
-
-                <div class="modal-actions">
-                  <button class="btn btn-secondary" @click="closeReviewModal">
-                    Cancelar
+              <div class="form-group">
+                <label class="form-label">Es correcto?</label>
+                <div class="correctness-toggle">
+                  <button
+                    type="button"
+                    class="toggle-btn"
+                    :class="{
+                      'toggle-btn--active': reviewForm.isCorrect === true,
+                    }"
+                    @click="reviewForm.isCorrect = true"
+                  >
+                    <i class="pi pi-check"></i> Correcto
                   </button>
                   <button
-                    class="btn btn-primary"
-                    :disabled="reviewForm.isCorrect === null || savingReview"
-                    @click="saveManualReview"
+                    type="button"
+                    class="toggle-btn toggle-btn--danger"
+                    :class="{
+                      'toggle-btn--active': reviewForm.isCorrect === false,
+                    }"
+                    @click="reviewForm.isCorrect = false"
                   >
-                    <span v-if="savingReview" class="spinner spinner-sm"></span>
-                    <i v-else class="pi pi-check"></i>
-                    Guardar revision
+                    <i class="pi pi-times"></i> Incorrecto
                   </button>
                 </div>
+              </div>
+
+              <div class="form-group">
+                <label class="form-label">Comentarios</label>
+                <textarea
+                  v-model="reviewForm.feedback"
+                  class="form-textarea"
+                  rows="4"
+                  placeholder="Escribe tu feedback para el estudiante..."
+                ></textarea>
+              </div>
+
+              <div class="modal-actions">
+                <button class="btn btn-secondary" @click="closeReviewModal">
+                  Cancelar
+                </button>
+                <button
+                  class="btn btn-primary"
+                  :disabled="reviewForm.isCorrect === null || savingReview"
+                  @click="saveManualReview"
+                >
+                  <span v-if="savingReview" class="spinner spinner-sm"></span>
+                  <i v-else class="pi pi-check"></i>
+                  Guardar revision
+                </button>
               </div>
             </div>
           </div>
-        </Transition>
-      </Teleport>
+        </template>
+      </UiModal>
     </div>
   </TeacherLayout>
 </template>
@@ -793,32 +788,7 @@
 
   /* Header */
   .page-header {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 24px;
     margin-bottom: 20px;
-    padding: 24px 28px;
-    border-radius: 28px;
-    background: var(--gradient-card-accent);
-    border: 1px solid var(--surface-elevated-strong);
-    box-shadow: var(--shadow-soft);
-  }
-
-  .page-kicker {
-    font-size: var(--text-xs);
-    text-transform: uppercase;
-    letter-spacing: 0.16em;
-    font-weight: 700;
-    color: var(--practiq-violet);
-    margin-bottom: 2px;
-  }
-
-  .page-title {
-    font-size: var(--font-hero);
-    font-weight: 800;
-    color: var(--text-primary);
-    margin: 0;
   }
 
   /* Filters */
@@ -904,11 +874,7 @@
   }
 
   .empty-state {
-    text-align: center;
     padding: 64px 24px;
-    background: var(--surface-glass);
-    border-radius: var(--radius-2xl);
-    border: 1px dashed rgba(var(--surface-border-rgb), 0.3);
   }
 
   .empty-icon {

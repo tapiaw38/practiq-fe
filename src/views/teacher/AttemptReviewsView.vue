@@ -458,30 +458,11 @@
   }
 
   .page-header {
-    display: flex;
     align-items: flex-start;
-    justify-content: space-between;
     gap: 20px;
-    margin-bottom: 24px;
-    padding: 24px 28px;
-    border-radius: 28px;
-    background: var(--gradient-card-accent);
-    border: 1px solid var(--surface-elevated-strong);
-    box-shadow: var(--shadow-soft);
-  }
-
-  .page-kicker {
-    font-size: var(--text-xs);
-    text-transform: uppercase;
-    letter-spacing: 0.16em;
-    font-weight: 700;
-    color: var(--practiq-violet);
   }
 
   .page-title {
-    font-size: var(--font-hero);
-    font-weight: 800;
-    color: var(--text-primary);
     margin: 2px 0 0;
   }
 

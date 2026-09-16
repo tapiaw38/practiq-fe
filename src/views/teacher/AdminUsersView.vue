@@ -1,4 +1,5 @@
 <script setup lang="ts">
+  import UiModal from "@/components/ui/UiModal.vue";
   import { computed, onBeforeUnmount, onMounted, ref } from "vue";
   import TeacherLayout from "@/layouts/TeacherLayout.vue";
   import Skeleton from "@/components/ui/Skeleton.vue";
@@ -783,18 +784,13 @@
           </div>
         </section>
 
-        <Teleport to="body">
-          <div
-            v-if="editingStudent"
-            class="modal-backdrop"
-            @click.self="closeStudentEditor"
-          >
-            <div
-              class="modal-card"
-              role="dialog"
-              aria-modal="true"
-              aria-label="Editar alumno"
-            >
+        <UiModal
+          :visible="Boolean(editingStudent)"
+          label="Editar alumno"
+          @close="closeStudentEditor"
+        >
+          <template v-if="editingStudent">
+            <div class="modal-card">
             <div class="modal-head">
               <div>
                 <div class="panel-kicker">Alumno</div>
@@ -953,8 +949,8 @@
 
             </div>
             </div>
-          </div>
-        </Teleport>
+          </template>
+        </UiModal>
       </template>
     </div>
   </TeacherLayout>
@@ -1400,15 +1396,6 @@
     place-items: center;
     margin: 0 auto 16px;
   }
-  .modal-backdrop {
-    position: fixed;
-    inset: 0;
-    background: var(--surface-scrim);
-    display: grid;
-    place-items: center;
-    padding: 24px;
-    z-index: 50;
-  }
   .modal-card {
     width: 720px;
     max-width: 100%;
@@ -1608,20 +1595,7 @@
     color: var(--practiq-violet);
   }
 
-  /* Bottom sheet at the same 820px the rest of the app's modals use. These
-     rules were in the 720px block below, which left a phone reporting
-     ~720-820px CSS with a card floating centred in the scrim. The layout
-     rules stay at 720px — only the modal moved. */
   @media (max-width: 820px) {
-    .modal-backdrop {
-      padding: 0 0 env(safe-area-inset-bottom);
-      align-items: end;
-      /* Same trap as AcademicAdminView: common.css sets justify-content:
-         center for its flex .modal-backdrop, and overriding only display
-         leaves that centring to align the grid tracks, which keeps an auto
-         column from stretching and sizes it to its content instead. */
-      grid-template-columns: 1fr;
-    }
     .modal-card {
       width: 100%;
       max-height: 95dvh;

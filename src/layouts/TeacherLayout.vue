@@ -338,9 +338,9 @@
   }
   .school-context__label { color: var(--text-muted); font-size: var(--text-xs); font-weight: 800; letter-spacing: .1em; text-transform: uppercase; }
   .school-context__name { overflow: hidden; color: var(--text-heading); font-size: var(--text-sm); text-overflow: ellipsis; white-space: nowrap; }
-  .school-context__select, .school-context__settings input { width: 100%; min-height: 36px; padding: 6px 8px; border: 1px solid var(--surface-border); border-radius: var(--radius-md); background: var(--surface-card); color: var(--text-primary); font: inherit; font-size: var(--text-sm); }
+  .school-context__select, .school-context__settings input { width: 100%; min-height: 44px; padding: 8px 10px; border: 1px solid var(--surface-border); border-radius: var(--radius-md); background: var(--surface-card); color: var(--text-primary); font: inherit; font-size: var(--text-sm); }
   .school-context__settings { color: var(--text-secondary); font-size: var(--text-xs); }
-  .school-context__settings summary { cursor: pointer; font-weight: 700; }
+  .school-context__settings summary { display: flex; align-items: center; min-height: 32px; cursor: pointer; font-weight: 700; }
   .school-context__settings input { margin-top: 6px; }
 
   .sidebar-footer {
@@ -498,10 +498,7 @@
 
   .user-details {
     min-width: 0;
-    /* Same fix as the student sidebar: the desktop sidebar never had room to
-       show the name next to the avatar without squeezing it unreadable.
-       Re-enabled in the 920px drawer below, which is a flat 320px. */
-    display: none;
+    display: block;
   }
 
   .user-name {
@@ -593,10 +590,10 @@
       padding: 16px;
     }
 
-    /* Same fix as the student sidebar: keep the footer's icon buttons from
-       crowding the avatar once the sidebar itself narrows here. */
     .sidebar-footer {
-      gap: 6px;
+      flex-direction: column;
+      align-items: stretch;
+      gap: 10px;
       padding: 14px 4px 0;
     }
 
@@ -607,13 +604,8 @@
     }
 
     .footer-actions {
-      gap: 3px;
-    }
-
-    .icon-btn {
-      width: 34px;
-      height: 34px;
-      font-size: var(--text-sm);
+      justify-content: flex-end;
+      gap: 6px;
     }
   }
 
@@ -665,12 +657,6 @@
 
     .sidebar--open {
       transform: translateX(0);
-    }
-
-    /* Drawer is a flat 320px here regardless of viewport width, wide enough
-       to show the name next to the avatar again. */
-    .user-details {
-      display: block;
     }
 
     /* Tap targets >= 44px en mobile */

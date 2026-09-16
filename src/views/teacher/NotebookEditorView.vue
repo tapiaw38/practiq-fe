@@ -1,4 +1,5 @@
 <script setup lang="ts">
+  import UiModal from "@/components/ui/UiModal.vue";
   import { ref, computed, watch, nextTick, onMounted, reactive } from "vue";
   import { useRoute, useRouter } from "vue-router";
   import TeacherLayout from "@/layouts/TeacherLayout.vue";
@@ -565,54 +566,51 @@
     </div>
 
     <!-- Add page modal -->
-    <Teleport to="body">
-      <Transition name="fade">
-        <div
-          v-if="showAddPage"
-          class="modal-overlay"
-          @click.self="showAddPage = false"
-        >
-          <div class="modal-box">
-            <h3 class="modal-title">Nueva Página</h3>
-            <form @submit.prevent="addPage">
-              <div class="form-group">
-                <label class="form-label">Título</label>
-                <input
-                  v-model="newPage.title"
-                  class="form-input"
-                  placeholder="Página 1"
-                />
-              </div>
-              <div class="form-group">
-                <label class="form-label">Tipo de contenido</label>
-                <select v-model="newPage.content_type" class="form-input">
-                  <option value="canvas">Imagen / Dibujo</option>
-                  <option value="text">Texto</option>
-                </select>
-              </div>
-              <div class="form-group">
-                <label class="form-label">Instrucciones para el alumno</label>
-                <input
-                  v-model="newPage.instructions"
-                  class="form-input"
-                  placeholder="Opcional"
-                />
-              </div>
-              <div class="modal-actions">
-                <button
-                  type="button"
-                  class="btn btn-secondary"
-                  @click="showAddPage = false"
-                >
-                  Cancelar
-                </button>
-                <button type="submit" class="btn btn-primary">Agregar</button>
-              </div>
-            </form>
-          </div>
+    <UiModal
+      :visible="Boolean(showAddPage)"
+      @close="showAddPage = false"
+    >
+      <template v-if="showAddPage">
+        <div class="modal-box">
+          <h3 class="modal-title">Nueva Página</h3>
+          <form @submit.prevent="addPage">
+            <div class="form-group">
+              <label class="form-label">Título</label>
+              <input
+                v-model="newPage.title"
+                class="form-input"
+                placeholder="Página 1"
+              />
+            </div>
+            <div class="form-group">
+              <label class="form-label">Tipo de contenido</label>
+              <select v-model="newPage.content_type" class="form-input">
+                <option value="canvas">Imagen / Dibujo</option>
+                <option value="text">Texto</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Instrucciones para el alumno</label>
+              <input
+                v-model="newPage.instructions"
+                class="form-input"
+                placeholder="Opcional"
+              />
+            </div>
+            <div class="modal-actions">
+              <button
+                type="button"
+                class="btn btn-secondary"
+                @click="showAddPage = false"
+              >
+                Cancelar
+              </button>
+              <button type="submit" class="btn btn-primary">Agregar</button>
+            </div>
+          </form>
         </div>
-      </Transition>
-    </Teleport>
+      </template>
+    </UiModal>
   </TeacherLayout>
 </template>
 
@@ -1048,15 +1046,6 @@
   }
 
   /* Modal */
-  .modal-overlay {
-    position: fixed;
-    inset: 0;
-    background: var(--surface-scrim);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    z-index: 1000;
-  }
   .modal-box {
     background: var(--surface-card);
     border-radius: var(--radius-2xl);

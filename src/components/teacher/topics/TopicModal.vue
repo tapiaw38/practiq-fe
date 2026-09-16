@@ -4,6 +4,7 @@
     TopicModalEmits,
     TopicModalProps,
   } from "./TopicModal.types";
+  import UiModal from "@/components/ui/UiModal.vue";
 
   const props = defineProps<TopicModalProps>();
   const emit = defineEmits<TopicModalEmits>();
@@ -17,79 +18,70 @@
 </script>
 
 <template>
-  <Teleport to="body">
-    <Transition name="fade">
-      <div v-if="visible" class="modal-overlay" @click.self="emit('close')">
-        <div class="modal-box">
-          <h3 class="modal-title">Nuevo Tema</h3>
-          <form @submit.prevent="emit('submit')">
-            <div class="form-group">
-              <label class="form-label">Título *</label>
-              <input
-                :value="topic.title"
-                class="form-input"
-                placeholder="Fracciones"
-                required
-                @input="
-                  updateField(
-                    'title',
-                    ($event.target as HTMLInputElement).value,
-                  )
-                "
-              />
-            </div>
-            <div class="form-group">
-              <label class="form-label">Descripción</label>
-              <textarea
-                :value="topic.description"
-                class="form-textarea"
-                rows="2"
-                @input="
-                  updateField(
-                    'description',
-                    ($event.target as HTMLTextAreaElement).value,
-                  )
-                "
-              ></textarea>
-            </div>
-            <div class="form-group">
-              <label class="form-label">Orden</label>
-              <input
-                :value="topic.order_index"
-                type="number"
-                class="form-input"
-                min="0"
-                @input="
-                  updateField(
-                    'order_index',
-                    Number(($event.target as HTMLInputElement).value),
-                  )
-                "
-              />
-            </div>
-            <div class="modal-actions">
-              <button
-                type="button"
-                class="btn btn-secondary"
-                @click="emit('close')"
-              >
-                Cancelar
-              </button>
-              <button type="submit" class="btn btn-primary">Crear Tema</button>
-            </div>
-          </form>
+  <UiModal :visible="visible" label="Nuevo Tema" @close="emit('close')">
+    <div class="modal-box">
+      <h3 class="modal-title">Nuevo Tema</h3>
+      <form @submit.prevent="emit('submit')">
+        <div class="form-group">
+          <label class="form-label">Título *</label>
+          <input
+            :value="topic.title"
+            class="form-input"
+            placeholder="Fracciones"
+            required
+            @input="
+              updateField(
+                'title',
+                ($event.target as HTMLInputElement).value,
+              )
+            "
+          />
         </div>
-      </div>
-    </Transition>
-  </Teleport>
+        <div class="form-group">
+          <label class="form-label">Descripción</label>
+          <textarea
+            :value="topic.description"
+            class="form-textarea"
+            rows="2"
+            @input="
+              updateField(
+                'description',
+                ($event.target as HTMLTextAreaElement).value,
+              )
+            "
+          ></textarea>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Orden</label>
+          <input
+            :value="topic.order_index"
+            type="number"
+            class="form-input"
+            min="0"
+            @input="
+              updateField(
+                'order_index',
+                Number(($event.target as HTMLInputElement).value),
+              )
+            "
+          />
+        </div>
+        <div class="modal-actions">
+          <button
+            type="button"
+            class="btn btn-secondary"
+            @click="emit('close')"
+          >
+            Cancelar
+          </button>
+          <button type="submit" class="btn btn-primary">Crear Tema</button>
+        </div>
+      </form>
+    </div>
+  </UiModal>
 </template>
 
 <style scoped>
-  .modal-overlay {
-    z-index: 1000;
-    display: grid;
-    place-items: center;
-  }
   .modal-box {
     width: min(560px, 100%);
     max-height: calc(100vh - 40px);

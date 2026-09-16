@@ -4,6 +4,7 @@
   import { useAuthStore } from "@/stores/authStore";
   import TeacherLayout from "@/layouts/TeacherLayout.vue";
   import Skeleton from "@/components/ui/Skeleton.vue";
+  import UiModal from "@/components/ui/UiModal.vue";
   import InviteStudentsModal from "@/components/teacher/students/InviteStudentsModal.vue";
   import { useCourse } from "@/composables/useCourse";
   import { useAssignment } from "@/composables/useAssignment";
@@ -164,21 +165,18 @@
     }
   }
 
-  function goToCourse(id: string) {
-    router.push(`/teacher/courses/${id}`);
-  }
   function setCourseView(view: "grid" | "list") {
     courseView.value = view;
     localStorage.setItem("practiq-teacher-course-view", view);
   }
-  function goToStudentProgress(student: AssignedUser) {
-    router.push({
+  function studentProgressRoute(student: AssignedUser) {
+    return {
       path: `/teacher/students/${student.id}/progress`,
       query: {
         name: encodeURIComponent(student.name),
         email: encodeURIComponent(student.email),
       },
-    });
+    };
   }
 
   function nextStudentPage() {
@@ -274,10 +272,10 @@
       </div>
 
       <!-- Stats strip skeleton -->
-      <div v-if="loading" class="stats-strip stats-strip--skeleton">
+      <div v-if="loading" class="stats-strip stats-strip--skeleton" aria-hidden="true">
         <div class="stat-item" v-for="i in 4" :key="i">
           <Skeleton variant="circle" size="34px" />
-          <div style="display: flex; flex-direction: column; gap: 6px">
+          <div class="skeleton-stack">
             <Skeleton width="40px" height="20px" />
             <Skeleton width="60px" height="12px" />
           </div>
@@ -316,14 +314,16 @@
           <i class="pi pi-check-square stat-item__icon stat-item__icon--orange"></i>
           <span class="stat-item__val">{{ pendingHasMore ? "99+" : pendingReviews }}</span>
           <span class="stat-item__lbl">Pendientes</span>
+          <i class="pi pi-angle-right stat-item__go" aria-hidden="true"></i>
         </button>
       </div>
 
       <!-- Loading skeletons -->
       <template v-if="loading">
-        <section class="content-section">
+        <p class="sr-only" role="status" aria-live="polite">Cargando tu panel…</p>
+        <section class="content-section" aria-hidden="true">
           <div class="section-header">
-            <div style="display: flex; flex-direction: column; gap: 8px">
+            <div class="skeleton-stack skeleton-stack--lg">
               <Skeleton width="120px" height="24px" />
               <Skeleton width="280px" height="14px" />
             </div>
@@ -349,9 +349,9 @@
           </div>
         </section>
 
-        <section class="content-section">
+        <section class="content-section" aria-hidden="true">
           <div class="section-header">
-            <div style="display: flex; flex-direction: column; gap: 8px">
+            <div class="skeleton-stack skeleton-stack--lg">
               <Skeleton width="180px" height="24px" />
               <Skeleton width="260px" height="14px" />
             </div>
@@ -361,13 +361,9 @@
               v-for="i in 4"
               :key="i"
               class="student-card student-card--skeleton"
-              style="display: flex; gap: 14px; align-items: center"
             >
               <Skeleton variant="avatar" size="48px" />
-              <div
-                class="student-card__info"
-                style="display: flex; flex-direction: column; gap: 6px; flex: 1"
-              >
+              <div class="student-card__info skeleton-stack">
                 <Skeleton width="75%" height="16px" />
                 <Skeleton width="90%" height="12px" />
                 <Skeleton variant="badge" width="55px" />
@@ -422,11 +418,11 @@
           </div>
 
           <div v-else class="courses-grid" :class="{ 'courses-grid--list': courseView === 'list' }">
-            <div
+            <RouterLink
               v-for="course in courses"
               :key="course.id"
               class="course-card"
-              @click="goToCourse(course.id)"
+              :to="`/teacher/courses/${course.id}`"
             >
               <div
                 class="course-card__stripe"
@@ -458,7 +454,7 @@
                   ></span>
                 </div>
               </div>
-            </div>
+            </RouterLink>
           </div>
         </section>
 
@@ -483,11 +479,11 @@
           </div>
 
           <div class="student-grid">
-            <article
+            <RouterLink
               v-for="student in paginatedStudents"
               :key="student.id"
               class="student-card"
-              @click="goToStudentProgress(student)"
+              :to="studentProgressRoute(student)"
             >
               <div class="student-card__avatar">
                 {{ student.name.charAt(0).toUpperCase() }}
@@ -512,7 +508,7 @@
                 </div>
               </div>
               <i class="pi pi-angle-right student-card__arrow"></i>
-            </article>
+            </RouterLink>
           </div>
 
           <!-- Pagination Controls -->
@@ -525,7 +521,7 @@
               <i class="pi pi-chevron-left"></i>
               Anterior
             </button>
-            <span class="pagination-info">
+            <span class="pagination-info" role="status" aria-live="polite">
               Página {{ currentStudentPage }} de {{ totalStudentPages }} · {{ assignedStudents.length }} estudiantes
             </span>
             <button
@@ -559,13 +555,11 @@
     </div>
 
     <!-- Create Course Modal -->
-    <Teleport to="body">
-      <Transition name="fade">
-        <div
-          v-if="showCreateModal"
-          class="modal-overlay"
-          @click.self="showCreateModal = false"
-        >
+    <UiModal
+      :visible="showCreateModal"
+      label="Nuevo curso"
+      @close="showCreateModal = false"
+    >
           <div class="modal-box">
             <div class="modal-head">
               <h3 class="modal-title">Nuevo curso</h3>
@@ -672,16 +666,12 @@
               </div>
             </form>
           </div>
-        </div>
-      </Transition>
-    </Teleport>
+    </UiModal>
 
-    <Teleport to="body">
-      <InviteStudentsModal
-        v-if="showInviteModal"
-        @close="showInviteModal = false"
-      />
-    </Teleport>
+    <InviteStudentsModal
+      v-if="showInviteModal"
+      @close="showInviteModal = false"
+    />
   </TeacherLayout>
 </template>
 
@@ -694,16 +684,7 @@
   /* Page header */
   .page-header {
     position: relative;
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 24px;
     margin-bottom: 16px;
-    padding: 24px 28px;
-    border-radius: 28px;
-    background: var(--gradient-card-accent);
-    border: 1px solid var(--surface-elevated-strong);
-    box-shadow: var(--shadow-soft);
     backdrop-filter: blur(18px);
     flex-wrap: wrap;
     overflow: hidden;
@@ -727,20 +708,7 @@
     z-index: 1;
   }
 
-  .page-kicker {
-    font-size: var(--text-xs);
-    text-transform: uppercase;
-    letter-spacing: 0.16em;
-    font-weight: 700;
-    color: var(--practiq-violet);
-    margin-bottom: 2px;
-  }
-
   .page-title {
-    font-size: var(--font-hero);
-    font-weight: 800;
-    color: var(--text-primary);
-    margin: 0;
     line-height: 1.15;
   }
 
@@ -807,6 +775,10 @@
     box-shadow: var(--shadow-card);
   }
   .stat-item--action { width: 100%; border: 1px solid var(--surface-elevated-strong); cursor: pointer; text-align: left; }.stat-item--action:hover { border-color: var(--practiq-violet-light); transform: translateY(-1px); }
+  .skeleton-stack { display: flex; flex-direction: column; gap: 6px; }
+  .skeleton-stack--lg { gap: 8px; }
+  .stat-item__go { margin-left: auto; color: var(--practiq-violet); font-size: 14px; }
+  .stat-item--action:hover .stat-item__go { transform: translateX(2px); }
 
   .stat-item__icon {
     width: 36px;
@@ -855,24 +827,7 @@
   }
 
   .section-header {
-    display: flex;
-    align-items: flex-start;
-    justify-content: space-between;
-    gap: 16px;
     margin-bottom: 14px;
-  }
-
-  .section-title {
-    font-size: 1rem;
-    font-weight: 800;
-    color: var(--text-primary);
-    margin: 0 0 4px;
-  }
-
-  .section-subtitle {
-    font-size: var(--text-sm);
-    color: var(--text-secondary);
-    margin: 0;
   }
 
   .btn-outline {
@@ -949,12 +904,15 @@
 
   .course-card {
     position: relative;
+    display: block;
     border-radius: var(--radius-2xl);
     background: var(--surface-elevated);
     border: 1px solid var(--surface-elevated-strong);
     box-shadow: var(--shadow-card);
     overflow: hidden;
     cursor: pointer;
+    color: inherit;
+    text-decoration: none;
     transition: var(--transition);
   }
   .course-card:hover {
@@ -1144,6 +1102,8 @@
     border: 1px solid var(--surface-elevated-strong);
     box-shadow: var(--shadow-card);
     cursor: pointer;
+    color: inherit;
+    text-decoration: none;
     transition: var(--transition-fast);
   }
   .student-card:hover {
@@ -1247,11 +1207,7 @@
   }
 
   .empty-state {
-    text-align: center;
     padding: 40px 24px;
-    background: var(--surface-glass);
-    border-radius: var(--radius-2xl);
-    border: 1px dashed rgba(var(--surface-border-rgb), 0.3);
   }
   .empty-state__icon {
     width: 48px;

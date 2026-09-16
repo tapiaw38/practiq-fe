@@ -1,4 +1,5 @@
 <script setup lang="ts">
+  import UiModal from "@/components/ui/UiModal.vue";
   import { ref, computed, onMounted, watch } from "vue";
   import { useRoute, useRouter } from "vue-router";
   import TeacherLayout from "@/layouts/TeacherLayout.vue";
@@ -1066,12 +1067,11 @@
         </div>
       </template>
       <!-- PDF Download Modal -->
-      <Transition name="fade">
-        <div
-          v-if="showPdfModal"
-          class="pdf-modal-overlay"
-          @click.self="showPdfModal = false"
-        >
+      <UiModal
+        :visible="Boolean(showPdfModal)"
+        @close="showPdfModal = false"
+      >
+        <template v-if="showPdfModal">
           <div class="pdf-modal-card">
             <div class="pdf-modal-head">
               <h3>Descargar Reporte PDF</h3>
@@ -1130,65 +1130,66 @@
               </button>
             </div>
           </div>
-        </div>
-      </Transition>
+        </template>
+      </UiModal>
 
-      <div
-        v-if="attemptImageModalSrc"
-        class="image-modal-overlay"
-        @click.self="closeAttemptImage"
+      <UiModal
+        :visible="Boolean(attemptImageModalSrc)"
+        @close="closeAttemptImage"
       >
-        <div class="image-modal-card">
-          <div class="image-modal-head">
-            <h3>Imagen del intento</h3>
-            <button class="icon-btn" @click="closeAttemptImage">
-              <i class="pi pi-times"></i>
-            </button>
-          </div>
-          <div class="image-modal-controls">
-            <button
-              class="btn btn-secondary btn-sm"
-              @click="zoomOutAttemptImage"
-              :disabled="attemptImageZoom <= 0.5"
+        <template v-if="attemptImageModalSrc">
+          <div class="image-modal-card">
+            <div class="image-modal-head">
+              <h3>Imagen del intento</h3>
+              <button class="icon-btn" @click="closeAttemptImage">
+                <i class="pi pi-times"></i>
+              </button>
+            </div>
+            <div class="image-modal-controls">
+              <button
+                class="btn btn-secondary btn-sm"
+                @click="zoomOutAttemptImage"
+                :disabled="attemptImageZoom <= 0.5"
+              >
+                <i class="pi pi-search-minus"></i>
+              </button>
+              <span>{{ Math.round(attemptImageZoom * 100) }}%</span>
+              <button
+                class="btn btn-secondary btn-sm"
+                @click="zoomInAttemptImage"
+                :disabled="attemptImageZoom >= 3"
+              >
+                <i class="pi pi-search-plus"></i>
+              </button>
+              <button
+                class="btn btn-secondary btn-sm"
+                @click="resetAttemptImageZoom"
+                :disabled="attemptImageZoom === 1"
+              >
+                Reset
+              </button>
+            </div>
+            <div
+              class="image-modal-viewport"
+              @wheel.prevent="onAttemptImageWheel"
             >
-              <i class="pi pi-search-minus"></i>
-            </button>
-            <span>{{ Math.round(attemptImageZoom * 100) }}%</span>
-            <button
-              class="btn btn-secondary btn-sm"
-              @click="zoomInAttemptImage"
-              :disabled="attemptImageZoom >= 3"
-            >
-              <i class="pi pi-search-plus"></i>
-            </button>
-            <button
-              class="btn btn-secondary btn-sm"
-              @click="resetAttemptImageZoom"
-              :disabled="attemptImageZoom === 1"
-            >
-              Reset
-            </button>
+              <img
+                :src="attemptImageModalSrc"
+                class="image-modal-img image-modal-img--zoomable"
+                :style="{
+                  transform: `translate(${attemptImageOffsetX}px, ${attemptImageOffsetY}px) scale(${attemptImageZoom})`,
+                }"
+                @pointerdown="onAttemptImagePointerDown"
+                @pointermove="onAttemptImagePointerMove"
+                @pointerup="onAttemptImagePointerUp"
+                @pointercancel="onAttemptImagePointerUp"
+                @pointerleave="onAttemptImagePointerUp"
+                alt="Respuesta del intento"
+              />
+            </div>
           </div>
-          <div
-            class="image-modal-viewport"
-            @wheel.prevent="onAttemptImageWheel"
-          >
-            <img
-              :src="attemptImageModalSrc"
-              class="image-modal-img image-modal-img--zoomable"
-              :style="{
-                transform: `translate(${attemptImageOffsetX}px, ${attemptImageOffsetY}px) scale(${attemptImageZoom})`,
-              }"
-              @pointerdown="onAttemptImagePointerDown"
-              @pointermove="onAttemptImagePointerMove"
-              @pointerup="onAttemptImagePointerUp"
-              @pointercancel="onAttemptImagePointerUp"
-              @pointerleave="onAttemptImagePointerUp"
-              alt="Respuesta del intento"
-            />
-          </div>
-        </div>
-      </div>
+        </template>
+      </UiModal>
     </div>
   </TeacherLayout>
 </template>
@@ -1846,17 +1847,6 @@
     text-overflow: ellipsis;
   }
 
-  .image-modal-overlay {
-    position: fixed;
-    inset: 0;
-    z-index: 1200;
-    background: var(--surface-scrim);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    padding: 20px;
-  }
-
   .image-modal-card {
     width: min(920px, 100%);
     max-height: calc(100vh - 40px);
@@ -2258,17 +2248,6 @@
   }
 
   /* PDF Modal */
-  .pdf-modal-overlay {
-    position: fixed;
-    inset: 0;
-    z-index: 1200;
-    background: var(--surface-scrim);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    padding: 20px;
-  }
-
   .pdf-modal-card {
     width: min(440px, 100%);
     background: var(--surface-card);

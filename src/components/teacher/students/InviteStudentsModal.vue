@@ -2,6 +2,7 @@
   import { onMounted, ref } from "vue";
   import { useToast } from "primevue/usetoast";
   import Skeleton from "@/components/ui/Skeleton.vue";
+  import UiModal from "@/components/ui/UiModal.vue";
   import { useInvitation } from "@/composables/useInvitation";
   import { formatShortDate } from "@/utils/formatters";
 
@@ -70,7 +71,7 @@
 </script>
 
 <template>
-  <div class="modal-overlay" @click.self="emit('close')">
+  <UiModal label="Invitar alumnos" @close="emit('close')">
     <div class="modal-box">
       <div class="modal-head">
         <h3 class="modal-title">Invitar alumnos</h3>
@@ -149,21 +150,10 @@
         </div>
       </template>
     </div>
-  </div>
+  </UiModal>
 </template>
 
 <style scoped>
-  .modal-overlay {
-    position: fixed;
-    inset: 0;
-    background: rgba(15, 23, 42, 0.5);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    padding: 16px;
-    z-index: 100;
-  }
-
   .modal-box {
     background: var(--surface-elevated-strong);
     border-radius: var(--radius-2xl);
