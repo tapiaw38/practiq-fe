@@ -53,28 +53,30 @@
           </option>
         </select>
       </div>
-      <div class="flex gap-2">
+      <div class="flex gap-2 toolbar-actions">
         <button
           class="btn btn-secondary btn-sm"
           title="Exportar los ejercicios de este tema a un archivo JSON"
+          aria-label="Exportar"
           :disabled="!selectedTopicId || exercises.length === 0"
           @click="emit('export-json')"
         >
-          <i class="pi pi-download"></i> Exportar
+          <i class="pi pi-download"></i> <span class="btn-label">Exportar</span>
         </button>
         <button
           class="btn btn-secondary btn-sm"
           title="Importar ejercicios desde un archivo JSON"
+          aria-label="Importar"
           :disabled="!selectedTopicId"
           @click="emit('import-json')"
         >
-          <i class="pi pi-upload"></i> Importar
+          <i class="pi pi-upload"></i> <span class="btn-label">Importar</span>
         </button>
-        <button class="btn btn-secondary btn-sm" :disabled="!selectedTopicId" @click="emit('create-ai')">
-          <i class="pi pi-sparkles"></i> Crear con IA
+        <button class="btn btn-secondary btn-sm" title="Crear con IA" aria-label="Crear con IA" :disabled="!selectedTopicId" @click="emit('create-ai')">
+          <i class="pi pi-sparkles"></i> <span class="btn-label">Crear con IA</span>
         </button>
-        <button class="btn btn-primary btn-sm" :disabled="!selectedTopicId" @click="emit('create')">
-          <i class="pi pi-plus"></i> Nuevo Ejercicio
+        <button class="btn btn-primary btn-sm" title="Nuevo Ejercicio" aria-label="Nuevo Ejercicio" :disabled="!selectedTopicId" @click="emit('create')">
+          <i class="pi pi-plus"></i> <span class="btn-label">Nuevo Ejercicio</span>
         </button>
       </div>
     </div>
@@ -271,6 +273,23 @@
     .list-item {
       flex-direction: column;
       align-items: stretch;
+    }
+    .section-header .flex.gap-3 {
+      flex-wrap: wrap;
+    }
+    .topic-select {
+      min-width: 0;
+      flex: 1 1 auto;
+    }
+    .toolbar-actions {
+      flex-wrap: nowrap;
+    }
+    .toolbar-actions .btn {
+      flex: 1 1 0;
+      padding: 8px 0;
+    }
+    .toolbar-actions .btn-label {
+      display: none;
     }
     .item-actions {
       justify-content: flex-end;
