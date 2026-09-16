@@ -5,6 +5,7 @@
   import FileViewer from "@/components/ui/FileViewer.vue";
   import ExerciseMedia from "@/components/ui/ExerciseMedia.vue";
   import { practiqApi } from "@/api/request/server";
+  import { fileKind } from "@/utils/fileKind";
   import { AttemptReviewService } from "@/services/attemptReviews/attemptReviewService";
   import type { AttemptReview } from "@/types";
 
@@ -300,7 +301,14 @@
               class="review-thumb"
               @click="openPreview(item.statement_media_view_url, 'Material del enunciado')"
             >
-              <img :src="item.statement_media_view_url" alt="" />
+              <img
+                v-if="fileKind(item.statement_media_view_url) === 'image'"
+                :src="item.statement_media_view_url"
+                alt=""
+              />
+              <!-- A PDF or document has no thumbnail: an <img> pointing at one
+                   renders as a broken image. -->
+              <i v-else class="pi pi-file thumb-icon"></i>
               <span>Enunciado</span>
             </button>
 
@@ -858,4 +866,13 @@
       justify-content: center;
     }
   }
+  .thumb-icon {
+    display: grid;
+    place-items: center;
+    width: 100%;
+    height: 100%;
+    color: var(--text-secondary);
+    font-size: 20px;
+  }
+
 </style>

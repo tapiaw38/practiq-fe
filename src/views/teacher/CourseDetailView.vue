@@ -48,6 +48,7 @@
   import FillBlanksEditor from "@/components/teacher/exercises/FillBlanksEditor.vue";
   import { renderContent } from "@/composables/useContentRenderer";
   import { practiqApi } from "@/api/request/server";
+  import { STATEMENT_MEDIA_ACCEPT } from "@/utils/fileKind";
   import { ExerciseService } from "@/services/exercises/exerciseService";
 
   const route = useRoute();
@@ -1603,12 +1604,13 @@
                   ref="newExerciseUpload"
                   v-model="newExercise.media_url"
                   folder="exercises"
-                  label="Subir imagen o audio"
-                  accept="image/*,audio/*"
+                  label="Subir archivo"
+                  :accept="STATEMENT_MEDIA_ACCEPT"
                 />
                 <small class="field-hint">
-                  Opcional. El alumno y el asistente lo reciben junto a la
-                  consigna. Máximo 50 MB.
+                  Opcional. Imagen, audio, PDF o documento. El alumno lo recibe
+                  junto a la consigna; el asistente sólo lee imágenes y audio.
+                  Máximo 50 MB.
                 </small>
               </div>
               <div class="form-group">
@@ -2388,12 +2390,13 @@
                   ref="editExerciseUpload"
                   v-model="editExercise.media_url"
                   folder="exercises"
-                  label="Subir imagen o audio"
-                  accept="image/*,audio/*"
+                  label="Subir archivo"
+                  :accept="STATEMENT_MEDIA_ACCEPT"
                 />
                 <small class="field-hint">
-                  Opcional. El alumno y el asistente lo reciben junto a la
-                  consigna. Máximo 50 MB.
+                  Opcional. Imagen, audio, PDF o documento. El alumno lo recibe
+                  junto a la consigna; el asistente sólo lee imágenes y audio.
+                  Máximo 50 MB.
                 </small>
               </div>
               <div class="form-group">

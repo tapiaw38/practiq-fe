@@ -48,3 +48,15 @@ export function fileKind(url: string, contentType = ""): FileKind {
 
   return "download";
 }
+
+/**
+ * What a statement's material may be. Mirrors the API whitelist in
+ * internal/platform/storage/file.go, which has always accepted documents —
+ * only the picker was narrower, so a teacher with the exercise on a PDF had
+ * to screenshot it first.
+ */
+export const STATEMENT_MEDIA_ACCEPT =
+  "image/*,audio/*,application/pdf,.pdf,.doc,.docx,.odt,.txt," +
+  "application/msword," +
+  "application/vnd.openxmlformats-officedocument.wordprocessingml.document," +
+  "application/vnd.oasis.opendocument.text,text/plain";
