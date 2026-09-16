@@ -3,6 +3,7 @@ import axios from 'axios'
 const TOKEN_KEY = 'practiq_token'
 const REFRESH_TOKEN_KEY = 'practiq_refresh_token'
 const ACTIVE_SCHOOL_KEY = 'practiq.activeSchool'
+const IMPERSONATION_KEY = 'practiq.impersonation'
 
 const AUTH_BASE_URL = import.meta.env.VITE_AUTH_API_URL || 'http://localhost:8082'
 
@@ -19,8 +20,20 @@ export function removeToken(): void {
   localStorage.removeItem(REFRESH_TOKEN_KEY)
 }
 
+export function getRefreshToken(): string | null {
+  return localStorage.getItem(REFRESH_TOKEN_KEY)
+}
+
 export function setRefreshToken(token: string): void {
   localStorage.setItem(REFRESH_TOKEN_KEY, token)
+}
+
+export function removeRefreshToken(): void {
+  localStorage.removeItem(REFRESH_TOKEN_KEY)
+}
+
+export function isReadOnlyImpersonation(): boolean {
+  return sessionStorage.getItem(IMPERSONATION_KEY) !== null
 }
 
 /**
@@ -74,6 +87,10 @@ function createAxiosInstance(baseURL: string) {
   })
 
   instance.interceptors.request.use((config) => {
+    const method = (config.method || 'get').toLowerCase()
+    if (isReadOnlyImpersonation() && !['get', 'head', 'options'].includes(method)) {
+      return Promise.reject(new Error('Esta vista es de solo lectura. Salí de la impersonación para realizar cambios.'))
+    }
     const token = getToken()
     if (token) {
       config.headers.Authorization = `Bearer ${token}`

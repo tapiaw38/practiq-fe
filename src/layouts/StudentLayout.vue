@@ -37,6 +37,7 @@
     localStorage.getItem("practiq-last-practice") || "",
   );
   const isGoogleUser = computed(() => authStore.authMethod === "google");
+  const isImpersonating = computed(() => authStore.isImpersonating);
   // openLevels[courseId] = Set of open level numbers
   const openLevels = reactive<Record<string, Set<number>>>({});
 
@@ -397,6 +398,7 @@
           <!-- Desktop entry point: the topbar bell only shows on mobile. -->
           <NotificationBell class="footer-bell" />
           <button
+            v-if="!isImpersonating"
             class="icon-btn"
             type="button"
             :title="

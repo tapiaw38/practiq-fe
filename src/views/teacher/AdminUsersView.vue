@@ -1,5 +1,6 @@
 <script setup lang="ts">
   import { computed, onBeforeUnmount, onMounted, ref } from "vue";
+  import { useRouter } from "vue-router";
   import TeacherLayout from "@/layouts/TeacherLayout.vue";
   import Skeleton from "@/components/ui/Skeleton.vue";
   import ConfirmModal from "@/components/ui/ConfirmModal.vue";
@@ -9,6 +10,8 @@
   import { useGrade } from "@/composables/useGrade";
   import { useProfile } from "@/composables/useProfile";
   import { useAuthStore } from "@/stores/authStore";
+  import { practiqApi } from "@/api/request/server";
+  import { ProfileService } from "@/services/profile/profileService";
   import type { AssignedUser, AuthApiUser, Grade, UserProfile } from "@/types";
 
   const VIEW_KEY = "admin-users-view";
@@ -39,6 +42,7 @@
   };
 
   const authStore = useAuthStore();
+  const router = useRouter();
   const { confirmState, showConfirm, onConfirm, onCancel } = useConfirm();
   const { loadUsers, updateUser } = useAuthAdmin();
   const {
@@ -370,6 +374,34 @@
   }
 
   const changingRole = ref<string | null>(null);
+  const impersonating = ref<string | null>(null);
+
+  async function impersonate(item: UserRow) {
+    if (!item.profile || isSelf(item.user)) return;
+    const userId = practiqUserId(item.user);
+    impersonating.value = userId;
+    errorMessage.value = "";
+    try {
+      const { data } = await practiqApi.post("/impersonation", { user_id: userId });
+      authStore.beginReadOnlyImpersonation(data.token, {
+        id: item.user.id,
+        username: userId,
+        first_name: item.user.first_name,
+        last_name: item.user.last_name,
+        email: item.user.email,
+        auth_method: (item.user.auth_method === "google" || item.user.auth_method === "hybrid") ? item.user.auth_method : "password",
+        roles: [],
+      });
+      const profile = await new ProfileService(practiqApi).get();
+      authStore.setProfile(profile.data);
+      await router.replace(profile.data.profile_type === "teacher" ? "/teacher/dashboard" : "/student/dashboard");
+    } catch (error) {
+      console.error(error);
+      errorMessage.value = "No se pudo iniciar la vista de solo lectura.";
+    } finally {
+      impersonating.value = null;
+    }
+  }
 
   async function setProfileType(item: UserRow, makeTeacher: boolean) {
     if (!item.profile) {
@@ -608,6 +640,15 @@
                 <td data-label="Acciones" class="cell-actions">
                   <button
                     v-if="!isSelf(teacher.user)"
+                    class="btn btn-ghost btn-sm"
+                    type="button"
+                    :disabled="impersonating === practiqUserId(teacher.user)"
+                    @click="impersonate(teacher)"
+                  >
+                    <i class="pi pi-eye"></i> Ver como usuario
+                  </button>
+                  <button
+                    v-if="!isSelf(teacher.user)"
                     class="btn btn-secondary btn-sm"
                     type="button"
                     :disabled="changingRole === teacher.user.id"
@@ -756,6 +797,15 @@
                   </span>
                 </td>
                 <td data-label="Acciones" class="cell-actions">
+                  <button
+                    v-if="!isSelf(item.user)"
+                    class="btn btn-ghost btn-sm"
+                    type="button"
+                    :disabled="impersonating === practiqUserId(item.user)"
+                    @click="impersonate(item)"
+                  >
+                    <i class="pi pi-eye"></i> Ver como usuario
+                  </button>
                   <button
                     v-if="!isSelf(item.user)"
                     class="btn btn-secondary btn-sm"

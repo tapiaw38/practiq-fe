@@ -41,6 +41,7 @@
   const showChangePassword = ref(false);
   const showSetPassword = ref(false);
   const isGoogleUser = computed(() => authStore.authMethod === "google");
+  const isImpersonating = computed(() => authStore.isImpersonating);
   // admin es el rol del profesor; superadmin, el del administrador.
   const isSuperAdmin = computed(() => {
     const roles = authStore.authUser?.roles || [];
@@ -255,7 +256,8 @@
           </div>
         </div>
         <div class="footer-actions">
-          <button
+            <button
+              v-if="!isImpersonating"
             class="icon-btn"
             type="button"
             :title="
