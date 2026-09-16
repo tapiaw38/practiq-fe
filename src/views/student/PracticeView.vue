@@ -1273,9 +1273,19 @@
         <Transition name="fade">
           <div v-if="showRestoreModal" class="modal-overlay">
             <div class="modal-box">
-              <h3 class="modal-title">
-                <i class="pi pi-save"></i> Borrador encontrado
-              </h3>
+              <div class="modal-header">
+                <h3 class="modal-title">
+                  <i class="pi pi-save"></i> Borrador encontrado
+                </h3>
+                <button
+                  type="button"
+                  class="modal-close"
+                  aria-label="Cerrar"
+                  @click="showRestoreModal = false"
+                >
+                  <i class="pi pi-times"></i>
+                </button>
+              </div>
               <p class="submit-copy">
                 Encontramos un borrador guardado de esta practica. ¿Deseas
                 restaurar tu progreso anterior?
@@ -1364,6 +1374,14 @@
         <Transition name="fade">
           <div v-if="showResults && result" class="modal-overlay">
             <div class="modal-box results-box">
+              <button
+                type="button"
+                class="modal-close results-close"
+                aria-label="Cerrar"
+                @click="showResults = false"
+              >
+                <i class="pi pi-times"></i>
+              </button>
               <div class="results-header">
                 <div class="results-emoji">
                   {{
@@ -2245,7 +2263,27 @@
   }
 
   .results-box {
+    position: relative;
     max-width: 520px;
+  }
+
+  .results-close {
+    position: absolute;
+    top: 16px;
+    right: 16px;
+  }
+
+  /* Two full-width stacked buttons ate most of the screen on a small phone,
+     pushing "Ver mis respuestas" below the fold on a modal that already has
+     no other way to dismiss it. Side by side fits both in one row instead. */
+  @media (max-width: 480px) {
+    .results-box .modal-actions {
+      flex-direction: row;
+    }
+    .results-box .modal-actions > * {
+      width: auto;
+      flex: 1;
+    }
   }
 
   .results-header {

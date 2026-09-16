@@ -1214,6 +1214,14 @@
     <Transition name="fade">
       <div v-if="showInstructionsModal" class="modal-overlay">
         <div class="modal-box instructions-modal">
+          <button
+            type="button"
+            class="modal-close instructions-close"
+            aria-label="Cerrar"
+            @click="goBackFromInstructions"
+          >
+            <i class="pi pi-times"></i>
+          </button>
           <div class="instructions-icon">
             <i class="pi pi-info-circle"></i>
           </div>
@@ -1286,9 +1294,19 @@
         @click.self="showRetryModal = false"
       >
         <div class="modal-box">
-          <h3 class="modal-title">
-            <i class="pi pi-refresh"></i> Reintentar prueba
-          </h3>
+          <div class="modal-header">
+            <h3 class="modal-title">
+              <i class="pi pi-refresh"></i> Reintentar prueba
+            </h3>
+            <button
+              type="button"
+              class="modal-close"
+              aria-label="Cerrar"
+              @click="showRetryModal = false"
+            >
+              <i class="pi pi-times"></i>
+            </button>
+          </div>
           <p class="modal-desc">
             ¿Estas seguro de que deseas reintentar la prueba de nivel?
           </p>
@@ -1321,6 +1339,14 @@
     <Transition name="fade">
       <div v-if="showSuccessModal" class="modal-overlay">
         <div class="modal-box success-modal">
+          <button
+            type="button"
+            class="modal-close instructions-close"
+            aria-label="Cerrar"
+            @click="closeSuccessAndGoHome"
+          >
+            <i class="pi pi-times"></i>
+          </button>
           <div class="success-confetti">
             <span class="confetti-piece">🎉</span>
             <span class="confetti-piece">🏆</span>
@@ -2071,8 +2097,15 @@
 
   /* Instructions Modal */
   .instructions-modal {
+    position: relative;
     max-width: 500px;
     text-align: center;
+  }
+
+  .instructions-close {
+    position: absolute;
+    top: 16px;
+    right: 16px;
   }
 
   .instructions-icon {
@@ -2223,6 +2256,7 @@
 
   /* Success Modal */
   .success-modal {
+    position: relative;
     max-width: 440px;
     text-align: center;
   }

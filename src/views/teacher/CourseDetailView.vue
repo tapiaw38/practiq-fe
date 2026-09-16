@@ -1540,7 +1540,17 @@
     >
       <template v-if="showExerciseModal">
         <div class="modal-box">
-          <h3 class="modal-title">Nuevo Ejercicio</h3>
+          <div class="modal-header">
+            <h3 class="modal-title">Nuevo Ejercicio</h3>
+            <button
+              type="button"
+              class="modal-close"
+              aria-label="Cerrar"
+              @click="showExerciseModal = false"
+            >
+              <i class="pi pi-times"></i>
+            </button>
+          </div>
           <form @submit.prevent="createExercise">
             <div class="form-group">
               <label class="form-label">Tipo *</label>
@@ -2380,7 +2390,17 @@
     >
       <template v-if="showEditExerciseModal">
         <div class="modal-box">
-          <h3 class="modal-title">Editar Ejercicio</h3>
+          <div class="modal-header">
+            <h3 class="modal-title">Editar Ejercicio</h3>
+            <button
+              type="button"
+              class="modal-close"
+              aria-label="Cerrar"
+              @click="showEditExerciseModal = false"
+            >
+              <i class="pi pi-times"></i>
+            </button>
+          </div>
           <form @submit.prevent="saveExerciseEdit">
             <div class="form-group">
               <label class="form-label">Tipo *</label>
