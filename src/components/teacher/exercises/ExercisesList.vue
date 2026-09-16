@@ -6,6 +6,7 @@
   } from "@/composables/useContentRenderer";
   import FileViewer from "@/components/ui/FileViewer.vue";
   import type { Exercise } from "@/types";
+  import { splitStatement, deserializeAnswer } from "@/utils/fillBlanks";
   import type {
     ExercisesListEmits,
     ExercisesListProps,
@@ -13,6 +14,15 @@
 
   defineProps<ExercisesListProps>();
   const emit = defineEmits<ExercisesListEmits>();
+
+  function fillBlanksAnswerText(correctAnswer?: string): string {
+    const placements = deserializeAnswer(correctAnswer);
+    const entries = Object.entries(placements).sort(
+      ([a], [b]) => Number(a) - Number(b),
+    );
+    if (!entries.length) return "N/A";
+    return entries.map(([, answer]) => answer).join(", ");
+  }
 
   // Statement media opens in a modal: the list is dense enough without players
   // inline, and audio only needs somewhere to hit play.
@@ -101,6 +111,15 @@
               class="item-title item-title--math"
               v-html="renderEquation(exercise.question)"
             ></div>
+            <div v-else-if="exercise.type === 'fill_blanks'" class="item-title">
+              <template
+                v-for="(segment, index) in splitStatement(exercise.question)"
+                :key="index"
+              >
+                <span v-if="segment.kind === 'text'">{{ segment.value }}</span>
+                <span v-else class="blank-slot">___</span>
+              </template>
+            </div>
             <div v-else class="item-title">{{ exercise.question }}</div>
             <div class="item-subtitle">
               {{ exercise.type }}
@@ -113,6 +132,10 @@
                   "
                 ></span>
               </template>
+              <template v-else-if="exercise.type === 'fill_blanks'"
+                >· Respuesta:
+                {{ fillBlanksAnswerText(exercise.correct_answer) }}</template
+              >
               <template v-else
                 >· Respuesta: {{ exercise.correct_answer || "N/A" }}</template
               >
@@ -164,6 +187,16 @@
   .item-actions {
     display: flex;
     align-items: center;
+  }
+  .blank-slot {
+    display: inline-block;
+    min-width: 44px;
+    padding: 0 4px;
+    margin: 0 2px;
+    border-bottom: 2px solid var(--practiq-violet, #6d28d9);
+    color: var(--practiq-violet, #6d28d9);
+    font-weight: 700;
+    text-align: center;
   }
   .section-header {
     justify-content: space-between;
