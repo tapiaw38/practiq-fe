@@ -319,6 +319,13 @@
   );
   const formattedTime = computed(() => formatDuration(timeLeft.value));
 
+  // The instructions used to promise thirty minutes whatever the teacher set,
+  // which is the one number a student reads before starting.
+  const timeLimitLabel = computed(() => {
+    const minutes = sheet.value?.time_limit_minutes ?? TEST_DURATION_SECONDS / 60;
+    return minutes === 1 ? "1 minuto" : `${minutes} minutos`;
+  });
+
   // Shown only when the teacher allowed more than one: on a single-attempt
   // test "te queda 1 intento" is noise next to a countdown.
   const attemptsLeftLabel = computed(() => {
@@ -1196,7 +1203,7 @@
             <ul class="instructions-list">
               <li>
                 <i class="pi pi-clock"></i>
-                Tiempo limite: <strong>30 minutos</strong>
+                Tiempo limite: <strong>{{ timeLimitLabel }}</strong>
               </li>
               <li>
                 <i class="pi pi-check-circle"></i>
@@ -1263,7 +1270,7 @@
             <div>
               <strong>Ten en cuenta:</strong>
               <ul>
-                <li>Tendras otros 30 minutos para completar la prueba</li>
+                <li>Tendras otros {{ timeLimitLabel }} para completar la prueba</li>
                 <li>Tus respuestas anteriores no se conservaran</li>
                 <li>Necesitaras 75% de respuestas correctas para aprobar</li>
               </ul>
