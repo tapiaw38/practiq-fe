@@ -1311,7 +1311,15 @@
             class="modal-overlay"
             @click.self="closeSubmitConfirm()"
           >
-            <div class="modal-box">
+            <div class="modal-box submit-confirm-box">
+              <button
+                type="button"
+                class="modal-close submit-confirm-close"
+                aria-label="Cerrar"
+                @click="closeSubmitConfirm()"
+              >
+                <i class="pi pi-times"></i>
+              </button>
               <div class="practice-submit-header">
                 <div class="practice-submit-badge practice-submit-badge--quiet">
                   <i class="pi pi-send"></i>
@@ -2207,6 +2215,16 @@
     margin-bottom: 20px;
   }
 
+  .submit-confirm-box {
+    position: relative;
+  }
+
+  .submit-confirm-close {
+    position: absolute;
+    top: 16px;
+    right: 16px;
+  }
+
   .practice-submit-header {
     display: grid;
     gap: 10px;
@@ -2531,8 +2549,20 @@
     .streak-chip--active .streak-val {
       font-size: 1rem;
     }
+
+    /* Puntaje/Correctas/Dominio se piden en una sola fila incluso en mobile
+       (antes se apilaban acá). El texto es corto, entra sin recorte. */
     .results-stats {
-      grid-template-columns: 1fr;
+      gap: 8px;
+    }
+    .stat-card {
+      padding: 12px 8px;
+    }
+    .stat-value {
+      font-size: 1.35rem;
+    }
+    .stat-label {
+      font-size: 0.68rem;
     }
 
     /* El número en columna propia comía ~48px de ancho útil. En mobile queda
