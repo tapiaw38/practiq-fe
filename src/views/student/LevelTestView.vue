@@ -30,6 +30,7 @@
     prepareHandwritingImage,
     summarizeExerciseMetadata,
     statementMediaAudioAttachment,
+    statementMediaDocumentAttachment,
     statementMediaPreviewDataURL,
   } from "@/utils/assistantExerciseContext";
   import { formatDuration } from "@/utils/formatters";
@@ -683,8 +684,12 @@
     const exerciseIndex = getAssistantExerciseIndex(exerciseId);
     const exercise =
       exerciseIndex >= 0 ? exercises.value[exerciseIndex]?.exercise : null;
-    const audio = await statementMediaAudioAttachment(exercise, assistantMediaPath(exerciseId));
-    return audio ? [audio] : [];
+    const [audio, document] = await Promise.all([
+      statementMediaAudioAttachment(exercise, assistantMediaPath(exerciseId)),
+      statementMediaDocumentAttachment(exercise, assistantMediaPath(exerciseId)),
+    ]);
+    // A statement carries one file, so at most one of these is ever set.
+    return [audio, document].filter((item) => item !== null);
   };
 
   function retry() {

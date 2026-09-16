@@ -80,19 +80,20 @@ export interface AssistantOptions {
         contentType?: string;
       }
     | null;
-  /** Optional host-provided statement audio for Gillie's voice channel. */
+  /** Optional host-provided statement media: audio for Gillie's voice
+   *  channel, a PDF or document for its document channel. */
   getMediaAttachments?: () =>
     | Array<{
         dataUrl: string;
         filename?: string;
         contentType?: string;
-        field: "voice_content";
+        field: "voice_content" | "document_content";
       }>
     | Promise<Array<{
         dataUrl: string;
         filename?: string;
         contentType?: string;
-        field: "voice_content";
+        field: "voice_content" | "document_content";
       }>>;
   /** Optional hook to collect structured page/exercise context from the host app */
   getStructuredContext?: () =>
@@ -496,26 +497,48 @@ export function createAssistant(options: AssistantOptions): Assistant {
     }
   }
 
+  // One line per channel, so Gillie can tell the teacher's material from
+  // something the student sent. Each doubles as the guard against attaching
+  // the same statement twice in one conversation.
+  const statementMediaInstructions: Record<string, string> = {
+    voice_content:
+      "El primer audio adjunto pertenece al enunciado del docente. Escúchalo como parte del ejercicio, no como una consulta del alumno.",
+    document_content:
+      "El documento adjunto pertenece al enunciado del docente. Léelo como parte del ejercicio, no como una consulta del alumno.",
+  };
+
   async function appendMediaAttachmentsIfNeeded(formData: FormData): Promise<void> {
     if (!options.getMediaAttachments) return;
-    const instruction = "El primer audio adjunto pertenece al enunciado del docente. Escúchalo como parte del ejercicio, no como una consulta del alumno.";
-    if (String(formData.get("context") || "").includes(instruction)) return;
     try {
       const attachments = await options.getMediaAttachments();
       for (const attachment of attachments) {
-        if (!attachment?.dataUrl || attachment.field !== "voice_content") continue;
-        // Preserve a student's recorded question too. Put statement audio
-        // first so Gillie can identify it from the context instruction.
-        const existingVoice = formData.getAll("voice_content");
-        formData.delete("voice_content");
-        formData.append(
-          "voice_content",
-          dataUrlToBlob(attachment.dataUrl, attachment.contentType || "audio/mpeg"),
-          attachment.filename || "statement-audio.mp3",
-        );
-        for (const voice of existingVoice) formData.append("voice_content", voice);
-        const context = String(formData.get("context") || "").trim();
-        formData.set("context", context ? `${context}\n\n${instruction}` : instruction);
+        const instruction = attachment?.field ? statementMediaInstructions[attachment.field] : "";
+        if (!attachment?.dataUrl || !instruction) continue;
+
+        const context = String(formData.get("context") || "");
+        if (context.includes(instruction)) continue;
+
+        if (attachment.field === "voice_content") {
+          // Preserve a student's recorded question too. Put statement audio
+          // first so Gillie can identify it from the context instruction.
+          const existingVoice = formData.getAll("voice_content");
+          formData.delete("voice_content");
+          formData.append(
+            "voice_content",
+            dataUrlToBlob(attachment.dataUrl, attachment.contentType || "audio/mpeg"),
+            attachment.filename || "statement-audio.mp3",
+          );
+          for (const voice of existingVoice) formData.append("voice_content", voice);
+        } else {
+          formData.append(
+            "document_content",
+            dataUrlToBlob(attachment.dataUrl, attachment.contentType || "application/pdf"),
+            attachment.filename || "enunciado.pdf",
+          );
+        }
+
+        const trimmed = context.trim();
+        formData.set("context", trimmed ? `${trimmed}\n\n${instruction}` : instruction);
       }
     } catch (error) {
       console.error("Error getting statement media attachments:", error);

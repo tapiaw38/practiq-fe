@@ -27,7 +27,7 @@ interface PractiqAssistantCaptureResult {
 }
 
 interface PractiqAssistantMediaAttachment extends PractiqAssistantCaptureResult {
-  field: "voice_content"
+  field: "voice_content" | "document_content"
 }
 
 type PractiqAssistantStructuredContextValue =

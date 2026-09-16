@@ -8,7 +8,7 @@ export type AssistantMediaAttachment = {
   dataUrl: string;
   filename: string;
   contentType: string;
-  field: "voice_content";
+  field: "voice_content" | "document_content";
 };
 
 // Base64 expands media by roughly one third. Keep browser-generated payloads
@@ -158,6 +158,40 @@ export async function statementMediaAudioAttachment(
     filename: `enunciado.${extension}`,
     contentType,
     field: "voice_content",
+  };
+}
+
+// Gillie reads a PDF or a Word/ODT/TXT file through its document channel,
+// the same one the exercise-draft generator uses. Images and audio have their
+// own channels; anything else the statement carries would reach the student
+// and stop at the assistant, which is what this closes.
+const statementDocumentExtensions: Record<string, string> = {
+  "application/pdf": "pdf",
+  "application/msword": "doc",
+  "application/vnd.openxmlformats-officedocument.wordprocessingml.document": "docx",
+  "application/vnd.oasis.opendocument.text": "odt",
+  "text/plain": "txt",
+};
+
+export async function statementMediaDocumentAttachment(
+  exercise?: Pick<Exercise, "media_view_url"> | null,
+  assistantMediaPath?: string,
+): Promise<AssistantMediaAttachment | null> {
+  const url = exercise?.media_view_url || "";
+  const kind = fileKind(url);
+  if (!url || (kind !== "pdf" && kind !== "text" && kind !== "download")) return null;
+
+  const blob = await fetchStatementMedia(url, assistantMediaPath);
+  if (!blob) return null;
+
+  // A signed URL may answer without a usable type; the extension the bucket
+  // stored is the fallback, and PDF is the overwhelmingly common case.
+  const contentType = statementDocumentExtensions[blob.type] ? blob.type : "application/pdf";
+  return {
+    dataUrl: await blobToDataURL(blob),
+    filename: `enunciado.${statementDocumentExtensions[contentType] ?? "pdf"}`,
+    contentType,
+    field: "document_content",
   };
 }
 
