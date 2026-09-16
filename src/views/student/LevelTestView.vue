@@ -1,5 +1,5 @@
 <script setup lang="ts">
-  import { ref, computed, onMounted, onUnmounted, nextTick, watch } from "vue";
+  import { ref, computed, onMounted, onUnmounted, nextTick, watch, defineAsyncComponent } from "vue";
   import { statementImageDataURL } from "@/utils/statementImage";
   import ExerciseStepper from "@/components/student/exercises/ExerciseStepper.vue";
   import { useRoute, useRouter } from "vue-router";
@@ -38,7 +38,6 @@
     renderContent,
     renderEquation,
   } from "@/composables/useContentRenderer";
-  import MathFieldEditor from "@/components/ui/MathFieldEditor.vue";
   import { useConfetti } from "@/composables/useConfetti";
   import { useSound } from "@/composables/useSound";
   import { useCuriosities } from "@/composables/useCuriosities";
@@ -52,6 +51,12 @@
     encourageMessages,
     randomMessage,
   } from "@/utils/motivationalMessages";
+
+  // mathlive is ~200kB gzipped and only needed for equation exercises, so it
+  // loads on demand instead of riding along on every level test.
+  const MathFieldEditor = defineAsyncComponent(
+    () => import("@/components/ui/MathFieldEditor.vue"),
+  );
 
   const toast = useToast();
   const route = useRoute();

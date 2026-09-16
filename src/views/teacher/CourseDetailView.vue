@@ -1,11 +1,18 @@
 <script setup lang="ts">
   import UiModal from "@/components/ui/UiModal.vue";
-  import { computed, ref, reactive, onMounted, watch, nextTick } from "vue";
+  import {
+    computed,
+    ref,
+    reactive,
+    onMounted,
+    watch,
+    nextTick,
+    defineAsyncComponent,
+  } from "vue";
   import { useRoute, useRouter } from "vue-router";
   import { useToast } from "primevue/usetoast";
   import TeacherLayout from "@/layouts/TeacherLayout.vue";
   import ConfirmModal from "@/components/ui/ConfirmModal.vue";
-  import MathFieldEditor from "@/components/ui/MathFieldEditor.vue";
   import FileUploadField from "@/components/ui/FileUploadField.vue";
   import ExercisesList from "@/components/teacher/exercises/ExercisesList.vue";
   import CourseLevelsPanel from "@/components/teacher/levels/CourseLevelsPanel.vue";
@@ -51,6 +58,12 @@
   import { practiqApi } from "@/api/request/server";
   import { STATEMENT_MEDIA_ACCEPT } from "@/utils/fileKind";
   import { ExerciseService } from "@/services/exercises/exerciseService";
+
+  // mathlive is ~200kB gzipped and only needed for equation exercises, so it
+  // loads on demand instead of riding along on every course page.
+  const MathFieldEditor = defineAsyncComponent(
+    () => import("@/components/ui/MathFieldEditor.vue"),
+  );
 
   const route = useRoute();
   const router = useRouter();
