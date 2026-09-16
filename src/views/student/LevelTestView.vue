@@ -171,9 +171,19 @@
   }
   let timer: ReturnType<typeof setInterval> | null = null;
 
+  // A test with no limit no longer runs a countdown. The thirty minutes it
+  // used to show were never enforced -- reloading reset them -- so all they
+  // did was pressure the student and auto-submit on a test whose teacher
+  // chose not to time it. Elapsed time is still measured, since the stats
+  // report how long each exercise took.
+  const hasTimeLimit = computed(() => (sheet.value?.time_limit_minutes ?? 0) > 0);
+  const elapsedSeconds = ref(0);
+
   function startTimer() {
     if (timer) clearInterval(timer);
     timer = setInterval(() => {
+      elapsedSeconds.value++;
+      if (!hasTimeLimit.value) return;
       if (timeLeft.value <= 0) {
         clearInterval(timer!);
         timer = null;
@@ -322,7 +332,8 @@
   // The instructions used to promise thirty minutes whatever the teacher set,
   // which is the one number a student reads before starting.
   const timeLimitLabel = computed(() => {
-    const minutes = sheet.value?.time_limit_minutes ?? TEST_DURATION_SECONDS / 60;
+    const minutes = sheet.value?.time_limit_minutes ?? 0;
+    if (minutes <= 0) return "";
     return minutes === 1 ? "1 minuto" : `${minutes} minutos`;
   });
 
@@ -432,9 +443,8 @@
       loadingMessage.value = getNextCuriosity();
     }, 3000);
 
-    const elapsedSeconds = TEST_DURATION_SECONDS - timeLeft.value;
     const perExerciseSeconds = exercises.value.length
-      ? Math.round(elapsedSeconds / exercises.value.length)
+      ? Math.round(elapsedSeconds.value / exercises.value.length)
       : 0;
 
     try {
@@ -724,16 +734,29 @@
     showRetryModal.value = true;
   }
 
-  function confirmRetry() {
+  async function confirmRetry() {
     showRetryModal.value = false;
     submitted.value = false;
     result.value = null;
-    timeLeft.value = TEST_DURATION_SECONDS;
     warningShown = false;
+    elapsedSeconds.value = 0;
     canvasData.value = {};
     for (const key in answers.value) answers.value[key] = "";
     // Without this the retry re-submits the files from the previous attempt.
     attachments.value = {};
+
+    // Reload rather than reset a number here: submitting closed the window
+    // server-side, and asking for the sheet again is what opens the next one.
+    // The deadline that comes back is the one the server will enforce, so the
+    // countdown cannot drift from it.
+    try {
+      sheet.value = await loadPracticeSheet(route.params.id as string);
+    } catch {
+      // Keep the test open on a failed refresh; the server still has the last
+      // word when the attempt is submitted.
+    }
+    const remaining = secondsUntilDeadline(sheet.value?.deadline);
+    timeLeft.value = remaining ?? (sheet.value?.time_limit_minutes ?? 0) * 60;
     startTimer();
   }
 
@@ -776,7 +799,7 @@
         </div>
         <div class="test-header-aside">
           <span v-if="attemptsLeftLabel" class="attempts-left">{{ attemptsLeftLabel }}</span>
-          <div class="timer" :class="{ 'timer--warning': timeLeft < 120 }">
+          <div v-if="hasTimeLimit" class="timer" :class="{ 'timer--warning': timeLeft < 120 }">
             <i class="pi pi-clock"></i>
             {{ formattedTime }}
           </div>
@@ -1201,9 +1224,13 @@
               siguientes instrucciones:
             </p>
             <ul class="instructions-list">
-              <li>
+              <li v-if="hasTimeLimit">
                 <i class="pi pi-clock"></i>
                 Tiempo limite: <strong>{{ timeLimitLabel }}</strong>
+              </li>
+              <li v-else>
+                <i class="pi pi-clock"></i>
+                Sin tiempo limite: tomate el que necesites
               </li>
               <li>
                 <i class="pi pi-check-circle"></i>
@@ -1270,7 +1297,7 @@
             <div>
               <strong>Ten en cuenta:</strong>
               <ul>
-                <li>Tendras otros {{ timeLimitLabel }} para completar la prueba</li>
+                <li v-if="hasTimeLimit">Tendras otros {{ timeLimitLabel }} para completar la prueba</li>
                 <li>Tus respuestas anteriores no se conservaran</li>
                 <li>Necesitaras 75% de respuestas correctas para aprobar</li>
               </ul>
