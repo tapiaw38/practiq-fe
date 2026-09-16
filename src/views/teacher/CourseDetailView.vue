@@ -1742,7 +1742,12 @@
     >
       <template v-if="showAIDraftsModal">
         <div class="modal-box ai-drafts-modal">
-          <h3 class="modal-title"><i class="pi pi-sparkles"></i> Crear ejercicios con IA</h3>
+          <div class="modal-header">
+            <h3 class="modal-title"><i class="pi pi-sparkles"></i> Crear ejercicios con IA</h3>
+            <button type="button" class="modal-close" aria-label="Cerrar" @click="showAIDraftsModal = false">
+              <i class="pi pi-times"></i>
+            </button>
+          </div>
           <p class="field-hint">Subí una guía, evaluación o imagen, o escribí el tema. Gillie crea borradores; vos los revisás antes de publicarlos.</p>
           <template v-if="!aiDrafts.length">
             <div class="form-group"><label class="form-label">Archivo fuente <span class="label-optional">(opcional)</span></label><input type="file" accept=".pdf,.docx,image/png,image/jpeg,image/webp" @change="aiSource = (($event.target as HTMLInputElement).files?.[0] || null)" /></div>
@@ -1796,7 +1801,12 @@
     >
       <template v-if="showExportModal">
         <div class="modal-box">
-          <h3 class="modal-title"><i class="pi pi-download"></i> Exportar ejercicios</h3>
+          <div class="modal-header">
+            <h3 class="modal-title"><i class="pi pi-download"></i> Exportar ejercicios</h3>
+            <button type="button" class="modal-close" aria-label="Cerrar" @click="showExportModal = false">
+              <i class="pi pi-times"></i>
+            </button>
+          </div>
           <p class="field-hint">Elegí qué ejercicios de este tema exportar a un archivo JSON.</p>
           <label class="picker-select-all">
             <input type="checkbox" :checked="exportAllSelected" @change="toggleExportAll" />
@@ -1830,7 +1840,12 @@
     >
       <template v-if="showImportModal">
         <div class="modal-box">
-          <h3 class="modal-title"><i class="pi pi-upload"></i> Importar ejercicios</h3>
+          <div class="modal-header">
+            <h3 class="modal-title"><i class="pi pi-upload"></i> Importar ejercicios</h3>
+            <button type="button" class="modal-close" aria-label="Cerrar" @click="showImportModal = false">
+              <i class="pi pi-times"></i>
+            </button>
+          </div>
           <template v-if="!importDrafts.length">
             <p class="field-hint">Elegí un archivo JSON exportado desde Practiq (una lista de ejercicios).</p>
             <div class="form-group">
