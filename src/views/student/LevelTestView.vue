@@ -44,6 +44,7 @@
   import { useCuriosities } from "@/composables/useCuriosities";
   import { tuckAssistantFab } from "@/composables/useAssistantFabOffset";
   import AiLoadingModal from "@/components/student/ai/AiLoadingModal.vue";
+  import UiModal from "@/components/ui/UiModal.vue";
   import { buildFillBlanksAssistantContext } from "@/utils/fillBlanks";
   import {
     loadingMessages,
@@ -1210,11 +1211,13 @@
   />
 
   <!-- Instructions Modal (before test) -->
-  <Teleport to="body">
-    <Transition name="fade">
-      <div v-if="showInstructionsModal" class="modal-overlay">
-        <div class="modal-box instructions-modal">
-          <button
+  <UiModal
+    :visible="Boolean(showInstructionsModal)"
+    @close="goBackFromInstructions"
+  >
+    <template v-if="showInstructionsModal">
+      <div class="modal-box instructions-modal">
+        <button
             type="button"
             class="modal-close instructions-close"
             aria-label="Cerrar"
@@ -1259,18 +1262,17 @@
               entregar.
             </p>
           </div>
-          <div class="modal-actions">
-            <button class="btn btn-secondary" @click="goBackFromInstructions">
-              <i class="pi pi-arrow-left"></i> Volver
-            </button>
-            <button class="btn btn-primary" @click="startTest">
-              <i class="pi pi-play"></i> Comenzar prueba
-            </button>
-          </div>
+        <div class="modal-actions">
+          <button class="btn btn-secondary" @click="goBackFromInstructions">
+            <i class="pi pi-arrow-left"></i> Volver
+          </button>
+          <button class="btn btn-primary" @click="startTest">
+            <i class="pi pi-play"></i> Comenzar prueba
+          </button>
         </div>
       </div>
-    </Transition>
-  </Teleport>
+    </template>
+  </UiModal>
 
   <!-- Time Warning Toast -->
   <Teleport to="body">
@@ -1286,15 +1288,13 @@
   </Teleport>
 
   <!-- Retry Confirmation Modal -->
-  <Teleport to="body">
-    <Transition name="fade">
-      <div
-        v-if="showRetryModal"
-        class="modal-overlay"
-        @click.self="showRetryModal = false"
-      >
-        <div class="modal-box">
-          <div class="modal-header">
+  <UiModal
+    :visible="Boolean(showRetryModal)"
+    @close="showRetryModal = false"
+  >
+    <template v-if="showRetryModal">
+      <div class="modal-box">
+        <div class="modal-header">
             <h3 class="modal-title">
               <i class="pi pi-refresh"></i> Reintentar prueba
             </h3>
@@ -1321,25 +1321,26 @@
               </ul>
             </div>
           </div>
-          <div class="modal-actions">
-            <button class="btn btn-secondary" @click="showRetryModal = false">
-              Cancelar
-            </button>
-            <button class="btn btn-primary" @click="confirmRetry">
-              <i class="pi pi-refresh"></i> Reintentar
-            </button>
-          </div>
+        <div class="modal-actions">
+          <button class="btn btn-secondary" @click="showRetryModal = false">
+            Cancelar
+          </button>
+          <button class="btn btn-primary" @click="confirmRetry">
+            <i class="pi pi-refresh"></i> Reintentar
+          </button>
         </div>
       </div>
-    </Transition>
-  </Teleport>
+    </template>
+  </UiModal>
 
   <!-- Success Congratulations Modal -->
-  <Teleport to="body">
-    <Transition name="fade">
-      <div v-if="showSuccessModal" class="modal-overlay">
-        <div class="modal-box success-modal">
-          <button
+  <UiModal
+    :visible="Boolean(showSuccessModal)"
+    @close="closeSuccessAndGoHome"
+  >
+    <template v-if="showSuccessModal">
+      <div class="modal-box success-modal">
+        <button
             type="button"
             class="modal-close instructions-close"
             aria-label="Cerrar"
@@ -1365,18 +1366,17 @@
           <p class="success-recommendation" v-if="result?.recommendation">
             {{ result.recommendation }}
           </p>
-          <div class="modal-actions">
-            <button
-              class="btn btn-primary btn-lg"
-              @click="closeSuccessAndGoHome"
-            >
-              <i class="pi pi-home"></i> Continuar
-            </button>
-          </div>
+        <div class="modal-actions">
+          <button
+            class="btn btn-primary btn-lg"
+            @click="closeSuccessAndGoHome"
+          >
+            <i class="pi pi-home"></i> Continuar
+          </button>
         </div>
       </div>
-    </Transition>
-  </Teleport>
+    </template>
+  </UiModal>
 </template>
 
 <style scoped>

@@ -1,28 +1,27 @@
 <template>
-  <Teleport to="body">
-    <Transition name="fade">
-      <div v-if="show" class="ai-loading-overlay">
-        <div class="ai-loading-modal" role="dialog" :aria-label="title">
-          <div class="ai-loading-badge">
-            <i class="pi pi-sparkles"></i>
-            <span>{{ badgeLabel }}</span>
-          </div>
-          <img :src="aiLoadingGif" alt="" class="ai-loading-illustration" />
-          <h3 class="ai-loading-title">{{ title }}</h3>
-          <p class="ai-loading-message">
-            {{ message }}
-          </p>
-          <p v-if="footnote" class="ai-loading-footnote">
-            {{ footnote }}
-          </p>
+  <UiModal :visible="Boolean(show)" :dismissable="false" :label="title">
+    <template v-if="show">
+      <div class="ai-loading-modal">
+        <div class="ai-loading-badge">
+          <i class="pi pi-sparkles"></i>
+          <span>{{ badgeLabel }}</span>
         </div>
+        <img :src="aiLoadingGif" alt="" class="ai-loading-illustration" />
+        <h3 class="ai-loading-title">{{ title }}</h3>
+        <p class="ai-loading-message">
+          {{ message }}
+        </p>
+        <p v-if="footnote" class="ai-loading-footnote">
+          {{ footnote }}
+        </p>
       </div>
-    </Transition>
-  </Teleport>
+    </template>
+  </UiModal>
 </template>
 
 <script setup lang="ts">
   import aiLoadingGif from "@/assets/ai-loading.gif";
+  import UiModal from "@/components/ui/UiModal.vue";
 
   withDefaults(
     defineProps<{
@@ -40,18 +39,6 @@
 </script>
 
 <style scoped>
-  .ai-loading-overlay {
-    position: fixed;
-    inset: 0;
-    background: rgba(15, 23, 42, 0.34);
-    backdrop-filter: blur(3px);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    padding: 20px;
-    z-index: 2200;
-  }
-
   .ai-loading-modal {
     width: min(92vw, 520px);
     border-radius: 28px;

@@ -41,6 +41,7 @@
   import { useCuriosities } from "@/composables/useCuriosities";
   import { tuckAssistantFab } from "@/composables/useAssistantFabOffset";
   import AiLoadingModal from "@/components/student/ai/AiLoadingModal.vue";
+  import UiModal from "@/components/ui/UiModal.vue";
   import { buildFillBlanksAssistantContext } from "@/utils/fillBlanks";
   import {
     loadingMessages,
@@ -1269,106 +1270,104 @@
       </template>
 
       <!-- Restore draft modal -->
-      <Teleport to="body">
-        <Transition name="fade">
-          <div v-if="showRestoreModal" class="modal-overlay">
-            <div class="modal-box">
-              <div class="modal-header">
-                <h3 class="modal-title">
-                  <i class="pi pi-save"></i> Borrador encontrado
-                </h3>
-                <button
-                  type="button"
-                  class="modal-close"
-                  aria-label="Cerrar"
-                  @click="showRestoreModal = false"
-                >
-                  <i class="pi pi-times"></i>
-                </button>
-              </div>
-              <p class="submit-copy">
-                Encontramos un borrador guardado de esta practica. ¿Deseas
-                restaurar tu progreso anterior?
-              </p>
-              <div class="modal-actions">
-                <button class="btn btn-secondary" @click="discardDraft">
-                  Descartar
-                </button>
-                <button class="btn btn-primary" @click="restoreDraft">
-                  <i class="pi pi-refresh"></i> Restaurar
-                </button>
-              </div>
-            </div>
-          </div>
-        </Transition>
-      </Teleport>
-
-      <!-- Submit confirm modal -->
-      <Teleport to="body">
-        <Transition name="fade">
-          <div
-            v-if="showSubmitConfirm"
-            class="modal-overlay"
-            @click.self="closeSubmitConfirm()"
-          >
-            <div class="modal-box submit-confirm-box">
+      <UiModal
+        :visible="Boolean(showRestoreModal)"
+        @close="showRestoreModal = false"
+      >
+        <template v-if="showRestoreModal">
+          <div class="modal-box">
+            <div class="modal-header">
+              <h3 class="modal-title">
+                <i class="pi pi-save"></i> Borrador encontrado
+              </h3>
               <button
                 type="button"
-                class="modal-close submit-confirm-close"
+                class="modal-close"
                 aria-label="Cerrar"
-                @click="closeSubmitConfirm()"
+                @click="showRestoreModal = false"
               >
                 <i class="pi pi-times"></i>
               </button>
-              <div class="practice-submit-header">
-                <div class="practice-submit-badge practice-submit-badge--quiet">
-                  <i class="pi pi-send"></i>
-                  <span>Enviar práctica</span>
-                </div>
-                <h3 class="modal-title">Revisar y enviar</h3>
-                <p class="submit-copy practice-submit-copy">
-                  Respondiste <strong>{{ answeredCount }}</strong> de
-                  <strong>{{ totalCount }}</strong> ejercicios.
-                </p>
-              </div>
-              <div class="practice-submit-summary">
-                <div class="practice-submit-summary-item">
-                  <span class="practice-submit-summary-value">
-                    {{ answeredCount }}
-                  </span>
-                  <span class="practice-submit-summary-label">Listas</span>
-                </div>
-                <div class="practice-submit-summary-divider"></div>
-                <div class="practice-submit-summary-item">
-                  <span class="practice-submit-summary-value">
-                    {{ totalCount - answeredCount }}
-                  </span>
-                  <span class="practice-submit-summary-label">Faltan</span>
-                </div>
-              </div>
-              <p class="practice-submit-question">
-                ¿Deseas enviar tus respuestas para que IA las evalúe?
-              </p>
-              <div class="modal-actions">
-                <button
-                  class="btn btn-secondary"
-                  :disabled="submitting || uploadingAttachments.size > 0"
-                  @click="closeSubmitConfirm()"
-                >
-                  Cancelar
-                </button>
-                <button
-                  class="btn btn-primary"
-                  :disabled="submitting || uploadingAttachments.size > 0"
-                  @click="submitAnswers"
-                >
-                  Enviar respuestas
-                </button>
-              </div>
+            </div>
+            <p class="submit-copy">
+              Encontramos un borrador guardado de esta practica. ¿Deseas
+              restaurar tu progreso anterior?
+            </p>
+            <div class="modal-actions">
+              <button class="btn btn-secondary" @click="discardDraft">
+                Descartar
+              </button>
+              <button class="btn btn-primary" @click="restoreDraft">
+                <i class="pi pi-refresh"></i> Restaurar
+              </button>
             </div>
           </div>
-        </Transition>
-      </Teleport>
+        </template>
+      </UiModal>
+
+      <!-- Submit confirm modal -->
+      <UiModal
+        :visible="Boolean(showSubmitConfirm)"
+        @close="closeSubmitConfirm()"
+      >
+        <template v-if="showSubmitConfirm">
+          <div class="modal-box submit-confirm-box">
+            <button
+              type="button"
+              class="modal-close submit-confirm-close"
+              aria-label="Cerrar"
+              @click="closeSubmitConfirm()"
+            >
+              <i class="pi pi-times"></i>
+            </button>
+            <div class="practice-submit-header">
+              <div class="practice-submit-badge practice-submit-badge--quiet">
+                <i class="pi pi-send"></i>
+                <span>Enviar práctica</span>
+              </div>
+              <h3 class="modal-title">Revisar y enviar</h3>
+              <p class="submit-copy practice-submit-copy">
+                Respondiste <strong>{{ answeredCount }}</strong> de
+                <strong>{{ totalCount }}</strong> ejercicios.
+              </p>
+            </div>
+            <div class="practice-submit-summary">
+              <div class="practice-submit-summary-item">
+                <span class="practice-submit-summary-value">
+                  {{ answeredCount }}
+                </span>
+                <span class="practice-submit-summary-label">Listas</span>
+              </div>
+              <div class="practice-submit-summary-divider"></div>
+              <div class="practice-submit-summary-item">
+                <span class="practice-submit-summary-value">
+                  {{ totalCount - answeredCount }}
+                </span>
+                <span class="practice-submit-summary-label">Faltan</span>
+              </div>
+            </div>
+            <p class="practice-submit-question">
+              ¿Deseas enviar tus respuestas para que IA las evalúe?
+            </p>
+            <div class="modal-actions">
+              <button
+                class="btn btn-secondary"
+                :disabled="submitting || uploadingAttachments.size > 0"
+                @click="closeSubmitConfirm()"
+              >
+                Cancelar
+              </button>
+              <button
+                class="btn btn-primary"
+                :disabled="submitting || uploadingAttachments.size > 0"
+                @click="submitAnswers"
+              >
+                Enviar respuestas
+              </button>
+            </div>
+          </div>
+        </template>
+      </UiModal>
 
       <AiLoadingModal
         :show="submitting"
@@ -1378,11 +1377,13 @@
       />
 
       <!-- Results modal -->
-      <Teleport to="body">
-        <Transition name="fade">
-          <div v-if="showResults && result" class="modal-overlay">
-            <div class="modal-box results-box">
-              <button
+      <UiModal
+        :visible="Boolean(showResults && result)"
+        @close="showResults = false"
+      >
+        <template v-if="showResults && result">
+          <div class="modal-box results-box">
+            <button
                 type="button"
                 class="modal-close results-close"
                 aria-label="Cerrar"
@@ -1490,18 +1491,17 @@
                 </button>
               </div>
 
-              <div class="modal-actions">
-                <button class="btn btn-secondary" @click="router.back()">
-                  Volver al inicio
-                </button>
-                <button class="btn btn-primary" @click="showResults = false">
-                  Ver mis respuestas
-                </button>
-              </div>
+            <div class="modal-actions">
+              <button class="btn btn-secondary" @click="router.back()">
+                Volver al inicio
+              </button>
+              <button class="btn btn-primary" @click="showResults = false">
+                Ver mis respuestas
+              </button>
             </div>
           </div>
-        </Transition>
-      </Teleport>
+        </template>
+      </UiModal>
     </div>
   </StudentLayout>
   <ConfirmModal
