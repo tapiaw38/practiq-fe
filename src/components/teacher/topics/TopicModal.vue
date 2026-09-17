@@ -62,7 +62,7 @@
             :value="topic.order_index"
             type="number"
             class="form-input"
-            min="0"
+            min="1"
             @input="
               updateField(
                 'order_index',

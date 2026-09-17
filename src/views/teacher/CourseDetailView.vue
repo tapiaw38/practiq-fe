@@ -195,7 +195,9 @@
     fillBlanks: { blanks: [], distractors: [], layout: "text" } as FillBlanksConfig,
   });
 
-  const newTopic = reactive({ title: "", description: "", order_index: 0 });
+  // Topic positions are shown to teachers starting at one. The API stores
+  // zero-based indexes, so conversion happens only at its boundary.
+  const newTopic = reactive({ title: "", description: "", order_index: 1 });
   const newExercise = reactive({
     question: "",
     type: "open_text" as Exercise["type"],
@@ -602,11 +604,14 @@
   }
 
   async function createTopic() {
-    await createTopicService(courseId, newTopic);
+    await createTopicService(courseId, {
+      ...newTopic,
+      order_index: newTopic.order_index - 1,
+    });
     showTopicModal.value = false;
     newTopic.title = "";
     newTopic.description = "";
-    newTopic.order_index = 0;
+    newTopic.order_index = 1;
   }
 
   async function createExercise() {
