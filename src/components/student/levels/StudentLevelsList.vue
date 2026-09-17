@@ -1,6 +1,6 @@
 <script setup lang="ts">
   import { onMounted, onUnmounted, ref } from "vue";
-  import type { LevelSheetSummary } from "@/types";
+  import type { CourseLevelsResponse, LevelSheetSummary } from "@/types";
   import type {
     StudentLevelsListEmits,
     StudentLevelsListProps,
@@ -51,6 +51,40 @@
       hour: "2-digit",
       minute: "2-digit",
     });
+
+  // Older sheets can predate `topic_id`. Keep them visible in a neutral group
+  // while every current practice is unmistakably under its topic.
+  const practicesByTopic = (practices: LevelSheetSummary[] = []) => {
+    const groups = new Map<string, { id: string; title: string; order: number; sheets: LevelSheetSummary[] }>();
+    for (const sheet of practices) {
+      const key = sheet.topic_id || "untagged";
+      const group = groups.get(key) ?? {
+        id: key,
+        title: sheet.topic_title || "Prácticas generales",
+        order: sheet.topic_title ? (sheet.topic_order ?? 0) : Number.MAX_SAFE_INTEGER,
+        sheets: [],
+      };
+      group.sheets.push(sheet);
+      groups.set(key, group);
+    }
+    return [...groups.values()].sort((a, b) => a.order - b.order || a.title.localeCompare(b.title));
+  };
+
+  const notebooksByTopic = (notebooks: CourseLevelsResponse["levels"][number]["notebooks"] = []) => {
+    const groups = new Map<string, { id: string; title: string; order: number; notebooks: typeof notebooks }>();
+    for (const notebook of notebooks) {
+      const key = notebook.topic_id || "untagged";
+      const group = groups.get(key) ?? {
+        id: key,
+        title: notebook.topic_title || "Cuadernos generales",
+        order: notebook.topic_title ? (notebook.topic_order ?? 0) : Number.MAX_SAFE_INTEGER,
+        notebooks: [],
+      };
+      group.notebooks.push(notebook);
+      groups.set(key, group);
+    }
+    return [...groups.values()].sort((a, b) => a.order - b.order || a.title.localeCompare(b.title));
+  };
 </script>
 
 <template>
@@ -96,21 +130,22 @@
           <div class="lc-section-label lc-section-label--practice">
             <i class="pi pi-pencil"></i> Prácticas
           </div>
-          <div class="lc-items">
-            <button
-              v-for="sheet in level.practices"
-              :key="sheet.id"
-              class="lc-item lc-item--practice"
-              @click="emit('openPractice', sheet.id)"
-            >
-              <div class="lc-item-info">
-                <span class="lc-item-title">{{ sheet.title }}</span>
-                <span class="lc-item-meta"
-                  >{{ sheet.exercises }} ejercicios</span
-                >
-              </div>
-              <i class="pi pi-arrow-right lc-item-arrow"></i>
-            </button>
+          <div v-for="group in practicesByTopic(level.practices)" :key="group.id" class="topic-practice-group">
+            <div class="topic-practice-title">{{ group.title }}</div>
+            <div class="lc-items">
+              <button
+                v-for="sheet in group.sheets"
+                :key="sheet.id"
+                class="lc-item lc-item--practice"
+                @click="emit('openPractice', sheet.id)"
+              >
+                <div class="lc-item-info">
+                  <span class="lc-item-title">{{ sheet.title }}</span>
+                  <span class="lc-item-meta">{{ sheet.exercises }} ejercicios</span>
+                </div>
+                <i class="pi pi-arrow-right lc-item-arrow"></i>
+              </button>
+            </div>
           </div>
         </div>
 
@@ -118,19 +153,22 @@
           <div class="lc-section-label lc-section-label--notebook">
             <i class="pi pi-book"></i> Cuadernos
           </div>
-          <div class="lc-items">
-            <button
-              v-for="notebook in level.notebooks"
-              :key="notebook.id"
-              class="lc-item lc-item--notebook"
-              @click="emit('openNotebook', notebook.id)"
-            >
-              <div class="lc-item-info">
-                <span class="lc-item-title">{{ notebook.title }}</span>
-                <span class="lc-item-meta">{{ notebook.pages }} páginas</span>
-              </div>
-              <i class="pi pi-arrow-right lc-item-arrow"></i>
-            </button>
+          <div v-for="group in notebooksByTopic(level.notebooks)" :key="group.id" class="topic-practice-group">
+            <div class="topic-practice-title topic-practice-title--notebook">{{ group.title }}</div>
+            <div class="lc-items">
+              <button
+                v-for="notebook in group.notebooks"
+                :key="notebook.id"
+                class="lc-item lc-item--notebook"
+                @click="emit('openNotebook', notebook.id)"
+              >
+                <div class="lc-item-info">
+                  <span class="lc-item-title">{{ notebook.title }}</span>
+                  <span class="lc-item-meta">{{ notebook.pages }} páginas</span>
+                </div>
+                <i class="pi pi-arrow-right lc-item-arrow"></i>
+              </button>
+            </div>
           </div>
         </div>
 
@@ -320,6 +358,22 @@
   .lc-items {
     display: grid;
     gap: 8px;
+  }
+  .topic-practice-group {
+    display: grid;
+    gap: 8px;
+  }
+  .topic-practice-title {
+    color: var(--text-heading);
+    font-size: var(--text-sm);
+    font-weight: 800;
+    padding: 8px 10px;
+    border-left: 3px solid var(--practiq-violet);
+    background: var(--fill-primary-faint);
+    border-radius: var(--radius-sm);
+  }
+  .topic-practice-title--notebook {
+    border-left-color: var(--color-info);
   }
   .lc-item {
     width: 100%;

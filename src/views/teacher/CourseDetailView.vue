@@ -214,7 +214,7 @@
 
   // Edit notebook state
   const editingNotebookId = ref<string | null>(null);
-  const editNotebook = reactive({ title: "", description: "" });
+  const editNotebook = reactive({ title: "", description: "", topic_id: "" });
 
   // Edit exercise state
   const editingExerciseId = ref<string | null>(null);
@@ -511,7 +511,7 @@
     time_limit_minutes: null as number | null,
     exercise_ids: [] as string[],
   });
-  const newNotebook = reactive({ title: "", description: "", level: 1 });
+  const newNotebook = reactive({ title: "", description: "", level: 1, topic_id: "" });
 
   const teacherLevels = computed(() => {
     if (courseLevels.value?.levels?.length) {
@@ -789,6 +789,7 @@
     newNotebook.title = "";
     newNotebook.description = "";
     newNotebook.level = 1;
+    newNotebook.topic_id = "";
     router.push(`/teacher/courses/${courseId}/notebooks/${res.id}`);
   }
 
@@ -1426,6 +1427,7 @@
     editingNotebookId.value = nb.id;
     editNotebook.title = nb.title;
     editNotebook.description = nb.description || "";
+    editNotebook.topic_id = nb.topic_id || "";
     showEditNotebookModal.value = true;
   }
 
@@ -1434,6 +1436,7 @@
     await updateNotebookService(editingNotebookId.value, {
       title: editNotebook.title,
       description: editNotebook.description,
+      topic_id: editNotebook.topic_id,
     });
     showEditNotebookModal.value = false;
     notebooks.value = await loadNotebooks(courseId);
@@ -2138,6 +2141,19 @@
                   class="form-input"
                 />
               </div>
+              <div class="form-group">
+                <label class="form-label">Tema *</label>
+                <select v-model="newNotebook.topic_id" class="form-select" required>
+                  <option value="" disabled>Elegí un tema</option>
+                  <option v-for="topic in topics" :key="topic.id" :value="topic.id">
+                    {{ topic.title }}
+                  </option>
+                </select>
+                <p v-if="!topics.length" class="field-hint field-hint--warn">
+                  Este curso todavía no tiene temas. Creá uno en la pestaña Temas
+                  para poder guardar el cuaderno.
+                </p>
+              </div>
               <div class="modal-actions">
                 <button
                   type="button"
@@ -2728,6 +2744,19 @@
                 rows="2"
               ></textarea>
             </div>
+            <div class="form-group">
+              <label class="form-label">Tema *</label>
+              <select v-model="editNotebook.topic_id" class="form-select" required>
+                <option value="" disabled>Elegí un tema</option>
+                <option v-for="topic in topics" :key="topic.id" :value="topic.id">
+                  {{ topic.title }}
+                </option>
+              </select>
+              <p v-if="!topics.length" class="field-hint field-hint--warn">
+                Este curso todavía no tiene temas. Creá uno en la pestaña Temas
+                para poder guardar el cuaderno.
+              </p>
+            </div>
             <div class="modal-actions">
               <button
                 type="button"
@@ -2905,6 +2934,7 @@
   .form-textarea--large {
     min-height: 180px;
   }
+  .field-hint--warn { color: #92400e; }
   .field-hint {
     margin-top: 6px;
     font-size: var(--text-sm);

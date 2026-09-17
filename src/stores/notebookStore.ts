@@ -45,7 +45,7 @@ export const useNotebookStore = (service: INotebookService) =>
 
     const createNotebook = async (
       courseId: string,
-      params: { title: string; description?: string; level?: number },
+      params: { title: string; description?: string; level?: number; topic_id: string },
     ) => {
       loading.value = true;
       try {
@@ -59,7 +59,7 @@ export const useNotebookStore = (service: INotebookService) =>
 
     const updateNotebook = async (
       id: string,
-      params: { title: string; description?: string },
+      params: { title: string; description?: string; topic_id: string },
     ) => {
       loading.value = true;
       try {

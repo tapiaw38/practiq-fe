@@ -51,7 +51,7 @@ export const useNotebook = () => {
 
   const createNotebook = async (
     courseId: string,
-    params: { title: string; description?: string; level?: number },
+    params: { title: string; description?: string; level?: number; topic_id: string },
   ) => {
     try {
       const result = await store.createNotebook(courseId, params);
@@ -75,7 +75,7 @@ export const useNotebook = () => {
 
   const updateNotebook = async (
     id: string,
-    params: { title: string; description?: string },
+    params: { title: string; description?: string; topic_id: string },
   ) => {
     try {
       const result = await store.updateNotebook(id, params);

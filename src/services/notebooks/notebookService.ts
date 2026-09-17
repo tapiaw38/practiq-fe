@@ -10,7 +10,7 @@ import type {
 export interface INotebookService {
   create(
     courseId: string,
-    params: { title: string; description?: string; level?: number },
+    params: { title: string; description?: string; level?: number; topic_id: string },
   ): Promise<{ data: Notebook }>;
   list(courseId: string): Promise<Notebook[]>;
   get(id: string, studentId?: string): Promise<{ data: Notebook }>;
@@ -37,7 +37,7 @@ export interface INotebookService {
   ): Promise<void>;
   update(
     id: string,
-    params: { title: string; description?: string },
+    params: { title: string; description?: string; topic_id: string },
   ): Promise<{ data: Notebook }>;
   delete(id: string): Promise<void>;
   saveSubmission(
@@ -73,7 +73,7 @@ export class NotebookService implements INotebookService {
   constructor(private readonly api: AxiosInstance) {}
   async create(
     courseId: string,
-    params: { title: string; description?: string; level?: number },
+    params: { title: string; description?: string; level?: number; topic_id: string },
   ): Promise<{ data: Notebook }> {
     const { data } = await this.api.post(
       `/courses/${courseId}/notebooks`,
@@ -126,7 +126,7 @@ export class NotebookService implements INotebookService {
 
   async update(
     id: string,
-    params: { title: string; description?: string },
+    params: { title: string; description?: string; topic_id: string },
   ): Promise<{ data: Notebook }> {
     const { data } = await this.api.put(`/notebooks/${id}`, params);
     return data;

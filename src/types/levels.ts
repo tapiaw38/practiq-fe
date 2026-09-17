@@ -6,6 +6,10 @@ import type {
 export interface LevelSheetSummary {
   id: string;
   title: string;
+  topic_id?: string;
+  topic_title?: string;
+  /** Internal zero-based topic ordering, used to keep groups stable. */
+  topic_order?: number;
   level: number;
   sheet_type: PracticeSheetType;
   test_style: PracticeSheetTestStyle;
@@ -24,6 +28,9 @@ export interface LevelNotebookSummary {
   id: string;
   title: string;
   description: string;
+  topic_id?: string;
+  topic_title?: string;
+  topic_order?: number;
   level: number;
   pages: number;
 }

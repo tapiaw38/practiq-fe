@@ -43,6 +43,7 @@ export interface NotebookPage {
 export interface Notebook {
   id: string;
   course_id: string;
+  topic_id?: string;
   teacher_id: string;
   title: string;
   description: string;
