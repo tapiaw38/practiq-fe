@@ -1,5 +1,6 @@
 import { marked } from "marked";
 import katex from "katex";
+import DOMPurify from "dompurify";
 
 marked.setOptions({
   breaks: true,
@@ -59,7 +60,9 @@ export function renderContent(text: string): string {
   });
 
   // 6. Markdown → HTML
-  return marked.parse(s) as string;
+  // Notebook statements and assistant feedback can be authored remotely. They
+  // reach `v-html`, so markdown output must never retain executable markup.
+  return DOMPurify.sanitize(marked.parse(s) as string);
 }
 
 /**

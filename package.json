@@ -13,6 +13,7 @@
     "@tanstack/vue-query": "^5.62.11",
     "axios": "^1.7.9",
     "canvas-confetti": "^1.9.4",
+    "dompurify": "^3.4.15",
     "katex": "^0.17.0",
     "marked": "^18.0.4",
     "mathlive": "^0.110.0",
