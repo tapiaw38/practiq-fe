@@ -10,6 +10,8 @@ export interface Course {
   description: string;
   level: string;
   subject: string;
+  /** draft: not visible to students · published: running · archived: read-only */
+  status: "draft" | "published" | "archived";
   created_at: string;
 }
 

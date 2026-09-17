@@ -75,7 +75,47 @@
     students,
     loadCourse,
     loadStudents,
+    updateCourse,
   } = useCourse();
+
+  const savingStatus = ref(false);
+
+  const STATUS_LABELS: Record<string, string> = {
+    draft: "Borrador",
+    published: "Publicado",
+    archived: "Archivado",
+  };
+  function statusLabel(status: string) {
+    return STATUS_LABELS[status] ?? status;
+  }
+
+  /**
+   * Moves the course through its lifecycle.
+   *
+   * Archiving is not destructive — students who took it keep reading their
+   * work and their marks — but it does stop new submissions, so it says so
+   * before doing it.
+   */
+  async function changeStatus(event: Event) {
+    const select = event.target as HTMLSelectElement;
+    const next = select.value as "draft" | "published" | "archived";
+    if (!course.value || next === course.value.status) return;
+    if (
+      next === "archived"
+      && !window.confirm("Al archivar, los alumnos podrán seguir viendo el curso y sus notas, pero no podrán entregar nada más. ¿Confirmás?")
+    ) {
+      select.value = course.value.status;
+      return;
+    }
+    savingStatus.value = true;
+    try {
+      await updateCourse(course.value.id, { status: next });
+    } catch {
+      select.value = course.value.status;
+    } finally {
+      savingStatus.value = false;
+    }
+  }
   const {
     topics,
     loadTopics,
@@ -1423,7 +1463,16 @@
             <span class="badge badge-muted">{{
               course.level || "Sin nivel"
             }}</span>
+            <span class="badge" :class="`badge-status--${course.status}`">{{ statusLabel(course.status) }}</span>
           </div>
+          <label class="course-status-field">
+            <span>Estado</span>
+            <select :value="course.status" :disabled="savingStatus" @change="changeStatus($event)">
+              <option value="draft">Borrador — no lo ven los alumnos</option>
+              <option value="published">Publicado — visible y activo</option>
+              <option value="archived">Archivado — solo lectura</option>
+            </select>
+          </label>
         </div>
       </div>
 
@@ -2755,6 +2804,11 @@
     margin: 0;
   }
 
+  .course-status-field { display: inline-flex; align-items: center; gap: var(--space-2); margin-top: var(--space-2); font-size: var(--text-xs); color: var(--text-muted); }
+  .course-status-field select { font: inherit; padding: 4px 8px; border: 1px solid var(--surface-border); border-radius: 6px; background: var(--surface-card); color: var(--text-primary); }
+  .badge-status--draft { background: #fef3c7; color: #92400e; }
+  .badge-status--published { background: #dcfce7; color: #166534; }
+  .badge-status--archived { background: var(--surface-hover); color: var(--text-muted); }
   .course-badges {
     display: flex;
     flex-wrap: wrap;
