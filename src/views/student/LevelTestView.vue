@@ -778,7 +778,18 @@
     router.back();
   }
 
+  // True once the window the API opened has run out while the student was
+  // still on the instructions.
+  const expiredBeforeStart = computed(
+    () => hasTimeLimit.value && !testStarted.value && timeLeft.value <= 0,
+  );
+
   function startTest() {
+    // Starting here would set testStarted with no time left, and the next
+    // tick would hand in an empty test the student never saw. Refusing to
+    // start says the same thing without spending their attempt on a blank
+    // submission.
+    if (expiredBeforeStart.value) return;
     showInstructionsModal.value = false;
     testStarted.value = true;
     startTimer();
@@ -1248,9 +1259,18 @@
               siguientes instrucciones:
             </p>
             <ul class="instructions-list">
-              <li v-if="hasTimeLimit">
+              <li v-if="hasTimeLimit && expiredBeforeStart" class="instructions-expired">
                 <i class="pi pi-clock"></i>
-                Tiempo limite: <strong>{{ timeLimitLabel }}</strong>
+                Se acabó el tiempo de esta prueba. Volvé al inicio para
+                empezarla de nuevo.
+              </li>
+              <li v-else-if="hasTimeLimit">
+                <i class="pi pi-clock"></i>
+                <!-- The clock starts when the API serves the test, not when
+                     this modal closes, so showing the nominal limit here let
+                     it drain unseen while the student read. -->
+                Tiempo restante: <strong>{{ formattedTime }}</strong>
+                <small>de {{ timeLimitLabel }}</small>
               </li>
               <li v-else>
                 <i class="pi pi-clock"></i>
@@ -1279,7 +1299,7 @@
           <button class="btn btn-secondary" @click="goBackFromInstructions">
             <i class="pi pi-arrow-left"></i> Volver
           </button>
-          <button class="btn btn-primary" @click="startTest">
+          <button class="btn btn-primary" :disabled="expiredBeforeStart" @click="startTest">
             <i class="pi pi-play"></i> Comenzar prueba
           </button>
         </div>
@@ -2170,6 +2190,7 @@
     flex-shrink: 0;
   }
 
+  .instructions-expired { color: var(--color-error, #b91c1c); font-weight: 700; }
   .instructions-tip {
     margin-top: 16px;
     padding: 12px 16px;
