@@ -188,13 +188,19 @@
   function startTimer() {
     if (timer) clearInterval(timer);
     timer = setInterval(() => {
-      elapsedSeconds.value++;
+      if (testStarted.value) elapsedSeconds.value++;
       if (!hasTimeLimit.value) return;
+
+      // The deadline is owned by the API. Derive every display update from it
+      // instead of subtracting browser ticks, which drift while a tab sleeps.
+      const remaining = secondsUntilDeadline(sheet.value?.deadline);
+      if (remaining !== null) timeLeft.value = remaining;
+      if (!testStarted.value) return;
       if (timeLeft.value <= 0) {
         clearInterval(timer!);
         timer = null;
         submit();
-      } else if (timeLeft.value === 300 && !warningShown) {
+      } else if (timeLeft.value <= 300 && !warningShown) {
         // Show 5 minute warning
         showTimeWarning.value = true;
         warningShown = true;
@@ -202,7 +208,7 @@
         setTimeout(() => {
           showTimeWarning.value = false;
         }, 10000);
-      } else {
+      } else if (remaining === null) {
         timeLeft.value--;
       }
     }, 1000);
@@ -398,7 +404,9 @@
       if (sheet.value.course_id) {
         fetchCuriosities(sheet.value.course_id);
       }
-      // Timer starts when user clicks "Comenzar" in instructions modal
+      // Keep countdown aligned while instructions are open: the API starts
+      // this student's window when it serves the test.
+      if (hasTimeLimit.value) startTimer();
     } finally {
       loading.value = false;
     }
