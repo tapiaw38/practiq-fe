@@ -11,7 +11,7 @@
           <i class="pi pi-sparkles"></i>
           <span>{{ badgeLabel }}</span>
         </div>
-        <img :src="aiLoadingGif" alt="" class="ai-loading-illustration" />
+        <img :src="aiLoadingAnimation" alt="" class="ai-loading-illustration" />
         <h3 class="ai-loading-title">{{ title }}</h3>
         <p class="ai-loading-message">
           {{ message }}
@@ -25,7 +25,7 @@
 </template>
 
 <script setup lang="ts">
-  import aiLoadingGif from "@/assets/ai-loading.gif";
+  import aiLoadingAnimation from "@/assets/ai-loading.webp";
   import UiModal from "@/components/ui/UiModal.vue";
 
   withDefaults(
@@ -47,7 +47,7 @@
   .ai-loading-modal {
     width: min(92vw, 520px);
     border-radius: 28px;
-    background: rgba(255, 255, 255, 0.98);
+    background: #fff;
     border: 1px solid rgba(var(--practiq-violet-rgb), 0.08);
     box-shadow: 0 24px 70px rgba(15, 23, 42, 0.18);
     padding: 28px 28px 24px;
