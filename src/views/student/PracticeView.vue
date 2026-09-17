@@ -1911,6 +1911,9 @@
     border-radius: var(--radius-md);
     background: var(--surface-bg-soft);
     border: 1px solid rgba(var(--practiq-violet-rgb), 0.12);
+    /* Display math does not wrap. A formula wider than the phone scrolls
+       inside its own box instead of being cut off at the screen edge. */
+    overflow-x: auto;
   }
 
   .teacher-handwritten-image {

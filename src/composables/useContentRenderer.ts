@@ -69,11 +69,44 @@ export function renderContent(text: string): string {
  * Renders pure LaTeX for equation exercises.
  * Wraps in $$ delimiters if not already present, then renders.
  */
+/**
+ * Whether a statement is prose rather than a bare formula.
+ *
+ * An "equation" exercise is not always a lone expression: teachers write
+ * "Simplificá la fracción 6/8. Escribí el resultado", which is a sentence that
+ * happens to mention numbers. Forcing that into math mode collapsed every
+ * space — it rendered as "Simplificálafracción6/8." — in italic serif, and
+ * display math does not wrap, so the tail ran off the screen.
+ *
+ * LaTeX command names are stripped first: \frac and \sqrt would otherwise
+ * read as words. What remains counts as prose when at least two real words
+ * are left.
+ */
+// Function names teachers type without a backslash: "sin(x) + cos(x)" is a
+// formula, and counting sin and cos as words would misread it as a sentence.
+const MATH_WORDS = new Set([
+  "sin", "cos", "tan", "cot", "sec", "csc", "log", "exp", "lim",
+  "max", "min", "abs", "mod", "det", "sqrt", "arcsin", "arccos", "arctan",
+]);
+
+function looksLikeProse(text: string): boolean {
+  const withoutCommands = text.replace(/\\[a-zA-Z]+/g, " ");
+  const words = (withoutCommands.match(/[\p{L}]{3,}/gu) ?? []).filter(
+    (word) => !MATH_WORDS.has(word.toLowerCase()),
+  );
+  return words.length >= 2;
+}
+
 export function renderEquation(latex: string): string {
   if (!latex?.trim()) return "";
   const trimmed = latex.trim();
   // If already has delimiters, use as-is
   if (trimmed.startsWith("$") || trimmed.startsWith("\\[")) {
+    return renderContent(trimmed);
+  }
+  // A sentence stays a sentence; renderContent still renders any $...$ inside
+  // it as math, so a statement can mix both.
+  if (looksLikeProse(trimmed)) {
     return renderContent(trimmed);
   }
   // Wrap in display math delimiters
