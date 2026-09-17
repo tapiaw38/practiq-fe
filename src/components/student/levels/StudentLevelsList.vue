@@ -154,7 +154,7 @@
             <i class="pi pi-book"></i> Cuadernos
           </div>
           <div v-for="group in notebooksByTopic(level.notebooks)" :key="group.id" class="topic-practice-group">
-            <div class="topic-practice-title topic-practice-title--notebook">{{ group.title }}</div>
+            <div class="topic-practice-title">{{ group.title }}</div>
             <div class="lc-items">
               <button
                 v-for="notebook in group.notebooks"
@@ -363,17 +363,17 @@
     display: grid;
     gap: 8px;
   }
+  /* The tinted, rounded box is the grouping cue on its own. A coloured bar
+     down one side of it read as a stray edge rather than an accent, and the
+     colour was telling the student nothing the section heading above —
+     Prácticas or Cuadernos — had not already said. */
   .topic-practice-title {
     color: var(--text-heading);
     font-size: var(--text-sm);
     font-weight: 800;
     padding: 8px 10px;
-    border-left: 3px solid var(--practiq-violet);
     background: var(--fill-primary-faint);
     border-radius: var(--radius-sm);
-  }
-  .topic-practice-title--notebook {
-    border-left-color: var(--color-info);
   }
   .lc-item {
     width: 100%;
