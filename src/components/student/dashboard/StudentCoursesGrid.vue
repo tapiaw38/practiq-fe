@@ -80,7 +80,7 @@
     </div>
 
     <div v-if="courses.length === 0" class="empty-state">
-      <div class="empty-icon">📚</div>
+      <div class="empty-icon"><i class="pi pi-book" aria-hidden="true"></i></div>
       <h3>No estás inscrito en ningún curso</h3>
       <p>Pide a tu docente que te inscriba en un curso para comenzar.</p>
     </div>
@@ -310,8 +310,10 @@
     color: var(--text-secondary);
   }
   .empty-icon {
-    font-size: 32px;
+    font-size: 30px;
+    line-height: 1;
     margin-bottom: 8px;
+    color: var(--text-secondary);
   }
   .courses-grid {
     display: grid;

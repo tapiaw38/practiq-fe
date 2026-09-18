@@ -300,7 +300,7 @@
     if (curiosities.value.length > 0) {
       const msg = curiosities.value[curiosityIndex.value % curiosities.value.length];
       curiosityIndex.value++;
-      return `💡 ${msg}`;
+      return msg;
     }
     return randomMessage(loadingMessages);
   }
@@ -445,9 +445,14 @@
           <section class="page-content">
             <div class="page-header-row">
               <h2 class="page-title">{{ currentPage.title }}</h2>
-              <span class="content-type-badge">{{
-                currentPage.content_type === "canvas" ? "🖼 Imagen" : "📝 Texto"
-              }}</span>
+              <span class="content-type-badge">
+                <i
+                  class="pi"
+                  :class="currentPage.content_type === 'canvas' ? 'pi-image' : 'pi-align-left'"
+                  aria-hidden="true"
+                ></i>
+                {{ currentPage.content_type === "canvas" ? "Imagen" : "Texto" }}
+              </span>
             </div>
 
             <!-- Teacher wrote image (canvas) -->
@@ -844,6 +849,9 @@
   }
 
   .content-type-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
     font-size: 0.75rem;
     padding: 4px 10px;
     border-radius: var(--radius-2xl);

@@ -432,7 +432,7 @@
     if (curiosities.value.length > 0) {
       const msg = curiosities.value[curiosityIndex.value % curiosities.value.length];
       curiosityIndex.value++;
-      return `💡 ${msg}`;
+      return msg;
     }
     return randomMessage(loadingMessages);
   }
@@ -1115,7 +1115,17 @@
           "
         >
           <div class="result-icon">
-            {{ result.pending_review ? "⏳" : result.should_level_up ? "🏆" : "📚" }}
+            <i
+              class="pi"
+              :class="
+                result.pending_review
+                  ? 'pi-clock'
+                  : result.should_level_up
+                    ? 'pi-trophy'
+                    : 'pi-book'
+              "
+              aria-hidden="true"
+            ></i>
           </div>
           <h2 class="result-heading">
             {{
@@ -1163,7 +1173,8 @@
           </div>
 
           <div v-if="!result.pending_review && result.should_level_up" class="level-up-badge">
-            Nivel {{ result.next_level }} desbloqueado 🎉
+            <i class="pi pi-unlock" aria-hidden="true"></i>
+            Nivel {{ result.next_level }} desbloqueado
           </div>
 
           <p class="result-rec">{{ result.recommendation }}</p>
@@ -1175,7 +1186,8 @@
           </div>
 
           <div v-if="incorrectResults.length === 0 && result.exercise_results?.length && !pendingResults.length" class="all-correct-badge">
-            ✅ ¡Todas las respuestas correctas!
+            <i class="pi pi-check-circle" aria-hidden="true"></i>
+            ¡Todas las respuestas correctas!
           </div>
 
           <div v-else-if="incorrectResults.length > 0" class="exercise-results-section">
@@ -1185,7 +1197,9 @@
                 :key="exResult.exercise_id"
                 class="exercise-result-item exercise-result--incorrect"
               >
-                <div class="exercise-result-icon">❌</div>
+                <div class="exercise-result-icon">
+                  <i class="pi pi-times-circle" aria-hidden="true"></i>
+                </div>
                 <div class="exercise-result-content">
                   <div class="exercise-result-answers">
                     <span class="answer-label">Tu respuesta:</span>
@@ -1383,9 +1397,9 @@
             <i class="pi pi-times"></i>
           </button>
           <div class="success-confetti">
-            <span class="confetti-piece">🎉</span>
-            <span class="confetti-piece">🏆</span>
-            <span class="confetti-piece">⭐</span>
+            <span class="confetti-piece"><i class="pi pi-star-fill"></i></span>
+            <span class="confetti-piece"><i class="pi pi-trophy"></i></span>
+            <span class="confetti-piece"><i class="pi pi-verified"></i></span>
           </div>
           <h3 class="modal-title success-title">Felicitaciones!</h3>
           <p class="success-message">
@@ -1908,9 +1922,17 @@
     border-color: rgba(var(--color-info-rgb), 0.3);
   }
 
+  /* An emoji brought its own colour; an icon inherits one, so the state that
+     was in the picture now lives in the card's own palette. */
   .result-icon {
-    font-size: 3rem;
+    font-size: 2.7rem;
     line-height: 1;
+  }
+  .result-card--pass .result-icon {
+    color: var(--color-warning);
+  }
+  .result-card--fail .result-icon {
+    color: var(--practiq-violet);
   }
 
   .result-heading {
@@ -1954,6 +1976,9 @@
   }
 
   .level-up-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
     padding: 8px 20px;
     border-radius: var(--radius-pill);
     background: linear-gradient(
@@ -1998,6 +2023,10 @@
     font-weight: 600;
   }
   .all-correct-badge {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
     width: 100%;
     padding: 14px 16px;
     border-radius: var(--radius-lg);
@@ -2035,8 +2064,10 @@
   }
 
   .exercise-result-icon {
-    font-size: 1.1rem;
+    font-size: 1.15rem;
+    line-height: 1;
     flex-shrink: 0;
+    color: var(--color-error);
   }
 
   .exercise-result-content {
@@ -2304,7 +2335,9 @@
   }
 
   .confetti-piece {
-    font-size: 42px;
+    font-size: 34px;
+    line-height: 1;
+    color: var(--color-warning);
     animation: bounce 0.6s ease-out;
   }
 
