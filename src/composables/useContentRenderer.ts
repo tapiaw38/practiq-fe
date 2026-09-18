@@ -89,6 +89,23 @@ const MATH_WORDS = new Set([
   "max", "min", "abs", "mod", "det", "sqrt", "arcsin", "arccos", "arctan",
 ]);
 
+const BARE_FRACTION = /(?<![\w/\\{])(\d+|\?)\s*\/\s*(\d+|\?)(?![\w/}])/g;
+
+const stack = (chunk: string, addDelimiters: boolean) =>
+  chunk.replace(BARE_FRACTION, (_, top, bottom) =>
+    addDelimiters
+      ? `$\\frac{${top}}{${bottom}}$`
+      : `\\frac{${top}}{${bottom}}`,
+  );
+
+function stackFractions(text: string, inProse: boolean): string {
+  if (!inProse) return stack(text, false);
+  return text
+    .split(/(\$\$[\s\S]*?\$\$|\$[^$]*\$)/g)
+    .map((part) => stack(part, !part.startsWith("$")))
+    .join("");
+}
+
 function looksLikeProse(text: string): boolean {
   const withoutCommands = text.replace(/\\[a-zA-Z]+/g, " ");
   const words = (withoutCommands.match(/[\p{L}]{3,}/gu) ?? []).filter(
@@ -107,10 +124,10 @@ export function renderEquation(latex: string): string {
   // A sentence stays a sentence; renderContent still renders any $...$ inside
   // it as math, so a statement can mix both.
   if (looksLikeProse(trimmed)) {
-    return renderContent(trimmed);
+    return renderContent(stackFractions(trimmed, true));
   }
   // Wrap in display math delimiters
-  return renderContent(`$$${trimmed}$$`);
+  return renderContent(`$$${stackFractions(trimmed, false)}$$`);
 }
 
 export function renderInlineEquation(latex: string): string {
@@ -125,7 +142,7 @@ export function renderInlineEquation(latex: string): string {
   }
 
   try {
-    return katex.renderToString(math, {
+    return katex.renderToString(stackFractions(math, false), {
       displayMode: false,
       throwOnError: false,
       output: "html",

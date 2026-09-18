@@ -5,7 +5,8 @@
   "scripts": {
     "dev": "vite",
     "check:css-tokens": "node scripts/check-css-tokens.mjs",
-    "build": "npm run check:css-tokens && vue-tsc -b && vite build",
+    "check:fractions": "node scripts/check-fractions.mjs",
+    "build": "npm run check:css-tokens && npm run check:fractions && vue-tsc -b && vite build",
     "preview": "vite preview"
   },
   "dependencies": {
