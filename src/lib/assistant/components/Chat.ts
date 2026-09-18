@@ -69,7 +69,8 @@ export interface ChatOptions {
   audioAnswers?: boolean;
   /** Enable recording and sending audio messages */
   audioInput?: boolean;
-  quickActions?: Array<{ label: string; prompt: string }>;
+  /** `icon` is a PrimeIcons class name, e.g. pi-lightbulb. */
+  quickActions?: Array<{ label: string; prompt: string; icon?: string }>;
   preferencesStorageKey?: string;
 }
 
@@ -396,8 +397,12 @@ export class Chat {
       actions.style.cssText = "display:flex;gap:6px;flex-wrap:wrap;padding:8px 12px;border-top:1px solid rgba(0,0,0,.06)";
       for (const action of this.options.quickActions) {
         const button = document.createElement("button");
-        button.type = "button"; button.textContent = action.label;
-        button.style.cssText = "border:0;border-radius:999px;padding:6px 9px;cursor:pointer;background:rgba(99,102,241,.12);color:#4338ca;font-size:12px";
+        button.type = "button";
+        if (action.icon) {
+          button.innerHTML = `<i class="pi ${action.icon}" aria-hidden="true"></i>`;
+        }
+        button.append(action.label);
+        button.style.cssText = "display:inline-flex;align-items:center;gap:6px;border:0;border-radius:999px;padding:6px 10px;cursor:pointer;background:rgba(99,102,241,.12);color:#4338ca;font-size:12px;font-weight:600";
         button.addEventListener("click", () => this.sendPrompt(action.prompt));
         actions.appendChild(button);
       }

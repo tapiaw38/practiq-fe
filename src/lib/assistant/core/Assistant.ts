@@ -38,8 +38,8 @@ export interface AssistantOptions {
   audioAnswers?: boolean;
   /** Enable recording and sending audio messages */
   audioInput?: boolean;
-  /** Contextual actions rendered above input. */
-  quickActions?: Array<{ label: string; prompt: string }>;
+  /** Contextual actions rendered above input. `icon` is a PrimeIcons name. */
+  quickActions?: Array<{ label: string; prompt: string; icon?: string }>;
   /** Specific options for the floating button */
   buttonOptions?: {
     /** Background color of the button */
@@ -302,9 +302,9 @@ export function createAssistant(options: AssistantOptions): Assistant {
     audioAnswers: options.audioAnswers ?? true,
     audioInput: options.audioInput ?? false,
     quickActions: options.quickActions || [
-      { label: "Dame una pista", prompt: "Dame una pista sin decirme la respuesta." },
-      { label: "Explicame", prompt: "Explicame paso a paso." },
-      { label: "Revisá mi respuesta", prompt: "Revisá mi respuesta y decime cómo mejorarla." },
+      { label: "Dame una pista", icon: "pi-lightbulb", prompt: "Dame una pista sin decirme la respuesta." },
+      { label: "Explicame", icon: "pi-book", prompt: "Explicame paso a paso." },
+      { label: "Revisá mi respuesta", icon: "pi-check-circle", prompt: "Revisá mi respuesta y decime cómo mejorarla." },
     ],
     preferencesStorageKey: `practiq-assistant:preferences:${options.conversationStorageKey || "default"}`,
   };

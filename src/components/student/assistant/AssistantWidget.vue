@@ -220,9 +220,9 @@
         size: "large",
       },
       quickActions: [
-        { label: "💡 Pista", prompt: "Dame una pista sin revelar la respuesta." },
-        { label: "🧩 Explicame", prompt: "Explicame paso a paso usando el ejercicio actual." },
-        { label: "✓ Revisá", prompt: "Revisá mi respuesta actual y ayudame a mejorarla." },
+        { label: "Pista", icon: "pi-lightbulb", prompt: "Dame una pista sin revelar la respuesta." },
+        { label: "Explicame", icon: "pi-book", prompt: "Explicame paso a paso usando el ejercicio actual." },
+        { label: "Revisá", icon: "pi-check-circle", prompt: "Revisá mi respuesta actual y ayudame a mejorarla." },
       ],
       theme: {
         primaryColor: primaryColor,

@@ -24,12 +24,20 @@
   const chatOpen = ref(false);
   const waitingReply = ref(false);
 
-  // Revealed on hover where hovering exists. A touch screen has no hover and
-  // tapping the launcher opens the chat, so there they simply stay out.
+  /**
+   * The quick asks are a pointer affordance and nothing else.
+   *
+   * A touch screen has no hover, so they would have to stand there permanently
+   * — which is what they did, sitting on top of the exercise. Tapping Practi
+   * opens the chat, and the chat offers the same three actions along its
+   * bottom edge, so nothing is out of reach without them.
+   */
   const hoverCapable =
     typeof window !== "undefined" && window.matchMedia("(hover: hover)").matches;
   const hovering = ref(false);
-  const asksVisible = computed(() => !visible.value && (!hoverCapable || hovering.value));
+  const asksVisible = computed(
+    () => hoverCapable && hovering.value && !visible.value && !chatOpen.value,
+  );
 
   function ask(prompt: string) {
     waitingReply.value = !chatOpen.value;
