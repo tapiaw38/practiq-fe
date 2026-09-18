@@ -65,10 +65,23 @@
    * Null means there is no launcher on screen, and then there is nothing to
    * attach to and nothing to draw.
    */
-  const anchor = ref<{ right: number; asksRight: number; bottom: number } | null>(null);
+  const anchor = ref<{
+    right: number;
+    asksRight: number;
+    bottom: number;
+    asksBottom: number;
+  } | null>(null);
 
   /** Keep in sync with .coach-ask's width. */
   const ASK_SIZE = 40;
+  /**
+   * How far the quick asks reach down toward the launcher.
+   *
+   * Matched by an equal padding-bottom, so the icons stay where they look while
+   * their box touches the launcher. Without it the pointer crossed bare page on
+   * the way up, hover dropped, and they vanished before they could be reached.
+   */
+  const HOVER_BRIDGE = 14;
 
   const visible = ref(false);
   const spoken = ref("");
@@ -146,6 +159,7 @@
       // icons are narrower than it, and aligned edges read as crooked.
       asksRight: right + Math.max((rect.width - ASK_SIZE) / 2, 0),
       bottom: viewportHeight - rect.top + 10,
+      asksBottom: viewportHeight - rect.top + 10 - HOVER_BRIDGE,
     };
   }
 
@@ -157,9 +171,21 @@
     frame = requestAnimationFrame(poll);
   }
 
+  let leaveTimer: ReturnType<typeof setTimeout> | null = null;
+
   function onPointerOver(event: Event) {
     const target = event.target as HTMLElement | null;
-    hovering.value = !!target?.closest(".floating-button, .coach-asks, .coach-bubble");
+    const inside = !!target?.closest(".floating-button, .coach-asks, .coach-bubble");
+    if (leaveTimer) clearTimeout(leaveTimer);
+    if (inside) {
+      hovering.value = true;
+      return;
+    }
+    // A moment's grace: a pointer travelling between the icons can register on
+    // whatever sits behind the gaps between them.
+    leaveTimer = setTimeout(() => {
+      hovering.value = false;
+    }, 220);
   }
 
   onMounted(() => {
@@ -181,6 +207,7 @@
     document.removeEventListener("pointerover", onPointerOver);
     if (hideTimer) clearTimeout(hideTimer);
     if (typeTimer) clearInterval(typeTimer);
+    if (leaveTimer) clearTimeout(leaveTimer);
     window.removeEventListener("practiq:assistant:chat-toggle", onChatToggle);
     window.removeEventListener("practiq:assistant:reply", onAssistantReply);
     window.removeEventListener("resize", measure);
@@ -236,7 +263,7 @@
       <div
         v-if="asksVisible"
         class="coach-asks"
-        :style="{ right: `${anchor.asksRight}px`, bottom: `${anchor.bottom}px` }"
+        :style="{ right: `${anchor.asksRight}px`, bottom: `${anchor.asksBottom}px` }"
       >
         <button
           v-for="quick in QUICK_ASKS"
@@ -337,6 +364,8 @@
     flex-direction: column;
     align-items: flex-end;
     gap: 8px;
+    /* Matches HOVER_BRIDGE: the box reaches the launcher, the icons do not move. */
+    padding-bottom: 14px;
   }
   .coach-ask {
     width: 40px;

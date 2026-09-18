@@ -152,8 +152,11 @@ export class FloatingButton {
       @keyframes floating-robot-click { 45% { transform:scaleX(.78) scaleY(1.04); } }
       .floating-button--chat-anchor { z-index:1002; }
       .floating-button--speaking .floating-button-face { animation:floating-robot-speaking 1.5s ease-in-out infinite; }
-      @keyframes floating-robot-speaking { 0%,100% { transform:scale(1); box-shadow:inset 0 2px 4px rgba(255,255,255,.92), 0 0 0 0 rgba(244,201,93,.50), 0 8px 18px rgba(103,80,198,.24); } 50% { transform:scale(1.03); box-shadow:inset 0 2px 4px rgba(255,255,255,.92), 0 0 0 9px rgba(244,201,93,.12), 0 10px 23px rgba(181,139,38,.24); } }
-      @media (prefers-reduced-motion: reduce) { .floating-button--speaking .floating-button-face { animation:none; box-shadow:inset 0 2px 4px rgba(255,255,255,.92), 0 0 0 5px rgba(244,201,93,.18); } }
+      /* drop-shadow traces the mascot's own silhouette. The glow used to be a
+         box-shadow spread on this element, which is a plain square box with no
+         radius, so the halo came out as a square around a rounded tile. */
+      @keyframes floating-robot-speaking { 0%,100% { transform:scale(1); filter:drop-shadow(0 8px 12px rgba(91,69,181,.20)) drop-shadow(0 0 2px rgba(244,201,93,.55)); } 50% { transform:scale(1.03); filter:drop-shadow(0 8px 12px rgba(91,69,181,.20)) drop-shadow(0 0 9px rgba(244,201,93,.95)) drop-shadow(0 0 17px rgba(244,201,93,.45)); } }
+      @media (prefers-reduced-motion: reduce) { .floating-button--speaking .floating-button-face { animation:none; filter:drop-shadow(0 8px 12px rgba(91,69,181,.20)) drop-shadow(0 0 7px rgba(244,201,93,.8)); } }
 
       .floating-button-avatar {
         width: 72%;
