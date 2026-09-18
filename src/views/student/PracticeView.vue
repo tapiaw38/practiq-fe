@@ -186,6 +186,19 @@
   }
 
   const hasDraft = ref(false);
+  // A separate flag from hasDraft: that one gates the leave-warning and has to
+  // stay true for as long as a draft exists on this device. This one is the
+  // badge, and a badge that never turns off just occupies a row forever.
+  const showDraftSaved = ref(false);
+  let draftBadgeTimer: ReturnType<typeof setTimeout> | null = null;
+
+  function flashDraftSaved() {
+    if (draftBadgeTimer) clearTimeout(draftBadgeTimer);
+    showDraftSaved.value = true;
+    draftBadgeTimer = setTimeout(() => {
+      showDraftSaved.value = false;
+    }, 2500);
+  }
   const showRestoreModal = ref(false);
   const loadingMessage = ref(randomMessage(loadingMessages));
   let loadingMsgInterval: ReturnType<typeof setInterval> | null = null;
@@ -367,6 +380,7 @@
 
   onUnmounted(() => {
     clearInterval(timerInterval);
+    if (draftBadgeTimer) clearTimeout(draftBadgeTimer);
     if (loadingMsgInterval) clearInterval(loadingMsgInterval);
     if ((window as any).__practiqAssistantHookSource === "practice") {
       delete window.__practiqAssistantCapture;
@@ -670,6 +684,7 @@
     );
 
     hasDraft.value = true;
+    flashDraftSaved();
   }
 
   function checkForDraft() {
@@ -1305,9 +1320,11 @@
                 <span class="footer-hint"
                   >{{ totalCount - answeredCount }} sin responder</span
                 >
-                <span v-if="hasDraft" class="draft-indicator">
-                  <i class="pi pi-save"></i> Borrador guardado
-                </span>
+                <Transition name="draft-badge">
+                  <span v-if="showDraftSaved" class="draft-indicator">
+                    <i class="pi pi-save"></i> Borrador guardado
+                  </span>
+                </Transition>
               </div>
               <div class="footer-nav">
                 <button
@@ -2252,6 +2269,23 @@
     border-radius: var(--radius-pill);
     font-size: 0.78rem;
     font-weight: 600;
+  }
+  .draft-badge-enter-active,
+  .draft-badge-leave-active {
+    transition:
+      opacity 0.18s ease,
+      transform 0.18s ease;
+  }
+  .draft-badge-enter-from,
+  .draft-badge-leave-to {
+    opacity: 0;
+    transform: translateY(3px);
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .draft-badge-enter-active,
+    .draft-badge-leave-active {
+      transition: none;
+    }
   }
 
   .footer-nav {
