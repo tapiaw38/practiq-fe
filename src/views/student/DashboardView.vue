@@ -4,6 +4,7 @@
   import { useAuthStore } from "@/stores/authStore";
   import { useToast } from "primevue/usetoast";
   import type { CourseSummary } from "@/services/dashboard/dashboardService";
+  import { useCountUp } from "@/composables/useCountUp";
   import StudentLayout from "@/layouts/StudentLayout.vue";
   import AssistantChatModal from "@/components/student/assistant/AssistantChatModal.vue";
   import Skeleton from "@/components/ui/Skeleton.vue";
@@ -120,6 +121,10 @@
   const totalAttempts = computed(() =>
     groupedProgress.value.reduce((acc, item) => acc + item.total_attempts, 0),
   );
+  // The biggest number on the screen and the most inert: it counts up once,
+  // when the totals arrive.
+  const correctShown = useCountUp(totalCorrect);
+
   const goalProgress = computed(() =>
     totalAttempts.value > 0
       ? Math.min(
@@ -512,13 +517,13 @@
                 v-if="streakDays > 0"
                 src="@/assets/burn.png"
                 alt=""
-                class="metric-icon-img"
+                class="metric-icon-img metric-icon-img--flame"
               />
               <img
                 v-else
                 src="@/assets/ice-cube.png"
                 alt=""
-                class="metric-icon-img"
+                class="metric-icon-img metric-icon-img--waiting"
               />
             </div>
             <div>
@@ -532,7 +537,7 @@
               <img src="@/assets/stars.png" alt="" class="metric-icon-img" />
             </div>
             <div>
-              <div class="metric-card__value">{{ totalCorrect }}</div>
+              <div class="metric-card__value">{{ correctShown }}</div>
               <div class="metric-card__label">Aciertos</div>
             </div>
           </div>
@@ -888,6 +893,40 @@
     place-items: center;
     font-size: 22px;
     flex-shrink: 0;
+  }
+
+  /* Two states, two verbs. With no streak the card is an invitation, so it
+     drifts to be noticed. With one it is an achievement, and a flame does not
+     drift — it burns. Both are slow enough to sit under the reading. */
+  @keyframes streak-waiting {
+    50% {
+      transform: translateY(-4px);
+    }
+  }
+  @keyframes streak-flicker {
+    0%,
+    100% {
+      transform: scale(1) rotate(0deg);
+    }
+    35% {
+      transform: scale(1.07) rotate(-2.5deg);
+    }
+    65% {
+      transform: scale(0.97) rotate(1.5deg);
+    }
+  }
+  .metric-icon-img--waiting {
+    animation: streak-waiting 3.2s ease-in-out infinite;
+  }
+  .metric-icon-img--flame {
+    animation: streak-flicker 2.4s ease-in-out infinite;
+    transform-origin: 50% 85%;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .metric-icon-img--waiting,
+    .metric-icon-img--flame {
+      animation: none;
+    }
   }
 
   .metric-icon-img {
