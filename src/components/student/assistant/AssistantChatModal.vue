@@ -51,7 +51,9 @@
           <template v-if="mode === 'pizarron'">
             <!-- Idle: intro card -->
             <div v-if="pizState === 'idle'" class="acm-piz-idle">
-              <div class="acm-piz-intro-icon">🖊️</div>
+              <div class="acm-piz-intro-icon">
+                <i class="pi pi-pencil" aria-hidden="true"></i>
+              </div>
               <h3 class="acm-piz-intro-title">Modo Pizarrón</h3>
               <p class="acm-piz-intro-desc">
                 Escribe el tema que quieres practicar, o mantené presionado el
@@ -267,7 +269,9 @@
                   :class="{ 'acm-mode-btn--active': mode === m.value }"
                   @click="setMode(m.value)"
                 >
-                  <span class="acm-mode-icon">{{ m.icon }}</span>
+                  <span class="acm-mode-icon">
+                    <i class="pi" :class="m.icon" aria-hidden="true"></i>
+                  </span>
                   <span class="acm-mode-label">{{ m.label }}</span>
                 </button>
               </div>
@@ -438,8 +442,8 @@
   // Computed
 
   const modes = [
-    { value: "escrita" as AssistantMode, label: "Conversar", icon: "💬" },
-    { value: "pizarron" as AssistantMode, label: "Pizarrón", icon: "🖊️" },
+    { value: "escrita" as AssistantMode, label: "Conversar", icon: "pi-comments" },
+    { value: "pizarron" as AssistantMode, label: "Pizarrón", icon: "pi-pencil" },
   ];
 
   const modeLabel = computed(
@@ -1650,7 +1654,14 @@
   }
 
   .acm-piz-intro-icon {
-    font-size: 52px;
+    font-size: 46px;
+    line-height: 1;
+    color: var(--practiq-violet);
+  }
+  .acm-mode-icon {
+    display: inline-flex;
+    align-items: center;
+    font-size: 0.95em;
   }
 
   .acm-piz-intro-title {

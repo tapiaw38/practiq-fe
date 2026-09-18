@@ -158,11 +158,31 @@
     Math.max(0, incorrectResults.value.length - 3)
   );
 
+  /**
+   * A blanks answer is stored keyed by blank, as {"1":"entretener"}. That is how
+   * the grader compares it, not something a student should be asked to read: the
+   * results modal was showing them the braces and the quotes.
+   */
+  function formatBlanksAnswer(answer: string): string {
+    if (!answer.startsWith("{")) return answer;
+    try {
+      const parsed = JSON.parse(answer);
+      if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return answer;
+      const words = Object.keys(parsed)
+        .sort((a, b) => Number(a) - Number(b))
+        .map((key) => String(parsed[key] ?? "").trim())
+        .filter(Boolean);
+      return words.length ? words.join(" · ") : answer;
+    } catch {
+      return answer;
+    }
+  }
+
   function formatStudentAnswer(answer: string): string {
     if (!answer || answer.trim() === "") return "(vacío)";
     if (answer.toUpperCase() === "UNREADABLE") return "(no se pudo leer)";
     if (answer.startsWith("data:image/")) return "(no se pudo leer)";
-    return answer;
+    return formatBlanksAnswer(answer);
   }
 
   const hasDraft = ref(false);
@@ -482,7 +502,7 @@
     if (curiosities.value.length > 0) {
       const msg = curiosities.value[curiosityIndex.value % curiosities.value.length];
       curiosityIndex.value++;
-      return `💡 ${msg}`;
+      return msg;
     }
     return randomMessage(loadingMessages);
   }
@@ -1117,12 +1137,13 @@
                     >
                       Dificultad {{ pse.exercise.difficulty }}
                     </span>
-                    <span class="time-display"
-                      >⏱
-                      {{ formatDuration(timers[pse.exercise.id] || 0) }}</span
-                    >
+                    <span class="time-display">
+                      <i class="pi pi-clock" aria-hidden="true"></i>
+                      {{ formatDuration(timers[pse.exercise.id] || 0) }}
+                    </span>
                     <span v-if="hints[pse.exercise.id]" class="hint-count">
-                      💡 {{ hints[pse.exercise.id] }} pista{{
+                      <i class="pi pi-lightbulb" aria-hidden="true"></i>
+                      {{ hints[pse.exercise.id] }} pista{{
                         hints[pse.exercise.id] > 1 ? "s" : ""
                       }}
                     </span>
@@ -1452,16 +1473,29 @@
                 <i class="pi pi-times"></i>
               </button>
               <div class="results-header">
-                <div class="results-emoji">
-                  {{
+                <div
+                  class="results-emoji"
+                  :class="
                     allUngraded
-                      ? "📝"
-                      : result.score >= 90
-                        ? "🏆"
-                        : result.score >= 70
-                          ? "🌟"
-                          : "💪"
-                  }}
+                      ? 'results-emoji--sent'
+                      : result.score >= 70
+                        ? 'results-emoji--good'
+                        : 'results-emoji--try'
+                  "
+                >
+                  <i
+                    class="pi"
+                    :class="
+                      allUngraded
+                        ? 'pi-send'
+                        : result.score >= 90
+                          ? 'pi-trophy'
+                          : result.score >= 70
+                            ? 'pi-star-fill'
+                            : 'pi-flag'
+                    "
+                    aria-hidden="true"
+                  ></i>
                 </div>
                 <h3 class="results-title">
                   {{
@@ -1501,7 +1535,11 @@
               </div>
               <div v-if="!allUngraded" class="results-recommendation">
                 <div class="rec-icon">
-                  {{ result.should_repeat ? "🔄" : "▶️" }}
+                  <i
+                    class="pi"
+                    :class="result.should_repeat ? 'pi-replay' : 'pi-arrow-right'"
+                    aria-hidden="true"
+                  ></i>
                 </div>
                 <p>{{ result.recommendation }}</p>
               </div>
@@ -1517,7 +1555,8 @@
 
               <!-- Per-exercise feedback (only errors) -->
               <div v-if="incorrectResults.length === 0 && result.exercise_results?.length && !ungradedResults.length" class="all-correct-badge">
-                ✅ ¡Todas las respuestas correctas!
+                <i class="pi pi-check-circle" aria-hidden="true"></i>
+                ¡Todas las respuestas correctas!
               </div>
 
               <div v-else-if="incorrectResults.length > 0" class="exercise-results-section">
@@ -1527,13 +1566,15 @@
                     :key="exResult.exercise_id"
                     class="exercise-result-item exercise-result--incorrect"
                   >
-                    <div class="exercise-result-icon">❌</div>
+                    <div class="exercise-result-icon">
+                      <i class="pi pi-times-circle" aria-hidden="true"></i>
+                    </div>
                     <div class="exercise-result-content">
                       <div class="exercise-result-answers">
                         <span class="answer-label">Tu respuesta:</span>
                         <span class="answer-student">{{ formatStudentAnswer(exResult.student_answer) }}</span>
                         <span class="answer-label">Correcta:</span>
-                        <span class="answer-correct">{{ exResult.correct_answer }}</span>
+                        <span class="answer-correct">{{ formatStudentAnswer(exResult.correct_answer) }}</span>
                       </div>
                       <div v-if="exResult.ai_feedback && !exResult.ai_feedback.includes('UNREADABLE')" class="exercise-result-feedback">
                         {{ exResult.ai_feedback }}
@@ -1936,14 +1977,20 @@
   }
 
   .time-display {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
     font-size: 0.78rem;
     color: var(--text-muted);
     font-variant-numeric: tabular-nums;
   }
 
   .hint-count {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
     font-size: 0.78rem;
-    color: var(--color-warning);
+    color: var(--color-warning-dark);
   }
 
   .ex-question {
@@ -2363,9 +2410,21 @@
     text-align: center;
     margin-bottom: 16px;
   }
+  /* An emoji arrived with its own colour; an icon inherits one, so the meaning
+     that was in the picture now has to be in the palette. */
   .results-emoji {
-    font-size: 40px;
-    margin-bottom: 8px;
+    font-size: 38px;
+    line-height: 1;
+    margin-bottom: 10px;
+  }
+  .results-emoji--good {
+    color: var(--color-warning);
+  }
+  .results-emoji--try {
+    color: var(--practiq-violet);
+  }
+  .results-emoji--sent {
+    color: var(--text-secondary);
   }
   .results-title {
     font-size: 1.4rem;
@@ -2402,7 +2461,9 @@
     background: var(--surface-subtle);
   }
   .rec-icon {
-    font-size: 24px;
+    font-size: 20px;
+    line-height: 1;
+    color: var(--practiq-violet);
   }
 
   .results-ai-feedback {
@@ -2427,6 +2488,9 @@
     font-weight: 600;
   }
   .all-correct-badge {
+    display: flex;
+    align-items: center;
+    gap: 8px;
     margin-top: 12px;
     padding: 14px 16px;
     border-radius: var(--radius-lg);
@@ -2465,8 +2529,10 @@
   }
 
   .exercise-result-icon {
-    font-size: 1.1rem;
+    font-size: 1.15rem;
+    line-height: 1;
     flex-shrink: 0;
+    color: var(--color-error);
   }
 
   .exercise-result-content {
