@@ -1,5 +1,5 @@
 <script setup lang="ts">
-  import { onMounted, onUnmounted, ref, watch } from "vue";
+  import { computed, onMounted, onUnmounted, ref, watch } from "vue";
 
   const props = defineProps<{
     /** Empty hides the bubble. */
@@ -23,6 +23,13 @@
   // only place the reply can land, so the chat stays out of the way.
   const chatOpen = ref(false);
   const waitingReply = ref(false);
+
+  // Revealed on hover where hovering exists. A touch screen has no hover and
+  // tapping the launcher opens the chat, so there they simply stay out.
+  const hoverCapable =
+    typeof window !== "undefined" && window.matchMedia("(hover: hover)").matches;
+  const hovering = ref(false);
+  const asksVisible = computed(() => !visible.value && (!hoverCapable || hovering.value));
 
   function ask(prompt: string) {
     waitingReply.value = !chatOpen.value;
@@ -99,15 +106,18 @@
     typeTimer = setInterval(() => {
       shown = Math.min(shown + 2, text.length);
       spoken.value = text.slice(0, shown);
-      if (shown >= text.length && typeTimer) {
-        clearInterval(typeTimer);
-        typeTimer = null;
-      }
+      if (shown < text.length || !typeTimer) return;
+      clearInterval(typeTimer);
+      typeTimer = null;
+      // Time to read what was just said, then it clears itself. Long answers
+      // get longer, within reason; the close button is there for the rest.
+      hideTimer = setTimeout(dismiss, Math.min(3000 + text.length * 40, 20000));
     }, 18);
   }
 
   function dismiss() {
-    if (!dismissable.value) return;
+    if (hideTimer) clearTimeout(hideTimer);
+    if (typeTimer) clearInterval(typeTimer);
     visible.value = false;
     // Without this the answer keeps outranking every later remark, and the
     // bubble never speaks again for the rest of the sheet.
@@ -147,8 +157,14 @@
     frame = requestAnimationFrame(poll);
   }
 
+  function onPointerOver(event: Event) {
+    const target = event.target as HTMLElement | null;
+    hovering.value = !!target?.closest(".floating-button, .coach-asks, .coach-bubble");
+  }
+
   onMounted(() => {
     poll();
+    if (hoverCapable) document.addEventListener("pointerover", onPointerOver);
     // The chat can already be open when this view mounts; only its toggle is
     // announced, so the first reading comes from the DOM.
     const chat = document.querySelector<HTMLElement>(".ia-chat-container");
@@ -162,6 +178,7 @@
 
   onUnmounted(() => {
     cancelAnimationFrame(frame);
+    document.removeEventListener("pointerover", onPointerOver);
     if (hideTimer) clearTimeout(hideTimer);
     if (typeTimer) clearInterval(typeTimer);
     window.removeEventListener("practiq:assistant:chat-toggle", onChatToggle);
@@ -201,15 +218,23 @@
         :style="{ right: `${anchor.right}px`, bottom: `${anchor.bottom}px` }"
         role="status"
         aria-live="polite"
-        @click="dismiss"
       >
-        {{ spoken }}
+        <button
+          v-if="dismissable"
+          type="button"
+          class="coach-close"
+          aria-label="Cerrar"
+          @click="dismiss"
+        >
+          <i class="pi pi-times" aria-hidden="true"></i>
+        </button>
+        <span class="coach-said">{{ spoken }}</span>
       </div>
     </Transition>
 
     <Transition name="coach">
       <div
-        v-if="!visible"
+        v-if="asksVisible"
         class="coach-asks"
         :style="{ right: `${anchor.asksRight}px`, bottom: `${anchor.bottom}px` }"
       >
@@ -249,12 +274,35 @@
      stays until it is tapped away. */
   .coach-bubble--answer {
     max-width: min(82vw, 330px);
-    max-height: 42vh;
-    overflow: hidden;
+    max-height: 38vh;
+    overflow-y: auto;
+    padding-right: 34px;
     font-weight: 600;
     text-align: left;
+    /* The reply arrives with its own paragraphs; collapsing them turned an
+       explanation into one unreadable block. */
+    white-space: pre-line;
     pointer-events: auto;
+  }
+  .coach-close {
+    position: absolute;
+    top: 6px;
+    right: 6px;
+    width: 22px;
+    height: 22px;
+    display: grid;
+    place-items: center;
+    padding: 0;
+    border: none;
+    border-radius: 50%;
+    background: var(--surface-hover);
+    color: var(--text-secondary);
+    font-size: 0.7rem;
     cursor: pointer;
+  }
+  .coach-close:hover {
+    background: var(--fill-primary-soft);
+    color: var(--practiq-violet);
   }
   /* The tail points down at the launcher, which is what makes the text read as
      something Practi said rather than a notification that happened to land. */

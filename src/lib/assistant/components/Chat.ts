@@ -2281,8 +2281,11 @@ function plainAssistantText(text: string): string {
       return payload.copilot_blocks
         .map((block: { content?: string }) => (block?.content ?? "").trim())
         .filter(Boolean)
-        .join(" ");
+        .join("\n\n");
     }
+    // The ordinary reply shape: the sentences sit in `content`, alongside
+    // delivery details like audio_url that nobody should ever read.
+    if (typeof payload?.content === "string") return payload.content.trim();
   } catch {
     // Not JSON: it is already the text.
   }
