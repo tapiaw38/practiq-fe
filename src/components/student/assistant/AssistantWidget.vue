@@ -281,8 +281,8 @@
   }
 
   function handleAssistantPrompt(e: Event) {
-    const prompt = (e as CustomEvent<{ prompt?: string }>).detail?.prompt;
-    if (prompt) assistant?.prompt(prompt);
+    const detail = (e as CustomEvent<{ prompt?: string; openWindow?: boolean }>).detail;
+    if (detail?.prompt) assistant?.prompt(detail.prompt, detail.openWindow !== false);
   }
 
   onMounted(() => {

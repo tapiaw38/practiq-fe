@@ -952,6 +952,16 @@ export class Chat {
     const messageElement = document.createElement("div");
     messageElement.className = `ia-chat-message ${sender}`;
 
+    // Announced for anything on the page that wants to show the reply without
+    // the chat window — the practice screen speaks it through the mascot.
+    if (sender === "assistant") {
+      window.dispatchEvent(
+        new CustomEvent("practiq:assistant:reply", {
+          detail: { text: plainAssistantText(text) },
+        })
+      );
+    }
+
     if (sender === "assistant") {
       try {
         const payload = JSON.parse(text);
@@ -1443,8 +1453,15 @@ export class Chat {
   }
 
   /** Open chat and send a contextual quick action. */
-  public async sendPrompt(prompt: string): Promise<void> {
-    this.open();
+  /**
+   * Sends a prompt as if the student had typed it.
+   *
+   * `openWindow` false leaves the chat closed: the message and its reply still
+   * join the conversation, and the reply is announced on
+   * practiq:assistant:reply for whoever asked to show it elsewhere.
+   */
+  public async sendPrompt(prompt: string, openWindow: boolean = true): Promise<void> {
+    if (openWindow) this.open();
     const textarea = this.chatWindow.querySelector(".ia-chat-input") as HTMLTextAreaElement;
     if (!textarea) return;
     textarea.value = prompt;
@@ -2249,4 +2266,25 @@ export class Chat {
 
     return "#" + ((1 << 24) + (r << 16) + (g << 8) + b).toString(16).slice(1);
   }
+}
+
+/**
+ * The reply as a human would read it aloud.
+ *
+ * A copilot answer arrives as JSON carrying blocks; anything showing it outside
+ * the chat window needs the sentences, not the envelope.
+ */
+function plainAssistantText(text: string): string {
+  try {
+    const payload = JSON.parse(text);
+    if (Array.isArray(payload?.copilot_blocks)) {
+      return payload.copilot_blocks
+        .map((block: { content?: string }) => (block?.content ?? "").trim())
+        .filter(Boolean)
+        .join(" ");
+    }
+  } catch {
+    // Not JSON: it is already the text.
+  }
+  return text;
 }

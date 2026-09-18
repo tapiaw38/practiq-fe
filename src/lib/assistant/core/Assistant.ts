@@ -133,7 +133,7 @@ export interface Assistant {
   /** Re-evaluate configured view visibility after host navigation. */
   refreshVisibility: () => void;
   /** Open chat and send a quick action with current context. */
-  prompt: (message: string) => Promise<void>;
+  prompt: (message: string, openWindow?: boolean) => Promise<void>;
 }
 
 /**
@@ -1173,9 +1173,9 @@ export function createAssistant(options: AssistantOptions): Assistant {
     refreshContext: () => resetContextCache(),
     resetConversation: () => resetConversationState(),
     refreshVisibility,
-    prompt: async (message: string) => {
+    prompt: async (message: string, openWindow: boolean = true) => {
       if (!isVisibleForCurrentView) return;
-      if (chat) await chat.sendPrompt(message);
+      if (chat) await chat.sendPrompt(message, openWindow);
       else pendingOpen = true;
     },
   };

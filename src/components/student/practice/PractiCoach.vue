@@ -9,16 +9,44 @@
     tone?: "neutral" | "good" | "retry";
   }>();
 
+  // Icon only: the labels sat in the reading area and were noise next to a
+  // mascot that is already the obvious thing to tap. The name stays in the
+  // tooltip and in the accessible name.
   const QUICK_ASKS = [
-    { label: "Ayuda", icon: "pi-question-circle", prompt: "Ayudame con el ejercicio actual. Dame una pista sin resolverlo." },
-    { label: "Explicar", icon: "pi-lightbulb", prompt: "Explicame el tema de este ejercicio con un ejemplo simple." },
-    { label: "Revisar", icon: "pi-eye", prompt: "Mirá mi respuesta al ejercicio actual y decime si voy bien." },
+    { label: "Pedir ayuda", icon: "pi-question-circle", prompt: "Ayudame con el ejercicio actual. Dame una pista sin resolverlo." },
+    { label: "Explicar el tema", icon: "pi-lightbulb", prompt: "Explicame el tema de este ejercicio con un ejemplo simple." },
+    { label: "Revisar mi respuesta", icon: "pi-eye", prompt: "Mirá mi respuesta al ejercicio actual y decime si voy bien." },
   ];
 
+  // With the chat open the student is already reading there, and answering in a
+  // bubble over it would say the same thing twice. Closed, the bubble is the
+  // only place the reply can land, so the chat stays out of the way.
+  const chatOpen = ref(false);
+  const waitingReply = ref(false);
+
   function ask(prompt: string) {
+    waitingReply.value = !chatOpen.value;
+    if (waitingReply.value) speak("Pensando…", "neutral", false);
     window.dispatchEvent(
-      new CustomEvent("practiq:assistant:prompt", { detail: { prompt } }),
+      new CustomEvent("practiq:assistant:prompt", {
+        detail: { prompt, openWindow: chatOpen.value },
+      }),
     );
+  }
+
+  function onChatToggle(event: Event) {
+    chatOpen.value = !!(event as CustomEvent<{ open?: boolean }>).detail?.open;
+    if (chatOpen.value) {
+      waitingReply.value = false;
+      visible.value = false;
+    }
+  }
+
+  function onAssistantReply(event: Event) {
+    if (!waitingReply.value) return;
+    waitingReply.value = false;
+    const text = (event as CustomEvent<{ text?: string }>).detail?.text?.trim();
+    speak(text || "No pude responder ahora.", "neutral", true);
   }
 
   /**
@@ -30,16 +58,61 @@
    * Null means there is no launcher on screen, and then there is nothing to
    * attach to and nothing to draw.
    */
-  const anchor = ref<{
-    bubbleRight: number;
-    bubbleBottom: number;
-    asksRight: number;
-    asksBottom: number;
-  } | null>(null);
+  const anchor = ref<{ right: number; asksRight: number; bottom: number } | null>(null);
+
+  /** Keep in sync with .coach-ask's width. */
+  const ASK_SIZE = 40;
 
   const visible = ref(false);
+  const spoken = ref("");
+  const spokenTone = ref<"neutral" | "good" | "retry">("neutral");
+  const dismissable = ref(false);
   let hideTimer: ReturnType<typeof setTimeout> | null = null;
+  let typeTimer: ReturnType<typeof setInterval> | null = null;
   let frame = 0;
+
+  /**
+   * Shows a line above the launcher.
+   *
+   * An answer is revealed a few characters at a time and waits to be dismissed:
+   * it is something the student asked for and has to be able to finish reading.
+   * A remark the screen volunteered appears at once and leaves on its own.
+   */
+  function speak(text: string, tone: "neutral" | "good" | "retry", answer: boolean) {
+    if (hideTimer) clearTimeout(hideTimer);
+    if (typeTimer) clearInterval(typeTimer);
+    measure();
+    spokenTone.value = tone;
+    dismissable.value = answer;
+    visible.value = true;
+
+    if (!answer) {
+      spoken.value = text;
+      hideTimer = setTimeout(() => {
+        visible.value = false;
+      }, 4200);
+      return;
+    }
+
+    spoken.value = "";
+    let shown = 0;
+    typeTimer = setInterval(() => {
+      shown = Math.min(shown + 2, text.length);
+      spoken.value = text.slice(0, shown);
+      if (shown >= text.length && typeTimer) {
+        clearInterval(typeTimer);
+        typeTimer = null;
+      }
+    }, 18);
+  }
+
+  function dismiss() {
+    if (!dismissable.value) return;
+    visible.value = false;
+    // Without this the answer keeps outranking every later remark, and the
+    // bubble never speaks again for the rest of the sheet.
+    dismissable.value = false;
+  }
 
   function measure() {
     const fab = document.querySelector<HTMLElement>(".floating-button");
@@ -54,11 +127,15 @@
     }
     const viewportWidth = window.visualViewport?.width ?? window.innerWidth;
     const viewportHeight = window.visualViewport?.height ?? window.innerHeight;
+    // The bubble and the quick asks share this spot above the launcher: one is
+    // showing whenever the other is not.
+    const right = Math.max(viewportWidth - rect.right, 8);
     anchor.value = {
-      bubbleRight: Math.max(viewportWidth - rect.right, 8),
-      bubbleBottom: viewportHeight - rect.top + 10,
-      asksRight: viewportWidth - rect.left + 10,
-      asksBottom: viewportHeight - rect.bottom,
+      right,
+      // Centred on the launcher rather than flush with its right edge: the
+      // icons are narrower than it, and aligned edges read as crooked.
+      asksRight: right + Math.max((rect.width - ASK_SIZE) / 2, 0),
+      bottom: viewportHeight - rect.top + 10,
     };
   }
 
@@ -72,6 +149,12 @@
 
   onMounted(() => {
     poll();
+    // The chat can already be open when this view mounts; only its toggle is
+    // announced, so the first reading comes from the DOM.
+    const chat = document.querySelector<HTMLElement>(".ia-chat-container");
+    chatOpen.value = !!chat && chat.style.display === "block";
+    window.addEventListener("practiq:assistant:chat-toggle", onChatToggle);
+    window.addEventListener("practiq:assistant:reply", onAssistantReply);
     window.addEventListener("resize", measure);
     window.addEventListener("scroll", measure, { passive: true });
     window.visualViewport?.addEventListener("resize", measure);
@@ -80,6 +163,9 @@
   onUnmounted(() => {
     cancelAnimationFrame(frame);
     if (hideTimer) clearTimeout(hideTimer);
+    if (typeTimer) clearInterval(typeTimer);
+    window.removeEventListener("practiq:assistant:chat-toggle", onChatToggle);
+    window.removeEventListener("practiq:assistant:reply", onAssistantReply);
     window.removeEventListener("resize", measure);
     window.removeEventListener("scroll", measure);
     window.visualViewport?.removeEventListener("resize", measure);
@@ -88,16 +174,15 @@
   watch(
     () => [props.message, props.beat],
     () => {
-      if (hideTimer) clearTimeout(hideTimer);
+      // An answer the student asked for outranks a remark about progress, and
+      // with the chat open the bubble would sit on top of it.
+      if (waitingReply.value || chatOpen.value) return;
+      if (dismissable.value && visible.value) return;
       if (!props.message) {
         visible.value = false;
         return;
       }
-      measure();
-      visible.value = true;
-      hideTimer = setTimeout(() => {
-        visible.value = false;
-      }, 4200);
+      speak(props.message, props.tone ?? "neutral", false);
     },
     { immediate: true },
   );
@@ -109,36 +194,38 @@
       <div
         v-if="visible"
         class="coach-bubble"
-        :class="`coach-bubble--${tone ?? 'neutral'}`"
-        :style="{
-          right: `${anchor.bubbleRight}px`,
-          bottom: `${anchor.bubbleBottom}px`,
-        }"
+        :class="[
+          `coach-bubble--${spokenTone}`,
+          { 'coach-bubble--answer': dismissable },
+        ]"
+        :style="{ right: `${anchor.right}px`, bottom: `${anchor.bottom}px` }"
         role="status"
         aria-live="polite"
+        @click="dismiss"
       >
-        {{ message }}
+        {{ spoken }}
       </div>
     </Transition>
 
-    <div
-      class="coach-asks"
-      :style="{
-        right: `${anchor.asksRight}px`,
-        bottom: `${anchor.asksBottom}px`,
-      }"
-    >
-      <button
-        v-for="quick in QUICK_ASKS"
-        :key="quick.label"
-        type="button"
-        class="coach-ask"
-        @click="ask(quick.prompt)"
+    <Transition name="coach">
+      <div
+        v-if="!visible"
+        class="coach-asks"
+        :style="{ right: `${anchor.asksRight}px`, bottom: `${anchor.bottom}px` }"
       >
-        <i class="pi" :class="quick.icon"></i>
-        {{ quick.label }}
-      </button>
-    </div>
+        <button
+          v-for="quick in QUICK_ASKS"
+          :key="quick.label"
+          type="button"
+          class="coach-ask"
+          :title="quick.label"
+          :aria-label="quick.label"
+          @click="ask(quick.prompt)"
+        >
+          <i class="pi" :class="quick.icon" aria-hidden="true"></i>
+        </button>
+      </div>
+    </Transition>
   </template>
 </template>
 
@@ -157,6 +244,17 @@
     font-weight: 800;
     line-height: 1.25;
     pointer-events: none;
+  }
+  /* An answer is read, not glanced at: it gets room, its own weight, and it
+     stays until it is tapped away. */
+  .coach-bubble--answer {
+    max-width: min(82vw, 330px);
+    max-height: 42vh;
+    overflow: hidden;
+    font-weight: 600;
+    text-align: left;
+    pointer-events: auto;
+    cursor: pointer;
   }
   /* The tail points down at the launcher, which is what makes the text read as
      something Practi said rather than a notification that happened to land. */
@@ -181,34 +279,35 @@
     border-color: var(--color-warning);
   }
 
-  /* Beside the launcher, not under it: the launcher already sits just above the
-     screen's sticky footer, so anything below it lands on the footer's buttons. */
+  /* Stacked above the launcher, never below it: the launcher already rests just
+     above the screen's sticky footer, so anything under it lands on the
+     footer's buttons. */
   .coach-asks {
     position: fixed;
     z-index: 999;
     display: flex;
-    align-items: center;
-    gap: 6px;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 8px;
   }
   .coach-ask {
-    display: inline-flex;
-    align-items: center;
-    gap: 5px;
-    padding: 6px 11px;
+    width: 40px;
+    height: 40px;
+    display: grid;
+    place-items: center;
+    padding: 0;
     border: 1px solid var(--surface-border);
-    border-radius: var(--radius-pill);
+    border-radius: 50%;
     background: var(--surface-card);
     box-shadow: var(--elevation-tint-shadow);
     color: var(--practiq-violet);
-    font-size: var(--text-xs);
-    font-weight: 800;
-    white-space: nowrap;
+    font-size: 1rem;
     cursor: pointer;
     transition: var(--transition-fast);
   }
   .coach-ask:hover {
     background: var(--fill-primary-faint);
-    transform: translateY(-1px);
+    transform: scale(1.06);
   }
   .coach-ask:active {
     transform: none;
@@ -226,14 +325,6 @@
     transform: translateY(8px) scale(0.96);
   }
 
-  @media (max-width: 380px) {
-    .coach-ask {
-      padding: 6px 8px;
-    }
-    .coach-ask i {
-      display: none;
-    }
-  }
   @media (prefers-reduced-motion: reduce) {
     .coach-enter-active,
     .coach-leave-active {
