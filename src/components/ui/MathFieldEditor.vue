@@ -29,6 +29,16 @@
     showLatex.value = !showLatex.value;
   }
 
+  /**
+   * MathLive reads its placeholder as LaTeX, so a plain sentence would render as
+   * maths: italic serif with every space collapsed. \\text keeps it a sentence.
+   */
+  function placeholderLatex(text: string): string {
+    const trimmed = text.trim();
+    if (!trimmed) return "";
+    return trimmed.startsWith("\\") ? trimmed : `\\text{${trimmed}}`;
+  }
+
   onMounted(() => {
     nextTick(() => {
       const mf = mathFieldRef.value;
@@ -41,9 +51,18 @@
         mf.mathModeSpace = "\\,";
         mf.smartFence = true;
         mf.smartSuperscript = true;
+        mf.placeholder = placeholderLatex(props.placeholder);
       }
     });
   });
+
+  watch(
+    () => props.placeholder,
+    (text) => {
+      const mf = mathFieldRef.value;
+      if (mf) mf.placeholder = placeholderLatex(text);
+    },
+  );
 
   watch(
     () => props.modelValue,

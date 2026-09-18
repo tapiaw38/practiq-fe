@@ -997,7 +997,6 @@
         <div class="practice-progress-bar">
           <div class="practice-progress-fill" style="width: 0%"></div>
         </div>
-        <Skeleton width="100px" height="14px" class="progress-skel" />
         <div class="exercises-list">
           <div v-for="n in 3" :key="n" class="ex-card ex-card--skeleton">
             <Skeleton
@@ -1027,10 +1026,6 @@
             :style="{ width: progressPct + '%' }"
           ></div>
         </div>
-        <div class="practice-progress-label">
-          {{ answeredCount }} / {{ totalCount }} respondidas
-        </div>
-
         <div class="practice-body">
           <!-- Exercises + footer -->
           <main class="practice-area">
@@ -1108,7 +1103,10 @@
                       type="button"
                       title="Pedir ayuda con este ejercicio"
                       @click.stop="requestAssistantHelp"
-                    >Ayuda</button>
+                    >
+                      <i class="pi pi-question-circle" aria-hidden="true"></i>
+                      Ayuda
+                    </button>
                     <span
                       class="difficulty-pill"
                       :style="{
@@ -1222,6 +1220,7 @@
                     <MathFieldEditor
                       v-model="keyboardAnswers[pse.exercise.id]"
                       :show-latex-toggle="false"
+                      :placeholder="getPlaceholder(pse.exercise.type)"
                       virtual-keyboard-mode="onfocus"
                     />
                   </div>
@@ -1291,9 +1290,9 @@
               </div>
               <div class="footer-nav">
                 <button
+                  v-if="currentIdx > 0"
                   class="btn-step"
                   type="button"
-                  :disabled="currentIdx === 0"
                   @click="goToExercise(currentIdx - 1)"
                 >
                   <i class="pi pi-chevron-left"></i>
@@ -1776,16 +1775,8 @@
     border-radius: 99px;
     transition: width 0.3s ease;
   }
-  .practice-progress-label {
-    font-size: 0.8rem;
-    color: var(--text-secondary);
-    text-align: right;
-  }
 
   /* Skeleton styles */
-  .progress-skel {
-    margin-left: auto;
-  }
   .ex-card--skeleton {
     pointer-events: none;
   }
@@ -2760,13 +2751,18 @@
       height: 22px;
     }
   }
+  /* Sits in a row of badges, so without an icon and a solid fill it read as
+     one more label rather than the way into Practi from the exercise. */
   .exercise-assistant-trigger {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
     margin-left: auto;
-    border: 1px solid rgba(var(--practiq-violet-rgb), 0.2);
+    border: 1px solid transparent;
     border-radius: 999px;
-    padding: 3px 9px;
-    background: color-mix(in srgb, var(--practiq-violet) 12%, transparent);
-    color: var(--practiq-violet);
+    padding: 4px 11px;
+    background: var(--practiq-violet);
+    color: #fff;
     cursor: pointer;
     font: inherit;
     font-size: 0.75rem;
@@ -2776,8 +2772,7 @@
   }
 
   .exercise-assistant-trigger:hover {
-    background: color-mix(in srgb, var(--practiq-violet) 20%, transparent);
-    border-color: rgba(var(--practiq-violet-rgb), 0.38);
+    background: color-mix(in srgb, var(--practiq-violet) 88%, #000);
   }
 
   .exercise-assistant-trigger:active {

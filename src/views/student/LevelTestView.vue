@@ -1021,6 +1021,7 @@
                 <MathFieldEditor
                   v-model="answers[ex.exercise.id]"
                   :show-latex-toggle="false"
+                  placeholder="Escribí tu respuesta"
                   virtual-keyboard-mode="onfocus"
                 />
               </div>

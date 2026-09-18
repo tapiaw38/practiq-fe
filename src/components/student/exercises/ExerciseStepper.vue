@@ -36,7 +36,7 @@
         Ejercicio {{ current + 1 }} de {{ total }}
       </span>
       <span class="stepper-count">
-        {{ answeredCount }} de {{ total }} respondidos
+        {{ answeredCount }}/{{ total }} hechos
       </span>
     </div>
 
@@ -171,10 +171,10 @@
       border-radius: var(--radius-lg);
     }
 
+    /* Short enough to stay on one line: stacking them cost a row on the screen
+       with the least room to spare. */
     .stepper-head {
-      flex-direction: column;
-      align-items: flex-start;
-      gap: 0.15rem;
+      gap: 0.5rem;
     }
 
     .stepper-dot {
