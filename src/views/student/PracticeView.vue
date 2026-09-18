@@ -64,7 +64,7 @@
     () => hasPendingWork.value,
   );
   const { loadCourseProgress } = useProgress();
-  const { loadPracticeSheet, submitPracticeSheetAsync, loadSubmitJob, checkAnswer } =
+  const { loadPracticeSheet, submitPracticeSheetAsync, loadSubmitJob } =
     usePracticeSheet();
   const { fireSuccess } = useConfetti();
   const { play: playSound } = useSound();
@@ -211,57 +211,7 @@
     coachBeat.value += 1;
   }
 
-  /**
-   * Verdicts from checking an answer before submitting.
-   *
-   * Each one remembers the text it judged: editing the answer afterwards makes
-   * the verdict stale, and a green dot over rewritten text would be a lie.
-   */
-  const verdicts = ref<Record<string, { correct: boolean; answer: string }>>({});
-  const checkingId = ref("");
 
-  function verdictFor(exerciseId: string): boolean | null {
-    const verdict = verdicts.value[exerciseId];
-    if (!verdict) return null;
-    return verdict.answer === keyboardAnswers.value[exerciseId]?.trim()
-      ? verdict.correct
-      : null;
-  }
-
-  const verdictFlags = computed(() =>
-    (sheet.value?.exercises ?? []).map((item) => verdictFor(item.exercise.id)),
-  );
-
-  // A check compares text. Handwriting, an upload, or a statement whose meaning
-  // lives in an image or audio are all judged once, by the submission.
-  function canCheck(exercise?: { id?: string; type?: string; media_view_url?: string } | null) {
-    if (!exercise?.id) return false;
-    if (sheet.value?.sheet_type === "level_test") return false;
-    if (exercise.type === "attachment") return false;
-    if (exercise.type && exerciseUsesCanvas(exercise.type)) return false;
-    if (exercise.media_view_url) return false;
-    return !!keyboardAnswers.value[exercise.id]?.trim();
-  }
-
-  async function checkCurrentAnswer(exerciseId: string) {
-    const text = keyboardAnswers.value[exerciseId]?.trim();
-    if (!text || checkingId.value) return;
-    checkingId.value = exerciseId;
-    const result = await checkAnswer(sheetId, exerciseId, text);
-    checkingId.value = "";
-
-    if (!result || !result.graded) {
-      say("Lo miro cuando revises la práctica.");
-      return;
-    }
-    verdicts.value[exerciseId] = { correct: result.is_correct, answer: text };
-    if (result.is_correct) {
-      say("¡Bien ahí!", "good");
-      return;
-    }
-    const hint = result.feedback?.trim();
-    say(hint && hint.length <= 90 ? hint : "Casi. Probá de nuevo.", "retry");
-  }
 
   /**
    * Moves to an exercise and saves what the student had written.
@@ -1135,7 +1085,6 @@
               :total="totalCount"
               :current="currentIdx"
               :answered="answeredFlags"
-              :verdicts="verdictFlags"
               @select="goToExercise"
             />
 
@@ -1320,38 +1269,6 @@
                                           />
                   </div>
 
-                  <div v-if="canCheck(pse.exercise)" class="ex-check">
-                    <button
-                      type="button"
-                      class="btn-check"
-                      :class="{
-                        'btn-check--right': verdictFor(pse.exercise.id) === true,
-                        'btn-check--wrong': verdictFor(pse.exercise.id) === false,
-                      }"
-                      :disabled="checkingId === pse.exercise.id"
-                      @click="checkCurrentAnswer(pse.exercise.id)"
-                    >
-                      <i
-                        class="pi"
-                        :class="
-                          checkingId === pse.exercise.id
-                            ? 'pi-spinner pi-spin'
-                            : verdictFor(pse.exercise.id) === true
-                              ? 'pi-check-circle'
-                              : verdictFor(pse.exercise.id) === false
-                                ? 'pi-replay'
-                                : 'pi-bolt'
-                        "
-                      ></i>
-                      {{
-                        verdictFor(pse.exercise.id) === true
-                          ? "Correcto"
-                          : verdictFor(pse.exercise.id) === false
-                            ? "Probar de nuevo"
-                            : "Comprobar"
-                      }}
-                    </button>
-                  </div>
                 </div>
               </div>
             </div>
@@ -2867,41 +2784,6 @@
     transform: translateY(1px);
   }
 
-  .ex-check {
-    display: flex;
-    justify-content: flex-end;
-    margin-top: 10px;
-  }
-  .btn-check {
-    display: inline-flex;
-    align-items: center;
-    gap: 7px;
-    border: 2px solid var(--fill-primary-soft);
-    border-radius: var(--radius-pill);
-    background: var(--surface-card);
-    color: var(--practiq-violet);
-    padding: 8px 16px;
-    font-weight: 800;
-    font-size: var(--text-sm);
-    cursor: pointer;
-    transition: var(--transition-fast);
-  }
-  .btn-check:hover:not(:disabled) {
-    background: var(--fill-primary-faint);
-  }
-  .btn-check:disabled {
-    cursor: progress;
-  }
-  .btn-check--right {
-    border-color: var(--color-success);
-    color: var(--color-success-dark);
-    background: var(--color-success-bg);
-  }
-  .btn-check--wrong {
-    border-color: var(--color-warning);
-    color: var(--color-warning-dark);
-    background: var(--color-warning-bg);
-  }
   .streak-lbl--invite {
     line-height: 1.15;
     max-width: 68px;
@@ -2912,5 +2794,33 @@
     background: var(--surface-hover);
     color: var(--text-secondary);
     box-shadow: none;
+  }
+
+  .streak-lbl--invite {
+    line-height: 1.15;
+    max-width: 68px;
+  }
+  /* Nothing to review yet: the button stays reachable but stops shouting for an
+     action the student cannot take. */
+  .btn-submit--idle {
+    background: var(--surface-hover);
+    color: var(--text-secondary);
+    box-shadow: none;
+  }
+  /* Changing exercise replaces the card's DOM node, so this replays on every
+     move and the swap reads as a step rather than a flicker. */
+  .ex-card:not(.ex-card--skeleton) {
+    animation: ex-card-in 0.26s ease both;
+  }
+  @keyframes ex-card-in {
+    from {
+      opacity: 0;
+      transform: translateY(10px);
+    }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .ex-card:not(.ex-card--skeleton) {
+      animation: none;
+    }
   }
 </style>

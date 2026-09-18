@@ -5,7 +5,6 @@ import type {
   SubmitJobStart,
   SubmitJobStatus,
   SubmitResult,
-  CheckAnswerResult,
 } from "@/types";
 
 export interface IPracticeSheetService {
@@ -53,11 +52,6 @@ export interface IPracticeSheetService {
     input: SubmitInput,
   ): Promise<{ data: SubmitJobStart }>;
   getSubmitJob(jobId: string): Promise<{ data: SubmitJobStatus }>;
-  checkAnswer(
-    id: string,
-    exerciseId: string,
-    answerText: string,
-  ): Promise<{ data: CheckAnswerResult }>;
 }
 
 export class PracticeSheetService implements IPracticeSheetService {
@@ -148,18 +142,6 @@ export class PracticeSheetService implements IPracticeSheetService {
   async getSubmitJob(jobId: string): Promise<{ data: SubmitJobStatus }> {
     const { data } = await this.api.get(
       `/practice-sheets/submit-jobs/${jobId}`,
-    );
-    return data;
-  }
-
-  async checkAnswer(
-    id: string,
-    exerciseId: string,
-    answerText: string,
-  ): Promise<{ data: CheckAnswerResult }> {
-    const { data } = await this.api.post(
-      `/practice-sheets/${id}/exercises/${exerciseId}/check`,
-      { answer_text: answerText },
     );
     return data;
   }
