@@ -1,12 +1,27 @@
 <script setup lang="ts">
-  import { onMounted, onUnmounted, ref } from "vue";
+  import { computed, onMounted, onUnmounted, ref } from "vue";
   import type { CourseLevelsResponse, LevelSheetSummary } from "@/types";
   import type {
     StudentLevelsListEmits,
     StudentLevelsListProps,
   } from "./StudentLevelsList.types";
 
-  defineProps<StudentLevelsListProps>();
+  type LevelData = CourseLevelsResponse["levels"][number];
+  type LevelNotebook = LevelData["notebooks"][number];
+
+  interface PathNode {
+    key: string;
+    kind: "topic" | "practice" | "notebook" | "test";
+    title: string;
+    meta?: string;
+    tone: number;
+    offset: number;
+    start?: boolean;
+    id?: string;
+    sheet?: LevelSheetSummary;
+  }
+
+  const props = defineProps<StudentLevelsListProps>();
   const emit = defineEmits<StudentLevelsListEmits>();
   const now = ref(Date.now());
   let clockTimer: ReturnType<typeof setInterval> | null = null;
@@ -52,6 +67,30 @@
       minute: "2-digit",
     });
 
+  const TONES = 6;
+
+  // A topic keeps one colour for the whole course, so the student recognises
+  // "Simplificación" by its colour on level 1 and on level 4. Assigned by first
+  // appearance rather than by topic_order: order is per course and would give
+  // two different topics the same tone whenever a level skips one.
+  const toneByTopic = computed(() => {
+    const tones = new Map<string, number>();
+    for (const level of props.data.levels) {
+      const tagged = [
+        ...(level.practices ?? []),
+        ...(level.notebooks ?? []),
+      ].filter((item) => item.topic_id);
+      for (const item of tagged) {
+        if (!tones.has(item.topic_id!)) {
+          tones.set(item.topic_id!, (tones.size % TONES) + 1);
+        }
+      }
+    }
+    return tones;
+  });
+
+  const toneFor = (topicId: string) => toneByTopic.value.get(topicId) ?? 0;
+
   // Older sheets can predate `topic_id`. Keep them visible in a neutral group
   // while every current practice is unmistakably under its topic.
   const practicesByTopic = (practices: LevelSheetSummary[] = []) => {
@@ -70,8 +109,8 @@
     return [...groups.values()].sort((a, b) => a.order - b.order || a.title.localeCompare(b.title));
   };
 
-  const notebooksByTopic = (notebooks: CourseLevelsResponse["levels"][number]["notebooks"] = []) => {
-    const groups = new Map<string, { id: string; title: string; order: number; notebooks: typeof notebooks }>();
+  const notebooksByTopic = (notebooks: LevelNotebook[] = []) => {
+    const groups = new Map<string, { id: string; title: string; order: number; notebooks: LevelNotebook[] }>();
     for (const notebook of notebooks) {
       const key = notebook.topic_id || "untagged";
       const group = groups.get(key) ?? {
@@ -85,447 +124,410 @@
     }
     return [...groups.values()].sort((a, b) => a.order - b.order || a.title.localeCompare(b.title));
   };
+
+  // Sideways offsets in px. The path reads as a route rather than a list
+  // because consecutive stops do not share a vertical axis. It alternates sides
+  // every other stop: a level with three practices would otherwise only ever
+  // use the opening of a longer wave and drift to one side.
+  const WAVE = [0, 44, 0, -44];
+
+  const pathNodes = (level: LevelData): PathNode[] => {
+    const nodes: PathNode[] = [];
+    let step = 0;
+    const offset = () => WAVE[step++ % WAVE.length];
+
+    for (const group of practicesByTopic(level.practices)) {
+      const tone = toneFor(group.id);
+      nodes.push({ key: `topic-p-${group.id}`, kind: "topic", title: group.title, tone, offset: 0 });
+      for (const sheet of group.sheets) {
+        nodes.push({
+          key: sheet.id,
+          kind: "practice",
+          id: sheet.id,
+          title: sheet.title,
+          meta: `${sheet.exercises} ejercicios`,
+          tone,
+          offset: offset(),
+        });
+      }
+    }
+
+    for (const group of notebooksByTopic(level.notebooks)) {
+      const tone = toneFor(group.id);
+      nodes.push({ key: `topic-n-${group.id}`, kind: "topic", title: group.title, tone, offset: 0 });
+      for (const notebook of group.notebooks) {
+        nodes.push({
+          key: notebook.id,
+          kind: "notebook",
+          id: notebook.id,
+          title: notebook.title,
+          meta: `${notebook.pages} páginas`,
+          tone,
+          offset: offset(),
+        });
+      }
+    }
+
+    if (level.level_test) {
+      nodes.push({
+        key: `test-${level.level_test.id}`,
+        kind: "test",
+        title: level.level_test.title,
+        tone: 0,
+        offset: 0,
+        sheet: level.level_test,
+      });
+    }
+
+    // The path cannot know which practices are done — nothing gates on them, so
+    // the backend never computes it. "Empezar" therefore marks the entrance to
+    // the level the student is on, which is what the old "Aquí estás" said.
+    if (level.level === props.data.current_level) {
+      const first = nodes.find((node) => node.kind !== "topic");
+      if (first) first.start = true;
+    }
+
+    return nodes;
+  };
+
+  const levelState = (level: LevelData) =>
+    !level.unlocked
+      ? "locked"
+      : level.level === props.data.current_level
+        ? "current"
+        : "done";
 </script>
 
 <template>
-  <div class="levels-list">
-    <div
+  <div class="levels-path">
+    <section
       v-for="level in data.levels"
       :key="level.level"
-      class="level-card"
-      :class="{
-        'level-card--current': level.level === data.current_level,
-        'level-card--locked': !level.unlocked,
-      }"
+      class="unit"
+      :class="`unit--${levelState(level)}`"
     >
-      <div class="lc-header">
-        <div class="lc-num" :class="{ 'lc-num--locked': !level.unlocked }">
-          <i v-if="!level.unlocked" class="pi pi-lock"></i>
-          <span v-else>{{ level.level }}</span>
+      <header class="unit-banner">
+        <div class="unit-banner-text">
+          <span class="unit-kicker">Nivel {{ level.level }}</span>
+          <span class="unit-state">
+            <template v-if="!level.unlocked">Bloqueado</template>
+            <template v-else-if="level.level === data.current_level">Estás acá</template>
+            <template v-else>Completado</template>
+          </span>
         </div>
-        <div class="lc-meta">
-          <div class="lc-title">Nivel {{ level.level }}</div>
-          <div class="lc-status">
-            <span v-if="!level.unlocked" class="status-tag status-tag--locked"
-              >Bloqueado</span
-            >
-            <span
-              v-else-if="level.level === data.current_level"
-              class="status-tag status-tag--active"
-              >En curso</span
-            >
-            <span v-else class="status-tag status-tag--done">Completado</span>
-          </div>
-        </div>
-        <div
-          v-if="level.level === data.current_level"
-          class="lc-current-indicator"
-        >
-          <i class="pi pi-star-fill"></i> Aquí estás
-        </div>
-      </div>
+        <i
+          class="pi unit-banner-icon"
+          :class="
+            !level.unlocked
+              ? 'pi-lock'
+              : level.level === data.current_level
+                ? 'pi-map-marker'
+                : 'pi-check-circle'
+          "
+        ></i>
+      </header>
 
-      <div v-if="level.unlocked" class="lc-body">
-        <div v-if="level.practices?.length" class="lc-section">
-          <div class="lc-section-label lc-section-label--practice">
-            <i class="pi pi-pencil"></i> Prácticas
-          </div>
-          <div v-for="group in practicesByTopic(level.practices)" :key="group.id" class="topic-practice-group">
-            <div class="topic-practice-title">{{ group.title }}</div>
-            <div class="lc-items">
-              <button
-                v-for="sheet in group.sheets"
-                :key="sheet.id"
-                class="lc-item lc-item--practice"
-                @click="emit('openPractice', sheet.id)"
-              >
-                <div class="lc-item-info">
-                  <span class="lc-item-title">{{ sheet.title }}</span>
-                  <span class="lc-item-meta">{{ sheet.exercises }} ejercicios</span>
-                </div>
-                <i class="pi pi-arrow-right lc-item-arrow"></i>
-              </button>
-            </div>
-          </div>
-        </div>
-
-        <div v-if="level.notebooks?.length" class="lc-section">
-          <div class="lc-section-label lc-section-label--notebook">
-            <i class="pi pi-book"></i> Cuadernos
-          </div>
-          <div v-for="group in notebooksByTopic(level.notebooks)" :key="group.id" class="topic-practice-group">
-            <div class="topic-practice-title">{{ group.title }}</div>
-            <div class="lc-items">
-              <button
-                v-for="notebook in group.notebooks"
-                :key="notebook.id"
-                class="lc-item lc-item--notebook"
-                @click="emit('openNotebook', notebook.id)"
-              >
-                <div class="lc-item-info">
-                  <span class="lc-item-title">{{ notebook.title }}</span>
-                  <span class="lc-item-meta">{{ notebook.pages }} páginas</span>
-                </div>
-                <i class="pi pi-arrow-right lc-item-arrow"></i>
-              </button>
-            </div>
-          </div>
-        </div>
-
-        <div v-if="level.level_test" class="lc-section">
-          <div class="lc-section-label lc-section-label--test">
-            <i class="pi pi-star"></i> Prueba de Nivel
-          </div>
-          <button
-            class="lc-item lc-item--test lc-item--test-big"
-            :class="[
-              `lc-item--test-${levelTestState(level.level_test)}`,
-              { 'lc-item--scheduled': isClosed(level.level_test) },
-            ]"
-            :disabled="isClosed(level.level_test)"
-            @click="emit('openLevelTest', level.level_test!)"
+      <div v-if="level.unlocked" class="unit-path">
+        <template v-for="node in pathNodes(level)" :key="node.key">
+          <div
+            v-if="node.kind === 'topic'"
+            class="path-topic"
+            :class="`tone-${node.tone}`"
           >
-            <div class="lc-item-info">
-              <span class="lc-item-title">{{ level.level_test.title }}</span>
-              <span class="lc-item-meta">
-                {{ level.level_test.exercises }} preguntas ·
-                {{
-                  level.level_test.test_style === "canvas" ? "Hoja" : "Teclado"
-                }}
-                <template v-if="!isClosed(level.level_test)"
-                  >· 75% para avanzar</template
-                >
-              </span>
-              <span
-                v-if="level.level_test.scheduled_at"
-                class="lc-item-schedule"
-              >
-                <i class="pi pi-calendar-clock"></i>
-                {{ formatSchedule(level.level_test.scheduled_at) }}
-                <template v-if="level.level_test.available_until">
-                  — hasta {{ formatSchedule(level.level_test.available_until) }}
+            <span>{{ node.title }}</span>
+          </div>
+
+          <div
+            v-else-if="node.kind === 'test'"
+            class="path-slot"
+            :class="`test-slot--${levelTestState(node.sheet)}`"
+          >
+            <span v-if="node.start" class="path-bubble">Empezar</span>
+            <button
+              class="path-node path-node--test"
+              :class="`path-node--test-${levelTestState(node.sheet)}`"
+              :disabled="isClosed(node.sheet)"
+              @click="emit('openLevelTest', node.sheet!)"
+            >
+              <i
+                class="pi"
+                :class="{
+                  'pi-trophy': levelTestState(node.sheet) === 'available',
+                  'pi-clock': levelTestState(node.sheet) === 'pending',
+                  'pi-check': levelTestState(node.sheet) === 'submitted',
+                  'pi-ban': levelTestState(node.sheet) === 'expired',
+                  'pi-lock': levelTestState(node.sheet) === 'scheduled',
+                }"
+              ></i>
+            </button>
+            <span class="path-label path-label--test">{{ node.title }}</span>
+            <span class="path-meta">
+              <template v-if="node.sheet!.submitted">
+                {{ node.sheet!.pending_review ? "En revisión" : "Prueba realizada" }}
+                <template v-if="node.sheet!.score !== undefined">
+                  · {{ node.sheet!.score }}%
                 </template>
-              </span>
-            </div>
-            <div class="test-cta">
-              <template v-if="level.level_test.submitted">
-                <i :class="level.level_test.pending_review ? 'pi pi-clock' : 'pi pi-check-circle'"></i>
-                {{ level.level_test.pending_review ? "En revisión" : "Prueba realizada" }}
-                <small v-if="level.level_test.score !== undefined">
-                  {{ level.level_test.score }}%
-                </small>
               </template>
-              <template v-else-if="isExpired(level.level_test)">
-                <i class="pi pi-ban"></i>
-                Plazo vencido
-              </template>
-              <template v-else-if="isScheduled(level.level_test)">
-                <i class="pi pi-lock"></i>
-                Disponible en la fecha
+              <template v-else-if="isExpired(node.sheet)">Plazo vencido</template>
+              <template v-else-if="isScheduled(node.sheet)">
+                {{ formatSchedule(node.sheet!.scheduled_at!) }}
               </template>
               <template v-else>
-                <i class="pi pi-play-circle"></i>
-                Rendir prueba
-                <i class="pi pi-arrow-right"></i>
+                {{ node.sheet!.exercises }} preguntas · 75% para avanzar
               </template>
-            </div>
-          </button>
-        </div>
+            </span>
+          </div>
 
-        <div
-          v-if="
-            !level.practices?.length &&
-            !level.notebooks?.length &&
-            !level.level_test
-          "
-          class="lc-empty"
-        >
-          Sin contenido aún
-        </div>
+          <div
+            v-else
+            class="path-slot"
+            :style="{ transform: `translateX(${node.offset}px)` }"
+          >
+            <span v-if="node.start" class="path-bubble">Empezar</span>
+            <button
+              class="path-node"
+              :class="[`tone-${node.tone}`, `path-node--${node.kind}`]"
+              @click="
+                node.kind === 'practice'
+                  ? emit('openPractice', node.id!)
+                  : emit('openNotebook', node.id!)
+              "
+            >
+              <i
+                class="pi"
+                :class="node.kind === 'practice' ? 'pi-pencil' : 'pi-book'"
+              ></i>
+            </button>
+            <span class="path-label">{{ node.title }}</span>
+            <span class="path-meta">{{ node.meta }}</span>
+          </div>
+        </template>
       </div>
 
-      <div v-else class="lc-locked-hint">
+      <p v-else class="unit-locked">
         <i class="pi pi-lock"></i>
         Completá el nivel {{ level.level - 1 }} para desbloquear
-      </div>
-    </div>
+      </p>
+    </section>
   </div>
 </template>
 
 <style scoped>
-  .levels-list {
+  .levels-path {
+    --tone-0: var(--practiq-violet);
+    --tone-1: #7c3aed;
+    --tone-2: #0ea5e9;
+    --tone-3: #10b981;
+    --tone-4: #f59e0b;
+    --tone-5: #ec4899;
+    --tone-6: #6366f1;
     display: grid;
-    gap: 14px;
+    gap: 22px;
   }
-  .level-card {
-    background: var(--elevation-tint-bg);
-    border-radius: var(--radius-2xl);
-    box-shadow: var(--elevation-tint-shadow);
-    padding: 18px;
+  .unit {
+    display: grid;
+    gap: 18px;
   }
-  .level-card--current {
-    background: rgba(var(--practiq-violet-rgb), 0.05);
-  }
-  .level-card--locked {
-    opacity: 0.72;
-  }
-  .level-card--locked .lc-header {
-    border-bottom-color: transparent;
-  }
-  .lc-header,
-  .lc-item,
-  .test-cta,
-  .lc-current-indicator {
+  .unit-banner {
     display: flex;
     align-items: center;
-  }
-  .lc-header {
+    justify-content: space-between;
     gap: 12px;
+    padding: 14px 18px;
+    border-radius: var(--radius-2xl);
+    background: var(--practiq-violet);
+    color: #fff;
+    box-shadow: var(--elevation-tint-shadow);
   }
-  .lc-num {
-    width: 44px;
-    height: 44px;
-    border-radius: var(--radius-xl);
-    display: grid;
-    place-items: center;
-    background: var(--fill-primary-soft);
-    color: var(--practiq-violet);
-    font-weight: 900;
+  .unit--done .unit-banner {
+    background: var(--color-success-dark);
   }
-  .lc-num--locked {
+  .unit--locked .unit-banner {
     background: var(--surface-hover);
     color: var(--text-secondary);
+    box-shadow: none;
   }
-  .lc-meta {
+  .unit-banner-text {
     display: grid;
-    gap: 4px;
-    flex: 1;
+    gap: 2px;
   }
-  .lc-title {
+  .unit-kicker {
+    font-size: var(--text-lg);
     font-weight: 900;
-    color: var(--text-heading);
   }
-  .status-tag {
-    border-radius: var(--radius-pill);
-    padding: 4px 8px;
+  .unit-state {
     font-size: var(--text-xs);
     font-weight: 800;
+    text-transform: uppercase;
+    opacity: 0.85;
   }
-  .status-tag--locked {
-    background: var(--surface-hover);
-    color: var(--text-secondary);
+  .unit-banner-icon {
+    font-size: 1.35rem;
   }
-  .status-tag--active {
-    background: var(--fill-primary-soft);
-    color: var(--practiq-violet);
-  }
-  .status-tag--done {
-    background: var(--color-success-bg);
-    color: var(--color-success-dark);
-  }
-  .lc-current-indicator {
-    gap: 5px;
-    color: var(--practiq-violet);
-    font-size: var(--text-sm);
-    font-weight: 800;
-  }
-  .lc-body {
-    margin-top: 16px;
+  .unit-path {
     display: grid;
-    gap: 14px;
+    justify-items: center;
+    gap: 20px;
+    padding: 4px 0 8px;
   }
-  .lc-section {
-    display: grid;
-    gap: 8px;
-  }
-  .lc-section-label {
+  .path-topic {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    width: 100%;
+    color: var(--tone);
     font-size: var(--text-xs);
     font-weight: 900;
     text-transform: uppercase;
-    display: flex;
+    letter-spacing: 0.04em;
+  }
+  .path-topic::before,
+  .path-topic::after {
+    content: "";
+    flex: 1;
+    height: 2px;
+    border-radius: var(--radius-pill);
+    background: color-mix(in srgb, var(--tone) 28%, transparent);
+  }
+  .path-slot {
+    display: grid;
+    justify-items: center;
     gap: 6px;
-    align-items: center;
+    max-width: 190px;
   }
-  .lc-section-label--practice {
-    color: var(--practiq-violet);
-  }
-  .lc-section-label--notebook {
-    color: var(--color-info-dark);
-  }
-  .lc-section-label--test {
-    color: var(--color-warning-dark);
-  }
-  .lc-items {
-    display: grid;
-    gap: 8px;
-  }
-  .topic-practice-group {
-    display: grid;
-    gap: 8px;
-  }
-  /* The tinted, rounded box is the grouping cue on its own. A coloured bar
-     down one side of it read as a stray edge rather than an accent, and the
-     colour was telling the student nothing the section heading above —
-     Prácticas or Cuadernos — had not already said. */
-  .topic-practice-title {
-    color: var(--text-heading);
-    font-size: var(--text-sm);
-    font-weight: 800;
-    padding: 8px 10px;
-    background: var(--fill-primary-faint);
-    border-radius: var(--radius-sm);
-  }
-  .lc-item {
-    width: 100%;
-    justify-content: space-between;
-    gap: 10px;
-    border: none;
-    border-radius: var(--radius-lg);
+  .path-bubble {
+    padding: 5px 12px;
+    border-radius: var(--radius-pill);
     background: var(--surface-card);
-    padding: 12px;
+    box-shadow: var(--elevation-tint-shadow);
+    color: var(--practiq-violet);
+    font-size: var(--text-xs);
+    font-weight: 900;
+    text-transform: uppercase;
+    animation: bubble-nudge 1.6s ease-in-out infinite;
+  }
+  @keyframes bubble-nudge {
+    50% {
+      transform: translateY(-4px);
+    }
+  }
+  /* The raised edge is what makes a circle read as pressable. It sits under the
+     node, so the press animation moves the node down onto it. */
+  .path-node {
+    width: 66px;
+    height: 66px;
+    border: none;
+    border-radius: 50%;
+    display: grid;
+    place-items: center;
+    background: var(--tone);
+    color: #fff;
+    font-size: 1.5rem;
     cursor: pointer;
-    color: inherit;
+    box-shadow: 0 5px 0 color-mix(in srgb, var(--tone) 62%, #000);
     transition: var(--transition-fast);
   }
-  .lc-item--practice {
-    background: rgba(var(--color-success-rgb), 0.08);
+  .path-node:hover {
+    filter: brightness(1.06);
   }
-  .lc-item--practice:hover {
-    background: rgba(var(--color-success-rgb), 0.14);
-    transform: translateX(2px);
+  .path-node:active {
+    transform: translateY(4px);
+    box-shadow: 0 1px 0 color-mix(in srgb, var(--tone) 62%, #000);
   }
-  .lc-item--notebook {
-    background: rgba(var(--practiq-violet-rgb), 0.07);
+  .path-node--test {
+    width: 78px;
+    height: 78px;
+    font-size: 1.8rem;
+    background: var(--tone-4);
+    box-shadow: 0 6px 0 color-mix(in srgb, var(--tone-4) 62%, #000);
   }
-  .lc-item--notebook:hover {
-    background: rgba(var(--practiq-violet-rgb), 0.12);
-    transform: translateX(2px);
+  .test-slot--available .path-node--test {
+    animation: test-ready 2.4s ease-in-out infinite;
   }
-  .lc-item--test {
-    background: rgba(var(--color-warning-rgb), 0.08);
+  @keyframes test-ready {
+    50% {
+      box-shadow:
+        0 6px 0 color-mix(in srgb, var(--tone-4) 62%, #000),
+        0 0 0 10px rgba(var(--color-warning-rgb), 0.22);
+    }
   }
-
-  .lc-item--test-available {
-    background: var(--color-success-bg);
-    color: var(--color-success-dark);
+  .path-node--test-submitted {
+    background: var(--color-success-dark);
+    box-shadow: 0 6px 0 color-mix(in srgb, var(--color-success-dark) 62%, #000);
   }
-
-  .lc-item--test-scheduled {
-    background: var(--color-info-bg);
-    color: var(--color-info-dark);
+  .path-node--test-pending,
+  .path-node--test-expired,
+  .path-node--test-scheduled {
+    background: var(--text-secondary);
+    box-shadow: 0 6px 0 color-mix(in srgb, var(--text-secondary) 62%, #000);
   }
-
-  .lc-item--test-expired {
-    background: var(--surface-hover);
-    color: var(--text-secondary);
-  }
-
-  .lc-item--test-submitted,
-  .lc-item--test-pending {
-    background: var(--surface-hover);
-    color: var(--text-secondary);
-  }
-
-  .lc-item--test-available:hover {
-    background: rgba(var(--color-success-rgb), 0.14);
-  }
-
-  .lc-item--test-scheduled:hover,
-  .lc-item--test-expired:hover,
-  .lc-item--test-submitted:hover,
-  .lc-item--test-pending:hover {
-    background: var(--surface-hover);
-  }
-  .lc-item--test-big {
-    padding: 16px 18px;
-  }
-  .lc-item--test:hover {
-    background: rgba(var(--color-warning-rgb), 0.14);
-    transform: translateX(2px);
-  }
-  .lc-item-info {
-    display: grid;
-    gap: 3px;
-    text-align: left;
-  }
-  .lc-item-title {
-    color: var(--text-primary);
-    font-weight: 800;
-  }
-  .lc-item-meta,
-  .lc-empty,
-  .lc-item--scheduled {
-    opacity: 0.65;
+  .path-node:disabled {
     cursor: not-allowed;
   }
-  .lc-item-schedule {
-    display: inline-flex;
-    align-items: center;
-    gap: 6px;
-    margin-top: 4px;
+  .path-node:disabled:hover {
+    filter: none;
+  }
+  .path-node:disabled:active {
+    transform: none;
+  }
+  .path-label {
+    color: var(--text-primary);
+    font-size: var(--text-sm);
+    font-weight: 800;
+    text-align: center;
+    line-height: 1.25;
+  }
+  .path-label--test {
+    color: var(--color-warning-dark);
+  }
+  .path-meta {
+    color: var(--text-secondary);
     font-size: var(--text-xs);
     font-weight: 700;
-    color: var(--practiq-violet);
+    text-align: center;
   }
-  .lc-locked-hint {
+  .unit-locked {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin: 0;
     color: var(--text-secondary);
     font-size: var(--text-sm);
   }
-  .lc-item-arrow {
-    color: var(--text-secondary);
-    flex-shrink: 0;
-    margin-left: 8px;
+  .tone-0 {
+    --tone: var(--tone-0);
   }
-  .test-cta {
-    gap: 6px;
-    color: var(--practiq-violet);
-    font-weight: 800;
+  .tone-1 {
+    --tone: var(--tone-1);
   }
-
-  .lc-item--test-available .test-cta {
-    color: var(--color-success-dark);
+  .tone-2 {
+    --tone: var(--tone-2);
   }
-
-  .lc-item--test-scheduled .test-cta {
-    color: var(--color-info-dark);
+  .tone-3 {
+    --tone: var(--tone-3);
   }
-
-  .lc-item--test-expired .test-cta {
-    color: var(--text-secondary);
+  .tone-4 {
+    --tone: var(--tone-4);
   }
-  .lc-item--test-submitted .test-cta,
-  .lc-item--test-pending .test-cta {
-    color: var(--text-secondary);
+  .tone-5 {
+    --tone: var(--tone-5);
   }
-  .test-cta small {
-    font-weight: 800;
-    margin-left: 2px;
+  .tone-6 {
+    --tone: var(--tone-6);
   }
-  .lc-locked-hint {
-    display: flex;
-    gap: 7px;
-    margin-top: 14px;
-  }
-  @media (max-width: 640px) {
-    .lc-header,
-    .lc-item {
-      align-items: flex-start;
+  @media (max-width: 420px) {
+    .path-slot {
+      max-width: 150px;
     }
-    .lc-current-indicator {
-      display: none;
+    .path-node {
+      width: 60px;
+      height: 60px;
     }
-    /* CTA visible en mobile: texto corto, no se oculta */
-    .test-cta {
-      flex-shrink: 0;
-      align-self: center;
-      font-size: var(--text-sm);
-      text-align: right;
-    }
-    .lc-item {
-      min-height: 52px;
-    }
-    .lc-item--test-big {
-      padding: 14px 16px;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .path-bubble,
+    .test-slot--available .path-node--test {
+      animation: none;
     }
   }
 </style>
