@@ -1011,6 +1011,11 @@
           <div
             class="streak-chip"
             :class="{ 'streak-chip--active': streakCount > 0 }"
+            :aria-label="
+              streakCount > 0
+                ? `${streakCount} ${streakCount === 1 ? 'día' : 'días'} de racha`
+                : 'Todavía no tenés racha'
+            "
           >
             <img src="@/assets/burn.png" alt="" class="streak-icon" />
             <div class="streak-text">
@@ -1024,6 +1029,20 @@
             </div>
           </div>
           <div class="student-avatar">{{ studentInitial }}</div>
+        </div>
+        <div
+          class="mobile-practice-progress"
+          role="progressbar"
+          aria-label="Progreso de ejercicios"
+          :aria-valuenow="answeredCount"
+          aria-valuemin="0"
+          :aria-valuemax="totalCount"
+          :aria-valuetext="`Ejercicio ${currentIdx + 1} de ${totalCount}; ${answeredCount} respondidos`"
+        >
+          <div
+            class="mobile-practice-progress__fill"
+            :style="{ width: progressPct + '%' }"
+          ></div>
         </div>
       </header>
 
@@ -1112,11 +1131,15 @@
 
             <!-- One exercise at a time; the stepper above jumps between them -->
             <ExerciseStepper
+              class="practice-stepper"
               :total="totalCount"
               :current="currentIdx"
               :answered="answeredFlags"
               @select="goToExercise"
             />
+            <span class="mobile-stepper-status">
+              Ejercicio {{ currentIdx + 1 }} de {{ totalCount }}. {{ answeredCount }} respondidos.
+            </span>
 
             <div class="exercises-list">
               <div
@@ -1832,6 +1855,11 @@
     background: var(--gradient-brand);
     border-radius: 99px;
     transition: width 0.3s ease;
+  }
+
+  .mobile-practice-progress,
+  .mobile-stepper-status {
+    display: none;
   }
 
   /* Skeleton styles */
@@ -2643,66 +2671,101 @@
     }
     .practice-header {
       display: grid;
-      grid-template-columns: 42px minmax(0, 1fr) auto;
-      /* Matches .ex-card's 14px: at 12px this was the only card on the
-         screen with tighter breathing room than its neighbors. */
-      padding: 14px 12px;
-      gap: 10px;
-      align-items: start;
-      border-radius: var(--radius-xl);
+      grid-template-columns: 44px minmax(0, 1fr) 44px;
+      grid-template-rows: 44px 8px;
+      padding: 10px 12px 12px;
+      gap: 10px 8px;
+      align-items: center;
+      border-radius: var(--radius-lg);
     }
     .practice-header-info { display: contents; }
-    .btn-back { grid-column: 1; grid-row: 1 / span 2; }
-    .practice-title { grid-column: 2; grid-row: 1; align-self: center; font-size: 1.08rem; margin: 0; }
-    .practice-subtitle {
-      grid-column: 2;
-      grid-row: 2;
-      display: -webkit-box;
-      overflow: hidden;
-      /* Was 0.74rem: next to the bold 14.4px streak count, that read as
-         noticeably smaller than everything else on the card instead of
-         just quieter. */
-      font-size: 0.82rem;
-      line-height: 1.3;
-      -webkit-box-orient: vertical;
-      -webkit-line-clamp: 2;
-    }
-    /* Redundant on a phone: the top bar already has an avatar in reach.
-       Kept for desktop, where the two headers sit far enough apart that
-       it's not the same obvious repeat. */
+    .btn-back { grid-column: 1; grid-row: 1; margin: 0; }
+    .practice-title,
+    .practice-subtitle { display: none; }
     .student-avatar { display: none; }
-    .header-right { grid-column: 3; grid-row: 1; display: flex; align-items: center; }
-    .streak-chip { padding: 5px 6px; gap: 3px; }
-    .streak-icon { width: 15px; height: 15px; }
-    .streak-val { font-size: .9rem; }
-    .streak-lbl { font-size: .6rem; }
+    .header-right { grid-column: 3; grid-row: 1; justify-content: center; }
     .level-badges {
-      grid-column: 3;
-      grid-row: 2;
-      align-self: end;
-      justify-content: flex-end;
-      gap: 5px;
-      margin-bottom: 0;
-      flex-wrap: nowrap;
+      grid-column: 2;
+      grid-row: 1;
+      justify-content: center;
+      margin: 0;
     }
-    .level-badge,
     .level-test-badge,
-    .input-mode-badge {
-      padding: 3px 7px;
-      font-size: .68rem;
+    .input-mode-badge { display: none; }
+    .level-badge {
+      padding: 6px 12px;
+      font-size: .78rem;
       line-height: 1;
       white-space: nowrap;
     }
     .streak-chip {
-      padding: 6px 12px;
-      gap: 6px;
+      position: relative;
+      width: 44px;
+      height: 44px;
+      justify-content: center;
+      padding: 0;
+      border: 0;
+      border-radius: 50%;
+      background: transparent;
+      box-shadow: none;
     }
     .streak-icon {
-      width: 18px;
-      height: 18px;
+      width: 29px;
+      height: 29px;
     }
-    .streak-chip--active .streak-val {
-      font-size: 1rem;
+    .streak-text {
+      position: absolute;
+      right: 0;
+      bottom: 0;
+    }
+    .streak-val,
+    .streak-lbl--invite::after {
+      display: grid;
+      place-items: center;
+      min-width: 18px;
+      height: 18px;
+      padding: 0 3px;
+      border: 2px solid var(--surface-card);
+      border-radius: 50%;
+      background: var(--practiq-violet);
+      color: var(--color-on-primary);
+      font-size: .62rem;
+      font-weight: 800;
+      line-height: 1;
+    }
+    .streak-chip--active .streak-val { font-size: .62rem; }
+    .streak-lbl { display: none; }
+    .streak-lbl--invite::after {
+      content: "0";
+    }
+    .mobile-practice-progress {
+      display: block;
+      grid-column: 1 / -1;
+      grid-row: 2;
+      height: 8px;
+      overflow: hidden;
+      border-radius: 999px;
+      background: var(--fill-primary-soft);
+    }
+    .mobile-practice-progress__fill {
+      height: 100%;
+      border-radius: inherit;
+      background: #8edb32;
+      transition: width .3s ease;
+    }
+    :deep(.practice-stepper) {
+      display: none;
+    }
+    .mobile-stepper-status {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      padding: 0;
+      margin: -1px;
+      overflow: hidden;
+      clip: rect(0, 0, 0, 0);
+      white-space: nowrap;
+      border: 0;
     }
 
     /* Puntaje/Correctas/Dominio se piden en una sola fila incluso en mobile
