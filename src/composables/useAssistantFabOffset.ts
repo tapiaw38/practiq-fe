@@ -21,10 +21,20 @@ export function tuckAssistantFab(footerSelector: string) {
   // just the footer's own height: on tablet/desktop widths the footer is a
   // sticky bar with its own `bottom: 16px` gap, so height alone undercounted
   // by that gap and the launcher still clipped the footer's top edge.
+  // However tall the footer grows, the launcher stops here. Past this point it
+  // is no longer hovering beside a footer, it is sitting in the middle of the
+  // screen on top of whatever the student is reading.
+  const MAX_CLEARANCE_RATIO = 0.28;
+
   const measure = () => {
     if (!el) return;
-    const clearance = window.innerHeight - el.getBoundingClientRect().top;
-    document.body.style.setProperty(CSS_VAR, `${Math.ceil(clearance)}px`);
+    const viewportHeight = window.visualViewport?.height ?? window.innerHeight;
+    const clearance = viewportHeight - el.getBoundingClientRect().top;
+    const bounded = Math.min(
+      Math.max(clearance, 0),
+      viewportHeight * MAX_CLEARANCE_RATIO,
+    );
+    document.body.style.setProperty(CSS_VAR, `${Math.ceil(bounded)}px`);
   };
 
   const attach = () => {
@@ -32,9 +42,13 @@ export function tuckAssistantFab(footerSelector: string) {
     if (!el) return false;
     observer = new ResizeObserver(measure);
     observer.observe(el);
-    // ResizeObserver only fires on size changes; a tablet rotation or a
-    // window resize can move the footer without resizing it.
+    // ResizeObserver only fires on size changes. A sticky footer moves without
+    // resizing whenever the page scrolls, a tablet rotates, or the mobile
+    // browser collapses its address bar — each of those leaves the launcher
+    // parked at a clearance that no longer matches where the footer is.
     window.addEventListener("resize", measure);
+    window.addEventListener("scroll", measure, { passive: true });
+    window.visualViewport?.addEventListener("resize", measure);
     measure();
     return true;
   };
@@ -53,6 +67,8 @@ export function tuckAssistantFab(footerSelector: string) {
     cancelAnimationFrame(frame);
     observer?.disconnect();
     window.removeEventListener("resize", measure);
+    window.removeEventListener("scroll", measure);
+    window.visualViewport?.removeEventListener("resize", measure);
     document.body.classList.remove(BODY_CLASS);
     document.body.style.removeProperty(CSS_VAR);
   });
