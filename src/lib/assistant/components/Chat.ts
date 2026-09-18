@@ -96,7 +96,10 @@ export class Chat {
   private isRecording: boolean = false;
   private recordingTimer?: number;
   private mobileExpanded = false;
-  private preferences = { audio: false, autoplay: false, speed: 1 };
+  // Practi answers out loud and plays it as soon as it arrives. A student who
+  // reads slowly gets the answer anyway, and the one who does not want it turns
+  // it off once — a stored preference always wins over these.
+  private preferences = { audio: true, autoplay: true, speed: 1 };
 
   private getSendIconMarkup(): string {
     return `
@@ -171,9 +174,13 @@ export class Chat {
     };
     try {
       const saved = JSON.parse(localStorage.getItem(this.options.preferencesStorageKey) || "null");
-      this.preferences = { audio: saved?.audio ?? !!this.options.audioAnswers, autoplay: !!saved?.autoplay, speed: Number(saved?.speed) || 1 };
+      this.preferences = {
+        audio: saved?.audio ?? this.options.audioAnswers ?? true,
+        autoplay: saved?.autoplay ?? true,
+        speed: Number(saved?.speed) || 1,
+      };
       this.options.audioAnswers = this.preferences.audio;
-    } catch { this.preferences.audio = !!this.options.audioAnswers; }
+    } catch { this.preferences.audio = this.options.audioAnswers ?? true; }
 
     this.createChatElements();
     this.addEventListeners();
@@ -265,15 +272,18 @@ export class Chat {
     header.append(title, contextLabel);
     headerActions.appendChild(newConvButton);
     const settings = document.createElement("button");
-    settings.type = "button"; settings.textContent = "⚙"; settings.title = "Preferencias";
+    settings.type = "button";
+    settings.innerHTML = '<i class="pi pi-cog" aria-hidden="true"></i>';
+    settings.title = "Preferencias";
+    settings.setAttribute("aria-label", "Preferencias");
     settings.className = "ia-chat-settings";
-    settings.style.cssText = "border:0;background:transparent;color:inherit;cursor:pointer;font-size:18px";
+    settings.style.cssText = "border:0;background:transparent;color:inherit;cursor:pointer;font-size:16px;display:grid;place-items:center";
     settings.onclick = () => this.togglePreferences();
     headerActions.appendChild(settings);
     const expandButton = document.createElement("button");
     expandButton.type = "button";
     expandButton.className = "ia-chat-expand";
-    expandButton.textContent = "⤢";
+    expandButton.innerHTML = '<i class="pi pi-window-maximize" aria-hidden="true"></i>';
     expandButton.title = "Expandir asistente";
     expandButton.setAttribute("aria-label", "Expandir asistente");
     expandButton.onclick = () => this.toggleMobileExpanded();
@@ -694,7 +704,7 @@ export class Chat {
     audioBlob: Blob
   ): Promise<void> {
     // Show user message (text if available, otherwise indicate audio message)
-    const displayMessage = textContent || "🎤 Mensaje de audio";
+    const displayMessage = textContent || "Mensaje de audio";
     this.addMessage(displayMessage, "user");
 
     // Show typing indicator
@@ -971,7 +981,16 @@ export class Chat {
             const card = document.createElement("section");
             card.style.cssText = "margin:6px 0;padding:10px;border-radius:12px;background:#eef2ff;border:1px solid #c7d2fe";
             const title = document.createElement("strong");
-            title.textContent = ({ hint: "💡 Pista", explanation: "🧩 Explicación", similar_example: "✨ Ejemplo", review_answer: "✅ Revisión" } as Record<string,string>)[block.type] || "🤖 Ayudante";
+            const blockLook = ({
+              hint: { icon: "pi-lightbulb", label: "Pista" },
+              explanation: { icon: "pi-book", label: "Explicación" },
+              similar_example: { icon: "pi-sparkles", label: "Ejemplo" },
+              review_answer: { icon: "pi-check-circle", label: "Revisión" },
+            } as Record<string, { icon: string; label: string }>)[block.type] ||
+              { icon: "pi-comment", label: "Ayudante" };
+            title.style.cssText = "display:inline-flex;align-items:center;gap:6px";
+            title.innerHTML = `<i class="pi ${blockLook.icon}" aria-hidden="true"></i>`;
+            title.append(blockLook.label);
             const content = document.createElement("p"); content.textContent = block.content || ""; content.style.margin = "6px 0 0";
             card.append(title, content); messageElement.appendChild(card);
           }
@@ -1034,7 +1053,7 @@ export class Chat {
         playButton.type = "button";
         playButton.className = "ia-audio-toggle";
         playButton.setAttribute("aria-label", "Reproducir audio");
-        playButton.textContent = "▶";
+        playButton.innerHTML = '<i class="pi pi-play" aria-hidden="true"></i>';
         const time = document.createElement("span");
         time.className = "ia-audio-time";
         time.textContent = "0:00 / 0:00";
@@ -1064,7 +1083,9 @@ export class Chat {
           progress.value = String(duration ? (current / duration) * 100 : 0);
         };
         const setPlaying = (playing: boolean) => {
-          playButton.textContent = playing ? "❚❚" : "▶";
+          playButton.innerHTML = playing
+            ? '<i class="pi pi-pause" aria-hidden="true"></i>'
+            : '<i class="pi pi-play" aria-hidden="true"></i>';
           playButton.setAttribute("aria-label", playing ? "Pausar audio" : "Reproducir audio");
           audioContainer.classList.toggle("ia-audio-container--playing", playing);
           window.dispatchEvent(new CustomEvent("practiq:assistant:audio-state", { detail: { playing } }));
@@ -1259,19 +1280,148 @@ export class Chat {
   /**
    * Toggles between showing and hiding the chat
    */
+  /**
+   * The audio preferences panel.
+   *
+   * Built as elements rather than as one innerHTML string: every value here is
+   * a switch or a number this class owns, and assembling them by concatenation
+   * is how a stray character ends up rendered as markup.
+   */
   private togglePreferences(): void {
     const existing = this.chatWindow.querySelector(".ia-chat-preferences");
-    if (existing) { existing.remove(); return; }
+    if (existing) {
+      existing.remove();
+      return;
+    }
+
+    // The theme's colours are optional; the panel still has to be legible when
+    // a host app supplies none of them.
+    const primaryColor = this.options.theme.primaryColor || "#4f46e5";
+    const backgroundColor = this.options.theme.backgroundColor || "#ffffff";
+    const textColor = this.options.theme.textColor || "#1f2937";
+
     const panel = document.createElement("div");
     panel.className = "ia-chat-preferences";
-    panel.style.cssText = "margin:8px 10px;padding:12px;border:1px solid #c7d2fe;border-radius:14px;background:linear-gradient(135deg,#eef2ff,#f8fafc);font-size:12px;display:grid;gap:10px;box-shadow:0 6px 18px #312e8112";
-    panel.innerHTML = `<strong style="font-size:13px;color:#312e81">🔊 Preferencias de audio</strong><label style="display:flex;align-items:center;justify-content:space-between;gap:10px"><span>Responder con voz</span><input type="checkbox" data-audio></label><label style="display:flex;align-items:center;justify-content:space-between;gap:10px"><span>Reproducir al recibir</span><input type="checkbox" data-autoplay></label><label style="display:flex;align-items:center;justify-content:space-between;gap:10px"><span>Velocidad</span><select data-speed style="border:1px solid #c7d2fe;border-radius:8px;padding:4px"><option value="0.75">0.75x</option><option value="1">1x</option><option value="1.25">1.25x</option><option value="1.5">1.5x</option></select></label><small style="color:#64748b">Podés pausar o avanzar desde controles de audio.</small>`;
-    const audio = panel.querySelector("[data-audio]") as HTMLInputElement;
-    const autoplay = panel.querySelector("[data-autoplay]") as HTMLInputElement;
-    const speed = panel.querySelector("[data-speed]") as HTMLSelectElement;
-    audio.checked = this.preferences.audio; autoplay.checked = this.preferences.autoplay; speed.value = String(this.preferences.speed);
-    const save = () => { this.preferences = { audio: audio.checked, autoplay: autoplay.checked, speed: Number(speed.value) }; this.options.audioAnswers = this.preferences.audio; try { localStorage.setItem(this.options.preferencesStorageKey, JSON.stringify(this.preferences)); } catch { /* optional */ } };
-    audio.onchange = save; autoplay.onchange = save; speed.onchange = save;
+    panel.style.cssText =
+      `margin:8px 10px;padding:14px;border:1px solid ${primaryColor}33;border-radius:16px;` +
+      `background:${backgroundColor};color:${textColor};font-size:13px;display:grid;gap:12px;` +
+      `box-shadow:0 8px 24px ${primaryColor}1f`;
+
+    const header = document.createElement("div");
+    header.style.cssText = "display:flex;align-items:center;justify-content:space-between;gap:8px";
+    const heading = document.createElement("strong");
+    heading.style.cssText = `display:inline-flex;align-items:center;gap:7px;font-size:13px;color:${primaryColor}`;
+    heading.innerHTML = '<i class="pi pi-volume-up" aria-hidden="true"></i>';
+    heading.append("Audio");
+    const closePanel = document.createElement("button");
+    closePanel.type = "button";
+    closePanel.setAttribute("aria-label", "Cerrar preferencias");
+    closePanel.innerHTML = '<i class="pi pi-times" aria-hidden="true"></i>';
+    closePanel.style.cssText =
+      "border:0;background:transparent;color:inherit;opacity:.6;cursor:pointer;font-size:12px";
+    closePanel.onclick = () => panel.remove();
+    header.append(heading, closePanel);
+
+    const audio = document.createElement("input");
+    const autoplay = document.createElement("input");
+    const speed = document.createElement("select");
+
+    // A switch reads as on or off at a glance; a bare checkbox in a dark panel
+    // did not, and this row is the one that decides whether Practi speaks.
+    const row = (
+      label: string,
+      hint: string,
+      control: HTMLElement,
+    ): HTMLLabelElement => {
+      const wrapper = document.createElement("label");
+      wrapper.style.cssText =
+        "display:flex;align-items:center;justify-content:space-between;gap:14px;cursor:pointer";
+      const text = document.createElement("span");
+      text.style.cssText = "display:grid;gap:2px";
+      const strong = document.createElement("span");
+      strong.textContent = label;
+      strong.style.fontWeight = "600";
+      const small = document.createElement("small");
+      small.textContent = hint;
+      small.style.cssText = "opacity:.65;font-size:11px;line-height:1.3";
+      text.append(strong, small);
+      wrapper.append(text, control);
+      return wrapper;
+    };
+
+    const toggle = (input: HTMLInputElement, checked: boolean): HTMLSpanElement => {
+      input.type = "checkbox";
+      // Set before the first paint: painting an unset input drew every switch
+      // off, whatever the student had chosen.
+      input.checked = checked;
+      input.style.cssText = "position:absolute;opacity:0;pointer-events:none";
+      const track = document.createElement("span");
+      track.style.cssText =
+        "position:relative;flex:0 0 auto;width:40px;height:23px;border-radius:999px;transition:background .18s ease";
+      const knob = document.createElement("span");
+      knob.style.cssText =
+        "position:absolute;top:3px;left:3px;width:17px;height:17px;border-radius:50%;background:#fff;box-shadow:0 1px 3px #0003;transition:transform .18s ease";
+      track.append(input, knob);
+      const paint = () => {
+        track.style.background = input.checked ? primaryColor : `${primaryColor}33`;
+        knob.style.transform = input.checked ? "translateX(17px)" : "none";
+      };
+      input.addEventListener("change", paint);
+      paint();
+      return track;
+    };
+
+    for (const rate of ["0.75", "1", "1.25", "1.5"]) {
+      const option = document.createElement("option");
+      option.value = rate;
+      option.textContent = `${rate}x`;
+      speed.appendChild(option);
+    }
+    speed.style.cssText =
+      `border:1px solid ${primaryColor}44;border-radius:9px;padding:5px 8px;background:transparent;color:inherit`;
+
+    panel.append(
+      header,
+      row("Responder con voz", "Practi lee su respuesta en voz alta", toggle(audio, this.preferences.audio)),
+      row("Reproducir al recibir", "Sin tener que apretar play", toggle(autoplay, this.preferences.autoplay)),
+      row("Velocidad", "De la voz de Practi", speed),
+    );
+
+    speed.value = String(this.preferences.speed);
+
+    // Autoplay without a voice reply has nothing to play, so it follows it.
+    const syncAutoplay = () => {
+      autoplay.disabled = !audio.checked;
+      const parent = autoplay.closest("label") as HTMLLabelElement | null;
+      if (parent) {
+        parent.style.opacity = audio.checked ? "1" : ".45";
+        parent.style.cursor = audio.checked ? "pointer" : "not-allowed";
+      }
+    };
+
+    const save = () => {
+      this.preferences = {
+        audio: audio.checked,
+        autoplay: audio.checked && autoplay.checked,
+        speed: Number(speed.value),
+      };
+      this.options.audioAnswers = this.preferences.audio;
+      syncAutoplay();
+      try {
+        localStorage.setItem(
+          this.options.preferencesStorageKey,
+          JSON.stringify(this.preferences),
+        );
+      } catch {
+        /* optional */
+      }
+    };
+
+    audio.onchange = save;
+    autoplay.onchange = save;
+    speed.onchange = save;
+    syncAutoplay();
+
     this.chatWindow.insertBefore(panel, this.messageList);
   }
 
@@ -1297,7 +1447,9 @@ export class Chat {
     const button = this.chatWindow.querySelector(".ia-chat-expand") as HTMLButtonElement | null;
     const handle = this.chatWindow.querySelector(".ia-chat-sheet-handle") as HTMLButtonElement | null;
     if (button) {
-      button.textContent = expanded ? "⌄" : "⤢";
+      button.innerHTML = expanded
+        ? '<i class="pi pi-chevron-down" aria-hidden="true"></i>'
+        : '<i class="pi pi-window-maximize" aria-hidden="true"></i>';
       button.title = expanded ? "Reducir asistente" : "Expandir asistente";
       button.setAttribute("aria-label", button.title);
     }

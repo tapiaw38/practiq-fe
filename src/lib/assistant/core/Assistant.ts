@@ -299,7 +299,7 @@ export function createAssistant(options: AssistantOptions): Assistant {
     },
     isOpen: options.autoOpen || false,
     showImagesOption: options.searchImages ?? false,
-    audioAnswers: options.audioAnswers ?? false,
+    audioAnswers: options.audioAnswers ?? true,
     audioInput: options.audioInput ?? false,
     quickActions: options.quickActions || [
       { label: "Dame una pista", prompt: "Dame una pista sin decirme la respuesta." },
