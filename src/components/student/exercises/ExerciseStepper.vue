@@ -14,6 +14,12 @@
     current: number;
     /** One entry per exercise, in order. */
     answered: boolean[];
+    /**
+     * One entry per exercise: true right, false wrong, null unchecked. Only a
+     * practice can check an answer before submitting, so the level test leaves
+     * this out entirely.
+     */
+    verdicts?: (boolean | null)[];
   }>();
 
   const emit = defineEmits<{
@@ -26,6 +32,10 @@
 
   function isAnswered(index: number) {
     return props.answered[index] === true;
+  }
+
+  function verdictOf(index: number) {
+    return props.verdicts?.[index] ?? null;
   }
 </script>
 
@@ -50,6 +60,8 @@
         :class="{
           'stepper-dot--current': index - 1 === current,
           'stepper-dot--done': isAnswered(index - 1),
+          'stepper-dot--right': verdictOf(index - 1) === true,
+          'stepper-dot--wrong': verdictOf(index - 1) === false,
         }"
         :aria-selected="index - 1 === current"
         :aria-label="
@@ -58,7 +70,15 @@
         @click="emit('select', index - 1)"
       >
         <i
-          v-if="isAnswered(index - 1) && index - 1 !== current"
+          v-if="verdictOf(index - 1) === false"
+          class="pi pi-times"
+          aria-hidden="true"
+        ></i>
+        <i
+          v-else-if="
+            (verdictOf(index - 1) === true || isAnswered(index - 1)) &&
+            index - 1 !== current
+          "
           class="pi pi-check"
           aria-hidden="true"
         ></i>
@@ -143,8 +163,21 @@
     color: var(--color-success-dark);
   }
 
-  /* Current wins over answered: the student has to be able to find where they
-     are among a row of green circles. */
+  .stepper-dot--right {
+    background: var(--color-success);
+    border-color: var(--color-success);
+    color: #fff;
+  }
+
+  .stepper-dot--wrong {
+    background: var(--color-warning-bg);
+    border-color: var(--color-warning);
+    color: var(--color-warning-dark);
+  }
+
+  /* Current wins over answered and over a verdict: the student has to be able
+     to find where they are among a row of coloured circles, and the verdict for
+     the exercise they are looking at is already on the check button. */
   .stepper-dot--current,
   .stepper-dot--current.stepper-dot--done {
     background: var(--practiq-violet);

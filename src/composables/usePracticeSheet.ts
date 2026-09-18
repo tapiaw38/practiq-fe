@@ -243,6 +243,22 @@ export const usePracticeSheet = () => {
     }
   };
 
+  // A check is a courtesy, not part of the delivery: the student can always
+  // submit and be graded. A failure is therefore swallowed rather than shown,
+  // and the caller simply gets no verdict.
+  const checkAnswer = async (
+    sheetId: string,
+    exerciseId: string,
+    answerText: string,
+  ) => {
+    try {
+      const { data } = await service.checkAnswer(sheetId, exerciseId, answerText);
+      return data;
+    } catch {
+      return null;
+    }
+  };
+
   return {
     practiceSheets,
     currentPracticeSheet,
@@ -261,6 +277,7 @@ export const usePracticeSheet = () => {
     submitPracticeSheet,
     submitPracticeSheetAsync,
     loadSubmitJob,
+    checkAnswer,
     loadPage,
     nextPage,
     prevPage,

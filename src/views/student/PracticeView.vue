@@ -1,6 +1,7 @@
 <script setup lang="ts">
-  import { ref, computed, onMounted, onUnmounted, defineAsyncComponent } from "vue";
+  import { ref, computed, watch, onMounted, onUnmounted, defineAsyncComponent } from "vue";
   import { useRoute, useRouter } from "vue-router";
+  import PractiCoach from "@/components/student/practice/PractiCoach.vue";
   import { useToast } from "primevue/usetoast";
   import { useAuthStore } from "@/stores/authStore";
   import StudentLayout from "@/layouts/StudentLayout.vue";
@@ -63,7 +64,7 @@
     () => hasPendingWork.value,
   );
   const { loadCourseProgress } = useProgress();
-  const { loadPracticeSheet, submitPracticeSheetAsync, loadSubmitJob } =
+  const { loadPracticeSheet, submitPracticeSheetAsync, loadSubmitJob, checkAnswer } =
     usePracticeSheet();
   const { fireSuccess } = useConfetti();
   const { play: playSound } = useSound();
@@ -199,6 +200,69 @@
     (sheet.value?.exercises ?? []).map((item) => isAnswered(item.exercise.id)),
   );
 
+  const coachMessage = ref("");
+  const coachTone = ref<"neutral" | "good" | "retry">("neutral");
+  // Repeating a message would not retrigger a watcher on the text alone.
+  const coachBeat = ref(0);
+
+  function say(message: string, tone: "neutral" | "good" | "retry" = "neutral") {
+    coachMessage.value = message;
+    coachTone.value = tone;
+    coachBeat.value += 1;
+  }
+
+  /**
+   * Verdicts from checking an answer before submitting.
+   *
+   * Each one remembers the text it judged: editing the answer afterwards makes
+   * the verdict stale, and a green dot over rewritten text would be a lie.
+   */
+  const verdicts = ref<Record<string, { correct: boolean; answer: string }>>({});
+  const checkingId = ref("");
+
+  function verdictFor(exerciseId: string): boolean | null {
+    const verdict = verdicts.value[exerciseId];
+    if (!verdict) return null;
+    return verdict.answer === keyboardAnswers.value[exerciseId]?.trim()
+      ? verdict.correct
+      : null;
+  }
+
+  const verdictFlags = computed(() =>
+    (sheet.value?.exercises ?? []).map((item) => verdictFor(item.exercise.id)),
+  );
+
+  // A check compares text. Handwriting, an upload, or a statement whose meaning
+  // lives in an image or audio are all judged once, by the submission.
+  function canCheck(exercise?: { id?: string; type?: string; media_view_url?: string } | null) {
+    if (!exercise?.id) return false;
+    if (sheet.value?.sheet_type === "level_test") return false;
+    if (exercise.type === "attachment") return false;
+    if (exercise.type && exerciseUsesCanvas(exercise.type)) return false;
+    if (exercise.media_view_url) return false;
+    return !!keyboardAnswers.value[exercise.id]?.trim();
+  }
+
+  async function checkCurrentAnswer(exerciseId: string) {
+    const text = keyboardAnswers.value[exerciseId]?.trim();
+    if (!text || checkingId.value) return;
+    checkingId.value = exerciseId;
+    const result = await checkAnswer(sheetId, exerciseId, text);
+    checkingId.value = "";
+
+    if (!result || !result.graded) {
+      say("Lo miro cuando revises la práctica.");
+      return;
+    }
+    verdicts.value[exerciseId] = { correct: result.is_correct, answer: text };
+    if (result.is_correct) {
+      say("¡Bien ahí!", "good");
+      return;
+    }
+    const hint = result.feedback?.trim();
+    say(hint && hint.length <= 90 ? hint : "Casi. Probá de nuevo.", "retry");
+  }
+
   /**
    * Moves to an exercise and saves what the student had written.
    *
@@ -223,6 +287,21 @@
   });
 
   const totalCount = computed(() => sheet.value?.exercises?.length ?? 0);
+
+  // Reacting to the count rather than to each input keeps the coach quiet while
+  // the student types and gives it something to say the moment one is done.
+  watch(answeredCount, (count, previous) => {
+    if (count <= previous || !totalCount.value) return;
+    if (count === totalCount.value) {
+      say("¡Todas respondidas! Revisá cuando quieras.", "good");
+      return;
+    }
+    if (count === totalCount.value - 1) {
+      say("Queda una.");
+      return;
+    }
+    say(`Van ${count} de ${totalCount.value}.`);
+  });
 
   const progressPct = computed(() =>
     totalCount.value
@@ -296,6 +375,11 @@
 
       startTimer();
       loadTopicProgress();
+      say(
+        totalCount.value === 1
+          ? "Un ejercicio. Tomate tu tiempo."
+          : `Son ${totalCount.value} ejercicios. A tu ritmo.`,
+      );
 
       // Fetch curiosities for loading screen
       if (sheet.value.course_id) {
@@ -945,8 +1029,13 @@
           >
             <img src="@/assets/burn.png" alt="" class="streak-icon" />
             <div class="streak-text">
-              <div class="streak-val">{{ streakCount }}</div>
-              <div class="streak-lbl">racha</div>
+              <template v-if="streakCount > 0">
+                <div class="streak-val">{{ streakCount }}</div>
+                <div class="streak-lbl">racha</div>
+              </template>
+              <div v-else class="streak-lbl streak-lbl--invite">
+                Empezá tu racha
+              </div>
             </div>
           </div>
           <div class="student-avatar">{{ studentInitial }}</div>
@@ -1046,6 +1135,7 @@
               :total="totalCount"
               :current="currentIdx"
               :answered="answeredFlags"
+              :verdicts="verdictFlags"
               @select="goToExercise"
             />
 
@@ -1229,9 +1319,48 @@
                       :pen-color="penColor"
                                           />
                   </div>
+
+                  <div v-if="canCheck(pse.exercise)" class="ex-check">
+                    <button
+                      type="button"
+                      class="btn-check"
+                      :class="{
+                        'btn-check--right': verdictFor(pse.exercise.id) === true,
+                        'btn-check--wrong': verdictFor(pse.exercise.id) === false,
+                      }"
+                      :disabled="checkingId === pse.exercise.id"
+                      @click="checkCurrentAnswer(pse.exercise.id)"
+                    >
+                      <i
+                        class="pi"
+                        :class="
+                          checkingId === pse.exercise.id
+                            ? 'pi-spinner pi-spin'
+                            : verdictFor(pse.exercise.id) === true
+                              ? 'pi-check-circle'
+                              : verdictFor(pse.exercise.id) === false
+                                ? 'pi-replay'
+                                : 'pi-bolt'
+                        "
+                      ></i>
+                      {{
+                        verdictFor(pse.exercise.id) === true
+                          ? "Correcto"
+                          : verdictFor(pse.exercise.id) === false
+                            ? "Probar de nuevo"
+                            : "Comprobar"
+                      }}
+                    </button>
+                  </div>
                 </div>
               </div>
             </div>
+
+            <PractiCoach
+              :message="coachMessage"
+              :beat="coachBeat"
+              :tone="coachTone"
+            />
 
             <!-- Sticky footer -->
             <div class="practice-footer">
@@ -1264,9 +1393,19 @@
                 </button>
               </div>
               <div class="footer-actions">
-                <button class="btn-submit" @click="showSubmitConfirm = true">
+                <button
+                  class="btn-submit"
+                  :class="{ 'btn-submit--idle': answeredCount === 0 }"
+                  @click="showSubmitConfirm = true"
+                >
                   <i class="pi pi-send"></i>
-                  Revisar respuestas
+                  {{
+                    answeredCount === 0
+                      ? "Revisar respuestas"
+                      : answeredCount === 1
+                        ? "Revisar 1 respuesta"
+                        : `Revisar ${answeredCount} respuestas`
+                  }}
                 </button>
               </div>
             </div>
@@ -2726,5 +2865,52 @@
 
   .exercise-assistant-trigger:active {
     transform: translateY(1px);
+  }
+
+  .ex-check {
+    display: flex;
+    justify-content: flex-end;
+    margin-top: 10px;
+  }
+  .btn-check {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    border: 2px solid var(--fill-primary-soft);
+    border-radius: var(--radius-pill);
+    background: var(--surface-card);
+    color: var(--practiq-violet);
+    padding: 8px 16px;
+    font-weight: 800;
+    font-size: var(--text-sm);
+    cursor: pointer;
+    transition: var(--transition-fast);
+  }
+  .btn-check:hover:not(:disabled) {
+    background: var(--fill-primary-faint);
+  }
+  .btn-check:disabled {
+    cursor: progress;
+  }
+  .btn-check--right {
+    border-color: var(--color-success);
+    color: var(--color-success-dark);
+    background: var(--color-success-bg);
+  }
+  .btn-check--wrong {
+    border-color: var(--color-warning);
+    color: var(--color-warning-dark);
+    background: var(--color-warning-bg);
+  }
+  .streak-lbl--invite {
+    line-height: 1.15;
+    max-width: 68px;
+  }
+  /* Nothing to review yet: the button stays reachable but stops shouting for an
+     action the student cannot take. */
+  .btn-submit--idle {
+    background: var(--surface-hover);
+    color: var(--text-secondary);
+    box-shadow: none;
   }
 </style>

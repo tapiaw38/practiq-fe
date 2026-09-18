@@ -103,3 +103,11 @@ export interface SubmitJobStatus {
   created_at: string;
   updated_at: string;
 }
+
+/** Verdict for one answer, checked while the practice is still open. */
+export interface CheckAnswerResult {
+  is_correct: boolean;
+  /** False when nothing capable of judging the answer ran. */
+  graded: boolean;
+  feedback?: string;
+}
