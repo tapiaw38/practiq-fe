@@ -75,19 +75,35 @@
     students,
     loadCourse,
     loadStudents,
-    updateCourse,
+    setCourseStatus,
   } = useCourse();
 
-  const savingStatus = ref(false);
+  type CourseStatus = "draft" | "published" | "archived";
 
-  const STATUS_LABELS: Record<string, string> = {
-    draft: "Borrador",
-    published: "Publicado",
-    archived: "Archivado",
-  };
+  const savingStatus = ref("");
+  const statusError = ref("");
+
+  // What each state means for a student, stated where the teacher chooses it.
+  // The label alone does not say whether anyone can see the course.
+  const STATUS_OPTIONS: {
+    value: CourseStatus;
+    label: string;
+    hint: string;
+    icon: string;
+  }[] = [
+    { value: "draft", label: "Borrador", hint: "Solo vos. Los alumnos no lo ven.", icon: "pi-pencil" },
+    { value: "published", label: "Publicado", hint: "Visible, y se puede entregar.", icon: "pi-check-circle" },
+    { value: "archived", label: "Archivado", hint: "Los matriculados leen; nadie entrega ni se suma.", icon: "pi-inbox" },
+  ];
+
+  const STATUS_LABELS: Record<string, string> = Object.fromEntries(
+    STATUS_OPTIONS.map((option) => [option.value, option.label]),
+  );
   function statusLabel(status: string) {
     return STATUS_LABELS[status] ?? status;
   }
+
+  const pendingArchive = ref(false);
 
   /**
    * Moves the course through its lifecycle.
@@ -96,24 +112,27 @@
    * work and their marks — but it does stop new submissions, so it says so
    * before doing it.
    */
-  async function changeStatus(event: Event) {
-    const select = event.target as HTMLSelectElement;
-    const next = select.value as "draft" | "published" | "archived";
-    if (!course.value || next === course.value.status) return;
-    if (
-      next === "archived"
-      && !window.confirm("Al archivar, los alumnos podrán seguir viendo el curso y sus notas, pero no podrán entregar nada más. ¿Confirmás?")
-    ) {
-      select.value = course.value.status;
+  async function chooseStatus(next: CourseStatus) {
+    if (!course.value || savingStatus.value) return;
+    if (next === course.value.status) {
+      pendingArchive.value = false;
       return;
     }
-    savingStatus.value = true;
+    // Asked inline rather than through window.confirm: a browser dialog steals
+    // the page and says nothing about what archiving actually does.
+    if (next === "archived" && !pendingArchive.value) {
+      pendingArchive.value = true;
+      return;
+    }
+    pendingArchive.value = false;
+    statusError.value = "";
+    savingStatus.value = next;
     try {
-      await updateCourse(course.value.id, { status: next });
+      await setCourseStatus(course.value.id, next);
     } catch {
-      select.value = course.value.status;
+      statusError.value = "No pudimos cambiar el estado. Probá de nuevo.";
     } finally {
-      savingStatus.value = false;
+      savingStatus.value = "";
     }
   }
   const {
@@ -1468,14 +1487,52 @@
             }}</span>
             <span class="badge" :class="`badge-status--${course.status}`">{{ statusLabel(course.status) }}</span>
           </div>
-          <label class="course-status-field">
-            <span>Estado</span>
-            <select :value="course.status" :disabled="savingStatus" @change="changeStatus($event)">
-              <option value="draft">Borrador — no lo ven los alumnos</option>
-              <option value="published">Publicado — visible y activo</option>
-              <option value="archived">Archivado — solo lectura</option>
-            </select>
-          </label>
+          <div class="course-status" role="group" aria-label="Estado del curso">
+            <button
+              v-for="option in STATUS_OPTIONS"
+              :key="option.value"
+              type="button"
+              class="status-option"
+              :class="{
+                'status-option--current': course.status === option.value,
+                'status-option--saving': savingStatus === option.value,
+              }"
+              :aria-pressed="course.status === option.value"
+              :disabled="Boolean(savingStatus)"
+              @click="chooseStatus(option.value)"
+            >
+              <i
+                class="pi"
+                :class="savingStatus === option.value ? 'pi-spinner pi-spin' : option.icon"
+                aria-hidden="true"
+              ></i>
+              <span class="status-option-text">
+                <strong>{{ option.label }}</strong>
+                <small>{{ option.hint }}</small>
+              </span>
+            </button>
+          </div>
+
+          <p v-if="pendingArchive" class="status-confirm">
+            <i class="pi pi-exclamation-triangle" aria-hidden="true"></i>
+            <span>
+              Al archivar, quienes ya cursan siguen viendo el material y sus
+              notas, pero nadie puede entregar ni matricularse.
+            </span>
+            <span class="status-confirm-actions">
+              <button type="button" class="status-confirm-cancel" @click="pendingArchive = false">
+                Cancelar
+              </button>
+              <button type="button" class="status-confirm-go" @click="chooseStatus('archived')">
+                Archivar
+              </button>
+            </span>
+          </p>
+
+          <p v-if="statusError" class="status-error">
+            <i class="pi pi-times-circle" aria-hidden="true"></i>
+            {{ statusError }}
+          </p>
         </div>
       </div>
 
@@ -2833,8 +2890,109 @@
     margin: 0;
   }
 
-  .course-status-field { display: inline-flex; align-items: center; gap: var(--space-2); margin-top: var(--space-2); font-size: var(--text-xs); color: var(--text-muted); }
-  .course-status-field select { font: inherit; padding: 4px 8px; border: 1px solid var(--surface-border); border-radius: 6px; background: var(--surface-card); color: var(--text-primary); }
+  /* Three visible choices rather than a closed select: the lifecycle is the
+     one setting on this page a student can feel, and a native select hid both
+     the options and what each one does behind a tap. */
+  .course-status {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: 12px;
+  }
+  .status-option {
+    display: flex;
+    align-items: center;
+    gap: 9px;
+    flex: 1 1 210px;
+    padding: 10px 12px;
+    border: 1.5px solid var(--surface-border);
+    border-radius: var(--radius-lg);
+    background: var(--surface-card);
+    color: var(--text-secondary);
+    text-align: left;
+    cursor: pointer;
+    transition: var(--transition-fast);
+  }
+  .status-option:hover:not(:disabled) {
+    border-color: rgba(var(--practiq-violet-rgb), 0.45);
+    color: var(--text-primary);
+  }
+  .status-option:disabled {
+    cursor: default;
+  }
+  .status-option--current {
+    border-color: var(--practiq-violet);
+    background: var(--fill-primary-faint);
+    color: var(--practiq-violet);
+  }
+  .status-option i {
+    font-size: 1rem;
+    flex-shrink: 0;
+  }
+  .status-option-text {
+    display: grid;
+    gap: 1px;
+    min-width: 0;
+  }
+  .status-option-text strong {
+    font-size: var(--text-sm);
+    font-weight: 800;
+  }
+  .status-option-text small {
+    font-size: var(--text-xs);
+    color: var(--text-muted);
+    line-height: 1.3;
+  }
+  .status-option--current .status-option-text small {
+    color: inherit;
+    opacity: 0.8;
+  }
+  .status-confirm,
+  .status-error {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin: 10px 0 0;
+    padding: 10px 12px;
+    border-radius: var(--radius-lg);
+    font-size: var(--text-xs);
+    line-height: 1.35;
+  }
+  .status-confirm {
+    background: var(--color-warning-bg);
+    color: var(--color-warning-dark);
+  }
+  .status-confirm span {
+    flex: 1 1 200px;
+  }
+  .status-confirm-actions {
+    display: flex;
+    gap: 8px;
+    flex: 0 0 auto;
+  }
+  .status-confirm-cancel,
+  .status-confirm-go {
+    border: none;
+    border-radius: var(--radius-pill);
+    padding: 6px 14px;
+    font-weight: 800;
+    font-size: var(--text-xs);
+    cursor: pointer;
+  }
+  .status-confirm-cancel {
+    background: transparent;
+    color: inherit;
+    text-decoration: underline;
+  }
+  .status-confirm-go {
+    background: var(--color-warning-dark);
+    color: #fff;
+  }
+  .status-error {
+    background: var(--color-error-bg);
+    color: var(--color-error-dark);
+  }
   .badge-status--draft { background: #fef3c7; color: #92400e; }
   .badge-status--published { background: #dcfce7; color: #166534; }
   .badge-status--archived { background: var(--surface-hover); color: var(--text-muted); }

@@ -45,6 +45,14 @@ export const useCourseStore = (service: ICourseService) =>
       }
     };
 
+    const setCourseStatus = async (id: string, status: Course["status"]) => {
+      const response = await service.setStatus(id, status);
+      const index = courses.value.findIndex((c) => c.id === id);
+      if (index !== -1) courses.value[index] = response.data;
+      if (currentCourse.value?.id === id) currentCourse.value = response.data;
+      return response.data;
+    };
+
     const updateCourse = async (id: string, params: Partial<Course>) => {
       loading.value = true;
       try {
@@ -113,6 +121,7 @@ export const useCourseStore = (service: ICourseService) =>
       fetchCourse,
       createCourse,
       updateCourse,
+      setCourseStatus,
       deleteCourse,
       enrollCourse,
       fetchStudents,
