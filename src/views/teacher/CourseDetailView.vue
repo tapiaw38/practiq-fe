@@ -273,16 +273,17 @@
     // Fill-in-the-blanks: blanks come from the statement, options include distractors.
     fillBlanks: { blanks: [], distractors: [], layout: "text" } as FillBlanksConfig,
   });
-  // AI drafts deliberately mirror every manually authored shape except
-  // handwritten: a model can describe a canvas or a file submission, but it
-  // must never fabricate a teacher's handwritten statement.
+  // Gillie never returns handwritten directly. A teacher may explicitly turn
+  // a reviewed draft into one, which creates a canvas image they can edit.
   type AIDraft = {
-    type: "open_text" | "multiple_choice" | "equation" | "canvas" | "attachment" | "fill_blanks";
+    draft_id: string;
+    type: "open_text" | "multiple_choice" | "equation" | "canvas" | "attachment" | "fill_blanks" | "handwritten";
     question: string;
     correct_answer: string;
     explanation: string;
     difficulty: number;
     metadata?: { options?: string[]; blanks?: { id: number; answer: string }[]; distractors?: string[]; layout?: string; accept?: AttachmentKind[] };
+    teacher_image: string;
     // Held apart from metadata because the editor owns this shape and the
     // answer/pool are derived from it at save time, exactly as in the manual
     // exercise form.
@@ -300,6 +301,9 @@
   const aiType = ref("");
   const aiGenerating = ref(false);
   const aiSaving = ref(false);
+  let aiDraftCounter = 0;
+  const aiDraftCanvasRefs = new Map<string, HTMLCanvasElement>();
+  const aiDraftDrawing = new Set<string>();
 
   // Either a file or a written topic is enough: the API accepts one of the two
   // and says so when neither is there.
@@ -327,7 +331,13 @@
     const accept = (draft.metadata?.accept || []).filter((kind): kind is AttachmentKind =>
       ATTACHMENT_KINDS.some((option) => option.value === kind),
     );
-    return { ...draft, metadata: { ...draft.metadata, options, accept }, fillBlanks: pruneFillBlanks(fillBlanks, draft.question || "") };
+    return {
+      ...draft,
+      draft_id: draft.draft_id || `ai-draft-${++aiDraftCounter}`,
+      teacher_image: draft.teacher_image || "",
+      metadata: { ...draft.metadata, options, accept },
+      fillBlanks: pruneFillBlanks(fillBlanks, draft.question || ""),
+    };
   }
 
   // Editing the option that is marked correct has to carry the answer with it:
@@ -348,6 +358,7 @@
   function draftProblem(draft: AIDraft): string {
     if (!draft.question.trim()) return "Falta la consigna.";
     if (draft.type === "fill_blanks") return validateFillBlanks(draft.question, draft.fillBlanks);
+    if (draft.type === "handwritten" && !draft.teacher_image) return "Generá o dibujá la consigna manuscrita.";
     // Manual attachment exercises have no single textual answer: the teacher
     // reviews the uploaded work. Keep this rule identical for AI drafts.
     if (draft.type === "attachment") return "";
@@ -439,6 +450,7 @@
   }
 
   function draftMetadata(draft: AIDraft) {
+    if (draft.type === "handwritten") return { teacher_image: draft.teacher_image };
     if (draft.type === "multiple_choice") {
       return { options: (draft.metadata?.options || []).map((o) => o.trim()).filter(Boolean) };
     }
@@ -455,6 +467,114 @@
   function draftCorrectAnswer(draft: AIDraft) {
     if (draft.type !== "fill_blanks") return draft.correct_answer;
     return buildCorrectAnswer(pruneFillBlanks(draft.fillBlanks, draft.question).blanks);
+  }
+
+  function setAIDraftCanvasRef(draft: AIDraft, canvas: HTMLCanvasElement | null) {
+    if (!canvas) {
+      aiDraftCanvasRefs.delete(draft.draft_id);
+      return;
+    }
+    aiDraftCanvasRefs.set(draft.draft_id, canvas);
+    nextTick(() => initAIDraftCanvas(draft, draft.teacher_image));
+  }
+
+  function initAIDraftCanvas(draft: AIDraft, imageData = "") {
+    const canvas = aiDraftCanvasRefs.get(draft.draft_id);
+    if (!canvas) return;
+    const width = canvas.offsetWidth || 720;
+    const height = canvas.offsetHeight || 240;
+    canvas.width = width;
+    canvas.height = height;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return;
+    drawTeacherCanvasBackground(ctx, width, height);
+    if (imageData) {
+      const image = new Image();
+      image.onload = () => ctx.drawImage(image, 0, 0, width, height);
+      image.src = imageData;
+    }
+  }
+
+  function seedAIDraftHandwriting(draft: AIDraft) {
+    const canvas = aiDraftCanvasRefs.get(draft.draft_id);
+    if (!canvas) return;
+    initAIDraftCanvas(draft);
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return;
+    const words = (draft.question.trim() || "Escribí tu respuesta.").split(/\s+/);
+    const maxWidth = canvas.width - 44;
+    const lines: string[] = [];
+    let line = "";
+    ctx.font = 'italic 24px "Segoe Print", "Comic Sans MS", cursive';
+    for (const word of words) {
+      const candidate = line ? `${line} ${word}` : word;
+      if (line && ctx.measureText(candidate).width > maxWidth) {
+        lines.push(line);
+        line = word;
+      } else line = candidate;
+    }
+    if (line) lines.push(line);
+    ctx.fillStyle = "#1f2937";
+    ctx.textBaseline = "top";
+    lines.slice(0, 5).forEach((text, index) => ctx.fillText(text, 22, 12 + index * 34));
+    if (lines.length > 5) ctx.fillText("…", 22, 12 + 5 * 34);
+    draft.teacher_image = canvas.toDataURL("image/png");
+  }
+
+  function enableAIDraftHandwriting(draft: AIDraft) {
+    draft.type = "handwritten";
+    // The canvas ref is mounted in the first flush; seed afterwards so its
+    // own initial background pass cannot erase the generated writing.
+    nextTick(() => nextTick(() => seedAIDraftHandwriting(draft)));
+  }
+
+  function aiDraftCanvasPosition(event: MouseEvent, draft: AIDraft) {
+    const canvas = aiDraftCanvasRefs.get(draft.draft_id);
+    if (!canvas) return { x: 0, y: 0 };
+    const rect = canvas.getBoundingClientRect();
+    return {
+      x: (event.clientX - rect.left) * (canvas.width / rect.width),
+      y: (event.clientY - rect.top) * (canvas.height / rect.height),
+    };
+  }
+
+  function startAIDraftDraw(event: MouseEvent, draft: AIDraft) {
+    const canvas = aiDraftCanvasRefs.get(draft.draft_id);
+    const ctx = canvas?.getContext("2d");
+    if (!canvas || !ctx) return;
+    aiDraftDrawing.add(draft.draft_id);
+    const pos = aiDraftCanvasPosition(event, draft);
+    ctx.beginPath();
+    ctx.moveTo(pos.x, pos.y);
+  }
+
+  function drawAIDraftCanvas(event: MouseEvent, draft: AIDraft) {
+    if (!aiDraftDrawing.has(draft.draft_id)) return;
+    const canvas = aiDraftCanvasRefs.get(draft.draft_id);
+    const ctx = canvas?.getContext("2d");
+    if (!canvas || !ctx) return;
+    const pos = aiDraftCanvasPosition(event, draft);
+    ctx.strokeStyle = "#111827";
+    ctx.lineWidth = 3;
+    ctx.lineCap = "round";
+    ctx.lineJoin = "round";
+    ctx.lineTo(pos.x, pos.y);
+    ctx.stroke();
+  }
+
+  function stopAIDraftDraw(draft: AIDraft) {
+    aiDraftDrawing.delete(draft.draft_id);
+    draft.teacher_image = aiDraftCanvasRefs.get(draft.draft_id)?.toDataURL("image/png") || draft.teacher_image;
+  }
+
+  function startAIDraftDrawTouch(event: TouchEvent, draft: AIDraft) {
+    const touch = event.touches[0];
+    if (touch) startAIDraftDraw({ clientX: touch.clientX, clientY: touch.clientY } as MouseEvent, draft);
+  }
+
+  function drawAIDraftCanvasTouch(event: TouchEvent, draft: AIDraft) {
+    const touch = event.touches[0];
+    if (touch) drawAIDraftCanvas({ clientX: touch.clientX, clientY: touch.clientY } as MouseEvent, draft);
   }
   const newMaterial = reactive({
     title: "",
@@ -1899,7 +2019,8 @@
             <p class="field-hint">Editá o quitá los que no quieras. Nada se guarda hasta confirmar.</p>
             <div v-for="(draft, index) in aiDrafts" :key="index" class="ai-draft-card" :class="{ 'ai-draft-card--incomplete': !draftIsComplete(draft) }">
               <button class="btn btn-ghost btn-sm ai-draft-remove" @click="aiDrafts.splice(index, 1)"><i class="pi pi-times"></i></button>
-              <select v-model="draft.type" class="form-select"><option value="open_text">Texto abierto</option><option value="multiple_choice">Opción múltiple</option><option value="equation">Ecuación</option><option value="canvas">Canvas/Dibujo</option><option value="attachment">📎 Entrega de archivo</option><option value="fill_blanks">🧩 Completar huecos</option></select>
+              <select v-model="draft.type" class="form-select" @change="draft.type === 'handwritten' && enableAIDraftHandwriting(draft)"><option value="open_text">Texto abierto</option><option value="multiple_choice">Opción múltiple</option><option value="equation">Ecuación</option><option value="canvas">Canvas/Dibujo</option><option value="attachment">📎 Entrega de archivo</option><option value="fill_blanks">🧩 Completar huecos</option><option value="handwritten">✍ Manuscrito</option></select>
+              <button v-if="draft.type !== 'handwritten'" type="button" class="btn btn-ghost btn-sm ai-draft-handwriting" @click="enableAIDraftHandwriting(draft)"><i class="pi pi-pencil"></i> Convertir a manuscrito</button>
               <textarea v-model="draft.question" class="form-textarea" rows="2" :placeholder="draft.type === 'fill_blanks' ? 'Enunciado con huecos: El agua hierve a {{1}} grados.' : 'Consigna'" />
               <template v-if="draft.type === 'multiple_choice'">
                 <span class="ai-draft-label">Opciones — marcá la correcta</span>
@@ -1927,6 +2048,23 @@
                   {{ option.label }}
                 </label>
                 <small class="field-hint">Sin selección se aceptan todos los formatos soportados.</small>
+              </div>
+              <div v-else-if="draft.type === 'handwritten'" class="teacher-canvas-wrap ai-draft-canvas-wrap">
+                <div class="teacher-canvas-toolbar">
+                  <span>Consigna generada; podés escribir encima antes de guardar.</span>
+                  <button type="button" class="btn btn-ghost btn-sm" @click="seedAIDraftHandwriting(draft)"><i class="pi pi-refresh"></i> Regenerar desde texto</button>
+                </div>
+                <canvas
+                  :ref="(el) => setAIDraftCanvasRef(draft, el as HTMLCanvasElement | null)"
+                  class="teacher-canvas ai-draft-canvas"
+                  @mousedown="startAIDraftDraw($event, draft)"
+                  @mousemove="drawAIDraftCanvas($event, draft)"
+                  @mouseup="stopAIDraftDraw(draft)"
+                  @mouseleave="stopAIDraftDraw(draft)"
+                  @touchstart.prevent="startAIDraftDrawTouch($event, draft)"
+                  @touchmove.prevent="drawAIDraftCanvasTouch($event, draft)"
+                  @touchend="stopAIDraftDraw(draft)"
+                ></canvas>
               </div>
               <input v-else v-model="draft.correct_answer" class="form-input" placeholder="Respuesta correcta" />
               <textarea v-model="draft.explanation" class="form-textarea" rows="2" placeholder="Explicación" />
