@@ -862,8 +862,8 @@
     gap: 8px;
     min-height: 42px;
     padding: 9px 14px;
-    border: 1px solid var(--color-info-dark);
-    background: var(--color-info);
+    border: 1px solid var(--practiq-violet);
+    background: var(--practiq-violet);
     color: var(--color-on-primary);
     border-radius: var(--radius-md);
     font-size: var(--text-sm);
@@ -872,8 +872,8 @@
     transition: var(--transition-fast);
   }
   .catalog-pill:hover {
-    background: var(--color-info-dark);
-    border-color: var(--color-info-dark);
+    background: var(--practiq-violet-dark);
+    border-color: var(--practiq-violet-dark);
   }
   .catalog-pill__badge {
     min-width: 20px;
@@ -1123,7 +1123,7 @@
     gap: 6px;
     padding: 7px 10px;
     border: 1px solid rgba(var(--practiq-violet-rgb), 0.18);
-    border-radius: var(--radius-pill);
+    border-radius: var(--radius-md);
     background: var(--fill-primary-faint);
     color: var(--practiq-violet-dark);
     font-size: var(--text-sm);
