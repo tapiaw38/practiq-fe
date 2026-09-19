@@ -66,6 +66,11 @@
     return result;
   });
 
+  const activeFilterCount = computed(() =>
+    [filters.gradeId, filters.subjectId, filters.courseId, filters.studentId, filters.reviewedStatus, filters.studentSearch]
+      .filter(Boolean).length,
+  );
+
   /** Any of these is enough to query the server; a course is not required. */
   const hasScope = () =>
     !!(filters.courseId || filters.gradeId || filters.subjectId);
@@ -214,6 +219,19 @@
     await loadSubmissions(submissionsPage.value);
   }
 
+  async function clearFilters() {
+    Object.assign(filters, {
+      courseId: "",
+      gradeId: "",
+      subjectId: "",
+      studentId: "",
+      reviewedStatus: "",
+      studentSearch: "",
+    });
+    students.value = [];
+    await loadSubmissions(1);
+  }
+
   function getInitial(name?: string) {
     return (name || "E").charAt(0).toUpperCase();
   }
@@ -299,6 +317,11 @@
       </div>
 
       <!-- Filters -->
+      <section class="filters-panel" aria-label="Filtros de entregas">
+        <div class="filters-panel__head">
+          <div><strong>Filtrar entregas</strong><span v-if="activeFilterCount">{{ activeFilterCount }} activos</span></div>
+          <button v-if="activeFilterCount" class="filters-clear" type="button" @click="clearFilters"><i class="pi pi-filter-slash"></i> Limpiar</button>
+        </div>
       <div class="filters-bar">
         <div class="filter-group">
           <label class="filter-label">Grado</label>
@@ -391,6 +414,7 @@
           />
         </div>
       </div>
+      </section>
 
       <div v-if="!filters.courseId && !filters.gradeId && !filters.subjectId && !loading" class="scope-hint">
         <i class="pi pi-filter"></i>
@@ -792,15 +816,20 @@
   }
 
   /* Filters */
-  .filters-bar {
-    display: flex;
-    gap: 16px;
-    flex-wrap: wrap;
-    padding: 16px 20px;
+  .filters-panel {
+    padding: 14px 16px 16px;
     background: var(--surface-elevated);
     border-radius: var(--radius-xl);
     border: 1px solid var(--surface-elevated-strong);
     margin-bottom: 20px;
+  }
+  .filters-panel__head { display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:12px;color:var(--text-heading);font-size:var(--text-sm); }
+  .filters-panel__head > div { display:flex;align-items:center;gap:8px; }.filters-panel__head span { padding:2px 7px;border-radius:var(--radius-pill);background:var(--fill-primary-soft);color:var(--practiq-violet-dark);font-size:var(--text-xs);font-weight:800; }
+  .filters-clear { display:inline-flex;align-items:center;gap:6px;min-height:32px;padding:5px 8px;border:0;border-radius:var(--radius-md);background:transparent;color:var(--practiq-violet-dark);font:inherit;font-size:var(--text-xs);font-weight:800;cursor:pointer; }.filters-clear:hover { background:var(--fill-primary-soft); }
+  .filters-bar {
+    display: flex;
+    gap: 16px;
+    flex-wrap: wrap;
   }
 
   .filter-group {
@@ -1271,7 +1300,10 @@
 
     .filters-bar {
       flex-direction: column;
+      gap: 10px;
     }
+
+    .filters-panel { padding: 12px; }
 
     .filter-group {
       width: 100%;

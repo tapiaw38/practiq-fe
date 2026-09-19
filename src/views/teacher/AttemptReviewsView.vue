@@ -1,5 +1,5 @@
 <script setup lang="ts">
-  import { onMounted, reactive, ref, watch } from "vue";
+  import { computed, onMounted, reactive, ref, watch } from "vue";
   import { useToast } from "primevue/usetoast";
   import TeacherLayout from "@/layouts/TeacherLayout.vue";
   import FileViewer from "@/components/ui/FileViewer.vue";
@@ -29,6 +29,9 @@
     studentId: "",
     reviewed: "unreviewed",
   });
+  const activeFilterCount = computed(() =>
+    [filters.courseId, filters.studentId, filters.reviewed !== "unreviewed" ? filters.reviewed : ""].filter(Boolean).length,
+  );
   const saving = ref<string | null>(null);
   const feedback = ref<Record<string, string>>({});
 
@@ -97,6 +100,13 @@
   }
 
   function applyFilters() {
+    load(1);
+  }
+
+  function clearFilters() {
+    filters.courseId = "";
+    filters.studentId = "";
+    filters.reviewed = "unreviewed";
     load(1);
   }
 
@@ -195,6 +205,11 @@
         </div>
       </div>
 
+      <section class="filters-panel" aria-label="Filtros de pruebas de nivel">
+        <div class="filters-panel__head">
+          <div><strong>Filtrar correcciones</strong><span v-if="activeFilterCount">{{ activeFilterCount }} activos</span></div>
+          <button v-if="activeFilterCount" class="filters-clear" type="button" @click="clearFilters"><i class="pi pi-filter-slash"></i> Limpiar</button>
+        </div>
       <div class="filters-bar">
         <label class="filter-field">
           <span>Estado</span>
@@ -225,6 +240,7 @@
           </select>
         </label>
       </div>
+      </section>
 
       <p v-if="loading" class="muted">Cargando…</p>
       <p v-else-if="!reviews.length" class="muted">
@@ -643,11 +659,20 @@
     font-weight: 600;
   }
 
+  .filters-panel {
+    padding: 14px 16px 16px;
+    margin: 14px 0 18px;
+    border: 1px solid var(--surface-elevated-strong);
+    border-radius: var(--radius-xl);
+    background: var(--surface-elevated);
+  }
+
+  .filters-panel__head { display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:12px;color:var(--text-heading);font-size:var(--text-sm); }.filters-panel__head > div { display:flex;align-items:center;gap:8px; }.filters-panel__head span { padding:2px 7px;border-radius:var(--radius-pill);background:var(--fill-primary-soft);color:var(--practiq-violet-dark);font-size:var(--text-xs);font-weight:800; }.filters-clear { display:inline-flex;align-items:center;gap:6px;min-height:32px;padding:5px 8px;border:0;border-radius:var(--radius-md);background:transparent;color:var(--practiq-violet-dark);font:inherit;font-size:var(--text-xs);font-weight:800;cursor:pointer; }.filters-clear:hover { background:var(--fill-primary-soft); }
+
   .filters-bar {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
     gap: 10px;
-    margin: 14px 0 18px;
   }
 
   .filter-field {
@@ -792,6 +817,8 @@
       grid-template-columns: 1fr 1fr;
       gap: 8px;
     }
+
+    .filters-panel { margin-top: 12px; padding: 12px; }
 
     .review-card {
       padding: 14px;
