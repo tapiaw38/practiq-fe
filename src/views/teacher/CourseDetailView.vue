@@ -2865,18 +2865,6 @@
     flex: 0 0 auto;
   }
 
-  .course-header::after {
-    content: "";
-    position: absolute;
-    right: 28px;
-    bottom: -52px;
-    width: 180px;
-    height: 180px;
-    border-radius: 50%;
-    background: var(--gradient-brand-soft);
-    pointer-events: none;
-  }
-
   .course-header > * {
     position: relative;
     z-index: 1;

@@ -1017,17 +1017,6 @@
     overflow: hidden;
     border-radius: 28px;
   }
-  .hero-card::after {
-    content: "";
-    position: absolute;
-    right: 28px;
-    bottom: -48px;
-    width: 170px;
-    height: 170px;
-    border-radius: 50%;
-    background: var(--gradient-brand-soft);
-    pointer-events: none;
-  }
   .hero-card > * {
     position: relative;
     z-index: 1;

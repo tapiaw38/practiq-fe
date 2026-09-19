@@ -821,18 +821,6 @@
     overflow: hidden;
   }
 
-  .ac-topbar::after {
-    content: "";
-    position: absolute;
-    right: 28px;
-    bottom: -48px;
-    width: 170px;
-    height: 170px;
-    border-radius: 50%;
-    background: var(--gradient-brand-soft);
-    pointer-events: none;
-  }
-
   .ac-topbar__left,
   .catalog-pill {
     position: relative;

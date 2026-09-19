@@ -690,18 +690,6 @@
     overflow: hidden;
   }
 
-  .page-header::after {
-    content: "";
-    position: absolute;
-    right: 28px;
-    bottom: -44px;
-    width: 160px;
-    height: 160px;
-    border-radius: 50%;
-    background: var(--gradient-brand-soft);
-    pointer-events: none;
-  }
-
   .page-header__left,
   .page-header__right {
     position: relative;
