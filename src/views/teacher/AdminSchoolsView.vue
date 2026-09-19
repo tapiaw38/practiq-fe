@@ -112,6 +112,20 @@
 
   function clearAdminMatchesSoon() { window.setTimeout(() => (adminMatches.value = []), 150); }
 
+  function openCreateForm() {
+    form.name = "";
+    form.billing = "direct";
+    adminQuery.value = "";
+    adminUserId.value = "";
+    adminMatches.value = [];
+    showCreateForm.value = true;
+  }
+
+  function closeCreateForm() {
+    showCreateForm.value = false;
+    adminMatches.value = [];
+  }
+
   function openEdit(school: School) {
     editingSchool.value = school;
     editForm.name = school.name;
@@ -224,40 +238,10 @@
           <h1>Escuelas e instituciones</h1>
           <p class="page-sub">Creá instituciones, elegí cuál administrar y revisá espacios personales.</p>
         </div>
-        <button class="btn-primary" type="button" @click="showCreateForm = !showCreateForm">
+        <button class="btn-primary" type="button" @click="openCreateForm">
           <i class="pi pi-plus"></i> Nueva institución
         </button>
       </header>
-
-      <form v-if="showCreateForm" class="school-form" @submit.prevent="createSchool">
-        <h2 class="form-title">Nueva institución</h2>
-        <div class="form-grid">
-          <label class="field field--wide">
-            <span>Nombre</span>
-            <input v-model="form.name" type="text" placeholder="Escuela San Martín" />
-          </label>
-          <label class="field">
-            <span>Facturación</span>
-            <select v-model="form.billing">
-              <option value="direct">Directa (por fuera)</option>
-              <option value="subscription">Por suscripción</option>
-            </select>
-          </label>
-          <label class="field field--wide admin-picker">
-            <span>Administrador inicial</span>
-            <input v-model="adminQuery" type="search" placeholder="Nombre o email" autocomplete="off" @input="searchAdmins" @blur="clearAdminMatchesSoon" />
-            <ul v-if="adminMatches.length" class="user-matches">
-              <li v-for="user in adminMatches" :key="user.id"><button type="button" @mousedown.prevent="selectAdmin(user)"><strong>{{ user.first_name }} {{ user.last_name }}</strong><span>{{ user.email }}</span></button></li>
-            </ul>
-            <small v-if="adminUserId">Seleccionado. Debe haber iniciado sesión en Practiq.</small>
-          </label>
-        </div>
-        <p class="form-note">
-          Con facturación directa no se consulta ningún plan y no hay tope de
-          alumnos.
-        </p>
-        <div class="form-actions"><button class="btn-quiet" type="button" @click="showCreateForm = false">Cancelar</button><button class="btn-primary" type="submit" :disabled="saving">Crear institución</button></div>
-      </form>
 
       <section>
         <h2 class="section-title">Instituciones</h2>
@@ -328,6 +312,36 @@
           </li>
         </ul>
       </section>
+    </div>
+
+    <div v-if="showCreateForm" class="close-backdrop" role="presentation" @click.self="closeCreateForm">
+      <form class="close-card school-form" @submit.prevent="createSchool">
+        <p class="eyebrow">Administración de plataforma</p>
+        <h2 class="form-title">Nueva institución</h2>
+        <div class="form-grid">
+          <label class="field field--wide">
+            <span>Nombre</span>
+            <input v-model="form.name" type="text" placeholder="Escuela San Martín" autofocus />
+          </label>
+          <label class="field">
+            <span>Facturación</span>
+            <select v-model="form.billing">
+              <option value="direct">Directa (por fuera)</option>
+              <option value="subscription">Por suscripción</option>
+            </select>
+          </label>
+          <label class="field field--wide admin-picker">
+            <span>Administrador inicial</span>
+            <input v-model="adminQuery" type="search" placeholder="Nombre o email" autocomplete="off" @input="searchAdmins" @blur="clearAdminMatchesSoon" />
+            <ul v-if="adminMatches.length" class="user-matches">
+              <li v-for="user in adminMatches" :key="user.id"><button type="button" @mousedown.prevent="selectAdmin(user)"><strong>{{ user.first_name }} {{ user.last_name }}</strong><span>{{ user.email }}</span></button></li>
+            </ul>
+            <small v-if="adminUserId">Seleccionado. Debe haber iniciado sesión en Practiq.</small>
+          </label>
+        </div>
+        <p class="form-note">Con facturación directa no se consulta ningún plan y no hay tope de alumnos.</p>
+        <div class="form-actions"><button class="btn-quiet" type="button" @click="closeCreateForm">Cancelar</button><button class="btn-primary" type="submit" :disabled="saving">Crear institución</button></div>
+      </form>
     </div>
 
     <div v-if="closeTarget" class="close-backdrop" role="presentation" @click.self="cancelClose">
@@ -597,25 +611,25 @@
       padding: 0.9rem;
     }
 
-    .school-row,
-    .member-row {
-      flex-direction: column;
-      align-items: flex-start;
-    }
-
     .page-header { flex-direction: column; }
 
     .member-form {
       grid-template-columns: 1fr;
     }
 
-    .btn-primary,
-    .btn-quiet,
-    .btn-danger {
+    .page-header > .btn-primary {
       min-height: 44px;
       width: 100%;
     }
 
-    .row-actions { width: 100%; flex-direction: column; align-items: stretch; }
+    .school-row { align-items: flex-start; flex-direction: column; gap: .65rem; padding: .9rem; }
+    .school-main { width: 100%; }
+    .row-actions { display: grid; grid-template-columns: 1fr 1fr; width: 100%; gap: .4rem; }
+    .row-actions .btn-quiet { min-height: 38px; width: 100%; padding: .4rem .5rem; border: 1px solid var(--surface-border); background: var(--surface-subtle); }
+    .row-actions .btn-quiet--danger { color: var(--color-error-dark, #b91c1c); background: var(--color-error-bg, #fef2f2); }
+    .close-backdrop { align-items: end; padding: 0; }
+    .close-card { width: 100%; max-height: 92dvh; overflow-y: auto; padding: 1.25rem 1rem max(1.25rem, env(safe-area-inset-bottom)); border-radius: var(--radius-xl) var(--radius-xl) 0 0; }
+    .school-form .form-actions { flex-direction: column-reverse; align-items: stretch; }
+    .school-form .form-actions button { min-height: 44px; width: 100%; }
   }
 </style>
