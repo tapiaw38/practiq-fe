@@ -294,8 +294,8 @@
   const showAIDraftsModal = ref(false);
   const aiSource = ref<File | null>(null);
   const aiDrafts = ref<AIDraft[]>([]);
-  const aiCount = ref(5);
-  const aiDifficulty = ref(5);
+  const aiCount = ref(1);
+  const aiDifficulty = ref(1);
   const aiInstruction = ref("");
   const aiType = ref("");
   const aiGenerating = ref(false);
