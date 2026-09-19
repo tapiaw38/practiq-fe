@@ -27,6 +27,8 @@
     () => profile.value?.name?.[0]?.toUpperCase() || "A",
   );
   const navOpen = ref(false);
+  const drawerViewportHeight = ref(0);
+  const drawerViewportTop = ref(0);
   const coursesOpen = ref(false);
   const loadingCourses = ref(false);
   const coursesData = ref<CourseNavItem[]>([]);
@@ -37,6 +39,13 @@
     localStorage.getItem("practiq-last-practice") || "",
   );
   const isGoogleUser = computed(() => authStore.authMethod === "google");
+  const drawerViewportStyle = computed(() => {
+    if (window.innerWidth > 920 || !drawerViewportHeight.value) return undefined;
+    return {
+      top: `${drawerViewportTop.value + 12}px`,
+      height: `${Math.max(0, drawerViewportHeight.value - 24)}px`,
+    };
+  });
   // openLevels[courseId] = Set of open level numbers
   const openLevels = reactive<Record<string, Set<number>>>({});
 
@@ -118,6 +127,13 @@
     if (window.innerWidth > 920) navOpen.value = false;
   }
 
+  function syncDrawerViewport() {
+    drawerViewportHeight.value = Math.round(
+      window.visualViewport?.height ?? window.innerHeight,
+    );
+    drawerViewportTop.value = Math.round(window.visualViewport?.offsetTop ?? 0);
+  }
+
   function syncLastPractice(event: Event) {
     const id = (event as CustomEvent<{ id?: string }>).detail?.id || "";
     lastPracticedSheetId.value = id;
@@ -138,11 +154,18 @@
   });
 
   onMounted(() => {
+    syncDrawerViewport();
     window.addEventListener("resize", syncDesktopState);
+    window.addEventListener("resize", syncDrawerViewport);
+    window.visualViewport?.addEventListener("resize", syncDrawerViewport);
+    window.visualViewport?.addEventListener("scroll", syncDrawerViewport);
     window.addEventListener("practiq:last-practice-changed", syncLastPractice);
   });
   onUnmounted(() => {
     window.removeEventListener("resize", syncDesktopState);
+    window.removeEventListener("resize", syncDrawerViewport);
+    window.visualViewport?.removeEventListener("resize", syncDrawerViewport);
+    window.visualViewport?.removeEventListener("scroll", syncDrawerViewport);
     window.removeEventListener("practiq:last-practice-changed", syncLastPractice);
   });
 
@@ -178,7 +201,7 @@
 
     <div v-if="navOpen" class="drawer-backdrop" @click="navOpen = false"></div>
 
-    <aside class="sidebar" :class="{ 'sidebar--open': navOpen }">
+    <aside class="sidebar" :class="{ 'sidebar--open': navOpen }" :style="drawerViewportStyle">
       <div class="sidebar-brand">
         <img src="@/assets/logo.png" class="sidebar-logo" alt="Practiq" />
         <button class="close-btn" type="button" @click="navOpen = false">
