@@ -491,6 +491,7 @@
   const showModes = ref(false);
   const isMobile = ref(false);
   const mobileViewportHeight = ref(0);
+  const mobileViewportTop = ref(0);
 
   const messages = ref<AssistantMessage[]>([]);
   const draft = ref("");
@@ -580,7 +581,11 @@
 
   const mobileViewportStyle = computed(() =>
     isMobile.value && mobileViewportHeight.value
-      ? { height: `${mobileViewportHeight.value}px`, bottom: "auto" }
+      ? {
+          height: `${mobileViewportHeight.value}px`,
+          top: `${mobileViewportTop.value}px`,
+          bottom: "auto",
+        }
       : undefined,
   );
 
@@ -1545,6 +1550,9 @@
 
   function updateMobile() {
     isMobile.value = window.matchMedia("(max-width: 640px)").matches;
+    // Android may pan the visual viewport to the focused textarea. Keep the
+    // modal in that viewport instead of leaving its header/messages above it.
+    mobileViewportTop.value = Math.round(window.visualViewport?.offsetTop ?? 0);
     mobileViewportHeight.value = Math.round(
       window.visualViewport?.height ?? window.innerHeight,
     );
@@ -1554,6 +1562,7 @@
     updateMobile();
     window.addEventListener("resize", updateMobile);
     window.visualViewport?.addEventListener("resize", updateMobile);
+    window.visualViewport?.addEventListener("scroll", updateMobile);
   });
 
   watch(
@@ -1590,6 +1599,7 @@
     canvasResizeObserver?.disconnect();
     window.removeEventListener("resize", updateMobile);
     window.visualViewport?.removeEventListener("resize", updateMobile);
+    window.visualViewport?.removeEventListener("scroll", updateMobile);
   });
 </script>
 
