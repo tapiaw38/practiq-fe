@@ -377,6 +377,35 @@
   }
   .topbar-school { display: none; min-width: 0; overflow: hidden; color: var(--text-secondary); font-size: var(--text-xs); font-weight: 700; text-overflow: ellipsis; white-space: nowrap; }
 
+  /* Shared teacher hierarchy. Legacy views used several independent scales;
+     these role selectors keep administration, courses and review queues on
+     the same visual rhythm without changing their content or workflows. */
+  :global(.main-content .page-kicker),
+  :global(.main-content .eyebrow),
+  :global(.main-content .hero-kicker),
+  :global(.main-content .ac-eyebrow) {
+    font-size: var(--font-kicker);
+    line-height: 1.3;
+    font-weight: 800;
+    letter-spacing: .09em;
+  }
+
+  :global(.main-content .page-title),
+  :global(.main-content .hero-title),
+  :global(.main-content .ac-title),
+  :global(.main-content > * > header h1) {
+    font-size: var(--font-hero);
+    line-height: 1.18;
+    letter-spacing: -.02em;
+  }
+
+  :global(.main-content .page-subtitle),
+  :global(.main-content .page-sub),
+  :global(.main-content .hero-copy) {
+    font-size: var(--font-body);
+    line-height: 1.55;
+  }
+
   .close-btn,
   .topbar-btn,
   .logout-btn {
@@ -638,6 +667,12 @@
     .topbar-brand { display: flex; flex-direction: column; align-items: center; gap: 1px; min-width: 0; max-width: none; text-align: center; }
     .topbar-school { display: block; max-width: 100%; line-height: 1.2; }
 
+    :global(.main-content input:not([type="checkbox"]):not([type="radio"])),
+    :global(.main-content select),
+    :global(.main-content textarea) {
+      font-size: 16px;
+    }
+
     .drawer-backdrop {
       display: block;
       position: fixed;
@@ -680,6 +715,21 @@
 
     .close-btn i {
       line-height: 1;
+    }
+  }
+
+  @media (max-width: 640px) {
+    :global(.main-content .page-title),
+    :global(.main-content .hero-title),
+    :global(.main-content .ac-title),
+    :global(.main-content > * > header h1) {
+      font-size: 24px;
+    }
+
+    :global(.main-content .page-subtitle),
+    :global(.main-content .page-sub),
+    :global(.main-content .hero-copy) {
+      font-size: 14px;
     }
   }
 
