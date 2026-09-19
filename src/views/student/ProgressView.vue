@@ -4,6 +4,7 @@
   import StudentLayout from "@/layouts/StudentLayout.vue";
   import Skeleton from "@/components/ui/Skeleton.vue";
   import { useDashboard } from "@/composables/useDashboard";
+  import { useCountUp } from "@/composables/useCountUp";
   import { formatRelativeTime } from "@/utils/formatters";
   import { MASTERED_AT, masteryTier, needsReview } from "@/utils/mastery";
   import type { CourseSummary } from "@/services/dashboard/dashboardService";
@@ -133,6 +134,14 @@
     return Math.round(total / groupedProgress.value.length);
   });
 
+  // Match the home metrics: these values arrive after the view renders, so
+  // counting them in makes the progress summary feel responsive without
+  // changing the mastery calculation itself.
+  const averageMasteryShown = useCountUp(averageMastery);
+  const totalTopicsShown = useCountUp(computed(() => stats.value.total));
+  const reviewTopicsShown = useCountUp(computed(() => stats.value.review));
+  const masteredTopicsShown = useCountUp(computed(() => stats.value.mastered));
+
   onMounted(async () => {
     try {
       const data = await loadDashboard();
@@ -168,7 +177,7 @@
         </div>
         <div v-else-if="groupedProgress.length" class="header-badge">
           <span class="hb-label">Dominio</span>
-          <span class="hb-value">{{ averageMastery }}%</span>
+          <span class="hb-value">{{ averageMasteryShown }}%</span>
         </div>
       </header>
 
@@ -195,19 +204,19 @@
       <template v-else>
         <div class="stat-row">
           <div class="stat-tile">
-            <span class="stat-value">{{ stats.total }}</span>
+            <span class="stat-value">{{ totalTopicsShown }}</span>
             <span class="stat-label">Temas</span>
           </div>
           <div class="stat-tile">
             <span class="stat-value">
-              <span class="stat-dot stat-dot--review"></span>{{ stats.review }}
+              <span class="stat-dot stat-dot--review"></span>{{ reviewTopicsShown }}
             </span>
             <span class="stat-label">Para repasar</span>
           </div>
           <div class="stat-tile">
             <span class="stat-value">
               <span class="stat-dot stat-dot--mastered"></span
-              >{{ stats.mastered }}
+              >{{ masteredTopicsShown }}
             </span>
             <span class="stat-label">Dominados</span>
           </div>
