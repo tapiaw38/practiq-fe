@@ -74,7 +74,7 @@
 
       <Skeleton v-if="loading" height="320px" />
 
-      <form v-else @submit.prevent="save">
+      <form v-else class="settings-card" @submit.prevent="save">
         <p :class="['status', configured ? 'status--on' : 'status--off']">
           {{ configured ? "Asistente activo" : "Asistente sin configurar" }}
         </p>
@@ -107,25 +107,26 @@
 </template>
 
 <style scoped>
-  .page { max-width: 720px; margin: 0 auto; padding: 32px 24px; }
-  .eyebrow { font-size: 11px; font-weight: 700; letter-spacing: .1em; color: var(--practiq-violet); text-transform: uppercase; }
-  h1 { margin: 6px 0; color: var(--text-heading); }
-  header p:last-child { color: var(--text-secondary); }
-  form { display: grid; gap: 18px; margin-top: 30px; padding: 26px; border: 1px solid var(--surface-border); border-radius: 14px; background: var(--surface-card); }
-  label { display: grid; gap: 7px; font-weight: 600; }
-  input { padding: 12px; border: 1px solid var(--surface-border); border-radius: 8px; font: inherit; }
-  .status { justify-self: start; margin: 0; padding: .3rem .7rem; border-radius: 999px; font-size: .78rem; font-weight: 700; }
+  .page { max-width: 760px; margin: 0 auto; padding: 32px 24px 48px; }
+  .eyebrow { font-size: var(--font-kicker); font-weight: 800; letter-spacing: .09em; color: var(--practiq-violet); text-transform: uppercase; }
+  h1 { margin: 6px 0 8px; color: var(--text-heading); }
+  header p:last-child { max-width: 660px; margin: 0; color: var(--text-secondary); line-height: 1.55; }
+  .settings-card { display: grid; gap: 18px; margin-top: 28px; padding: 24px; border: 1px solid var(--surface-border); border-top: 3px solid var(--practiq-violet); border-radius: var(--radius-xl); background: var(--surface-card); box-shadow: var(--shadow-card); }
+  label { display: grid; gap: 8px; color: var(--text-heading); font-size: var(--text-sm); font-weight: 800; }
+  input { min-height: 48px; padding: 11px 13px; border: 1px solid var(--surface-border); border-radius: var(--radius-md); background: var(--surface-ground); color: var(--text-primary); font: inherit; }
+  input:focus { outline: none; border-color: var(--practiq-violet); box-shadow: 0 0 0 3px rgba(var(--practiq-violet-rgb), .12); }
+  .status { justify-self: start; margin: 0 0 2px; padding: .4rem .75rem; border-radius: var(--radius-pill); font-size: var(--text-xs); font-weight: 800; }
   .status--on { color: var(--color-success-dark); background: var(--color-success-bg); }
   .status--off { color: var(--color-warning-dark); background: var(--color-warning-bg); }
-  .hint { margin: -8px 0 0; color: var(--text-secondary); font-size: .82rem; }
-  button { justify-self: start; padding: 12px 18px; border: 0; border-radius: 8px; background: var(--practiq-violet); color: #fff; font-weight: 700; cursor: pointer; }
+  .hint { margin: -8px 0 0; color: var(--text-secondary); font-size: var(--text-xs); line-height: 1.5; }
+  button { min-height: 46px; justify-self: start; padding: 10px 20px; border: 0; border-radius: var(--radius-md); background: linear-gradient(135deg, var(--practiq-violet), var(--color-info)); box-shadow: var(--shadow-violet); color: #fff; font-weight: 800; cursor: pointer; }
   button:disabled { opacity: .6; }
   @media (max-width: 600px) {
-    .page { padding: 20px 16px 32px; }
-    h1 { font-size: 1.65rem; line-height: 1.14; }
-    header p:last-child { margin-bottom: 0; font-size: .92rem; line-height: 1.5; }
-    form { gap: 16px; margin-top: 22px; padding: 18px 16px; border-radius: 12px; }
-    input { min-height: 44px; font-size: 16px; }
+    .page { padding: 20px 16px 36px; }
+    h1 { font-size: 24px; line-height: 1.18; }
+    header p:last-child { font-size: 14px; }
+    .settings-card { gap: 16px; margin-top: 22px; padding: 18px 16px; }
+    input { min-height: 48px; font-size: 16px; }
     .hint { margin-top: -5px; line-height: 1.45; }
     button { width: 100%; min-height: 44px; justify-self: stretch; }
   }
