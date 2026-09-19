@@ -137,6 +137,7 @@
   const assistantContext = computed(() => ({
     studentName: authStore.profile?.name,
     courses: summaries.value.map((c) => ({
+      id: c.course_id,
       title: c.title,
       subject: c.subject,
       grade: "",
@@ -580,7 +581,10 @@
             </RouterLink>
           </div>
 
-          <div class="mastery-grid anim-stagger">
+          <div
+            class="mastery-grid anim-stagger"
+            aria-label="Progreso por tema. Deslizá horizontalmente para ver más temas."
+          >
             <article
               v-for="p in topProgress"
               :key="p.topic_id"
@@ -644,6 +648,7 @@
   <AssistantChatModal
     :show="showAssistant"
     :student-context="assistantContext"
+    require-practice-context
     @close="showAssistant = false"
   />
 </template>
@@ -1022,7 +1027,7 @@
 
   .mastery-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+    grid-template-columns: repeat(3, minmax(0, 1fr));
     gap: 14px;
   }
 
@@ -1109,7 +1114,7 @@
       gap: 20px;
     }
     .mastery-grid {
-      grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+      grid-template-columns: repeat(2, minmax(0, 1fr));
     }
   }
 
@@ -1175,7 +1180,23 @@
       white-space: nowrap;
     }
     .mastery-grid {
-      grid-template-columns: 1fr;
+      display: flex;
+      gap: 12px;
+      overflow-x: auto;
+      overscroll-behavior-x: contain;
+      padding: 2px 14px 10px;
+      margin: 0 -14px;
+      scroll-padding-inline: 14px;
+      scroll-snap-type: x mandatory;
+      -webkit-overflow-scrolling: touch;
+      scrollbar-width: none;
+    }
+    .mastery-grid::-webkit-scrollbar {
+      display: none;
+    }
+    .mastery-card {
+      flex: 0 0 min(82vw, 310px);
+      scroll-snap-align: start;
     }
     .section-title {
       font-size: 18px;

@@ -2813,22 +2813,26 @@
     }
 
     .practice-footer {
-      /* One column on a phone: three zones side by side would leave each button
-         too narrow to hit. */
+      /* Fixed, not sticky: a short exercise must still leave the actions at
+         the bottom of the viewport instead of immediately below its card. */
+      position: fixed;
+      right: 0;
+      bottom: 0;
+      left: 0;
       grid-template-columns: 1fr;
       gap: 12px;
       align-items: stretch;
       padding: 12px 16px;
-      /* Pegado al borde: con bottom:16px quedaba una franja por la que se veía
-         pasar el contenido. Los -10px compensan el padding lateral del shell
-         para que la barra llegue de borde a borde. */
-      bottom: 0;
-      margin-left: -10px;
-      margin-right: -10px;
       border-radius: var(--radius-xl) var(--radius-xl) 0 0;
       border-bottom: 0;
       padding-bottom: max(12px, env(safe-area-inset-bottom));
-      margin-top: 8px;
+      z-index: 20;
+    }
+
+    /* The fixed footer may grow when the draft indicator is visible. Reserve
+       the larger state so an exercise never disappears under its actions. */
+    .practice-area {
+      padding-bottom: calc(190px + env(safe-area-inset-bottom));
     }
 
     .draw-tools-bar {

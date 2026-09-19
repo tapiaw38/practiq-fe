@@ -1,7 +1,12 @@
 <template>
   <Teleport to="body">
     <Transition name="acm-fade">
-      <div v-if="show" class="acm-overlay" @click.self="requestClose">
+      <div
+        v-if="show"
+        class="acm-overlay"
+        :style="mobileViewportStyle"
+        @click.self="requestClose"
+      >
         <div class="acm-modal" role="dialog" aria-label="Practi, el asistente de práctica">
           <!-- ── Header ── -->
           <div class="acm-header">
@@ -47,19 +52,118 @@
             </div>
           </div>
 
+          <div v-if="activeGuidedPractice && !needsPracticeSetup" class="acm-practice-context">
+            <i :class="mode === 'pizarron' ? 'pi pi-pencil' : 'pi pi-comments'" aria-hidden="true"></i>
+            <span>{{ activeGuidedPractice.course.title }}</span>
+            <i class="pi pi-angle-right" aria-hidden="true"></i>
+            <strong>{{ activeGuidedPractice.topic.title }}</strong>
+            <span class="acm-practice-context__mode">{{ modeLabel }}</span>
+          </div>
+
+          <!-- ── Guided practice setup ── -->
+          <template v-if="needsPracticeSetup">
+            <div class="acm-practice-picker">
+              <div class="acm-practice-picker__intro">
+                <span class="acm-practice-picker__eyebrow">Práctica guiada</span>
+                <h3>¿Qué querés practicar?</h3>
+                <p>Elegí un curso y un tema. Practi preparará ejercicios solo sobre esa elección.</p>
+              </div>
+
+              <div class="acm-practice-picker__group">
+                <span class="acm-practice-picker__label">Curso</span>
+                <div class="acm-practice-picker__chips" role="listbox" aria-label="Elegí un curso">
+                  <button
+                    v-for="course in studentContext?.courses ?? []"
+                    :key="course.id"
+                    type="button"
+                    class="acm-practice-chip"
+                    :class="{ 'acm-practice-chip--selected': selectedCourseId === course.id }"
+                    :aria-selected="selectedCourseId === course.id"
+                    @click="selectCourse(course.id)"
+                  >
+                    {{ course.title }}
+                  </button>
+                </div>
+              </div>
+
+              <div v-if="selectedCourseId" class="acm-practice-picker__group">
+                <span class="acm-practice-picker__label">Tema</span>
+                <div v-if="topicsLoading" class="acm-practice-picker__loading">
+                  <i class="pi pi-spin pi-spinner" aria-hidden="true"></i> Cargando temas…
+                </div>
+                <div v-else-if="topics.length" class="acm-practice-picker__chips" role="listbox" aria-label="Elegí un tema">
+                  <button
+                    v-for="topic in topics"
+                    :key="topic.id"
+                    type="button"
+                    class="acm-practice-chip"
+                    :class="{ 'acm-practice-chip--selected': selectedTopicId === topic.id }"
+                    :aria-selected="selectedTopicId === topic.id"
+                    @click="selectedTopicId = topic.id"
+                  >
+                    {{ topic.title }}
+                  </button>
+                </div>
+                <p v-else class="acm-practice-picker__empty">Este curso todavía no tiene temas para practicar.</p>
+              </div>
+
+              <div v-if="selectedTopic" class="acm-practice-picker__group">
+                <span class="acm-practice-picker__label">Modalidad</span>
+                <div class="acm-practice-picker__modes" role="radiogroup" aria-label="Elegí una modalidad">
+                  <button
+                    v-for="item in modes"
+                    :key="item.value"
+                    type="button"
+                    class="acm-practice-mode"
+                    :class="{ 'acm-practice-mode--selected': selectedPracticeMode === item.value }"
+                    :aria-checked="selectedPracticeMode === item.value"
+                    role="radio"
+                    @click="selectedPracticeMode = item.value"
+                  >
+                    <i class="pi" :class="item.icon" aria-hidden="true"></i>
+                    <span><strong>{{ item.label }}</strong><small>{{ item.value === 'pizarron' ? 'Resolvé en lienzo' : 'Practicá conversando' }}</small></span>
+                  </button>
+                </div>
+              </div>
+
+              <button
+                type="button"
+                class="btn btn-primary acm-practice-picker__start"
+                :disabled="!selectedCourse || !selectedTopic || topicsLoading"
+                @click="startGuidedPractice"
+              >
+                <i class="pi pi-play"></i> Empezar práctica
+              </button>
+            </div>
+          </template>
+
           <!-- ── PIZARRÓN mode body ── -->
-          <template v-if="mode === 'pizarron'">
+          <template v-else-if="mode === 'pizarron'">
             <!-- Idle: intro card -->
             <div v-if="pizState === 'idle'" class="acm-piz-idle">
-              <div class="acm-piz-intro-icon">
-                <i class="pi pi-pencil" aria-hidden="true"></i>
-              </div>
-              <h3 class="acm-piz-intro-title">Modo Pizarrón</h3>
-              <p class="acm-piz-intro-desc">
-                Escribe el tema que quieres practicar, o mantené presionado el
-                micrófono para decirlo, y te generaré un ejercicio.<br />
-                Luego lo resuelves en tu lienzo y lo evalúo al instante.
-              </p>
+              <template v-if="activeGuidedPractice">
+                <div class="acm-piz-intro-icon">
+                  <i class="pi pi-pencil" aria-hidden="true"></i>
+                </div>
+                <h3 class="acm-piz-intro-title">Seguimos con {{ activeGuidedPractice.topic.title }}</h3>
+                <p class="acm-piz-intro-desc">
+                  Tu práctica sigue enfocada en este tema.
+                </p>
+                <button class="btn btn-primary acm-next-btn" @click="nextPizarronExercise">
+                  <i class="pi pi-refresh" aria-hidden="true"></i> Generar ejercicio
+                </button>
+              </template>
+              <template v-else>
+                <div class="acm-piz-intro-icon">
+                  <i class="pi pi-pencil" aria-hidden="true"></i>
+                </div>
+                <h3 class="acm-piz-intro-title">Modo Pizarrón</h3>
+                <p class="acm-piz-intro-desc">
+                  Escribe el tema que quieres practicar, o mantené presionado el
+                  micrófono para decirlo, y te generaré un ejercicio.<br />
+                  Luego lo resuelves en tu lienzo y lo evalúo al instante.
+                </p>
+              </template>
             </div>
 
             <!-- Generating spinner -->
@@ -183,7 +287,7 @@
               ></audio>
               <button
                 class="btn btn-primary acm-next-btn"
-                @click="resetPizarron"
+                @click="nextPizarronExercise"
               >
                 <i class="pi pi-refresh"></i> Siguiente ejercicio
               </button>
@@ -242,7 +346,7 @@
           <!-- ── Footer: mode strip + input ── -->
           <div
             class="acm-footer"
-            v-show="mode !== 'pizarron' || pizState === 'idle'"
+            v-show="!needsPracticeSetup && (mode !== 'pizarron' || (pizState === 'idle' && !activeGuidedPractice))"
           >
             <!-- Mode strip toggle -->
             <div class="acm-mode-toggle-row">
@@ -365,8 +469,9 @@
   import type {
     AssistantChatModalEmits,
     AssistantChatModalProps,
+    AssistantStudentCourseContext,
   } from "./AssistantChatModal.types";
-  import type { AssistantMode, AssistantMessage, PizarronState } from "@/types";
+  import type { AssistantMode, AssistantMessage, PizarronState, Topic } from "@/types";
   import {
     assistantVoiceEnabled,
     setAssistantVoiceEnabled,
@@ -377,6 +482,7 @@
 
   const authStore = useAuthStore();
   const API_BASE = `${import.meta.env.VITE_PRACTIQ_API_URL || "http://localhost:8083"}/api/assistant-proxy`;
+  const PRACTIQ_API_BASE = `${import.meta.env.VITE_PRACTIQ_API_URL || "http://localhost:8083"}/api`;
   const STORAGE_KEY = "ai-client-id";
 
   // State
@@ -384,6 +490,7 @@
   const mode = ref<AssistantMode>("escrita");
   const showModes = ref(false);
   const isMobile = ref(false);
+  const mobileViewportHeight = ref(0);
 
   const messages = ref<AssistantMessage[]>([]);
   const draft = ref("");
@@ -393,6 +500,19 @@
   const inputEl = ref<HTMLTextAreaElement | null>(null);
   let conversationId: string | null = null;
   let msgCounter = 0;
+
+  type GuidedPractice = {
+    course: AssistantStudentCourseContext;
+    topic: Topic;
+  };
+
+  const selectedCourseId = ref("");
+  const selectedTopicId = ref("");
+  const topics = ref<Topic[]>([]);
+  const topicsLoading = ref(false);
+  const activeGuidedPractice = ref<GuidedPractice | null>(null);
+  const selectedPracticeMode = ref<AssistantMode>("pizarron");
+  let topicRequest = 0;
 
   // Voice replies (Gillie TTS). Persisted so the student keeps their choice.
   // No autoplay: the player appears and waits, which is the safe default in a
@@ -456,6 +576,26 @@
       isRecording.value ||
       pizState.value === "generating" ||
       pizState.value === "evaluating",
+  );
+
+  const mobileViewportStyle = computed(() =>
+    isMobile.value && mobileViewportHeight.value
+      ? { height: `${mobileViewportHeight.value}px`, bottom: "auto" }
+      : undefined,
+  );
+
+  const needsPracticeSetup = computed(
+    () => Boolean(props.requirePracticeContext && !activeGuidedPractice.value),
+  );
+
+  const selectedCourse = computed(() =>
+    (props.studentContext?.courses ?? []).find(
+      (course) => course.id === selectedCourseId.value,
+    ),
+  );
+
+  const selectedTopic = computed(() =>
+    topics.value.find((topic) => topic.id === selectedTopicId.value),
   );
 
   const statusLabel = computed(() => {
@@ -693,6 +833,14 @@
         ),
       );
     }
+    if (activeGuidedPractice.value) {
+      const { course, topic } = activeGuidedPractice.value;
+      lines.push("Práctica guiada elegida (obligatoria):");
+      lines.push(`  - Curso: ${course.title} (id: ${course.id})`);
+      lines.push(`  - Tema: ${topic.title} (id: ${topic.id})`);
+      lines.push(`  - Nivel actual: ${course.currentLevel}`);
+      lines.push("Genera y explica contenido únicamente de este tema.");
+    }
     const activityContext = getActivityContext();
     if (activityContext) {
       lines.push("Contexto de la actividad actual:");
@@ -781,6 +929,61 @@
     conversationId = data.data.id;
     const clientId = data.data.client_id;
     if (clientId) localStorage.setItem(STORAGE_KEY, clientId);
+  }
+
+  async function selectCourse(courseId: string) {
+    selectedCourseId.value = courseId;
+    selectedTopicId.value = "";
+    topics.value = [];
+    topicsLoading.value = true;
+    const request = ++topicRequest;
+    try {
+      const res = await fetchAssistant(
+        `${PRACTIQ_API_BASE}/courses/${encodeURIComponent(courseId)}/topics`,
+        { headers: authHeaders() },
+      );
+      if (!res.ok) throw new Error(`list topics ${res.status}`);
+      const payload = await res.json();
+      if (request !== topicRequest) return;
+      topics.value = (payload?.data ?? []).sort(
+        (a: Topic, b: Topic) => a.order_index - b.order_index,
+      );
+    } catch {
+      if (request === topicRequest) topics.value = [];
+    } finally {
+      if (request === topicRequest) topicsLoading.value = false;
+    }
+  }
+
+  async function startGuidedPractice() {
+    if (!selectedCourse.value || !selectedTopic.value || topicsLoading.value) return;
+    activeGuidedPractice.value = {
+      course: selectedCourse.value,
+      topic: selectedTopic.value,
+    };
+    conversationId = null;
+    messages.value = [];
+    msgCounter = 0;
+    mode.value = selectedPracticeMode.value;
+    resetPizarron();
+    if (mode.value === "pizarron") {
+      await generateExercise(selectedTopic.value.title);
+      return;
+    }
+    addMsg(
+      "assistant",
+      `Perfecto. Vamos a practicar ${selectedTopic.value.title}. ¿Qué parte querés repasar primero?`,
+    );
+  }
+
+  function resetGuidedPractice() {
+    activeGuidedPractice.value = null;
+    selectedCourseId.value = "";
+    selectedTopicId.value = "";
+    selectedPracticeMode.value = "pizarron";
+    topics.value = [];
+    topicsLoading.value = false;
+    topicRequest++;
   }
 
   async function postFormData(
@@ -1112,7 +1315,8 @@
       fd.append("content", prompt);
       fd.append("context", buildContext());
       fd.append("image_content", blob, "student_canvas.png");
-      // Canvas evaluation needs Vision analysis, not course-image search.
+      // Gillie reads image_content through Vision. Its image-processor flag is
+      // document-image search, which is unrelated and can make canvas review stall.
       const reply = await postFormData(fd, false);
       feedbackHtml.value = reply.text;
       feedbackAudio.value = reply.audioUrl;
@@ -1139,6 +1343,15 @@
       if (ctx) ctx.clearRect(0, 0, canvasEl.value.width, canvasEl.value.height);
     }
     canvasInitialized = false;
+  }
+
+  /** Keep guided practice inside its selected course and topic between exercises. */
+  async function nextPizarronExercise() {
+    const guidedTopic = activeGuidedPractice.value?.topic.title;
+    resetPizarron();
+    if (guidedTopic) {
+      await generateExercise(guidedTopic);
+    }
   }
 
   function setMode(m: AssistantMode) {
@@ -1332,11 +1545,15 @@
 
   function updateMobile() {
     isMobile.value = window.matchMedia("(max-width: 640px)").matches;
+    mobileViewportHeight.value = Math.round(
+      window.visualViewport?.height ?? window.innerHeight,
+    );
   }
 
   onMounted(() => {
     updateMobile();
     window.addEventListener("resize", updateMobile);
+    window.visualViewport?.addEventListener("resize", updateMobile);
   });
 
   watch(
@@ -1362,6 +1579,7 @@
         document.body.classList.add("assistant-modal-open");
       } else {
         document.body.classList.remove("assistant-modal-open");
+        resetGuidedPractice();
       }
     },
     { immediate: true },
@@ -1371,6 +1589,7 @@
     document.body.classList.remove("assistant-modal-open");
     canvasResizeObserver?.disconnect();
     window.removeEventListener("resize", updateMobile);
+    window.visualViewport?.removeEventListener("resize", updateMobile);
   });
 </script>
 
@@ -1508,6 +1727,7 @@
   /* Messages (conversar) */
   .acm-messages {
     flex: 1;
+    min-height: 0;
     overflow-y: auto;
     padding: 24px 28px;
     display: flex;
@@ -1579,6 +1799,37 @@
     gap: 8px;
   }
 
+  .acm-practice-context {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    min-height: 38px;
+    padding: 8px 20px;
+    overflow-x: auto;
+    background: var(--fill-primary-faint);
+    border-bottom: 1px solid rgba(var(--practiq-violet-rgb), .1);
+    color: var(--text-secondary);
+    font-size: .8rem;
+    white-space: nowrap;
+  }
+
+  .acm-practice-context > :first-child {
+    color: var(--practiq-violet);
+  }
+
+  .acm-practice-context strong {
+    color: var(--text-primary);
+  }
+
+  .acm-practice-context__mode {
+    margin-left: auto;
+    padding: 3px 8px;
+    border-radius: var(--radius-pill);
+    background: var(--surface-card);
+    color: var(--practiq-violet-dark);
+    font-weight: 700;
+  }
+
   .acm-voice-on {
     background: rgba(var(--surface-card-rgb), 0.35);
   }
@@ -1639,6 +1890,120 @@
 
   .acm-oral-hint-icon {
     font-size: 48px;
+  }
+
+  /* Guided practice setup */
+  .acm-practice-picker {
+    flex: 1;
+    overflow-y: auto;
+    padding: 32px;
+    display: flex;
+    flex-direction: column;
+    gap: 24px;
+  }
+
+  .acm-practice-picker__intro h3 {
+    margin: 4px 0 8px;
+    color: var(--text-primary);
+    font-size: 1.3rem;
+  }
+
+  .acm-practice-picker__intro p,
+  .acm-practice-picker__empty {
+    margin: 0;
+    color: var(--text-secondary);
+    line-height: 1.45;
+  }
+
+  .acm-practice-picker__eyebrow,
+  .acm-practice-picker__label {
+    display: block;
+    color: var(--practiq-violet);
+    font-size: .78rem;
+    font-weight: 800;
+    letter-spacing: .04em;
+    text-transform: uppercase;
+  }
+
+  .acm-practice-picker__group {
+    display: grid;
+    gap: 10px;
+  }
+
+  .acm-practice-picker__chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  .acm-practice-picker__modes {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+  }
+
+  .acm-practice-mode {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    min-height: 64px;
+    padding: 10px 12px;
+    border: 1.5px solid var(--surface-border);
+    border-radius: var(--radius-lg);
+    background: var(--surface-card);
+    color: var(--text-primary);
+    text-align: left;
+    cursor: pointer;
+  }
+
+  .acm-practice-mode > i {
+    color: var(--practiq-violet);
+    font-size: 1.1rem;
+  }
+
+  .acm-practice-mode span {
+    display: grid;
+    gap: 2px;
+  }
+
+  .acm-practice-mode small {
+    color: var(--text-secondary);
+    font-size: .72rem;
+  }
+
+  .acm-practice-mode--selected {
+    border-color: var(--practiq-violet);
+    background: var(--fill-primary-subtle);
+  }
+
+  .acm-practice-chip {
+    min-height: 40px;
+    padding: 8px 13px;
+    border: 2px solid var(--surface-border);
+    border-radius: var(--radius-pill);
+    background: var(--surface-card);
+    color: var(--text-primary);
+    font-family: var(--font-ui-family);
+    font-size: .9rem;
+    font-weight: 700;
+    cursor: pointer;
+  }
+
+  .acm-practice-chip--selected {
+    border-color: var(--practiq-violet);
+    background: var(--fill-primary-subtle);
+    color: var(--practiq-violet-dark);
+  }
+
+  .acm-practice-picker__loading {
+    color: var(--text-secondary);
+    font-size: .9rem;
+  }
+
+  .acm-practice-picker__start {
+    align-self: flex-start;
+    min-height: 46px;
+    padding-inline: 20px;
   }
 
   /* PIZARRÓN: idle */
@@ -2113,12 +2478,30 @@
   @media (max-width: 600px) {
     .acm-overlay {
       padding: 0;
-      align-items: flex-end;
+      align-items: stretch;
+      justify-content: stretch;
+      overflow: hidden;
     }
     .acm-modal {
       width: 100vw;
-      height: 100dvh;
+      height: 100%;
+      min-height: 0;
       border-radius: 0;
+    }
+    .acm-header {
+      padding: 10px 16px;
+    }
+    .acm-avatar,
+    .acm-avatar img {
+      width: 36px;
+      height: 36px;
+      min-width: 36px;
+    }
+    .acm-title {
+      font-size: .98rem;
+    }
+    .acm-status {
+      font-size: .72rem;
     }
     .acm-bubble {
       max-width: 85%;
@@ -2131,6 +2514,72 @@
       flex: 0 0 40%;
       border-right: none;
       border-bottom: 1px solid var(--surface-border);
+    }
+
+    .acm-practice-picker {
+      padding: 18px 16px;
+      gap: 14px;
+    }
+    .acm-practice-picker__intro h3 {
+      margin: 2px 0 5px;
+      font-size: 1.12rem;
+    }
+    .acm-practice-picker__intro p {
+      font-size: .9rem;
+      line-height: 1.35;
+    }
+    .acm-practice-picker__eyebrow,
+    .acm-practice-picker__label {
+      font-size: .7rem;
+    }
+    .acm-practice-picker__group {
+      gap: 7px;
+    }
+    .acm-practice-picker__chips {
+      flex-wrap: nowrap;
+      gap: 7px;
+      overflow-x: auto;
+      padding-bottom: 2px;
+      scrollbar-width: none;
+    }
+    .acm-practice-picker__chips::-webkit-scrollbar {
+      display: none;
+    }
+    .acm-practice-context {
+      padding-inline: 14px;
+    }
+    .acm-practice-picker__modes {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 8px;
+    }
+    .acm-practice-chip {
+      flex: 0 0 auto;
+      min-height: 40px;
+      padding: 6px 11px;
+      font-size: .82rem;
+    }
+    .acm-practice-mode {
+      min-height: 58px;
+      gap: 7px;
+      padding: 8px;
+    }
+    .acm-practice-mode > i {
+      font-size: .95rem;
+    }
+    .acm-practice-mode strong {
+      font-size: .84rem;
+    }
+    .acm-practice-mode small {
+      font-size: .64rem;
+      line-height: 1.15;
+    }
+    .acm-practice-picker__start {
+      min-height: 44px;
+      font-size: .9rem;
+    }
+    .acm-practice-picker__start {
+      width: 100%;
+      justify-content: center;
     }
 
     /* Tap targets >= 44px en mobile */

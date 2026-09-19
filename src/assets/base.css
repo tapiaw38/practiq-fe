@@ -1,4 +1,6 @@
 :root {
+  --font-body-family: 'Lexend', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  --font-ui-family: 'Nunito', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
   /* Violet accent */
   --practiq-violet-50: #f5f3ff;
   --practiq-violet-100: #ede9fe;
@@ -220,7 +222,7 @@
 }
 
 html {
-  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  font-family: var(--font-body-family);
   font-size: 16px;
   -webkit-font-smoothing: antialiased;
 }
@@ -241,6 +243,15 @@ input, textarea, select {
   font-size: inherit;
 }
 
+/* Nunito keeps navigation and actions warm; Lexend remains easiest to read in content. */
+h1, h2, h3, h4, h5, h6,
+button,
+[class*='badge'],
+[class*='chip'],
+[class*='pill'] {
+  font-family: var(--font-ui-family);
+}
+
 button,
 a,
 input,
@@ -257,7 +268,7 @@ select {
 /* Secondary: denser, restrained identity. Components only consume tokens. */
 :root[data-ui-theme="secondary"],
 :root[data-ui-theme="serious"] {
-  font-family: 'IBM Plex Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  font-family: var(--font-body-family);
   --radius-xs: 3px;
   --radius-sm: 4px;
   --radius-md: 6px;
@@ -345,7 +356,7 @@ select {
 
 /* Teacher: default professional identity, independent from student themes. */
 :root[data-ui-theme="teacher"] {
-  font-family: 'IBM Plex Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  font-family: var(--font-body-family);
   --radius-xs: 3px;
   --radius-sm: 4px;
   --radius-md: 6px;

@@ -119,8 +119,14 @@
           <i class="pi pi-arrow-left"></i>
         </button>
         <div class="header-info">
-          <div class="header-kicker">Mis niveles</div>
-          <h1 class="header-title">{{ courseTitle }}</h1>
+          <template v-if="loading">
+            <Skeleton width="88px" height="10px" />
+            <Skeleton width="180px" height="25px" class="header-title-skeleton" />
+          </template>
+          <template v-else>
+            <div class="header-kicker">Mis niveles</div>
+            <h1 class="header-title">{{ courseTitle }}</h1>
+          </template>
         </div>
         <div v-if="loading" class="current-level-badge-skeleton">
           <Skeleton width="60px" height="10px" />
@@ -134,53 +140,25 @@
 
       <!-- Loading Skeleton -->
       <template v-if="loading">
-        <div class="levels-list">
-          <div v-for="n in 3" :key="n" class="level-card level-card--skeleton">
-            <div class="lc-header">
-              <Skeleton
-                variant="avatar"
-                size="44px"
-                :rounded="false"
-                class="lc-num-skeleton"
-              />
-              <div
-                class="lc-meta"
-                style="display: flex; flex-direction: column; gap: 8px"
-              >
-                <Skeleton width="80px" height="16px" />
-                <Skeleton width="70px" height="20px" />
+        <div class="levels-path-skeleton" aria-busy="true" aria-label="Cargando niveles">
+          <section class="unit-skeleton">
+            <header class="unit-banner-skeleton">
+              <div>
+                <Skeleton width="72px" height="18px" />
+                <Skeleton width="64px" height="11px" class="unit-state-skeleton" />
+              </div>
+              <Skeleton variant="circle" size="28px" />
+            </header>
+            <div class="unit-path-skeleton">
+              <div class="path-topic-skeleton"><Skeleton width="96px" height="12px" /></div>
+              <div v-for="node in 3" :key="node" class="path-slot-skeleton" :class="`path-slot-skeleton--${node}`">
+                <Skeleton v-if="node === 1" variant="badge" width="82px" height="24px" />
+                <Skeleton variant="circle" size="66px" />
+                <Skeleton :width="node === 2 ? '142px' : '124px'" height="14px" />
+                <Skeleton width="82px" height="11px" />
               </div>
             </div>
-            <div class="lc-body" style="margin-top: 16px">
-              <div class="lc-section">
-                <Skeleton width="80px" height="12px" />
-                <div
-                  class="lc-items"
-                  style="display: flex; flex-direction: column; gap: 10px"
-                >
-                  <div
-                    v-for="i in 2"
-                    :key="i"
-                    class="lc-item-skeleton"
-                    style="
-                      display: flex;
-                      align-items: center;
-                      justify-content: space-between;
-                    "
-                  >
-                    <div
-                      class="lc-item-info"
-                      style="display: flex; flex-direction: column; gap: 6px"
-                    >
-                      <Skeleton width="140px" height="14px" />
-                      <Skeleton width="80px" height="12px" />
-                    </div>
-                    <Skeleton width="16px" height="16px" />
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
+          </section>
         </div>
       </template>
 
@@ -390,6 +368,9 @@
     color: var(--text-primary);
     margin: 0;
   }
+  .header-title-skeleton {
+    margin-top: 6px;
+  }
 
   .current-level-badge {
     display: flex;
@@ -424,16 +405,55 @@
     border-radius: var(--radius-xl);
     flex-shrink: 0;
   }
-  .level-card--skeleton .lc-num-skeleton {
-    border-radius: var(--radius-lg);
+  .levels-path-skeleton {
+    display: grid;
+    gap: 22px;
   }
-  .lc-item-skeleton {
+  .unit-skeleton {
+    display: grid;
+    gap: 18px;
+  }
+  .unit-banner-skeleton {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    padding: 12px 14px;
-    background: rgba(var(--surface-bg-rgb), 0.8);
-    border-radius: var(--radius-md);
+    padding: 14px 18px;
+    border-radius: var(--radius-2xl);
+    background: var(--practiq-violet);
+  }
+  .unit-state-skeleton {
+    margin-top: 5px;
+  }
+  .unit-path-skeleton {
+    display: grid;
+    justify-items: center;
+    gap: 20px;
+    padding: 4px 0 8px;
+  }
+  .path-topic-skeleton {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    width: 100%;
+  }
+  .path-topic-skeleton::before,
+  .path-topic-skeleton::after {
+    content: "";
+    flex: 1;
+    height: 2px;
+    border-radius: var(--radius-pill);
+    background: rgba(var(--practiq-violet-rgb), 0.2);
+  }
+  .path-slot-skeleton {
+    display: grid;
+    justify-items: center;
+    gap: 6px;
+  }
+  .path-slot-skeleton--2 {
+    transform: translateX(44px);
+  }
+  .path-slot-skeleton--3 {
+    transform: translateX(-44px);
   }
   .mt-4 {
     margin-top: 4px;
