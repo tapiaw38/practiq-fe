@@ -273,13 +273,16 @@
     // Fill-in-the-blanks: blanks come from the statement, options include distractors.
     fillBlanks: { blanks: [], distractors: [], layout: "text" } as FillBlanksConfig,
   });
+  // AI drafts deliberately mirror every manually authored shape except
+  // handwritten: a model can describe a canvas or a file submission, but it
+  // must never fabricate a teacher's handwritten statement.
   type AIDraft = {
-    type: "open_text" | "multiple_choice" | "equation" | "fill_blanks";
+    type: "open_text" | "multiple_choice" | "equation" | "canvas" | "attachment" | "fill_blanks";
     question: string;
     correct_answer: string;
     explanation: string;
     difficulty: number;
-    metadata?: { options?: string[]; blanks?: { id: number; answer: string }[]; distractors?: string[]; layout?: string };
+    metadata?: { options?: string[]; blanks?: { id: number; answer: string }[]; distractors?: string[]; layout?: string; accept?: AttachmentKind[] };
     // Held apart from metadata because the editor owns this shape and the
     // answer/pool are derived from it at save time, exactly as in the manual
     // exercise form.
@@ -321,7 +324,10 @@
       distractors: (draft.metadata?.distractors || []).map((option) => String(option)).filter(Boolean),
       layout: draft.metadata?.layout === "code" ? "code" : "text",
     };
-    return { ...draft, metadata: { ...draft.metadata, options }, fillBlanks: pruneFillBlanks(fillBlanks, draft.question || "") };
+    const accept = (draft.metadata?.accept || []).filter((kind): kind is AttachmentKind =>
+      ATTACHMENT_KINDS.some((option) => option.value === kind),
+    );
+    return { ...draft, metadata: { ...draft.metadata, options, accept }, fillBlanks: pruneFillBlanks(fillBlanks, draft.question || "") };
   }
 
   // Editing the option that is marked correct has to carry the answer with it:
@@ -342,6 +348,9 @@
   function draftProblem(draft: AIDraft): string {
     if (!draft.question.trim()) return "Falta la consigna.";
     if (draft.type === "fill_blanks") return validateFillBlanks(draft.question, draft.fillBlanks);
+    // Manual attachment exercises have no single textual answer: the teacher
+    // reviews the uploaded work. Keep this rule identical for AI drafts.
+    if (draft.type === "attachment") return "";
     if (!draft.correct_answer.trim()) return "Falta la respuesta correcta.";
     if (draft.type !== "multiple_choice") return "";
     const options = (draft.metadata?.options || []).map((o) => o.trim()).filter(Boolean);
@@ -436,6 +445,9 @@
     if (draft.type === "fill_blanks") {
       const config = pruneFillBlanks(draft.fillBlanks, draft.question);
       return { blanks: config.blanks, options: buildOptions(config), layout: config.layout };
+    }
+    if (draft.type === "attachment") {
+      return { accept: draft.metadata?.accept || [] };
     }
     return {};
   }
@@ -1878,7 +1890,7 @@
           <p class="field-hint">Subí una guía, evaluación o imagen, o escribí el tema. Gillie crea borradores; vos los revisás antes de publicarlos.</p>
           <template v-if="!aiDrafts.length">
             <div class="form-group"><label class="form-label">Archivo fuente <span class="label-optional">(opcional)</span></label><input type="file" accept=".pdf,.docx,image/png,image/jpeg,image/webp" @change="aiSource = (($event.target as HTMLInputElement).files?.[0] || null)" /></div>
-            <div class="form-group"><label class="form-label">Tipo de ejercicio</label><select v-model="aiType" class="form-select"><option value="">Variado</option><option value="open_text">Texto abierto</option><option value="multiple_choice">Opción múltiple</option><option value="equation">Ecuación</option><option value="fill_blanks">🧩 Completar huecos</option></select></div>
+            <div class="form-group"><label class="form-label">Tipo de ejercicio</label><select v-model="aiType" class="form-select"><option value="">Variado</option><option value="open_text">Texto abierto</option><option value="multiple_choice">Opción múltiple</option><option value="equation">Ecuación</option><option value="canvas">Canvas/Dibujo</option><option value="attachment">📎 Entrega de archivo</option><option value="fill_blanks">🧩 Completar huecos</option></select><small class="field-hint">Incluye todos los tipos del editor manual excepto manuscrito.</small></div>
             <div class="form-grid"><div class="form-group"><label class="form-label">Cantidad</label><input v-model.number="aiCount" class="form-input" type="number" min="1" max="10" /></div><div class="form-group"><label class="form-label">Dificultad</label><input v-model.number="aiDifficulty" class="form-input" type="number" min="1" max="10" /></div></div>
             <div class="form-group"><label class="form-label">Tema o indicación</label><textarea v-model="aiInstruction" class="form-textarea" rows="2" placeholder="Ej.: fracciones equivalentes con denominadores hasta 12" /><small class="field-hint">Sin archivo, esto es lo único que usa Gillie para generar los ejercicios.</small></div>
             <div class="modal-actions"><button class="btn btn-secondary" @click="showAIDraftsModal = false">Cancelar</button><button class="btn btn-primary" :disabled="!canGenerateDrafts || aiGenerating" @click="generateExerciseDrafts"><i class="pi" :class="aiGenerating ? 'pi-spin pi-spinner' : 'pi-sparkles'"></i> {{ aiGenerating ? "Generando…" : "Generar borradores" }}</button></div>
@@ -1887,7 +1899,7 @@
             <p class="field-hint">Editá o quitá los que no quieras. Nada se guarda hasta confirmar.</p>
             <div v-for="(draft, index) in aiDrafts" :key="index" class="ai-draft-card" :class="{ 'ai-draft-card--incomplete': !draftIsComplete(draft) }">
               <button class="btn btn-ghost btn-sm ai-draft-remove" @click="aiDrafts.splice(index, 1)"><i class="pi pi-times"></i></button>
-              <select v-model="draft.type" class="form-select"><option value="open_text">Texto abierto</option><option value="multiple_choice">Opción múltiple</option><option value="equation">Ecuación</option><option value="fill_blanks">🧩 Completar huecos</option></select>
+              <select v-model="draft.type" class="form-select"><option value="open_text">Texto abierto</option><option value="multiple_choice">Opción múltiple</option><option value="equation">Ecuación</option><option value="canvas">Canvas/Dibujo</option><option value="attachment">📎 Entrega de archivo</option><option value="fill_blanks">🧩 Completar huecos</option></select>
               <textarea v-model="draft.question" class="form-textarea" rows="2" :placeholder="draft.type === 'fill_blanks' ? 'Enunciado con huecos: El agua hierve a {{1}} grados.' : 'Consigna'" />
               <template v-if="draft.type === 'multiple_choice'">
                 <span class="ai-draft-label">Opciones — marcá la correcta</span>
@@ -1908,6 +1920,14 @@
                 :statement="draft.question"
                 @insert-blank="(marker: string) => (draft.question += marker)"
               />
+              <div v-else-if="draft.type === 'attachment'" class="accept-options">
+                <span class="ai-draft-label">Formatos que podrá entregar el alumno</span>
+                <label v-for="option in ATTACHMENT_KINDS" :key="option.value" class="accept-option">
+                  <input v-model="draft.metadata!.accept" type="checkbox" :value="option.value" />
+                  {{ option.label }}
+                </label>
+                <small class="field-hint">Sin selección se aceptan todos los formatos soportados.</small>
+              </div>
               <input v-else v-model="draft.correct_answer" class="form-input" placeholder="Respuesta correcta" />
               <textarea v-model="draft.explanation" class="form-textarea" rows="2" placeholder="Explicación" />
               <p v-if="draftProblem(draft)" class="ai-draft-problem">{{ draftProblem(draft) }}</p>
