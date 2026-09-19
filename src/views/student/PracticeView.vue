@@ -2040,7 +2040,7 @@
 
   .ex-question {
     font-size: 1.05rem;
-    font-weight: 600;
+    font-weight: 800;
     color: var(--text-primary);
     line-height: 1.5;
   }
@@ -2362,7 +2362,7 @@
     border: none;
     background: var(--gradient-brand);
     color: var(--color-on-primary);
-    font-weight: 700;
+    font-weight: 800;
     font-size: 0.95rem;
     cursor: pointer;
     box-shadow: var(--shadow-indigo);
