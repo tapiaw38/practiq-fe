@@ -1,4 +1,5 @@
 <script setup lang="ts">
+  import UiModal from "@/components/ui/UiModal.vue";
   import { ref, computed, watch, nextTick, onMounted, reactive } from "vue";
   import { useRoute, useRouter } from "vue-router";
   import TeacherLayout from "@/layouts/TeacherLayout.vue";
@@ -114,6 +115,48 @@
     selectedIdx.value = pages.value.length - 1;
     await nextTick();
     if (currentPage.value?.content_type === "canvas") initCanvas(true);
+  }
+
+  const statementDraft = ref("");
+  const savingStatement = ref(false);
+  const statementMsg = ref("");
+
+  const hasImageStatement = computed(() => {
+    const value = (currentPage.value?.content_data || "").trim();
+    if (!value) return false;
+    if (value.startsWith("data:image/")) return true;
+    return /^https?:\/\/\S+\.(png|jpe?g|webp|gif)(\?|#|$)/i.test(value);
+  });
+
+  watch(
+    () => currentPage.value?.id,
+    () => {
+      statementDraft.value = currentPage.value?.statement_text || "";
+      statementMsg.value = "";
+    },
+    { immediate: true },
+  );
+
+  async function saveStatement() {
+    if (!currentPage.value || savingStatement.value) return;
+    savingStatement.value = true;
+    try {
+      await updatePageService(currentPage.value.id, {
+        title: currentPage.value.title || "",
+        content_type: currentPage.value.content_type,
+        content_data: currentPage.value.content_data || "",
+        instructions: currentPage.value.instructions || "",
+        statement_text: statementDraft.value.trim(),
+      });
+      currentPage.value.statement_text = statementDraft.value.trim();
+      currentPage.value.statement_verified = true;
+      statementMsg.value = "Consigna confirmada";
+      setTimeout(() => {
+        statementMsg.value = "";
+      }, 2500);
+    } finally {
+      savingStatement.value = false;
+    }
   }
 
   async function savePage() {
@@ -476,6 +519,43 @@
               />
             </div>
 
+            <div v-if="hasImageStatement" class="statement-box">
+              <div class="statement-head">
+                <label class="inst-label">Consigna leída por la IA</label>
+                <span
+                  class="statement-tag"
+                  :class="currentPage.statement_verified ? 'statement-tag--ok' : 'statement-tag--pending'"
+                >
+                  <i :class="currentPage.statement_verified ? 'pi pi-check-circle' : 'pi pi-exclamation-circle'"></i>
+                  {{ currentPage.statement_verified ? "Verificada" : "Sin verificar" }}
+                </span>
+              </div>
+              <p class="statement-help">
+                Esto es lo que el sistema entendió de tu hoja y contra lo que se
+                corrigen las respuestas. Revisalo: si algo quedó mal leído, el
+                alumno se corrige contra un enunciado equivocado. Hasta que la
+                verifiques, las correcciones quedan como sugerencia y pasan por vos.
+              </p>
+              <textarea
+                v-model="statementDraft"
+                class="statement-input"
+                rows="4"
+                placeholder="Todavía no se pudo leer la consigna. Escribila acá."
+              ></textarea>
+              <div class="statement-actions">
+                <button
+                  class="statement-btn"
+                  type="button"
+                  :disabled="savingStatement"
+                  @click="saveStatement"
+                >
+                  <i class="pi pi-check"></i>
+                  {{ savingStatement ? "Guardando…" : "Confirmar consigna" }}
+                </button>
+                <span v-if="statementMsg" class="statement-msg">{{ statementMsg }}</span>
+              </div>
+            </div>
+
             <!-- Save feedback -->
             <div v-if="saveMsg" class="save-feedback">
               <i class="pi pi-check-circle"></i> {{ saveMsg }}
@@ -486,54 +566,56 @@
     </div>
 
     <!-- Add page modal -->
-    <Teleport to="body">
-      <Transition name="fade">
-        <div
-          v-if="showAddPage"
-          class="modal-overlay"
-          @click.self="showAddPage = false"
-        >
-          <div class="modal-box">
+    <UiModal
+      :visible="Boolean(showAddPage)"
+      @close="showAddPage = false"
+    >
+      <template v-if="showAddPage">
+        <div class="modal-box">
+          <div class="modal-header">
             <h3 class="modal-title">Nueva Página</h3>
-            <form @submit.prevent="addPage">
-              <div class="form-group">
-                <label class="form-label">Título</label>
-                <input
-                  v-model="newPage.title"
-                  class="form-input"
-                  placeholder="Página 1"
-                />
-              </div>
-              <div class="form-group">
-                <label class="form-label">Tipo de contenido</label>
-                <select v-model="newPage.content_type" class="form-input">
-                  <option value="canvas">Imagen / Dibujo</option>
-                  <option value="text">Texto</option>
-                </select>
-              </div>
-              <div class="form-group">
-                <label class="form-label">Instrucciones para el alumno</label>
-                <input
-                  v-model="newPage.instructions"
-                  class="form-input"
-                  placeholder="Opcional"
-                />
-              </div>
-              <div class="modal-actions">
-                <button
-                  type="button"
-                  class="btn btn-secondary"
-                  @click="showAddPage = false"
-                >
-                  Cancelar
-                </button>
-                <button type="submit" class="btn btn-primary">Agregar</button>
-              </div>
-            </form>
+            <button type="button" class="modal-close" aria-label="Cerrar" @click="showAddPage = false">
+              <i class="pi pi-times"></i>
+            </button>
           </div>
+          <form @submit.prevent="addPage">
+            <div class="form-group">
+              <label class="form-label">Título</label>
+              <input
+                v-model="newPage.title"
+                class="form-input"
+                placeholder="Página 1"
+              />
+            </div>
+            <div class="form-group">
+              <label class="form-label">Tipo de contenido</label>
+              <select v-model="newPage.content_type" class="form-input">
+                <option value="canvas">Imagen / Dibujo</option>
+                <option value="text">Texto</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Instrucciones para el alumno</label>
+              <input
+                v-model="newPage.instructions"
+                class="form-input"
+                placeholder="Opcional"
+              />
+            </div>
+            <div class="modal-actions">
+              <button
+                type="button"
+                class="btn btn-secondary"
+                @click="showAddPage = false"
+              >
+                Cancelar
+              </button>
+              <button type="submit" class="btn btn-primary">Agregar</button>
+            </div>
+          </form>
         </div>
-      </Transition>
-    </Teleport>
+      </template>
+    </UiModal>
   </TeacherLayout>
 </template>
 
@@ -852,6 +934,89 @@
   }
 
   /* Instructions */
+  .statement-box {
+    margin-top: 14px;
+    padding: 14px 16px;
+    border-radius: var(--radius-xl);
+    background: var(--elevation-tint-bg);
+    box-shadow: var(--elevation-tint-shadow);
+  }
+  .statement-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    margin-bottom: 6px;
+  }
+  .statement-tag {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 3px 9px;
+    border-radius: var(--radius-pill);
+    font-size: var(--text-xs);
+    font-weight: 700;
+    flex-shrink: 0;
+  }
+  .statement-tag--ok {
+    background: rgba(var(--color-success-rgb), 0.14);
+    color: var(--color-success-dark);
+  }
+  .statement-tag--pending {
+    background: rgba(var(--color-warning-rgb), 0.14);
+    color: var(--color-warning-dark);
+  }
+  .statement-help {
+    margin: 0 0 10px;
+    font-size: var(--text-xs);
+    line-height: 1.5;
+    color: var(--text-secondary);
+  }
+  .statement-input {
+    width: 100%;
+    padding: 10px 12px;
+    border: 1px solid var(--surface-border);
+    border-radius: var(--radius-lg);
+    background: var(--surface-card);
+    color: var(--text-primary);
+    font-family: inherit;
+    font-size: var(--text-sm);
+    resize: vertical;
+  }
+  .statement-actions {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-top: 10px;
+  }
+  .statement-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 8px 14px;
+    min-height: 38px;
+    border: none;
+    border-radius: var(--radius-pill);
+    background: var(--fill-primary-soft);
+    color: var(--practiq-violet-dark);
+    font-size: var(--text-sm);
+    font-weight: 700;
+    cursor: pointer;
+    transition: var(--transition-fast);
+  }
+  .statement-btn:hover:not(:disabled) {
+    background: rgba(var(--practiq-violet-rgb), 0.16);
+  }
+  .statement-btn:disabled {
+    opacity: 0.6;
+    cursor: default;
+  }
+  .statement-msg {
+    font-size: var(--text-xs);
+    font-weight: 700;
+    color: var(--color-success-dark);
+  }
+
   .instructions-row {
     display: flex;
     flex-direction: column;
@@ -886,15 +1051,6 @@
   }
 
   /* Modal */
-  .modal-overlay {
-    position: fixed;
-    inset: 0;
-    background: var(--surface-scrim);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    z-index: 1000;
-  }
   .modal-box {
     background: var(--surface-card);
     border-radius: var(--radius-2xl);
@@ -988,11 +1144,23 @@
       grid-template-columns: 1fr;
       grid-template-rows: auto 1fr;
     }
+    /* En fila: una lista vertical de páginas empuja el canvas fuera de pantalla. */
     .pages-sidebar {
       border-right: none;
       border-bottom: 1px solid var(--surface-border);
-      max-height: 220px;
-      overflow-y: auto;
+      flex-direction: row;
+      overflow-x: auto;
+      overflow-y: hidden;
+    }
+    .pages-sidebar > * {
+      flex-shrink: 0;
+    }
+    .sidebar-title {
+      align-self: center;
+    }
+    .sidebar-item {
+      width: 170px;
+      min-height: 48px;
     }
     .editor-main {
       padding: 16px;
@@ -1012,9 +1180,6 @@
       width: 100%;
       justify-content: center;
     }
-    .pages-sidebar {
-      max-height: 160px;
-    }
     .page-meta-bar {
       flex-direction: column;
       align-items: stretch;
@@ -1026,6 +1191,13 @@
     }
     .editor-empty {
       padding: 32px;
+    }
+
+    /* Tap targets >= 44px en mobile */
+    .btn-back,
+    .color-picker {
+      width: 44px;
+      height: 44px;
     }
   }
 </style>

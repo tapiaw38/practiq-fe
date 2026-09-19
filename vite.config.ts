@@ -22,6 +22,7 @@ export default defineConfig({
           }
           if (id.includes('vue') || id.includes('pinia')) return 'vendor-vue'
           if (id.includes('katex')) return 'vendor-katex'
+          if (id.includes('mathlive')) return 'vendor-mathlive'
           return 'vendor'
         }
       }

@@ -7,6 +7,8 @@ export const useAIStore = (service: IAIService) =>
   defineStore("ai", () => {
     const currentConversation = ref<AIConversation | null>(null);
     const messages = ref<Record<string, AIMessage[]>>({});
+    const curiosities = ref<string[]>([]);
+    const curiositiesByCourse = ref<Record<string, string[]>>({});
     const loading = ref(false);
 
     const createConversation = async (params: {
@@ -48,12 +50,33 @@ export const useAIStore = (service: IAIService) =>
       }
     };
 
+    const fetchCuriosities = async (courseId: string) => {
+      const cached = curiositiesByCourse.value[courseId];
+      if (cached) {
+        curiosities.value = cached;
+        return cached;
+      }
+
+      loading.value = true;
+      try {
+        const response = await service.getCuriosities(courseId);
+        const data = response.data.curiosities || [];
+        curiositiesByCourse.value[courseId] = data;
+        curiosities.value = data;
+        return data;
+      } finally {
+        loading.value = false;
+      }
+    };
+
     return {
       currentConversation,
       messages,
+      curiosities,
       loading,
       createConversation,
       fetchMessages,
       getHelp,
+      fetchCuriosities,
     };
   });

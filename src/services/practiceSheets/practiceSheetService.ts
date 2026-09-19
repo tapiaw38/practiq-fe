@@ -17,10 +17,16 @@ export interface IPracticeSheetService {
       level?: number;
       sheet_type?: string;
       test_style?: string;
+      /** RFC 3339 UTC string; empty clears the schedule. */
+      scheduled_at?: string;
+      /** RFC 3339 UTC string; empty leaves the window open. */
+      available_until?: string;
+      max_attempts?: number | null;
+      time_limit_minutes?: number | null;
       exercise_ids: string[];
     },
   ): Promise<{ data: PracticeSheet }>;
-  list(courseId: string): Promise<{ data: PracticeSheet[] }>;
+  list(courseId: string, params?: { limit?: number; offset?: number }): Promise<{ data: PracticeSheet[] }>;
   get(id: string): Promise<{ data: PracticeSheet }>;
   update(
     id: string,
@@ -30,6 +36,12 @@ export interface IPracticeSheetService {
       level?: number;
       sheet_type?: string;
       test_style?: string;
+      /** RFC 3339 UTC string; empty clears the schedule. */
+      scheduled_at?: string;
+      /** RFC 3339 UTC string; empty leaves the window open. */
+      available_until?: string;
+      max_attempts?: number | null;
+      time_limit_minutes?: number | null;
       exercise_ids?: string[];
     },
   ): Promise<{ data: PracticeSheet }>;
@@ -54,6 +66,12 @@ export class PracticeSheetService implements IPracticeSheetService {
       level?: number;
       sheet_type?: string;
       test_style?: string;
+      /** RFC 3339 UTC string; empty clears the schedule. */
+      scheduled_at?: string;
+      /** RFC 3339 UTC string; empty leaves the window open. */
+      available_until?: string;
+      max_attempts?: number | null;
+      time_limit_minutes?: number | null;
       exercise_ids: string[];
     },
   ): Promise<{ data: PracticeSheet }> {
@@ -64,8 +82,8 @@ export class PracticeSheetService implements IPracticeSheetService {
     return data;
   }
 
-  async list(courseId: string): Promise<{ data: PracticeSheet[] }> {
-    const { data } = await this.api.get(`/courses/${courseId}/practice-sheets`);
+  async list(courseId: string, params?: { limit?: number; offset?: number }): Promise<{ data: PracticeSheet[] }> {
+    const { data } = await this.api.get(`/courses/${courseId}/practice-sheets`, { params });
     return data;
   }
 
@@ -82,6 +100,12 @@ export class PracticeSheetService implements IPracticeSheetService {
       level?: number;
       sheet_type?: string;
       test_style?: string;
+      /** RFC 3339 UTC string; empty clears the schedule. */
+      scheduled_at?: string;
+      /** RFC 3339 UTC string; empty leaves the window open. */
+      available_until?: string;
+      max_attempts?: number | null;
+      time_limit_minutes?: number | null;
       exercise_ids?: string[];
     },
   ): Promise<{ data: PracticeSheet }> {

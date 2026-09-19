@@ -136,6 +136,16 @@
 </template>
 
 <style scoped>
+  /* The default root is a <span>, which is inline — and vertical margins do
+     not apply to inline boxes, so every `class="mt-*"` and `style="margin-top"`
+     a caller put on a Skeleton was silently dropped and the bars rendered
+     stacked flush against each other. It already wraps a block-level div, so
+     laying it out as a block is what it was always doing structurally.
+     The --flex/--rows/--grid modifiers below still override this. */
+  .skeleton-wrapper {
+    display: block;
+  }
+
   .skeleton {
     background: linear-gradient(
       90deg,
@@ -146,10 +156,6 @@
     background-size: 200% 100%;
     animation: skeleton-shimmer 1.5s ease-in-out infinite;
     border-radius: var(--radius-sm, 4px);
-    margin-bottom: 6px;
-  }
-  .skeleton:last-child {
-    margin-bottom: 0;
   }
 
   .skeleton--text {

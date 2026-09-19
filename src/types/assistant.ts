@@ -1,4 +1,4 @@
-export type AssistantMode = "escrita" | "oral" | "pizarron";
+export type AssistantMode = "escrita" | "pizarron";
 
 export type PizarronState =
   | "idle"

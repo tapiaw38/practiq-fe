@@ -24,6 +24,8 @@ export default defineConfig({
                         return 'vendor-vue';
                     if (id.includes('katex'))
                         return 'vendor-katex';
+                    if (id.includes('mathlive'))
+                        return 'vendor-mathlive';
                     return 'vendor';
                 }
             }

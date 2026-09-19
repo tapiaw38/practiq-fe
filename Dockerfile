@@ -7,6 +7,15 @@ RUN npm install
 
 COPY . .
 
+# Compose supplies production URLs as build arguments. Promote them to the
+# environment so they take precedence over any development .env file.
+ARG VITE_AUTH_API_URL
+ARG VITE_PRACTIQ_API_URL
+ARG VITE_GOOGLE_CLIENT_ID
+ENV VITE_AUTH_API_URL=$VITE_AUTH_API_URL
+ENV VITE_PRACTIQ_API_URL=$VITE_PRACTIQ_API_URL
+ENV VITE_GOOGLE_CLIENT_ID=$VITE_GOOGLE_CLIENT_ID
+
 RUN npm run build
 
 FROM nginx:1.27-alpine

@@ -24,7 +24,11 @@ export const useGrade = () => {
     }
   };
 
-  const createGrade = async (params: { name: string; description: string }) => {
+  const createGrade = async (params: {
+    name: string;
+    description: string;
+    visual_theme?: "primary" | "secondary";
+  }) => {
     try {
       const grade = await store.createGrade(params);
       toast.add({
@@ -47,7 +51,11 @@ export const useGrade = () => {
 
   const updateGrade = async (
     id: string,
-    params: { name: string; description: string },
+    params: {
+      name: string;
+      description: string;
+      visual_theme: "primary" | "secondary";
+    },
   ) => {
     try {
       const grade = await store.updateGrade(id, params);
@@ -145,6 +153,20 @@ export const useGrade = () => {
     }
   };
 
+  const loadGradesByUsers = async (userIds: string[]) => {
+    try {
+      return await store.fetchGradesByUsers(userIds);
+    } catch (error) {
+      toast.add({
+        severity: "error",
+        summary: "Error",
+        detail: "No se pudieron cargar los grados de los alumnos",
+        life: 3000,
+      });
+      throw error;
+    }
+  };
+
   return {
     grades,
     members,
@@ -158,5 +180,6 @@ export const useGrade = () => {
     removeGradeMember,
     loadGradeMembers,
     loadUserGrades,
+    loadGradesByUsers,
   };
 };

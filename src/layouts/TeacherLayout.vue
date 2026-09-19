@@ -1,25 +1,68 @@
 <script setup lang="ts">
-  import { computed, ref, watch } from "vue";
+  import { computed, ref, watch, onMounted } from "vue";
   import { useRoute, useRouter } from "vue-router";
   import { useAuthStore } from "@/stores/authStore";
+  import { useSchools } from "@/composables/useSchools";
+  import ChangePasswordModal from "@/components/auth/ChangePasswordModal.vue";
+  import SetPasswordModal from "@/components/auth/SetPasswordModal.vue";
 
   const route = useRoute();
   const router = useRouter();
   const authStore = useAuthStore();
+  const {
+    schools,
+    activeId,
+    hasChoice,
+    active,
+    loadSchools,
+    setActive,
+    resetSchools,
+    service,
+  } = useSchools();
   const profile = computed(() => authStore.profile);
+
+  // The school's name is the teacher's to set: the migration could only leave
+  // a placeholder, and sign-up guesses from their name.
+  async function renameActive(name: string) {
+    const school = active.value;
+    const trimmed = name.trim();
+    if (!school || !trimmed || trimmed === school.name) return;
+    try {
+      await service.update(school.id, { name: trimmed });
+      await loadSchools(true, isSuperAdmin.value);
+    } catch {
+      // Left as it was; the field shows the stored name again on reload.
+    }
+  }
   const userInitial = computed(
     () => profile.value?.name?.[0]?.toUpperCase() || "D",
   );
   const navOpen = ref(false);
-  const isAdmin = computed(() => {
+  const showChangePassword = ref(false);
+  const showSetPassword = ref(false);
+  const isGoogleUser = computed(() => authStore.authMethod === "google");
+  // admin es el rol del profesor; superadmin, el del administrador.
+  const isSuperAdmin = computed(() => {
     const roles = authStore.authUser?.roles || [];
-    return roles.some(
-      (role) => role.name === "admin" || role.name === "superadmin",
-    );
+    return roles.some((role) => role.name === "superadmin");
   });
   const roleLabel = computed(() =>
-    isAdmin.value ? "Profesor Admin" : "Profesor",
+    isSuperAdmin.value ? "Administrador" : "Profesor",
   );
+  const administersActive = computed(
+    () => isSuperAdmin.value || active.value?.role === "admin",
+  );
+  const canRenameActiveSchool = computed(
+    () => isSuperAdmin.value || active.value?.role === "admin",
+  );
+  const canManageSubscription = computed(
+    () =>
+      !isSuperAdmin.value &&
+      active.value?.kind === "personal" &&
+      active.value.role === "admin",
+  );
+
+  onMounted(() => loadSchools(false, isSuperAdmin.value));
 
   watch(
     () => route.fullPath,
@@ -31,6 +74,7 @@
   function logout() {
     authStore.clearAuth();
     localStorage.removeItem("practiq_profile");
+    resetSchools();
     router.push("/login");
   }
 </script>
@@ -44,6 +88,7 @@
 
       <div class="topbar-brand">
         <img src="@/assets/logo.png" class="topbar-logo" alt="Practiq" />
+        <span v-if="active" class="topbar-school" :title="active.name">{{ active.name }}</span>
       </div>
 
       <div class="topbar-avatar">{{ userInitial }}</div>
@@ -59,8 +104,32 @@
         </button>
       </div>
 
+      <section v-if="active" class="school-context" aria-label="Escuela activa">
+        <span class="school-context__label">Administrando</span>
+        <strong class="school-context__name" :title="active.name">{{ active.name }}</strong>
+        <select
+          v-if="hasChoice"
+          class="school-context__select"
+          :value="activeId"
+          aria-label="Cambiar escuela activa"
+          @change="setActive(($event.target as HTMLSelectElement).value)"
+        >
+          <option v-for="school in schools" :key="school.id" :value="school.id">
+            {{ school.name }}
+          </option>
+        </select>
+        <details v-if="canRenameActiveSchool" class="school-context__settings">
+          <summary>Editar nombre</summary>
+          <input
+            :value="active.name"
+            aria-label="Nombre de la escuela"
+            @change="renameActive(($event.target as HTMLInputElement).value)"
+          />
+        </details>
+      </section>
+
       <nav class="sidebar-nav">
-        <div class="nav-section-label">Docente</div>
+        <div class="nav-section-label">Espacio docente</div>
         <RouterLink
           to="/teacher/dashboard"
           class="nav-item"
@@ -70,8 +139,53 @@
           <span class="nav-icon"><i class="pi pi-home"></i></span>
           <span>Inicio</span>
         </RouterLink>
+        <div v-if="isSuperAdmin" class="nav-section-label nav-section-label--spaced">Plataforma</div>
         <RouterLink
-          to="/teacher/admin/users"
+          v-if="isSuperAdmin"
+          to="/teacher/admin/schools"
+          class="nav-item"
+          active-class="nav-item-active"
+          @click="navOpen = false"
+        >
+          <span class="nav-icon"><i class="pi pi-building"></i></span>
+          <span>Escuelas</span>
+        </RouterLink>
+        <RouterLink
+          v-if="isSuperAdmin"
+          to="/teacher/admin/plans"
+          class="nav-item"
+          active-class="nav-item-active"
+          @click="navOpen = false"
+        >
+          <span class="nav-icon"><i class="pi pi-tags"></i></span>
+          <span>Planes</span>
+        </RouterLink>
+        <RouterLink
+          v-if="isSuperAdmin"
+          to="/teacher/admin/site-contact"
+          class="nav-item"
+          active-class="nav-item-active"
+          @click="navOpen = false"
+        >
+          <span class="nav-icon"><i class="pi pi-phone"></i></span>
+          <span>Contacto landing</span>
+        </RouterLink>
+        <RouterLink
+          v-if="isSuperAdmin"
+          to="/teacher/admin/assistant"
+          class="nav-item"
+          active-class="nav-item-active"
+          @click="navOpen = false"
+        >
+          <span class="nav-icon"><i class="pi pi-sparkles"></i></span>
+          <span>Asistente IA</span>
+        </RouterLink>
+        <div v-if="administersActive && active" class="nav-section-label nav-section-label--spaced">
+          Gestión de escuela
+        </div>
+        <RouterLink
+          v-if="administersActive && active"
+          to="/teacher/admin/school-users"
           class="nav-item"
           active-class="nav-item-active"
           @click="navOpen = false"
@@ -80,6 +194,7 @@
           <span>Usuarios</span>
         </RouterLink>
         <RouterLink
+          v-if="administersActive && active"
           to="/teacher/admin/academic"
           class="nav-item"
           active-class="nav-item-active"
@@ -88,6 +203,7 @@
           <span class="nav-icon"><i class="pi pi-sitemap"></i></span>
           <span>Académico</span>
         </RouterLink>
+        <div class="nav-section-label nav-section-label--spaced">Revisar</div>
         <RouterLink
           to="/teacher/notebook-reviews"
           class="nav-item"
@@ -98,6 +214,17 @@
           <span>Cuadernos</span>
         </RouterLink>
         <RouterLink
+          to="/teacher/attempt-reviews"
+          class="nav-item"
+          active-class="nav-item-active"
+          @click="navOpen = false"
+        >
+          <span class="nav-icon"><i class="pi pi-paperclip"></i></span>
+          <span>Pruebas de nivel</span>
+        </RouterLink>
+        <div v-if="isSuperAdmin || canManageSubscription" class="nav-section-label nav-section-label--spaced">Herramientas</div>
+        <RouterLink
+          v-if="isSuperAdmin"
           to="/teacher/strategies"
           class="nav-item"
           active-class="nav-item-active"
@@ -106,6 +233,18 @@
           <span class="nav-icon"><i class="pi pi-cog"></i></span>
           <span>Estrategias</span>
         </RouterLink>
+
+        <RouterLink
+          v-if="canManageSubscription"
+          to="/teacher/subscription"
+          class="nav-item"
+          active-class="nav-item-active"
+          @click="navOpen = false"
+        >
+          <span class="nav-icon"><i class="pi pi-credit-card"></i></span>
+          <span>Suscripción</span>
+        </RouterLink>
+
       </nav>
 
       <div class="sidebar-footer">
@@ -116,9 +255,30 @@
             <div class="user-role">{{ roleLabel }}</div>
           </div>
         </div>
-        <button class="logout-btn" type="button" @click="logout">
-          <i class="pi pi-sign-out"></i>
-        </button>
+        <div class="footer-actions">
+          <button
+            class="icon-btn"
+            type="button"
+            :title="
+              isGoogleUser ? 'Establecer contraseña' : 'Cambiar contraseña'
+            "
+            @click="
+              isGoogleUser
+                ? (showSetPassword = true)
+                : (showChangePassword = true)
+            "
+          >
+            <i class="pi pi-lock"></i>
+          </button>
+          <button
+            class="icon-btn icon-btn--logout"
+            type="button"
+            title="Cerrar sesión"
+            @click="logout"
+          >
+            <i class="pi pi-sign-out"></i>
+          </button>
+        </div>
       </div>
     </aside>
 
@@ -126,6 +286,11 @@
       <slot />
     </main>
   </div>
+
+  <Teleport to="body">
+    <ChangePasswordModal v-model:visible="showChangePassword" />
+    <SetPasswordModal v-model:visible="showSetPassword" />
+  </Teleport>
 </template>
 
 <style scoped>
@@ -157,16 +322,35 @@
     z-index: 25;
   }
 
-  .sidebar-brand,
-  .user-info,
-  .topbar-brand,
-  .nav-item,
+  .sidebar-brand {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+  }
+
+  .school-context {
+    display: grid;
+    gap: 6px;
+    margin: 14px 4px 4px;
+    padding: 12px;
+    border: 1px solid var(--surface-border);
+    border-radius: var(--radius-lg);
+    background: var(--surface-subtle);
+  }
+  .school-context__label { color: var(--text-muted); font-size: var(--text-xs); font-weight: 800; letter-spacing: .1em; text-transform: uppercase; }
+  .school-context__name { overflow: hidden; color: var(--text-heading); font-size: var(--text-sm); text-overflow: ellipsis; white-space: nowrap; }
+  .school-context__select, .school-context__settings input { width: 100%; min-height: 44px; padding: 8px 10px; border: 1px solid var(--surface-border); border-radius: var(--radius-md); background: var(--surface-card); color: var(--text-primary); font: inherit; font-size: var(--text-sm); }
+  .school-context__settings { color: var(--text-secondary); font-size: var(--text-xs); }
+  .school-context__settings summary { display: flex; align-items: center; min-height: 32px; cursor: pointer; font-weight: 700; }
+  .school-context__settings input { margin-top: 6px; }
+
   .sidebar-footer {
     display: flex;
     align-items: center;
   }
 
   .sidebar-brand {
+    flex-direction: row;
     justify-content: space-between;
     align-items: center;
     gap: 12px;
@@ -177,6 +361,8 @@
   .topbar-brand,
   .user-info,
   .nav-item {
+    display: flex;
+    align-items: center;
     gap: 12px;
   }
 
@@ -189,12 +375,42 @@
     width: 100px;
     display: block;
   }
+  .topbar-school { display: none; min-width: 0; overflow: hidden; color: var(--text-secondary); font-size: var(--text-xs); font-weight: 700; text-overflow: ellipsis; white-space: nowrap; }
+
+  /* Shared teacher hierarchy. Legacy views used several independent scales;
+     these role selectors keep administration, courses and review queues on
+     the same visual rhythm without changing their content or workflows. */
+  :global(.main-content .page-kicker),
+  :global(.main-content .eyebrow),
+  :global(.main-content .hero-kicker),
+  :global(.main-content .ac-eyebrow) {
+    font-size: var(--font-kicker);
+    line-height: 1.3;
+    font-weight: 800;
+    letter-spacing: .09em;
+  }
+
+  :global(.main-content .page-title),
+  :global(.main-content .hero-title),
+  :global(.main-content .ac-title),
+  :global(.main-content > * > header h1) {
+    font-size: var(--font-hero);
+    line-height: 1.18;
+    letter-spacing: -.02em;
+  }
+
+  :global(.main-content .page-subtitle),
+  :global(.main-content .page-sub),
+  :global(.main-content .hero-copy) {
+    font-size: var(--font-body);
+    line-height: 1.55;
+  }
 
   .close-btn,
   .topbar-btn,
   .logout-btn {
-    width: 42px;
-    height: 42px;
+    width: 44px;
+    height: 44px;
     border: none;
     border-radius: var(--radius-lg);
     background: var(--surface-subtle);
@@ -217,7 +433,7 @@
     display: flex;
     flex-direction: column;
     gap: 6px;
-    margin-top: 16px;
+    margin-top: 10px;
     overflow-y: auto;
     overflow-x: hidden;
     padding: 0 4px 8px;
@@ -313,6 +529,7 @@
 
   .user-details {
     min-width: 0;
+    display: block;
   }
 
   .user-name {
@@ -330,6 +547,35 @@
   }
 
   .logout-btn:hover {
+    color: var(--color-error);
+    background: var(--color-error-bg);
+  }
+
+  .footer-actions {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex-shrink: 0;
+  }
+
+  .icon-btn {
+    width: 44px;
+    height: 44px;
+    border: none;
+    border-radius: var(--radius-md);
+    background: var(--surface-subtle);
+    color: var(--text-secondary);
+    display: grid;
+    place-items: center;
+    cursor: pointer;
+    transition: var(--transition);
+    font-size: var(--text-md);
+  }
+  .icon-btn:hover {
+    background: var(--surface-card);
+    color: var(--text-primary);
+  }
+  .icon-btn--logout:hover {
     color: var(--color-error);
     background: var(--color-error-bg);
   }
@@ -374,6 +620,24 @@
     .main-content {
       padding: 16px;
     }
+
+    .sidebar-footer {
+      flex-direction: column;
+      align-items: stretch;
+      gap: 10px;
+      padding: 14px 4px 0;
+    }
+
+    .user-avatar {
+      width: 36px;
+      height: 36px;
+      font-size: var(--text-md);
+    }
+
+    .footer-actions {
+      justify-content: flex-end;
+      gap: 6px;
+    }
   }
 
   /* Tablet portrait */
@@ -389,15 +653,24 @@
     }
 
     .mobile-topbar {
-      display: flex;
-      justify-content: space-between;
+      display: grid;
+      grid-template-columns: 44px minmax(0, 1fr) 44px;
       align-items: center;
+      column-gap: 8px;
       padding: 14px 16px 0;
       position: sticky;
       top: 0;
       z-index: 30;
       background: var(--gradient-mobile-topbar);
       backdrop-filter: blur(16px);
+    }
+    .topbar-brand { display: flex; flex-direction: column; align-items: center; gap: 1px; min-width: 0; max-width: none; text-align: center; }
+    .topbar-school { display: block; max-width: 100%; line-height: 1.2; }
+
+    :global(.main-content input:not([type="checkbox"]):not([type="radio"])),
+    :global(.main-content select),
+    :global(.main-content textarea) {
+      font-size: 16px;
     }
 
     .drawer-backdrop {
@@ -415,6 +688,8 @@
       margin: 0;
       width: min(320px, calc(100vw - 24px));
       height: calc(100vh - 24px);
+      height: calc(100dvh - 24px);
+      overflow: hidden;
       transform: translateX(-110%);
       transition: transform 0.24s ease;
       z-index: 40;
@@ -422,6 +697,39 @@
 
     .sidebar--open {
       transform: translateX(0);
+    }
+
+    /* Tap targets >= 44px en mobile */
+    .nav-item {
+      min-height: 52px;
+    }
+
+    .sidebar-brand,
+    .sidebar-footer {
+      flex: 0 0 auto;
+    }
+
+    .close-btn {
+      flex: 0 0 44px;
+    }
+
+    .close-btn i {
+      line-height: 1;
+    }
+  }
+
+  @media (max-width: 640px) {
+    :global(.main-content .page-title),
+    :global(.main-content .hero-title),
+    :global(.main-content .ac-title),
+    :global(.main-content > * > header h1) {
+      font-size: 24px;
+    }
+
+    :global(.main-content .page-subtitle),
+    :global(.main-content .page-sub),
+    :global(.main-content .hero-copy) {
+      font-size: 14px;
     }
   }
 

@@ -1,4 +1,5 @@
 export interface AssistantStudentCourseContext {
+  id: string;
   title: string;
   subject: string;
   grade: string;
@@ -21,6 +22,8 @@ export interface AssistantStudentContext {
 export interface AssistantChatModalProps {
   show: boolean;
   studentContext?: AssistantStudentContext;
+  /** Dashboard practice starts only after the student chooses a course/topic. */
+  requirePracticeContext?: boolean;
 }
 
 export interface AssistantChatModalEmits {

@@ -10,7 +10,7 @@ import type {
 export interface INotebookService {
   create(
     courseId: string,
-    params: { title: string; description?: string; level?: number },
+    params: { title: string; description?: string; level?: number; topic_id: string },
   ): Promise<{ data: Notebook }>;
   list(courseId: string): Promise<Notebook[]>;
   get(id: string, studentId?: string): Promise<{ data: Notebook }>;
@@ -31,11 +31,13 @@ export interface INotebookService {
       content_type: "canvas" | "text";
       content_data: string;
       instructions: string;
+      statement_text?: string;
+      statement_verified?: boolean;
     },
   ): Promise<void>;
   update(
     id: string,
-    params: { title: string; description?: string },
+    params: { title: string; description?: string; topic_id: string },
   ): Promise<{ data: Notebook }>;
   delete(id: string): Promise<void>;
   saveSubmission(
@@ -52,6 +54,8 @@ export interface INotebookService {
     student_id?: string;
     reviewed?: boolean;
     course_id?: string;
+    limit?: number;
+    offset?: number;
   }): Promise<{ data: NotebookSubmissionFull[] }>;
   triggerAIReview(
     submissionId: string,
@@ -69,7 +73,7 @@ export class NotebookService implements INotebookService {
   constructor(private readonly api: AxiosInstance) {}
   async create(
     courseId: string,
-    params: { title: string; description?: string; level?: number },
+    params: { title: string; description?: string; level?: number; topic_id: string },
   ): Promise<{ data: Notebook }> {
     const { data } = await this.api.post(
       `/courses/${courseId}/notebooks`,
@@ -80,8 +84,7 @@ export class NotebookService implements INotebookService {
 
   async list(courseId: string): Promise<Notebook[]> {
     const { data } = await this.api.get(`/courses/${courseId}/notebooks`);
-    // backend returns [{data: Notebook}, ...] — unwrap each item
-    return (data as Array<{ data: Notebook }>).map((item) => item.data);
+    return data.data;
   }
 
   async get(id: string, studentId?: string): Promise<{ data: Notebook }> {
@@ -114,6 +117,8 @@ export class NotebookService implements INotebookService {
       content_type: "canvas" | "text";
       content_data: string;
       instructions: string;
+      statement_text?: string;
+      statement_verified?: boolean;
     },
   ): Promise<void> {
     await this.api.put(`/notebook-pages/${pageId}`, params);
@@ -121,7 +126,7 @@ export class NotebookService implements INotebookService {
 
   async update(
     id: string,
-    params: { title: string; description?: string },
+    params: { title: string; description?: string; topic_id: string },
   ): Promise<{ data: Notebook }> {
     const { data } = await this.api.put(`/notebooks/${id}`, params);
     return data;
@@ -162,6 +167,8 @@ export class NotebookService implements INotebookService {
     student_id?: string;
     reviewed?: boolean;
     course_id?: string;
+    limit?: number;
+    offset?: number;
   }): Promise<{ data: NotebookSubmissionFull[] }> {
     const { data } = await this.api.get("/notebook-submissions", { params });
     return data;

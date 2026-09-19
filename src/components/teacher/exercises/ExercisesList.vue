@@ -1,8 +1,12 @@
 <script setup lang="ts">
+  import { ref } from "vue";
   import {
     renderEquation,
     renderInlineEquation,
   } from "@/composables/useContentRenderer";
+  import FileViewer from "@/components/ui/FileViewer.vue";
+  import type { Exercise } from "@/types";
+  import { splitStatement, deserializeAnswer } from "@/utils/fillBlanks";
   import type {
     ExercisesListEmits,
     ExercisesListProps,
@@ -10,6 +14,26 @@
 
   defineProps<ExercisesListProps>();
   const emit = defineEmits<ExercisesListEmits>();
+
+  function fillBlanksAnswerText(correctAnswer?: string): string {
+    const placements = deserializeAnswer(correctAnswer);
+    const entries = Object.entries(placements).sort(
+      ([a], [b]) => Number(a) - Number(b),
+    );
+    if (!entries.length) return "N/A";
+    return entries.map(([, answer]) => answer).join(", ");
+  }
+
+  // Statement media opens in a modal: the list is dense enough without players
+  // inline, and audio only needs somewhere to hit play.
+  const preview = ref<{ url: string; title: string } | null>(null);
+
+  function openPreview(exercise: Exercise) {
+    preview.value = {
+      url: exercise.media_view_url ?? "",
+      title: exercise.question || "Material del enunciado",
+    };
+  }
 
   const diffColor = (difficulty: number) => {
     if (difficulty <= 3) return "var(--color-success-bg)";
@@ -39,13 +63,32 @@
           </option>
         </select>
       </div>
-      <button
-        class="btn btn-primary btn-sm"
-        :disabled="!selectedTopicId"
-        @click="emit('create')"
-      >
-        <i class="pi pi-plus"></i> Nuevo Ejercicio
-      </button>
+      <div class="flex gap-2 toolbar-actions">
+        <button
+          class="btn btn-secondary btn-sm"
+          title="Exportar los ejercicios de este tema a un archivo JSON"
+          aria-label="Exportar"
+          :disabled="!selectedTopicId || exercises.length === 0"
+          @click="emit('export-json')"
+        >
+          <i class="pi pi-download"></i> <span class="btn-label">Exportar</span>
+        </button>
+        <button
+          class="btn btn-secondary btn-sm"
+          title="Importar ejercicios desde un archivo JSON"
+          aria-label="Importar"
+          :disabled="!selectedTopicId"
+          @click="emit('import-json')"
+        >
+          <i class="pi pi-upload"></i> <span class="btn-label">Importar</span>
+        </button>
+        <button class="btn btn-secondary btn-sm" title="Crear con IA" aria-label="Crear con IA" :disabled="!selectedTopicId" @click="emit('create-ai')">
+          <i class="pi pi-sparkles"></i> <span class="btn-label">Crear con IA</span>
+        </button>
+        <button class="btn btn-primary btn-sm" title="Nuevo Ejercicio" aria-label="Nuevo Ejercicio" :disabled="!selectedTopicId" @click="emit('create')">
+          <i class="pi pi-plus"></i> <span class="btn-label">Nuevo Ejercicio</span>
+        </button>
+      </div>
     </div>
     <div v-if="!selectedTopicId" class="empty-inline">
       Selecciona un tema para ver sus ejercicios.
@@ -68,6 +111,15 @@
               class="item-title item-title--math"
               v-html="renderEquation(exercise.question)"
             ></div>
+            <div v-else-if="exercise.type === 'fill_blanks'" class="item-title">
+              <template
+                v-for="(segment, index) in splitStatement(exercise.question)"
+                :key="index"
+              >
+                <span v-if="segment.kind === 'text'">{{ segment.value }}</span>
+                <span v-else class="blank-slot">___</span>
+              </template>
+            </div>
             <div v-else class="item-title">{{ exercise.question }}</div>
             <div class="item-subtitle">
               {{ exercise.type }}
@@ -80,6 +132,10 @@
                   "
                 ></span>
               </template>
+              <template v-else-if="exercise.type === 'fill_blanks'"
+                >· Respuesta:
+                {{ fillBlanksAnswerText(exercise.correct_answer) }}</template
+              >
               <template v-else
                 >· Respuesta: {{ exercise.correct_answer || "N/A" }}</template
               >
@@ -87,6 +143,15 @@
           </div>
         </div>
         <div class="item-actions">
+          <button
+            v-if="exercise.media_view_url"
+            class="btn btn-ghost btn-sm"
+            title="Ver material del enunciado"
+            aria-label="Ver material del enunciado"
+            @click="openPreview(exercise)"
+          >
+            <i class="pi pi-play-circle"></i>
+          </button>
           <button class="btn btn-ghost btn-sm" @click="emit('edit', exercise)">
             <i class="pi pi-pencil"></i>
           </button>
@@ -99,6 +164,13 @@
         </div>
       </div>
     </div>
+
+    <FileViewer
+      :show="!!preview"
+      :url="preview?.url"
+      :title="preview?.title"
+      @close="preview = null"
+    />
   </div>
 </template>
 
@@ -115,6 +187,16 @@
   .item-actions {
     display: flex;
     align-items: center;
+  }
+  .blank-slot {
+    display: inline-block;
+    min-width: 44px;
+    padding: 0 4px;
+    margin: 0 2px;
+    border-bottom: 2px solid var(--practiq-violet, #6d28d9);
+    color: var(--practiq-violet, #6d28d9);
+    font-weight: 700;
+    text-align: center;
   }
   .section-header {
     justify-content: space-between;
@@ -224,6 +306,23 @@
     .list-item {
       flex-direction: column;
       align-items: stretch;
+    }
+    .section-header .flex.gap-3 {
+      flex-wrap: wrap;
+    }
+    .topic-select {
+      min-width: 0;
+      flex: 1 1 auto;
+    }
+    .toolbar-actions {
+      flex-wrap: nowrap;
+    }
+    .toolbar-actions .btn {
+      flex: 1 1 0;
+      padding: 8px 0;
+    }
+    .toolbar-actions .btn-label {
+      display: none;
     }
     .item-actions {
       justify-content: flex-end;

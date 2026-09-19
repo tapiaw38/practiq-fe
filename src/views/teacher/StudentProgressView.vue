@@ -1,4 +1,5 @@
 <script setup lang="ts">
+  import UiModal from "@/components/ui/UiModal.vue";
   import { ref, computed, onMounted, watch } from "vue";
   import { useRoute, useRouter } from "vue-router";
   import TeacherLayout from "@/layouts/TeacherLayout.vue";
@@ -426,7 +427,7 @@
             class="summary-card summary-card--skeleton"
           >
             <Skeleton variant="circle" size="34px" />
-            <div>
+            <div style="display: flex; flex-direction: column; gap: 6px">
               <Skeleton width="50px" height="22px" />
               <Skeleton width="100px" height="14px" />
             </div>
@@ -450,7 +451,7 @@
         <!-- Progress grid skeleton -->
         <div class="tab-content">
           <div class="tab-section-head">
-            <div>
+            <div style="display: flex; flex-direction: column; gap: 8px">
               <Skeleton width="80px" height="12px" />
               <Skeleton width="160px" height="24px" />
             </div>
@@ -689,7 +690,8 @@
             <i class="pi pi-file empty-icon"></i>
             <p>No hay hojas de práctica disponibles.</p>
           </div>
-          <div v-else class="sheets-list">
+          <div v-else class="sheets-layout" :class="{ 'sheets-layout--open': !!selectedSheet }">
+          <div class="sheets-list">
             <div
               v-for="sheet in filteredSheets"
               :key="sheet.id"
@@ -731,8 +733,8 @@
             </div>
           </div>
 
-          <!-- Attempts drawer -->
-          <Transition name="slide-up">
+          <!-- Attempts panel -->
+          <Transition name="slide-in">
             <div
               v-if="selectedSheet && attempts.length > 0"
               class="attempts-panel"
@@ -789,8 +791,8 @@
                       :key="a.id"
                       :class="a.is_correct ? 'row--correct' : 'row--incorrect'"
                     >
-                      <td>{{ i + 1 }}</td>
-                      <td class="answer-cell">
+                      <td data-label="#">{{ i + 1 }}</td>
+                      <td class="answer-cell" data-label="Respuesta">
                         <template v-if="getAttemptImageSrc(a)">
                           <button
                             class="btn btn-secondary btn-sm"
@@ -803,7 +805,7 @@
                           {{ a.answer_text || "—" }}
                         </template>
                       </td>
-                      <td>
+                      <td data-label="Correcto">
                         <span
                           class="result-chip"
                           :class="
@@ -815,11 +817,17 @@
                           {{ a.is_correct ? "Sí" : "No" }}
                         </span>
                       </td>
-                      <td>{{ formatAIFeedback(a.ai_feedback) }}</td>
-                      <td>{{ (a.score * 100).toFixed(0) }}%</td>
-                      <td>{{ a.time_spent_seconds }}</td>
-                      <td>{{ a.hints_used }}</td>
-                      <td>{{ formatDate(a.created_at) }}</td>
+                      <td data-label="Comentario IA">
+                        {{ formatAIFeedback(a.ai_feedback) }}
+                      </td>
+                      <td data-label="Puntaje">
+                        {{ Math.round(a.score) }}%
+                      </td>
+                      <td data-label="Tiempo (s)">
+                        {{ a.time_spent_seconds }}
+                      </td>
+                      <td data-label="Pistas">{{ a.hints_used }}</td>
+                      <td data-label="Fecha">{{ formatDate(a.created_at) }}</td>
                     </tr>
                   </tbody>
                 </table>
@@ -846,6 +854,7 @@
               </div>
             </div>
           </Transition>
+          </div>
         </div>
 
         <!-- TAB: Cuadernos -->
@@ -1058,12 +1067,11 @@
         </div>
       </template>
       <!-- PDF Download Modal -->
-      <Transition name="fade">
-        <div
-          v-if="showPdfModal"
-          class="pdf-modal-overlay"
-          @click.self="showPdfModal = false"
-        >
+      <UiModal
+        :visible="Boolean(showPdfModal)"
+        @close="showPdfModal = false"
+      >
+        <template v-if="showPdfModal">
           <div class="pdf-modal-card">
             <div class="pdf-modal-head">
               <h3>Descargar Reporte PDF</h3>
@@ -1122,65 +1130,66 @@
               </button>
             </div>
           </div>
-        </div>
-      </Transition>
+        </template>
+      </UiModal>
 
-      <div
-        v-if="attemptImageModalSrc"
-        class="image-modal-overlay"
-        @click.self="closeAttemptImage"
+      <UiModal
+        :visible="Boolean(attemptImageModalSrc)"
+        @close="closeAttemptImage"
       >
-        <div class="image-modal-card">
-          <div class="image-modal-head">
-            <h3>Imagen del intento</h3>
-            <button class="icon-btn" @click="closeAttemptImage">
-              <i class="pi pi-times"></i>
-            </button>
-          </div>
-          <div class="image-modal-controls">
-            <button
-              class="btn btn-secondary btn-sm"
-              @click="zoomOutAttemptImage"
-              :disabled="attemptImageZoom <= 0.5"
+        <template v-if="attemptImageModalSrc">
+          <div class="image-modal-card">
+            <div class="image-modal-head">
+              <h3>Imagen del intento</h3>
+              <button class="icon-btn" @click="closeAttemptImage">
+                <i class="pi pi-times"></i>
+              </button>
+            </div>
+            <div class="image-modal-controls">
+              <button
+                class="btn btn-secondary btn-sm"
+                @click="zoomOutAttemptImage"
+                :disabled="attemptImageZoom <= 0.5"
+              >
+                <i class="pi pi-search-minus"></i>
+              </button>
+              <span>{{ Math.round(attemptImageZoom * 100) }}%</span>
+              <button
+                class="btn btn-secondary btn-sm"
+                @click="zoomInAttemptImage"
+                :disabled="attemptImageZoom >= 3"
+              >
+                <i class="pi pi-search-plus"></i>
+              </button>
+              <button
+                class="btn btn-secondary btn-sm"
+                @click="resetAttemptImageZoom"
+                :disabled="attemptImageZoom === 1"
+              >
+                Reset
+              </button>
+            </div>
+            <div
+              class="image-modal-viewport"
+              @wheel.prevent="onAttemptImageWheel"
             >
-              <i class="pi pi-search-minus"></i>
-            </button>
-            <span>{{ Math.round(attemptImageZoom * 100) }}%</span>
-            <button
-              class="btn btn-secondary btn-sm"
-              @click="zoomInAttemptImage"
-              :disabled="attemptImageZoom >= 3"
-            >
-              <i class="pi pi-search-plus"></i>
-            </button>
-            <button
-              class="btn btn-secondary btn-sm"
-              @click="resetAttemptImageZoom"
-              :disabled="attemptImageZoom === 1"
-            >
-              Reset
-            </button>
+              <img
+                :src="attemptImageModalSrc"
+                class="image-modal-img image-modal-img--zoomable"
+                :style="{
+                  transform: `translate(${attemptImageOffsetX}px, ${attemptImageOffsetY}px) scale(${attemptImageZoom})`,
+                }"
+                @pointerdown="onAttemptImagePointerDown"
+                @pointermove="onAttemptImagePointerMove"
+                @pointerup="onAttemptImagePointerUp"
+                @pointercancel="onAttemptImagePointerUp"
+                @pointerleave="onAttemptImagePointerUp"
+                alt="Respuesta del intento"
+              />
+            </div>
           </div>
-          <div
-            class="image-modal-viewport"
-            @wheel.prevent="onAttemptImageWheel"
-          >
-            <img
-              :src="attemptImageModalSrc"
-              class="image-modal-img image-modal-img--zoomable"
-              :style="{
-                transform: `translate(${attemptImageOffsetX}px, ${attemptImageOffsetY}px) scale(${attemptImageZoom})`,
-              }"
-              @pointerdown="onAttemptImagePointerDown"
-              @pointermove="onAttemptImagePointerMove"
-              @pointerup="onAttemptImagePointerUp"
-              @pointercancel="onAttemptImagePointerUp"
-              @pointerleave="onAttemptImagePointerUp"
-              alt="Respuesta del intento"
-            />
-          </div>
-        </div>
-      </div>
+        </template>
+      </UiModal>
     </div>
   </TeacherLayout>
 </template>
@@ -1199,24 +1208,12 @@
     gap: 20px;
     margin-bottom: 18px;
     padding: 24px 28px;
-    border-radius: 28px;
+    border-radius: var(--radius-md);
     background: var(--gradient-card-accent);
     border: 1px solid var(--surface-elevated-strong);
     box-shadow: var(--shadow-soft);
     backdrop-filter: blur(18px);
     overflow: hidden;
-  }
-
-  .sp-header::after {
-    content: "";
-    position: absolute;
-    right: 28px;
-    bottom: -48px;
-    width: 170px;
-    height: 170px;
-    border-radius: 50%;
-    background: var(--gradient-brand-soft);
-    pointer-events: none;
   }
 
   .sp-header > * {
@@ -1678,6 +1675,24 @@
   }
 
   /* Sheets */
+  .sheets-layout {
+    display: grid;
+    gap: 16px;
+    align-items: start;
+  }
+  @media (min-width: 1100px) {
+    .sheets-layout--open {
+      grid-template-columns: minmax(0, 1fr) minmax(0, 1.05fr);
+    }
+    .sheets-layout--open .attempts-panel {
+      position: sticky;
+      top: 16px;
+      max-height: calc(100vh - 32px);
+      overflow-y: auto;
+      margin-top: 0;
+    }
+  }
+
   .sheets-list {
     display: flex;
     flex-direction: column;
@@ -1830,17 +1845,6 @@
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
-  }
-
-  .image-modal-overlay {
-    position: fixed;
-    inset: 0;
-    z-index: 1200;
-    background: var(--surface-scrim);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    padding: 20px;
   }
 
   .image-modal-card {
@@ -2197,6 +2201,28 @@
     opacity: 0.4;
   }
 
+  /* Slide-in transition: from the side on desktop, from below when stacked */
+  .slide-in-enter-active,
+  .slide-in-leave-active {
+    transition: all 0.25s ease;
+  }
+  .slide-in-enter-from {
+    opacity: 0;
+    transform: translateY(16px);
+  }
+  .slide-in-leave-to {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  @media (min-width: 1100px) {
+    .slide-in-enter-from {
+      transform: translateX(16px);
+    }
+    .slide-in-leave-to {
+      transform: translateX(8px);
+    }
+  }
+
   /* Slide-up transition */
   .slide-up-enter-active,
   .slide-up-leave-active {
@@ -2222,17 +2248,6 @@
   }
 
   /* PDF Modal */
-  .pdf-modal-overlay {
-    position: fixed;
-    inset: 0;
-    z-index: 1200;
-    background: var(--surface-scrim);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    padding: 20px;
-  }
-
   .pdf-modal-card {
     width: min(440px, 100%);
     background: var(--surface-card);
@@ -2415,6 +2430,62 @@
     .sheet-card {
       flex-direction: column;
       align-items: flex-start;
+    }
+
+    /* Tap targets >= 44px en mobile */
+    .icon-btn {
+      width: 44px;
+      height: 44px;
+    }
+    .tab-btn {
+      min-height: 48px;
+      flex-shrink: 0;
+    }
+
+    /* 8 columnas no entran: cada intento pasa a tarjeta con la
+       cabecera como etiqueta (mismo patron que .data-table en AdminUsersView). */
+    .attempts-table-wrap {
+      overflow: visible;
+    }
+    .attempts-table thead {
+      display: none;
+    }
+    .attempts-table,
+    .attempts-table tbody,
+    .attempts-table tr,
+    .attempts-table td {
+      display: block;
+      width: 100%;
+    }
+    .attempts-table tbody {
+      display: grid;
+      gap: 10px;
+    }
+    .attempts-table tbody tr {
+      padding: 12px;
+      border: 1px solid rgba(var(--surface-border-rgb), 0.16);
+      border-radius: var(--radius-xl);
+      background: var(--surface-card);
+      box-shadow: var(--shadow-sm);
+    }
+    .attempts-table td {
+      display: grid;
+      grid-template-columns: minmax(92px, 34%) 1fr;
+      gap: 10px;
+      align-items: start;
+      padding: 8px 0;
+      border-bottom: 1px solid rgba(var(--surface-border-rgb), 0.1);
+    }
+    .attempts-table td:last-child {
+      border-bottom: none;
+    }
+    .attempts-table td::before {
+      content: attr(data-label);
+      color: var(--text-secondary);
+      font-size: var(--text-xs);
+      font-weight: 800;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
     }
   }
 </style>

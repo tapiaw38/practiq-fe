@@ -273,8 +273,8 @@
           <span>avanza con confianza.</span>
         </h1>
         <p>
-          Ejercicios paso a paso, retroalimentación al instante y un asistente
-          que te acompaña en cada tema.
+          Ejercicios paso a paso, retroalimentación al instante y Practi, el
+          asistente que te acompaña en cada tema.
         </p>
       </div>
 
@@ -297,7 +297,7 @@
         <img
           src="@/assets/robot.png"
           class="preview-robot"
-          alt="Copiloto Practiq"
+          alt="Practi, el asistente de Practiq"
         />
       </div>
     </section>
@@ -331,10 +331,10 @@
               currentView === "login"
                 ? "Entra para continuar con tus prácticas."
                 : currentView === "register"
-                  ? "Crea tu cuenta y elige tu tipo de perfil."
+                  ? "Crea tu cuenta y empezá a practicar."
                   : currentView === "forgot"
                     ? "Te enviaremos un enlace para recuperar el acceso."
-                    : "Antes de continuar, elige tu tipo de perfil."
+                    : "Confirmá tus datos para terminar de entrar."
             }}
           </p>
           <div
@@ -456,37 +456,23 @@
             </div>
           </div>
 
-          <div class="form-group">
-            <label class="form-label">Tipo de perfil</label>
-            <div class="profile-grid">
-              <button
-                type="button"
-                class="profile-option"
-                :class="{ active: profileType === 'student' }"
-                :aria-pressed="profileType === 'student'"
-                @click="profileType = 'student'"
-              >
-                <span class="profile-option__emoji">🎒</span>
-                <span class="profile-option__name">Estudiante</span>
-                <span class="profile-option__desc"
-                  >Practicar y avanzar por temas.</span
-                >
-              </button>
-              <button
-                type="button"
-                class="profile-option"
-                :class="{ active: profileType === 'teacher' }"
-                :aria-pressed="profileType === 'teacher'"
-                @click="profileType = 'teacher'"
-              >
-                <span class="profile-option__emoji">🧑‍🏫</span>
-                <span class="profile-option__name">Docente</span>
-                <span class="profile-option__desc"
-                  >Crear cursos y acompañar estudiantes.</span
-                >
-              </button>
-            </div>
-          </div>
+          <fieldset class="profile-type-picker">
+            <legend>¿Cómo vas a usar Practiq?</legend>
+            <label class="profile-type-option">
+              <input v-model="profileType" type="radio" value="student" />
+              <span>
+                <strong>Alumno</strong>
+                <small>Practicar, resolver actividades y avanzar por niveles.</small>
+              </span>
+            </label>
+            <label class="profile-type-option">
+              <input v-model="profileType" type="radio" value="teacher" />
+              <span>
+                <strong>Docente</strong>
+                <small>Crear tareas, acompañar cursos y revisar entregas.</small>
+              </span>
+            </label>
+          </fieldset>
 
           <div class="form-group">
             <label class="form-label" for="register-email">Email</label>
@@ -612,37 +598,25 @@
             </div>
           </div>
 
-          <div class="form-group">
-            <label class="form-label">Tipo de perfil</label>
-            <div class="profile-grid">
-              <button
-                type="button"
-                class="profile-option"
-                :class="{ active: pendingProfile.profile_type === 'student' }"
-                :aria-pressed="pendingProfile.profile_type === 'student'"
-                @click="pendingProfile.profile_type = 'student'"
-              >
-                <span class="profile-option__emoji">🎒</span>
-                <span class="profile-option__name">Estudiante</span>
-                <span class="profile-option__desc"
-                  >Entrar a prácticas y progreso.</span
-                >
-              </button>
-              <button
-                type="button"
-                class="profile-option"
-                :class="{ active: pendingProfile.profile_type === 'teacher' }"
-                :aria-pressed="pendingProfile.profile_type === 'teacher'"
-                @click="pendingProfile.profile_type = 'teacher'"
-              >
-                <span class="profile-option__emoji">🧑‍🏫</span>
-                <span class="profile-option__name">Docente</span>
-                <span class="profile-option__desc"
-                  >Entrar a cursos y gestión de contenido.</span
-                >
-              </button>
-            </div>
-          </div>
+          <fieldset class="profile-type-picker">
+            <legend>¿Cómo vas a usar Practiq?</legend>
+            <label class="profile-type-option">
+              <input
+                v-model="pendingProfile.profile_type"
+                type="radio"
+                value="student"
+              />
+              <span><strong>Alumno</strong><small>Acceder a prácticas y niveles.</small></span>
+            </label>
+            <label class="profile-type-option">
+              <input
+                v-model="pendingProfile.profile_type"
+                type="radio"
+                value="teacher"
+              />
+              <span><strong>Docente</strong><small>Acceder al panel docente.</small></span>
+            </label>
+          </fieldset>
 
           <div v-if="errorMsg" class="alert alert--error">
             <i class="pi pi-exclamation-circle"></i>
@@ -968,61 +942,59 @@
     gap: 10px;
   }
 
-  /* Profile picker */
-  .profile-grid {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 12px;
-  }
-  .profile-option {
-    padding: 16px 14px;
-    border-radius: var(--radius-xl);
-    border: 1.5px solid var(--surface-border);
-    background: var(--surface-card);
-    text-align: left;
-    cursor: pointer;
-    transition: var(--transition);
-  }
-  .auth-card--register .profile-grid {
-    gap: 10px;
-  }
-  .auth-card--register .profile-option {
-    padding: 12px 12px;
-  }
-  .profile-option:hover {
-    border-color: var(--practiq-violet-light);
+  .teacher-note {
+    margin: 0;
+    padding: 10px 14px;
+    border-radius: var(--radius-lg);
     background: var(--practiq-violet-bg);
-  }
-  .profile-option.active {
-    border-color: var(--practiq-violet);
-    background: var(--practiq-violet-bg);
-    box-shadow: 0 0 0 3px var(--fill-primary-soft);
-  }
-  .profile-option__emoji {
-    display: block;
-    font-size: 22px;
-    margin-bottom: 8px;
-  }
-  .auth-card--register .profile-option__emoji {
-    font-size: 19px;
-    margin-bottom: 5px;
-  }
-  .profile-option__name {
-    display: block;
-    font-weight: 700;
-    font-size: var(--text-md);
-    color: var(--text-primary);
-  }
-  .profile-option__desc {
-    display: block;
-    margin-top: 2px;
-    font-size: var(--text-sm);
+    border: 1px solid var(--surface-border);
     color: var(--text-secondary);
-    line-height: 1.4;
+    font-size: var(--text-sm);
+    line-height: 1.5;
   }
-  .auth-card--register .profile-option__desc {
+
+  .profile-type-picker {
+    display: grid;
+    gap: 8px;
+    margin: 0;
+    padding: 12px;
+    border: 1px solid var(--surface-border);
+    border-radius: var(--radius-lg);
+    background: var(--surface-subtle);
+  }
+  .profile-type-picker legend {
+    padding: 0 4px;
+    color: var(--text-secondary);
+    font-size: var(--text-sm);
+    font-weight: 700;
+  }
+  .profile-type-option {
+    display: flex;
+    align-items: flex-start;
+    gap: 9px;
+    padding: 8px;
+    border-radius: var(--radius-md);
+    color: var(--text-primary);
+    cursor: pointer;
+  }
+  .profile-type-option:hover {
+    background: var(--fill-primary-subtle);
+  }
+  .profile-type-option input {
+    margin: 3px 0 0;
+    accent-color: var(--practiq-violet);
+  }
+  .profile-type-option span {
+    display: grid;
+    gap: 2px;
+  }
+  .profile-type-option strong {
+    font-size: var(--text-sm);
+  }
+  .profile-type-option small {
+    color: var(--text-secondary);
     font-size: var(--text-xs);
-    line-height: 1.3;
+    line-height: 1.35;
   }
 
   .form-help {
@@ -1234,6 +1206,23 @@
     }
     .auth-switch {
       margin-top: 14px;
+    }
+
+    /* Tap targets >= 44px en mobile */
+    .auth-switch__btn {
+      min-height: 44px;
+    }
+    .auth-form .form-input,
+    .auth-card--register .auth-form .form-input {
+      min-height: 48px;
+    }
+    .submit-btn {
+      min-height: 50px;
+    }
+    .text-link {
+      display: inline-flex;
+      align-items: center;
+      min-height: 32px;
     }
   }
 </style>

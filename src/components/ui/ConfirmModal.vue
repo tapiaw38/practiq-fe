@@ -3,14 +3,15 @@
     ConfirmModalEmits,
     ConfirmModalProps,
   } from "./ConfirmModal.types";
+  import UiModal from "./UiModal.vue";
 
   defineProps<ConfirmModalProps>();
   defineEmits<ConfirmModalEmits>();
 </script>
 
 <template>
-  <Teleport to="body">
-    <div v-if="show" class="confirm-backdrop" @click.self="$emit('cancel')">
+  <UiModal :visible="Boolean(show)" @close="$emit('cancel')">
+    <template v-if="show">
       <div class="confirm-card">
         <div
           class="confirm-icon"
@@ -42,22 +43,11 @@
           </button>
         </div>
       </div>
-    </div>
-  </Teleport>
+    </template>
+  </UiModal>
 </template>
 
 <style scoped>
-  .confirm-backdrop {
-    position: fixed;
-    inset: 0;
-    background: var(--surface-overlay);
-    display: grid;
-    place-items: center;
-    padding: 24px;
-    z-index: 200;
-    backdrop-filter: blur(2px);
-  }
-
   .confirm-card {
     background: var(--surface-card);
     border-radius: var(--radius-2xl);
