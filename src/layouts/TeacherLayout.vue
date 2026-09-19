@@ -623,9 +623,10 @@
     }
 
     .mobile-topbar {
-      display: flex;
-      justify-content: space-between;
+      display: grid;
+      grid-template-columns: 44px minmax(0, 1fr) 44px;
       align-items: center;
+      column-gap: 8px;
       padding: 14px 16px 0;
       position: sticky;
       top: 0;
@@ -633,8 +634,8 @@
       background: var(--gradient-mobile-topbar);
       backdrop-filter: blur(16px);
     }
-    .topbar-brand { display: flex; align-items: center; gap: 8px; min-width: 0; max-width: calc(100vw - 120px); }
-    .topbar-school { display: block; }
+    .topbar-brand { display: flex; flex-direction: column; align-items: center; gap: 1px; min-width: 0; max-width: none; text-align: center; }
+    .topbar-school { display: block; max-width: 100%; line-height: 1.2; }
 
     .drawer-backdrop {
       display: block;

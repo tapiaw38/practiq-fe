@@ -860,26 +860,27 @@
     display: inline-flex;
     align-items: center;
     gap: 8px;
-    padding: 6px 12px;
-    border: 1.5px solid rgba(var(--practiq-violet-rgb), 0.2);
-    background: var(--practiq-violet-bg);
-    color: var(--practiq-violet-dark);
-    border-radius: var(--radius-pill);
+    min-height: 42px;
+    padding: 9px 14px;
+    border: 1px solid var(--color-info-dark);
+    background: var(--color-info);
+    color: var(--color-on-primary);
+    border-radius: var(--radius-md);
     font-size: var(--text-sm);
     font-weight: 700;
     cursor: pointer;
     transition: var(--transition-fast);
   }
   .catalog-pill:hover {
-    background: var(--practiq-violet-pale);
-    border-color: var(--practiq-violet-light);
+    background: var(--color-info-dark);
+    border-color: var(--color-info-dark);
   }
   .catalog-pill__badge {
     min-width: 20px;
     height: 20px;
     padding: 0 6px;
     border-radius: var(--radius-pill);
-    background: var(--practiq-violet);
+    background: rgba(255, 255, 255, .2);
     color: var(--color-on-primary);
     font-size: var(--text-xs);
     font-weight: 800;
