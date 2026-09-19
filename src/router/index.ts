@@ -141,7 +141,7 @@ const router = createRouter({
       path: "/teacher/strategies",
       name: "teacher-strategies",
       component: () => import("@/views/teacher/StrategyManagementView.vue"),
-      meta: { requiresAuth: true, profileType: "teacher" },
+      meta: { requiresAuth: true, profileType: "teacher", roles: ["superadmin"] },
     },
     {
       path: "/teacher/subscription",

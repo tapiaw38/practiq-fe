@@ -222,8 +222,9 @@
           <span class="nav-icon"><i class="pi pi-paperclip"></i></span>
           <span>Pruebas de nivel</span>
         </RouterLink>
-        <div class="nav-section-label nav-section-label--spaced">Herramientas</div>
+        <div v-if="isSuperAdmin || canManageSubscription" class="nav-section-label nav-section-label--spaced">Herramientas</div>
         <RouterLink
+          v-if="isSuperAdmin"
           to="/teacher/strategies"
           class="nav-item"
           active-class="nav-item-active"
