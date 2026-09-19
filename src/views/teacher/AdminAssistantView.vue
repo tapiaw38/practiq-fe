@@ -120,4 +120,13 @@
   .hint { margin: -8px 0 0; color: var(--text-secondary); font-size: .82rem; }
   button { justify-self: start; padding: 12px 18px; border: 0; border-radius: 8px; background: var(--practiq-violet); color: #fff; font-weight: 700; cursor: pointer; }
   button:disabled { opacity: .6; }
+  @media (max-width: 600px) {
+    .page { padding: 20px 16px 32px; }
+    h1 { font-size: 1.65rem; line-height: 1.14; }
+    header p:last-child { margin-bottom: 0; font-size: .92rem; line-height: 1.5; }
+    form { gap: 16px; margin-top: 22px; padding: 18px 16px; border-radius: 12px; }
+    input { min-height: 44px; font-size: 16px; }
+    .hint { margin-top: -5px; line-height: 1.45; }
+    button { width: 100%; min-height: 44px; justify-self: stretch; }
+  }
 </style>

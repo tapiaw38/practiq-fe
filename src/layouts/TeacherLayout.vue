@@ -650,6 +650,8 @@
       margin: 0;
       width: min(320px, calc(100vw - 24px));
       height: calc(100vh - 24px);
+      height: calc(100dvh - 24px);
+      overflow: hidden;
       transform: translateX(-110%);
       transition: transform 0.24s ease;
       z-index: 40;
@@ -662,6 +664,19 @@
     /* Tap targets >= 44px en mobile */
     .nav-item {
       min-height: 52px;
+    }
+
+    .sidebar-brand,
+    .sidebar-footer {
+      flex: 0 0 auto;
+    }
+
+    .close-btn {
+      flex: 0 0 44px;
+    }
+
+    .close-btn i {
+      line-height: 1;
     }
   }
 
