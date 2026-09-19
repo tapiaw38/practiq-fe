@@ -1488,6 +1488,44 @@
     }
   }
 
+  function seedTeacherCanvasFromQuestion(kind: TeacherCanvasKind) {
+    const form = kind === "new" ? newExercise : editExercise;
+    const canvas = teacherCanvasRefs[kind];
+    if (!canvas) return;
+    initTeacherCanvas(kind);
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return;
+    const words = (form.question.trim() || "Escribí tu respuesta.").split(/\s+/);
+    const maxWidth = canvas.width - 44;
+    const lines: string[] = [];
+    let line = "";
+    ctx.font = 'italic 24px "Segoe Print", "Comic Sans MS", cursive';
+    for (const word of words) {
+      const candidate = line ? `${line} ${word}` : word;
+      if (line && ctx.measureText(candidate).width > maxWidth) {
+        lines.push(line);
+        line = word;
+      } else line = candidate;
+    }
+    if (line) lines.push(line);
+    ctx.fillStyle = "#1f2937";
+    ctx.textBaseline = "top";
+    lines.slice(0, 5).forEach((text, index) => ctx.fillText(text, 22, 12 + index * 34));
+    if (lines.length > 5) ctx.fillText("…", 22, 12 + 5 * 34);
+    form.teacher_image = captureTeacherCanvas(kind);
+  }
+
+  function convertManualExerciseToHandwritten(kind: TeacherCanvasKind) {
+    const form = kind === "new" ? newExercise : editExercise;
+    if (!form.question.trim()) {
+      toast.add({ severity: "warn", summary: "Escribí una consigna primero", detail: "La convertiremos en un borrador manuscrito para que lo corrijas.", life: 3500 });
+      return;
+    }
+    form.type = "handwritten";
+    // The type watcher mounts and clears the canvas in its first flush.
+    nextTick(() => nextTick(() => seedTeacherCanvasFromQuestion(kind)));
+  }
+
   function drawTeacherCanvasBackground(
     ctx: CanvasRenderingContext2D,
     width: number,
@@ -1822,6 +1860,7 @@
                 <option value="attachment">📎 Entrega de archivo</option>
                 <option value="fill_blanks">🧩 Completar huecos</option>
               </select>
+              <button v-if="newExercise.type !== 'handwritten'" type="button" class="btn btn-ghost btn-sm" @click="convertManualExerciseToHandwritten('new')"><i class="pi pi-pencil"></i> Convertir consigna a manuscrito</button>
             </div>
             <div v-if="newExercise.type === 'fill_blanks'" class="form-group">
               <label class="form-label">Huecos y opciones</label>
@@ -1884,13 +1923,7 @@
               <div class="teacher-canvas-wrap">
                 <div class="teacher-canvas-toolbar">
                   <span>Escribe aquí el ejercicio que verá el alumno</span>
-                  <button
-                    type="button"
-                    class="btn btn-ghost btn-sm"
-                    @click="clearTeacherCanvas('new')"
-                  >
-                    <i class="pi pi-trash"></i> Limpiar
-                  </button>
+                  <div class="teacher-canvas-actions"><button type="button" class="btn btn-ghost btn-sm" @click="seedTeacherCanvasFromQuestion('new')"><i class="pi pi-refresh"></i> Generar desde texto</button><button type="button" class="btn btn-ghost btn-sm" @click="clearTeacherCanvas('new')"><i class="pi pi-trash"></i> Limpiar</button></div>
                 </div>
                 <canvas
                   :ref="
@@ -2755,6 +2788,7 @@
                 <option value="attachment">📎 Entrega de archivo</option>
                 <option value="fill_blanks">🧩 Completar huecos</option>
               </select>
+              <button v-if="editExercise.type !== 'handwritten'" type="button" class="btn btn-ghost btn-sm" @click="convertManualExerciseToHandwritten('edit')"><i class="pi pi-pencil"></i> Convertir consigna a manuscrito</button>
             </div>
             <div v-if="editExercise.type === 'fill_blanks'" class="form-group">
               <label class="form-label">Huecos y opciones</label>
@@ -2820,13 +2854,7 @@
               <div class="teacher-canvas-wrap">
                 <div class="teacher-canvas-toolbar">
                   <span>Escribe aquí el ejercicio que verá el alumno</span>
-                  <button
-                    type="button"
-                    class="btn btn-ghost btn-sm"
-                    @click="clearTeacherCanvas('edit')"
-                  >
-                    <i class="pi pi-trash"></i> Limpiar
-                  </button>
+                  <div class="teacher-canvas-actions"><button type="button" class="btn btn-ghost btn-sm" @click="seedTeacherCanvasFromQuestion('edit')"><i class="pi pi-refresh"></i> Generar desde texto</button><button type="button" class="btn btn-ghost btn-sm" @click="clearTeacherCanvas('edit')"><i class="pi pi-trash"></i> Limpiar</button></div>
                 </div>
                 <canvas
                   :ref="
@@ -3285,6 +3313,12 @@
     gap: 12px;
     color: var(--text-secondary);
     font-size: var(--text-sm);
+  }
+  .teacher-canvas-actions {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    gap: 6px;
   }
   .teacher-canvas {
     width: 100%;
