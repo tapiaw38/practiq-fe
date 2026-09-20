@@ -385,7 +385,7 @@
               @click="openCreateGrade"
             >
               <i class="pi pi-plus"></i>
-              Nuevo
+              Nuevo grado
             </button>
           </div>
           <label class="grade-mobile-select">

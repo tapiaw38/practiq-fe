@@ -1,10 +1,13 @@
 <script setup lang="ts">
   import UiModal from "@/components/ui/UiModal.vue";
+  import ConfirmModal from "@/components/ui/ConfirmModal.vue";
   import { ref, computed, watch, nextTick, onMounted, reactive } from "vue";
   import { useRoute, useRouter } from "vue-router";
   import TeacherLayout from "@/layouts/TeacherLayout.vue";
   import Skeleton from "@/components/ui/Skeleton.vue";
+  import { practiqApi } from "@/api/request/server";
   import { useNotebook } from "@/composables/useNotebook";
+  import { useConfirm } from "@/composables/useConfirm";
   import type { Notebook, NotebookPage } from "@/types";
 
   const route = useRoute();
@@ -22,7 +25,24 @@
   const saving = ref(false);
   const selectedIdx = ref(0);
   const showAddPage = ref(false);
+  const showAIPagesModal = ref(false);
+  const addingPage = ref(false);
+  const aiPagesGenerating = ref(false);
+  const aiPagesSaving = ref(false);
+  const aiPageSource = ref<File | null>(null);
+  const aiPageInstruction = ref("");
+  const aiPageCount = ref(1);
+  const aiPageError = ref("");
+  type AINotebookPageDraft = {
+    title: string;
+    content_type: "text";
+    content_data: string;
+    instructions: string;
+  };
+  const aiPageDrafts = ref<AINotebookPageDraft[]>([]);
   const saveMsg = ref("");
+  const deletingPage = ref(false);
+  const { confirmState, showConfirm, onConfirm, onCancel } = useConfirm();
 
   // Canvas refs
   const editorCanvas = ref<HTMLCanvasElement | null>(null);
@@ -58,6 +78,9 @@
   });
 
   const pages = computed(() => notebook.value?.pages || []);
+  const canGenerateAIPages = computed(
+    () => Boolean(aiPageSource.value || aiPageInstruction.value.trim()),
+  );
 
   // FIX: currentPage devuelve el objeto mutable del array directamente.
   // Se expone como ref writeable para que v-model en el template pueda mutar
@@ -97,24 +120,118 @@
   }
 
   async function addPage() {
+    if (addingPage.value) return;
+    addingPage.value = true;
     const pageCount = pages.value.length;
-    await addPageService(notebookId, {
-      page_number: pageCount + 1,
-      title: newPage.title || `Página ${pageCount + 1}`,
-      content_type: newPage.content_type,
-      content_data: "",
-      instructions: newPage.instructions,
-    });
-    showAddPage.value = false;
-    newPage.title = "";
-    newPage.instructions = "";
-    newPage.content_type = "canvas";
+    try {
+      await addPageService(notebookId, {
+        page_number: pageCount + 1,
+        title: newPage.title || `Página ${pageCount + 1}`,
+        content_type: newPage.content_type,
+        content_data: "",
+        instructions: newPage.instructions,
+      });
+      showAddPage.value = false;
+      newPage.title = "";
+      newPage.instructions = "";
+      newPage.content_type = "canvas";
 
-    notebook.value = await loadNotebook(notebookId);
-    await nextTick();
-    selectedIdx.value = pages.value.length - 1;
-    await nextTick();
-    if (currentPage.value?.content_type === "canvas") initCanvas(true);
+      notebook.value = await loadNotebook(notebookId);
+      await nextTick();
+      selectedIdx.value = pages.value.length - 1;
+      await nextTick();
+      if (currentPage.value?.content_type === "canvas") initCanvas(true);
+    } finally {
+      addingPage.value = false;
+    }
+  }
+
+  function setAIPageSource(event: Event) {
+    aiPageSource.value = (event.target as HTMLInputElement).files?.[0] || null;
+  }
+
+  function resetAIPages() {
+    aiPageSource.value = null;
+    aiPageInstruction.value = "";
+    aiPageCount.value = 1;
+    aiPageDrafts.value = [];
+    aiPageError.value = "";
+  }
+
+  async function generateAIPages() {
+    if (!canGenerateAIPages.value || aiPagesGenerating.value) return;
+    aiPagesGenerating.value = true;
+    aiPageError.value = "";
+    try {
+      const form = new FormData();
+      if (aiPageSource.value) form.append("source", aiPageSource.value);
+      form.append("instruction", aiPageInstruction.value.trim());
+      form.append("count", String(aiPageCount.value));
+      const { data } = await practiqApi.post(
+        `/notebooks/${notebookId}/page-drafts/ai`,
+        form,
+        { headers: { "Content-Type": "multipart/form-data" } },
+      );
+      aiPageDrafts.value = (data.data || []).map((page: Partial<AINotebookPageDraft>) => ({
+        title: page.title || "Nueva página",
+        content_type: "text",
+        content_data: page.content_data || "",
+        instructions: page.instructions || "",
+      }));
+    } catch (error) {
+      aiPageError.value =
+        (error as { response?: { data?: { message?: string } } })?.response?.data?.message ||
+        "No se pudieron generar las hojas. Intentá nuevamente.";
+    } finally {
+      aiPagesGenerating.value = false;
+    }
+  }
+
+  async function saveAIPages() {
+    if (!aiPageDrafts.value.length || aiPagesSaving.value) return;
+    if (aiPageDrafts.value.some((page) => !page.title.trim() || !page.content_data.trim())) {
+      aiPageError.value = "Cada hoja necesita título y contenido.";
+      return;
+    }
+    aiPagesSaving.value = true;
+    aiPageError.value = "";
+    try {
+      let pageNumber = pages.value.length;
+      const pending: AINotebookPageDraft[] = [];
+      let failure = false;
+      for (const page of aiPageDrafts.value) {
+        if (failure) {
+          pending.push(page);
+          continue;
+        }
+        pageNumber += 1;
+        try {
+          await addPageService(notebookId, {
+            page_number: pageNumber,
+            title: page.title.trim(),
+            content_type: "text",
+            content_data: page.content_data.trim(),
+            instructions: page.instructions.trim(),
+          });
+        } catch {
+          failure = true;
+          pending.push(page);
+        }
+      }
+      notebook.value = await loadNotebook(notebookId);
+      if (failure) {
+        aiPageDrafts.value = pending;
+        aiPageError.value = "Se agregaron algunas hojas. Quedan las restantes para reintentar.";
+        return;
+      }
+      selectedIdx.value = Math.max(0, pages.value.length - aiPageDrafts.value.length);
+      showAIPagesModal.value = false;
+      resetAIPages();
+    } catch {
+      aiPageError.value = "No se pudieron guardar todas las hojas. Revisá el cuaderno e intentá de nuevo.";
+    } finally {
+      aiPagesSaving.value = false;
+    }
   }
 
   const statementDraft = ref("");
@@ -183,6 +300,29 @@
     const dataUrl = editorCanvas.value.toDataURL("image/png");
     currentPage.value.content_data = dataUrl;
     await savePage();
+  }
+
+  async function deleteCurrentPage() {
+    const page = currentPage.value;
+    if (!page || deletingPage.value) return;
+    const approved = await showConfirm(`¿Eliminar “${page.title || "esta hoja"}”?`, {
+      description: "También se eliminarán las entregas de alumnos de esta hoja. No se puede deshacer.",
+      confirmLabel: "Eliminar hoja",
+      danger: true,
+    });
+    if (!approved) return;
+    deletingPage.value = true;
+    try {
+      const previousIndex = selectedIdx.value;
+      await practiqApi.delete(`/notebook-pages/${page.id}`);
+      notebook.value = await loadNotebook(notebookId);
+      selectedIdx.value = Math.max(0, Math.min(previousIndex, pages.value.length - 1));
+      await nextTick();
+      if (currentPage.value?.content_type === "canvas") initCanvas(true);
+      saveMsg.value = "Hoja eliminada";
+    } finally {
+      deletingPage.value = false;
+    }
   }
 
   function initCanvas(loadExisting = false) {
@@ -302,13 +442,14 @@
           <h1 class="editor-title">{{ notebook?.title || "Cuaderno" }}</h1>
           <span class="editor-desc">{{ notebook?.description }}</span>
         </div>
-        <button
-          class="btn btn-primary btn-sm"
-          type="button"
-          @click="showAddPage = true"
-        >
-          <i class="pi pi-plus"></i> Agregar página
-        </button>
+        <div class="header-actions">
+          <button class="btn btn-secondary btn-sm" type="button" @click="showAIPagesModal = true">
+            <i class="pi pi-sparkles"></i> Generar con IA
+          </button>
+          <button class="btn btn-primary btn-sm" type="button" @click="showAddPage = true">
+            <i class="pi pi-plus"></i> Agregar página
+          </button>
+        </div>
       </header>
 
       <!-- Loading Skeleton -->
@@ -402,6 +543,10 @@
                 <option value="canvas">Imagen / Dibujo</option>
                 <option value="text">Texto</option>
               </select>
+              <button class="page-delete-btn" type="button" :disabled="deletingPage" @click="deleteCurrentPage">
+                <i class="pi pi-trash"></i>
+                {{ deletingPage ? "Eliminando…" : "Eliminar" }}
+              </button>
             </div>
 
             <!-- Canvas content editor -->
@@ -610,12 +755,67 @@
               >
                 Cancelar
               </button>
-              <button type="submit" class="btn btn-primary">Agregar</button>
+              <button type="submit" class="btn btn-primary" :disabled="addingPage">
+                {{ addingPage ? "Agregando…" : "Agregar página" }}
+              </button>
             </div>
           </form>
         </div>
       </template>
     </UiModal>
+
+    <UiModal :visible="showAIPagesModal" @close="showAIPagesModal = false">
+      <template v-if="showAIPagesModal">
+        <div class="modal-box ai-pages-modal">
+          <div class="modal-header">
+            <div>
+              <h3 class="modal-title">Generar hojas con IA</h3>
+              <p class="modal-help">La IA prepara borradores. Revisalos antes de agregarlos al cuaderno.</p>
+            </div>
+            <button type="button" class="modal-close" aria-label="Cerrar" @click="showAIPagesModal = false"><i class="pi pi-times"></i></button>
+          </div>
+          <form v-if="!aiPageDrafts.length" @submit.prevent="generateAIPages">
+            <div class="form-group">
+              <label class="form-label">Qué querés enseñar *</label>
+              <textarea v-model="aiPageInstruction" class="form-textarea" rows="4" placeholder="Ej: Explicá fracciones equivalentes para 7mo, con ejemplo y una actividad final."></textarea>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Archivo de apoyo (opcional)</label>
+              <input type="file" accept=".pdf,.docx,image/png,image/jpeg,image/webp" @change="setAIPageSource" />
+              <small v-if="aiPageSource">{{ aiPageSource.name }}</small>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Cantidad de hojas</label>
+              <select v-model.number="aiPageCount" class="form-input"><option v-for="count in 5" :key="count" :value="count">{{ count }}</option></select>
+            </div>
+            <p v-if="aiPageError" class="form-error">{{ aiPageError }}</p>
+            <div class="modal-actions">
+              <button type="button" class="btn btn-secondary" @click="showAIPagesModal = false">Cancelar</button>
+              <button type="submit" class="btn btn-primary" :disabled="!canGenerateAIPages || aiPagesGenerating">{{ aiPagesGenerating ? "Generando…" : "Generar borrador" }}</button>
+            </div>
+          </form>
+          <form v-else @submit.prevent="saveAIPages">
+            <article v-for="(page, index) in aiPageDrafts" :key="index" class="ai-page-draft">
+              <strong>Hoja {{ index + 1 }}</strong>
+              <input v-model="page.title" class="form-input" aria-label="Título de hoja" />
+              <textarea v-model="page.content_data" class="form-textarea" rows="8" aria-label="Contenido de hoja"></textarea>
+              <input v-model="page.instructions" class="form-input" placeholder="Instrucciones para el alumno" />
+            </article>
+            <p v-if="aiPageError" class="form-error">{{ aiPageError }}</p>
+            <div class="modal-actions">
+              <button type="button" class="btn btn-secondary" @click="aiPageDrafts = []">Volver</button>
+              <button type="submit" class="btn btn-primary" :disabled="aiPagesSaving">{{ aiPagesSaving ? "Agregando…" : "Agregar hojas" }}</button>
+            </div>
+          </form>
+        </div>
+      </template>
+    </UiModal>
+
+    <ConfirmModal
+      v-bind="confirmState"
+      @confirm="onConfirm"
+      @cancel="onCancel"
+    />
   </TeacherLayout>
 </template>
 
@@ -659,6 +859,12 @@
 
   .header-info {
     flex: 1;
+  }
+  .header-actions {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+    justify-content: flex-end;
   }
   .editor-title {
     font-size: 1.35rem;
@@ -808,6 +1014,23 @@
     gap: 12px;
     align-items: center;
   }
+  .page-delete-btn {
+    min-height: 40px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    padding: 9px 12px;
+    border: 1px solid rgba(var(--color-error-rgb), 0.25);
+    border-radius: var(--radius-sm);
+    color: var(--color-error-dark);
+    background: var(--color-error-bg);
+    font: inherit;
+    font-size: var(--text-sm);
+    font-weight: 700;
+    cursor: pointer;
+  }
+  .page-delete-btn:disabled { opacity: 0.65; cursor: wait; }
 
   .page-title-input {
     flex: 1;
@@ -1055,8 +1278,9 @@
     background: var(--surface-card);
     border-radius: var(--radius-2xl);
     padding: 28px 32px;
-    width: 420px;
-    max-width: 95vw;
+    width: min(420px, 100%);
+    max-width: 100%;
+    box-sizing: border-box;
     box-shadow: var(--shadow-panel);
   }
   .modal-title {
@@ -1087,6 +1311,35 @@
   .form-input:focus {
     border-color: var(--practiq-violet);
   }
+  .form-textarea {
+    width: 100%;
+    padding: 10px 14px;
+    border: 1.5px solid var(--surface-border);
+    border-radius: var(--radius-sm);
+    box-sizing: border-box;
+    color: var(--text-primary);
+    font: inherit;
+    line-height: 1.5;
+    resize: vertical;
+  }
+  .form-textarea:focus { outline: none; border-color: var(--practiq-violet); }
+  .modal-help {
+    margin: -12px 0 18px;
+    color: var(--text-secondary);
+    font-size: var(--text-sm);
+    line-height: 1.45;
+  }
+  .ai-pages-modal { width: min(680px, 100%); }
+  .ai-page-draft {
+    display: grid;
+    gap: 9px;
+    padding: 14px;
+    margin-bottom: 12px;
+    border: 1px solid var(--surface-border);
+    border-radius: var(--radius-lg);
+    background: var(--surface-bg-soft);
+  }
+  .form-error { color: var(--color-error-dark); font-size: var(--text-sm); }
   .modal-actions {
     display: flex;
     gap: 10px;
@@ -1176,14 +1429,19 @@
       flex-wrap: wrap;
       align-items: flex-start;
     }
-    .editor-header .btn-primary {
+    .header-actions {
       width: 100%;
+    }
+    .header-actions .btn {
+      flex: 1;
+      min-height: 44px;
       justify-content: center;
     }
     .page-meta-bar {
       flex-direction: column;
       align-items: stretch;
     }
+    .page-delete-btn { min-height: 46px; }
     .canvas-toolbar {
       position: sticky;
       top: 0;
@@ -1191,6 +1449,35 @@
     }
     .editor-empty {
       padding: 32px;
+    }
+
+    .modal-box {
+      width: 100%;
+      max-height: min(82dvh, 640px);
+      padding: 22px 20px calc(20px + env(safe-area-inset-bottom));
+      border-radius: var(--radius-2xl) var(--radius-2xl) 0 0;
+    }
+    .modal-title {
+      margin-bottom: 16px;
+    }
+    .form-input {
+      min-height: 46px;
+      font-size: 16px;
+    }
+    .form-textarea { font-size: 16px; }
+    .ai-pages-modal { max-height: 90dvh; }
+    .modal-actions {
+      position: sticky;
+      bottom: 0;
+      margin: 18px -20px -20px;
+      padding: 14px 20px calc(14px + env(safe-area-inset-bottom));
+      background: var(--surface-card);
+      border-top: 1px solid var(--surface-border);
+    }
+    .modal-actions .btn {
+      flex: 1;
+      min-height: 46px;
+      justify-content: center;
     }
 
     /* Tap targets >= 44px en mobile */

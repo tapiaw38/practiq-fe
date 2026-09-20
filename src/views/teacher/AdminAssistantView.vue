@@ -111,7 +111,7 @@
   .eyebrow { font-size: var(--font-kicker); font-weight: 800; letter-spacing: .09em; color: var(--practiq-violet); text-transform: uppercase; }
   h1 { margin: 6px 0 8px; color: var(--text-heading); }
   header p:last-child { max-width: 660px; margin: 0; color: var(--text-secondary); line-height: 1.55; }
-  .settings-card { display: grid; gap: 18px; margin-top: 28px; padding: 24px; border: 1px solid var(--surface-border); border-top: 3px solid var(--practiq-violet); border-radius: var(--radius-xl); background: var(--surface-card); box-shadow: var(--shadow-card); }
+  .settings-card { display: grid; gap: 18px; margin-top: 28px; padding: 24px; border: 1px solid var(--surface-border); border-radius: var(--radius-xl); background: var(--surface-card); box-shadow: var(--shadow-card); }
   label { display: grid; gap: 8px; color: var(--text-heading); font-size: var(--text-sm); font-weight: 800; }
   input { min-height: 48px; padding: 11px 13px; border: 1px solid var(--surface-border); border-radius: var(--radius-md); background: var(--surface-ground); color: var(--text-primary); font: inherit; }
   input:focus { outline: none; border-color: var(--practiq-violet); box-shadow: 0 0 0 3px rgba(var(--practiq-violet-rgb), .12); }

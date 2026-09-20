@@ -163,11 +163,15 @@
     .tab-content { padding: 14px; }
     .section-header { align-items: stretch; flex-direction: column; gap: 10px; }
     .section-header .btn { width: 100%; min-height: 44px; justify-content: center; }
-    .list-item { align-items: flex-start; flex-direction: column; gap: 12px; }
-    .item-info { width: 100%; }
+    .list-item { align-items: center; gap: 10px; padding: 12px; }
+    .item-info { flex: 1; width: auto; }
     .item-info > div { min-width: 0; }
-    .item-title, .item-subtitle { overflow-wrap: anywhere; }
-    .item-actions { width: 100%; justify-content: flex-end; }
-    .item-actions .btn { min-width: 44px; min-height: 44px; }
+    .item-title, .item-subtitle {
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .item-actions { width: auto; justify-content: flex-end; }
+    .item-actions .btn { min-width: 38px; min-height: 38px; padding: 0; }
   }
 </style>

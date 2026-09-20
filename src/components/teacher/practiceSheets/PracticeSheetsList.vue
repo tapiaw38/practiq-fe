@@ -159,11 +159,19 @@
     color: var(--color-warning-dark);
   }
   @media (max-width: 760px) {
-    .section-header,
-    .list-item {
+    .section-header {
       flex-direction: column;
       align-items: stretch;
     }
+    .list-item { padding: 12px; }
+    .item-info { flex: 1; }
+    .item-title--with-badge { flex-wrap: nowrap; min-width: 0; }
+    .item-title--with-badge > span:first-child {
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .sheet-type-pill { flex: 0 0 auto; }
     .item-actions {
       justify-content: flex-end;
     }

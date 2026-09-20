@@ -148,10 +148,22 @@
     min-width: 220px;
   }
   @media (max-width: 760px) {
-    .section-header,
-    .list-item {
+    .section-header {
       flex-direction: column;
       align-items: stretch;
+    }
+    .list-item { padding: 12px; }
+    .item-info { flex: 1; }
+    .item-title {
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .item-subtitle {
+      display: -webkit-box;
+      overflow: hidden;
+      -webkit-box-orient: vertical;
+      -webkit-line-clamp: 1;
     }
     .item-actions {
       justify-content: flex-end;

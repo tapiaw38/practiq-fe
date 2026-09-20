@@ -35,6 +35,7 @@ export interface INotebookService {
       statement_verified?: boolean;
     },
   ): Promise<void>;
+  deletePage(pageId: string): Promise<void>;
   update(
     id: string,
     params: { title: string; description?: string; topic_id: string },
@@ -122,6 +123,10 @@ export class NotebookService implements INotebookService {
     },
   ): Promise<void> {
     await this.api.put(`/notebook-pages/${pageId}`, params);
+  }
+
+  async deletePage(pageId: string): Promise<void> {
+    await this.api.delete(`/notebook-pages/${pageId}`);
   }
 
   async update(

@@ -16,6 +16,7 @@
   import { formatDate } from "@/utils/formatters";
   import type { AssignedUser, Grade, Subject } from "@/types";
   import { useSchools } from "@/composables/useSchools";
+  import { useCountUp } from "@/composables/useCountUp";
 
   const router = useRouter();
   const authStore = useAuthStore();
@@ -72,6 +73,10 @@
     const set = new Set(courses.value.map((c) => c.subject || "general"));
     return set.size;
   });
+  const coursesShown = useCountUp(computed(() => courses.value.length));
+  const studentsShown = useCountUp(computed(() => assignedStudents.value.length));
+  const subjectsShown = useCountUp(subjectCount);
+  const pendingShown = useCountUp(pendingReviews);
 
   const paginatedStudents = computed(() => {
     const start = (currentStudentPage.value - 1) * studentsPerPage;
@@ -250,16 +255,19 @@
       <div class="page-header">
         <div class="page-header__left">
           <div class="page-kicker">{{ dashboardKicker }}</div>
-          <h1 class="page-title">Hola, {{ teacherName }}.</h1>
+          <div class="page-heading-row">
+            <h1 class="page-title">Hola, {{ teacherName }}.</h1>
+            <span
+              class="role-chip"
+              :class="isSuperAdmin ? 'role-chip--admin' : 'role-chip--teacher'"
+            >
+              <i :class="isSuperAdmin ? 'pi pi-shield' : 'pi pi-user'"></i>
+              {{ isSuperAdmin ? "Administrador" : "Docente" }}
+            </span>
+          </div>
+          <p class="page-intro">Organizá tus cursos, alumnos y contenidos desde un solo lugar.</p>
         </div>
         <div class="page-header__right">
-          <span
-            class="role-chip"
-            :class="isSuperAdmin ? 'role-chip--admin' : 'role-chip--teacher'"
-          >
-            <i :class="isSuperAdmin ? 'pi pi-shield' : 'pi pi-user'"></i>
-            {{ isSuperAdmin ? "Administrador" : "Docente" }}
-          </span>
           <button class="btn btn-ghost" @click="showInviteModal = true">
             <i class="pi pi-user-plus"></i>
             Invitar alumnos
@@ -286,7 +294,7 @@
       <div class="stats-strip" v-else>
         <div class="stat-item">
           <i class="pi pi-book stat-item__icon stat-item__icon--violet"></i>
-          <span class="stat-item__val">{{ courses.length }}</span>
+          <span class="stat-item__val">{{ coursesShown }}</span>
           <span class="stat-item__lbl">{{
             courses.length === 1 ? "Curso" : "Cursos"
           }}</span>
@@ -296,7 +304,7 @@
           <i
             class="pi pi-graduation-cap stat-item__icon stat-item__icon--blue"
           ></i>
-          <span class="stat-item__val">{{ assignedStudents.length }}</span>
+          <span class="stat-item__val">{{ studentsShown }}</span>
           <span class="stat-item__lbl">{{
             assignedStudents.length === 1 ? "Alumno asignado" : "Alumnos asignados"
           }}</span>
@@ -304,7 +312,7 @@
         <div class="stat-divider"></div>
         <div class="stat-item">
           <i class="pi pi-tag stat-item__icon stat-item__icon--green"></i>
-          <span class="stat-item__val">{{ subjectCount }}</span>
+          <span class="stat-item__val">{{ subjectsShown }}</span>
           <span class="stat-item__lbl">{{
             subjectCount === 1 ? "Materia" : "Materias"
           }}</span>
@@ -312,7 +320,7 @@
         <div class="stat-divider"></div>
         <button class="stat-item stat-item--action" type="button" @click="goToPendingReviews">
           <i class="pi pi-check-square stat-item__icon stat-item__icon--orange"></i>
-          <span class="stat-item__val">{{ pendingHasMore ? "99+" : pendingReviews }}</span>
+          <span class="stat-item__val">{{ pendingHasMore ? "99+" : pendingShown }}</span>
           <span class="stat-item__lbl">Pendientes</span>
           <i class="pi pi-angle-right stat-item__go" aria-hidden="true"></i>
         </button>
@@ -375,10 +383,13 @@
 
       <template v-else>
         <!-- Courses section -->
-        <section class="content-section">
+        <section class="content-section content-section--courses">
           <div class="section-header">
             <div>
-              <h2 class="section-title">Mis cursos</h2>
+              <div class="section-title-row">
+                <h2 class="section-title">Mis cursos</h2>
+                <span class="section-count">{{ courses.length }}</span>
+              </div>
               <p class="section-subtitle">
                 Accedé a los contenidos y ejercicios de cada curso.
               </p>
@@ -459,10 +470,13 @@
         </section>
 
         <!-- Students section -->
-        <section v-if="assignedStudents.length" class="content-section">
+        <section v-if="assignedStudents.length" class="content-section content-section--students">
           <div class="section-header">
             <div>
-              <h2 class="section-title">Estudiantes asignados</h2>
+              <div class="section-title-row">
+                <h2 class="section-title">Estudiantes asignados</h2>
+                <span class="section-count">{{ assignedStudents.length }}</span>
+              </div>
               <p class="section-subtitle">
                 Hacé click en un alumno para ver su progreso.
               </p>
@@ -537,7 +551,7 @@
 
         <!-- Sin alumnos: el hueco apunta directo a la salida, que es el
              código de invitación. -->
-        <section v-if="!assignedStudents.length" class="content-section">
+        <section v-if="!assignedStudents.length" class="content-section content-section--students">
           <div class="empty-state">
             <div class="empty-state__icon"><i class="pi pi-users"></i></div>
             <h3>Todavía no tenés alumnos</h3>
@@ -684,10 +698,26 @@
   /* Page header */
   .page-header {
     position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 24px;
+    padding: 22px 24px;
     margin-bottom: 16px;
+    border: 1px solid var(--surface-elevated-strong);
+    border-radius: var(--radius-2xl);
+    background: linear-gradient(115deg, var(--surface-elevated), var(--surface-card));
+    box-shadow: var(--shadow-card);
     backdrop-filter: blur(18px);
     flex-wrap: wrap;
     overflow: hidden;
+  }
+  .page-header::before {
+    position: absolute;
+    inset: 0 auto 0 0;
+    width: 4px;
+    background: var(--gradient-brand);
+    content: "";
   }
 
   .page-header__left,
@@ -698,6 +728,20 @@
 
   .page-title {
     line-height: 1.15;
+    margin: 3px 0 0;
+    font-size: clamp(1.55rem, 2.5vw, 2rem);
+  }
+  .page-heading-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+  }
+  .page-intro {
+    max-width: 560px;
+    margin: 7px 0 0;
+    color: var(--text-secondary);
+    font-size: var(--text-sm);
   }
 
   .page-header__right {
@@ -748,21 +792,27 @@
   .stats-strip {
     display: grid;
     grid-template-columns: repeat(4, minmax(0, 1fr));
-    gap: 12px;
+    gap: 0;
     margin-bottom: 22px;
+    overflow: hidden;
+    border: 1px solid var(--surface-elevated-strong);
+    border-radius: var(--radius-xl);
+    background: var(--surface-elevated);
+    box-shadow: var(--shadow-card);
   }
 
   .stat-item {
     display: flex;
     align-items: center;
     gap: 10px;
-    padding: 14px 16px;
-    border-radius: var(--radius-xl);
-    background: var(--surface-elevated);
-    border: 1px solid var(--surface-elevated-strong);
-    box-shadow: var(--shadow-card);
+    min-height: 72px;
+    padding: 12px 16px;
+    background: transparent;
+    border: 0;
+    border-right: 1px solid var(--surface-border);
   }
-  .stat-item--action { width: 100%; border: 1px solid var(--surface-elevated-strong); cursor: pointer; text-align: left; }.stat-item--action:hover { border-color: var(--practiq-violet-light); transform: translateY(-1px); }
+  .stat-item:last-child { border-right: 0; }
+  .stat-item--action { width: 100%; cursor: pointer; text-align: left; }.stat-item--action:hover { background: var(--fill-primary-faint); }
   .skeleton-stack { display: flex; flex-direction: column; gap: 6px; }
   .skeleton-stack--lg { gap: 8px; }
   .stat-item__go { margin-left: auto; color: var(--practiq-violet); font-size: 14px; }
@@ -812,10 +862,48 @@
   /* Content sections */
   .content-section {
     margin-bottom: 26px;
+    padding: 22px;
+    border: 1px solid var(--surface-elevated-strong);
+    border-radius: var(--radius-2xl);
+    background: var(--surface-elevated);
+    box-shadow: var(--shadow-card);
   }
 
   .section-header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 18px;
     margin-bottom: 14px;
+    padding-bottom: 16px;
+    border-bottom: 1px solid var(--surface-border);
+  }
+  .section-title-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .section-title {
+    margin: 0;
+    font-size: 1.25rem;
+    letter-spacing: -0.02em;
+  }
+  .section-subtitle {
+    margin: 5px 0 0;
+    font-size: var(--text-sm);
+    line-height: 1.45;
+  }
+  .section-count {
+    display: grid;
+    min-width: 24px;
+    height: 24px;
+    place-items: center;
+    padding: 0 7px;
+    border-radius: var(--radius-pill);
+    background: var(--fill-primary-soft);
+    color: var(--practiq-violet-dark);
+    font-size: var(--text-xs);
+    font-weight: 800;
   }
 
   .btn-outline {
@@ -823,7 +911,8 @@
     align-items: center;
     gap: 6px;
     padding: 6px 12px;
-    border-radius: var(--radius-md);
+    min-height: 36px;
+    border-radius: var(--radius-sm);
     border: 1px solid rgba(var(--practiq-violet-rgb), 0.25);
     background: transparent;
     font-size: var(--text-sm);
@@ -841,7 +930,7 @@
   .courses-grid {
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
-    gap: 16px;
+    gap: 14px;
   }
   .courses-actions,
   .view-toggle {
@@ -850,14 +939,14 @@
     gap: 8px;
   }
   .view-toggle {
-    padding: 3px;
+    padding: 4px;
     border: 1px solid var(--surface-border);
     border-radius: var(--radius-sm);
     background: var(--surface-card);
   }
   .view-toggle button {
-    width: 30px;
-    height: 28px;
+    width: 34px;
+    height: 32px;
     border: 0;
     border-radius: var(--radius-xs);
     background: transparent;
@@ -882,8 +971,9 @@
     display: grid;
     grid-template-columns: minmax(220px, 1fr) minmax(180px, 1.4fr) auto;
     align-items: center;
-    gap: 18px;
-    padding: 13px 16px;
+    min-height: 82px;
+    gap: 3px 18px;
+    padding: 10px 16px;
   }
   .courses-grid--list .course-card__top { grid-column: 1; grid-row: 1; }
   .courses-grid--list .course-title { grid-column: 1; grid-row: 2; }
@@ -893,10 +983,10 @@
   .course-card {
     position: relative;
     display: block;
-    border-radius: var(--radius-2xl);
-    background: var(--surface-elevated);
-    border: 1px solid var(--surface-elevated-strong);
-    box-shadow: var(--shadow-card);
+    border-radius: var(--radius-xl);
+    background: var(--surface-card);
+    border: 1px solid var(--surface-border);
+    box-shadow: none;
     overflow: hidden;
     cursor: pointer;
     color: inherit;
@@ -904,13 +994,13 @@
     transition: var(--transition);
   }
   .course-card:hover {
-    transform: translateY(-3px);
-    box-shadow: var(--shadow-card-lg);
-    border-color: rgba(var(--practiq-violet-rgb), 0.18);
+    transform: translateY(-2px);
+    box-shadow: var(--shadow-card);
+    border-color: rgba(var(--practiq-violet-rgb), 0.3);
   }
 
   .course-card__stripe {
-    height: 3px;
+    height: 4px;
   }
   .stripe--violet {
     background: linear-gradient(
@@ -956,7 +1046,8 @@
   }
 
   .course-card__body {
-    padding: 16px 18px 14px;
+    min-height: 154px;
+    padding: 17px 18px 15px;
     display: flex;
     flex-direction: column;
     gap: 6px;
@@ -1013,8 +1104,8 @@
   }
 
   .course-title {
-    font-size: var(--text-lg);
-    font-weight: 700;
+    font-size: var(--text-md);
+    font-weight: 800;
     color: var(--text-primary);
     line-height: 1.3;
     margin: 0;
@@ -1035,9 +1126,9 @@
     display: flex;
     align-items: center;
     justify-content: space-between;
-    padding-top: 8px;
-    border-top: 1px solid rgba(var(--surface-border-rgb), 0.1);
-    margin-top: 4px;
+    padding-top: 10px;
+    border-top: 1px solid var(--surface-border);
+    margin-top: auto;
   }
 
   .course-date {
@@ -1060,50 +1151,54 @@
   /* Students */
   .grade-pills {
     display: flex;
-    gap: 8px;
+    max-width: 46%;
+    justify-content: flex-end;
+    gap: 6px;
+    overflow: hidden;
     flex-wrap: wrap;
   }
 
   .grade-pill {
     display: inline-flex;
-    padding: 5px 12px;
+    padding: 4px 9px;
     border-radius: var(--radius-pill);
     background: var(--color-info-bg);
     color: var(--color-info-dark);
-    font-size: var(--text-sm);
+    font-size: var(--text-xs);
     font-weight: 700;
   }
 
   .student-grid {
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
-    gap: 12px;
+    gap: 10px;
   }
 
   .student-card {
     display: flex;
     align-items: center;
-    gap: 14px;
-    padding: 10px 12px;
-    border-radius: var(--radius-xl);
-    background: var(--surface-elevated);
-    border: 1px solid var(--surface-elevated-strong);
-    box-shadow: var(--shadow-card);
+    gap: 12px;
+    min-height: 74px;
+    padding: 12px;
+    border-radius: var(--radius-lg);
+    background: var(--surface-card);
+    border: 1px solid var(--surface-border);
+    box-shadow: none;
     cursor: pointer;
     color: inherit;
     text-decoration: none;
     transition: var(--transition-fast);
   }
   .student-card:hover {
-    transform: translateY(-2px);
-    box-shadow: var(--shadow-card-lg);
-    border-color: rgba(var(--practiq-violet-rgb), 0.2);
+    transform: translateY(-1px);
+    box-shadow: var(--shadow-card);
+    border-color: rgba(var(--practiq-violet-rgb), 0.26);
   }
 
   .student-card__avatar {
-    width: 34px;
-    height: 34px;
-    border-radius: 9px;
+    width: 40px;
+    height: 40px;
+    border-radius: var(--radius-md);
     background: var(--gradient-brand);
     color: var(--color-on-primary);
     font-size: var(--text-md);
@@ -1321,15 +1416,9 @@
     }
     .page-header__right {
       width: 100%;
-      /* 2x2 en vez de una pila de cuatro botones: con superadmin el header
-         empujaba el contenido media pantalla hacia abajo. */
       display: grid;
       grid-template-columns: 1fr 1fr;
       gap: 8px;
-    }
-    .page-header__right .role-chip {
-      grid-column: 1 / -1;
-      justify-self: start;
     }
     .page-header__right .btn {
       width: 100%;
@@ -1341,7 +1430,11 @@
     }
     .stat-item {
       padding: 12px 14px;
+      border-right: 1px solid var(--surface-border);
+      border-bottom: 1px solid var(--surface-border);
     }
+    .stat-item:nth-child(2n) { border-right: 0; }
+    .stat-item:nth-last-child(-n + 2) { border-bottom: 0; }
     .stat-divider {
       display: none;
     }
@@ -1358,15 +1451,49 @@
       flex-direction: column;
       align-items: flex-start;
     }
+    .grade-pills { max-width: 100%; justify-content: flex-start; }
   }
 
   /* Mobile */
   @media (max-width: 600px) {
-    .stat-item { gap: 8px; padding: 10px; }
+    .page-header { padding: 18px 16px; gap: 16px; }
+    .page-intro { display: none; }
+    .page-title { font-size: 1.5rem; }
+    .role-chip { padding: 5px 9px; font-size: var(--text-xs); }
+    .stat-item { gap: 8px; min-height: 62px; padding: 10px; }
     .stat-item__icon { width: 32px; height: 32px; }
+    .content-section { padding: 18px 14px; border-radius: var(--radius-xl); }
+    .section-header { gap: 12px; margin-bottom: 12px; padding-bottom: 13px; }
+    .section-title { font-size: var(--text-lg); }
+    .section-subtitle { font-size: var(--text-xs); }
+    .courses-actions { width: 100%; justify-content: flex-end; }
+    .courses-actions .btn-outline { justify-content: center; min-height: 42px; }
+    .view-toggle button { width: 38px; height: 36px; }
     .courses-grid {
       grid-template-columns: 1fr;
     }
+    .courses-grid--list .course-card__body {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      grid-template-rows: auto auto;
+      align-items: center;
+      gap: 3px 12px;
+      min-height: 96px;
+      padding: 12px 14px;
+    }
+    .courses-grid--list .course-card__top { grid-column: 1; grid-row: 1; }
+    .courses-grid--list .course-title { grid-column: 1; grid-row: 2; }
+    .courses-grid--list .course-desc { display: none; }
+    .courses-grid--list .course-card__footer {
+      grid-column: 2;
+      grid-row: 1 / span 2;
+      margin: 0;
+      padding: 0;
+      border: 0;
+      justify-content: center;
+    }
+    .courses-grid--list .course-date { display: none; }
+    .course-card__body { min-height: 142px; padding: 15px; }
     .student-grid {
       grid-template-columns: 1fr;
     }

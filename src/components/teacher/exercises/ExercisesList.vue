@@ -111,7 +111,7 @@
               class="item-title item-title--math"
               v-html="renderEquation(exercise.question)"
             ></div>
-            <div v-else-if="exercise.type === 'fill_blanks'" class="item-title">
+            <div v-else-if="exercise.type === 'fill_blanks'" class="item-title item-title--truncate">
               <template
                 v-for="(segment, index) in splitStatement(exercise.question)"
                 :key="index"
@@ -120,8 +120,8 @@
                 <span v-else class="blank-slot">___</span>
               </template>
             </div>
-            <div v-else class="item-title">{{ exercise.question }}</div>
-            <div class="item-subtitle">
+            <div v-else class="item-title item-title--truncate">{{ exercise.question }}</div>
+            <div class="item-subtitle item-subtitle--truncate">
               {{ exercise.type }}
               <template v-if="exercise.type === 'equation'">
                 · Respuesta:
@@ -268,6 +268,14 @@
   .item-title--math :deep(.katex) {
     font-size: 1.08em;
   }
+  .item-title--truncate,
+  .item-subtitle--truncate {
+    display: -webkit-box;
+    overflow: hidden;
+    -webkit-box-orient: vertical;
+  }
+  .item-title--truncate { -webkit-line-clamp: 3; }
+  .item-subtitle--truncate { -webkit-line-clamp: 2; }
   .item-subtitle {
     display: flex;
     align-items: center;

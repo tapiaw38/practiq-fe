@@ -428,5 +428,17 @@
   .assistant-save { padding: 0 .9rem; min-height: 38px; border: 0; border-radius: var(--radius-md); background: var(--practiq-violet); color: #fff; font-weight: 700; cursor: pointer; }
   .assistant-save--ok { background: var(--color-success); }
   .assistant-save:disabled { opacity: .6; cursor: not-allowed; }
-  @media (max-width: 640px) { .school-users { padding: 1rem; }.card-heading,.member-row { align-items: flex-start; flex-direction: column; }.member-form { grid-template-columns: 1fr; }.member-form button { width: 100%; }.inactive { margin-left: 0; }.assign-button,.remove-button { width: 100%; min-height: 40px; }.school-kind { white-space: normal; }.assign-row { flex-direction: column; } }
+  @media (max-width: 640px) {
+    .school-users { padding: 1rem; }
+    .card-heading { align-items: flex-start; flex-direction: column; }
+    .member-form { grid-template-columns: 1fr; }
+    .member-form button { width: 100%; }
+    .member-row { align-items: center; gap: .6rem; padding: .65rem; }
+    .member-data { flex: 1; }
+    .member-avatar { flex-basis: 34px; width: 34px; height: 34px; }
+    .inactive { margin-left: 0; }
+    .assign-button,.remove-button { width: auto; min-height: 36px; padding: .35rem .55rem; font-size: .78rem; }
+    .school-kind { white-space: normal; }
+    .assign-row { flex-direction: column; }
+  }
 </style>
