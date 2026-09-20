@@ -216,7 +216,12 @@
     margin-top: 4px;
   }
   .level-collapse-toggle {
-    display: none;
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    min-height: 28px;
+    margin-top: 7px;
+    padding: 0;
     border: 0;
     background: transparent;
     color: var(--practiq-violet);
@@ -224,6 +229,10 @@
     font-size: var(--text-sm);
     font-weight: 800;
     cursor: pointer;
+  }
+  .teacher-level-card--collapsed .teacher-level-actions,
+  .teacher-level-card--collapsed .teacher-level-sections {
+    display: none;
   }
   .teacher-level-sections {
     margin-top: 10px;
@@ -301,16 +310,8 @@
       width: 100%;
     }
     .level-collapse-toggle {
-      display: inline-flex;
-      align-items: center;
-      gap: 7px;
       min-height: 32px;
       margin-top: 8px;
-      padding: 0;
-    }
-    .teacher-level-card--collapsed .teacher-level-actions,
-    .teacher-level-card--collapsed .teacher-level-sections {
-      display: none;
     }
     .teacher-level-actions {
       width: 100%;

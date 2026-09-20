@@ -399,7 +399,7 @@
   .school-users { max-width: 900px; padding: 2rem; }
   .page-header { margin-bottom: 1.5rem; }
   .eyebrow { margin: 0 0 .45rem; color: var(--practiq-violet); font-size: .72rem; font-weight: 800; letter-spacing: .1em; text-transform: uppercase; }
-  h1,h2,p { margin-top: 0; }.page-header h1 { margin-bottom: .5rem; color: var(--text-heading); font-size: 1.8rem; }.page-header p:not(.eyebrow) { color: var(--text-secondary); }
+  h1,h2,p { margin-top: 0; }.page-header h1 { margin-bottom: .5rem; color: var(--text-heading); font-size: clamp(1.55rem, 2.5vw, 2rem); }.page-header p:not(.eyebrow) { color: var(--text-secondary); }
   .users-card { padding: 1.4rem; border: 1px solid var(--surface-border); border-radius: var(--radius-xl); background: var(--surface-card); }
   .card-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 1rem; }.card-heading h2 { margin-bottom: .25rem; color: var(--text-heading); font-size: 1.1rem; }.card-heading p,.form-note { margin-bottom: 0; color: var(--text-secondary); font-size: .86rem; }
   .school-kind { padding: .35rem .65rem; border-radius: var(--radius-pill); color: var(--practiq-violet-dark); background: var(--fill-primary-soft); font-size: .75rem; font-weight: 700; white-space: nowrap; }

@@ -394,7 +394,7 @@
   }
 
   .page-header h1 {
-    font-size: 1.5rem;
+    font-size: clamp(1.55rem, 2.5vw, 2rem);
   }
 
   .page-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 1rem; }

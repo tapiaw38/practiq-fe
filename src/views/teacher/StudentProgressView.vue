@@ -1206,15 +1206,16 @@
     display: flex;
     align-items: flex-start;
     gap: 20px;
-    margin-bottom: 18px;
-    padding: 24px 28px;
-    border-radius: var(--radius-md);
-    background: var(--gradient-card-accent);
+    margin-bottom: 16px;
+    padding: 22px 24px;
+    border-radius: var(--radius-2xl);
+    background: linear-gradient(115deg, var(--surface-elevated), var(--surface-card));
     border: 1px solid var(--surface-elevated-strong);
-    box-shadow: var(--shadow-soft);
+    box-shadow: var(--shadow-card);
     backdrop-filter: blur(18px);
     overflow: hidden;
   }
+  .sp-header::before { position: absolute; inset: 0 auto 0 0; width: 4px; background: var(--gradient-brand); content: ""; }
 
   .sp-header > * {
     position: relative;
@@ -1263,7 +1264,7 @@
     margin-bottom: 4px;
   }
   .sp-title {
-    font-size: clamp(1.1rem, 2vw, 1.3rem);
+    font-size: clamp(1.55rem, 2.5vw, 2rem);
     font-weight: 800;
     color: var(--text-primary);
     margin: 0 0 4px;

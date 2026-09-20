@@ -811,15 +811,16 @@
     align-items: center;
     justify-content: space-between;
     gap: 18px;
-    padding: 24px 28px;
-    background: var(--gradient-card-accent);
+    padding: 22px 24px;
+    background: linear-gradient(115deg, var(--surface-elevated), var(--surface-card));
     border: 1px solid var(--surface-elevated-strong);
-    border-radius: 28px;
-    box-shadow: var(--shadow-soft);
+    border-radius: var(--radius-2xl);
+    box-shadow: var(--shadow-card);
     backdrop-filter: blur(18px);
     flex-shrink: 0;
     overflow: hidden;
   }
+  .ac-topbar::before { position: absolute; inset: 0 auto 0 0; width: 4px; background: var(--gradient-brand); content: ""; }
 
   .ac-topbar__left,
   .catalog-pill {
@@ -838,7 +839,7 @@
   }
 
   .ac-title {
-    font-size: clamp(1.4rem, 2.4vw, 2rem);
+    font-size: clamp(1.55rem, 2.5vw, 2rem);
     font-weight: 800;
     color: var(--text-heading);
     margin: 0;
@@ -1000,6 +1001,7 @@
     flex: 1;
     display: grid;
     grid-template-columns: 248px 1fr;
+    align-items: start;
     min-height: 0;
     overflow: hidden;
     gap: 18px;
@@ -1128,6 +1130,7 @@
 
   /* Grade content */
   .grade-content {
+    min-width: 0;
     overflow-y: auto;
     display: flex;
     flex-direction: column;
@@ -1135,6 +1138,14 @@
     border: 1px solid var(--surface-elevated-strong);
     border-radius: var(--radius-2xl);
     box-shadow: var(--shadow-card);
+  }
+
+  @media (min-width: 821px) {
+    .grade-sidebar {
+      position: sticky;
+      top: 20px;
+      max-height: calc(100dvh - 40px);
+    }
   }
 
   .select-hint {

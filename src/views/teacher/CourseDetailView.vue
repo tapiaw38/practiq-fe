@@ -3031,12 +3031,12 @@
 
   .course-header {
     position: relative;
-    margin-bottom: 18px;
-    padding: 24px 28px;
-    border-radius: 28px;
-    background: var(--gradient-card-accent);
+    margin-bottom: 16px;
+    padding: 22px 24px;
+    border-radius: var(--radius-2xl);
+    background: linear-gradient(115deg, var(--surface-elevated), var(--surface-card));
     border: 1px solid var(--surface-elevated-strong);
-    box-shadow: var(--shadow-soft);
+    box-shadow: var(--shadow-card);
     backdrop-filter: blur(18px);
     display: flex;
     flex-direction: column;
@@ -3044,6 +3044,7 @@
     gap: 14px;
     overflow: hidden;
   }
+  .course-header::before { position: absolute; inset: 0 auto 0 0; width: 4px; background: var(--gradient-brand); content: ""; }
 
   .course-header > .btn {
     align-self: flex-start;
@@ -3057,7 +3058,7 @@
   }
 
   .page-title {
-    font-size: clamp(1.4rem, 2.4vw, 2rem);
+    font-size: clamp(1.55rem, 2.5vw, 2rem);
     font-weight: 800;
     color: var(--text-heading);
     line-height: 1.12;

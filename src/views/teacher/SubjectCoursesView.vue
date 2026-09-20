@@ -349,17 +349,30 @@
   }
 
   .hero-card {
+    position: relative;
     display: flex;
     align-items: center;
     justify-content: space-between;
     gap: 24px;
-    padding: 24px 28px;
-    border-radius: 28px;
-    background: var(--gradient-card-accent);
+    padding: 22px 24px;
+    border-radius: var(--radius-2xl);
+    background: linear-gradient(115deg, var(--surface-elevated), var(--surface-card));
     border: 1px solid var(--surface-elevated-strong);
     box-shadow: var(--shadow-soft);
     backdrop-filter: blur(18px);
-    margin-bottom: 18px;
+    margin-bottom: 16px;
+    overflow: hidden;
+  }
+  .hero-card::before {
+    position: absolute;
+    inset: 0 auto 0 0;
+    width: 4px;
+    background: var(--gradient-brand);
+    content: "";
+  }
+  .hero-card > * {
+    position: relative;
+    z-index: 1;
   }
 
   .hero-kicker {

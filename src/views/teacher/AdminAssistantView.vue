@@ -62,14 +62,16 @@
 <template>
   <TeacherLayout>
     <main class="page">
-      <header>
-        <p class="eyebrow">Plataforma</p>
-        <h1>Asistente de IA</h1>
-        <p>
-          Una sola configuración para toda la plataforma. Las llamadas al
-          asistente salen del servidor de Practiq: ni docentes ni alumnos
-          reciben la clave.
-        </p>
+      <header class="page-header">
+        <div>
+          <p class="eyebrow">Plataforma</p>
+          <h1>Asistente de IA</h1>
+          <p>
+            Una sola configuración para toda la plataforma. Las llamadas al
+            asistente salen del servidor de Practiq: ni docentes ni alumnos
+            reciben la clave.
+          </p>
+        </div>
       </header>
 
       <Skeleton v-if="loading" height="320px" />
@@ -107,11 +109,11 @@
 </template>
 
 <style scoped>
-  .page { max-width: 760px; margin: 0 auto; padding: 32px 24px 48px; }
+  .page { max-width: 1180px; margin: 0; padding: 24px 28px 40px; }
   .eyebrow { font-size: var(--font-kicker); font-weight: 800; letter-spacing: .09em; color: var(--practiq-violet); text-transform: uppercase; }
-  h1 { margin: 6px 0 8px; color: var(--text-heading); }
+  h1 { margin: 3px 0 0; color: var(--text-heading); font-size: clamp(1.55rem, 2.5vw, 2rem); }
   header p:last-child { max-width: 660px; margin: 0; color: var(--text-secondary); line-height: 1.55; }
-  .settings-card { display: grid; gap: 18px; margin-top: 28px; padding: 24px; border: 1px solid var(--surface-border); border-radius: var(--radius-xl); background: var(--surface-card); box-shadow: var(--shadow-card); }
+  .settings-card { display: grid; max-width: 760px; gap: 18px; margin-top: 16px; padding: 24px; border: 1px solid var(--surface-border); border-radius: var(--radius-xl); background: var(--surface-card); box-shadow: var(--shadow-card); }
   label { display: grid; gap: 8px; color: var(--text-heading); font-size: var(--text-sm); font-weight: 800; }
   input { min-height: 48px; padding: 11px 13px; border: 1px solid var(--surface-border); border-radius: var(--radius-md); background: var(--surface-ground); color: var(--text-primary); font: inherit; }
   input:focus { outline: none; border-color: var(--practiq-violet); box-shadow: 0 0 0 3px rgba(var(--practiq-violet-rgb), .12); }

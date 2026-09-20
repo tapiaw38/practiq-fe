@@ -173,8 +173,11 @@
   <TeacherLayout>
     <div class="subscription-shell">
       <header class="page-header">
-        <h1>Suscripción</h1>
-        <p class="page-sub">Tu plan y cuántos alumnos tenés activos.</p>
+        <div>
+          <div class="page-kicker">Mi escuela</div>
+          <h1>Suscripción</h1>
+          <p class="page-sub">Tu plan y cuántos alumnos tenés activos.</p>
+        </div>
       </header>
 
       <div v-if="loading" class="plan-card">
@@ -415,7 +418,7 @@
 
   .page-header h1 {
     margin: 0;
-    font-size: 1.5rem;
+    font-size: clamp(1.55rem, 2.5vw, 2rem);
     color: var(--text-heading);
   }
 

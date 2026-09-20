@@ -132,10 +132,13 @@
   <TeacherLayout>
     <div class="plans-shell">
       <header class="page-header">
-        <h1>Planes</h1>
-        <p class="page-sub">
-          Lo que se cobra y cuántos alumnos permite cada plan.
-        </p>
+        <div>
+          <div class="page-kicker">Administración de plataforma</div>
+          <h1>Planes</h1>
+          <p class="page-sub">
+            Lo que se cobra y cuántos alumnos permite cada plan.
+          </p>
+        </div>
       </header>
 
       <form class="plan-form" @submit.prevent="save">
@@ -254,7 +257,7 @@
 
   .page-header h1 {
     margin: 0;
-    font-size: 1.5rem;
+    font-size: clamp(1.55rem, 2.5vw, 2rem);
     color: var(--text-heading);
   }
 

@@ -1010,16 +1010,22 @@
   }
   .hero-card {
     position: relative;
-    padding: 24px 28px;
-    background: var(--gradient-card-accent);
-    box-shadow: var(--shadow-soft);
+    padding: 22px 24px;
+    background: linear-gradient(115deg, var(--surface-elevated), var(--surface-card));
+    box-shadow: var(--shadow-card);
     backdrop-filter: blur(18px);
     overflow: hidden;
-    border-radius: 28px;
+    border-radius: var(--radius-2xl);
   }
+  .hero-card::before { position: absolute; inset: 0 auto 0 0; width: 4px; background: var(--gradient-brand); content: ""; }
   .hero-card > * {
     position: relative;
     z-index: 1;
+  }
+  .hero-card > div:first-child {
+    flex: 1;
+    min-width: 0;
+    text-align: left;
   }
   .hero-card > .btn {
     align-self: flex-start;
@@ -1039,6 +1045,7 @@
     font-size: var(--font-hero);
     font-weight: 800;
     color: var(--text-heading);
+    text-align: left;
   }
   .hero-copy {
     margin: 0;
