@@ -1215,7 +1215,6 @@
     backdrop-filter: blur(18px);
     overflow: hidden;
   }
-  .sp-header::before { position: absolute; inset: 0 auto 0 0; width: 4px; background: var(--gradient-brand); content: ""; }
 
   .sp-header > * {
     position: relative;

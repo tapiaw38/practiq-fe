@@ -712,14 +712,6 @@
     flex-wrap: wrap;
     overflow: hidden;
   }
-  .page-header::before {
-    position: absolute;
-    inset: 0 auto 0 0;
-    width: 4px;
-    background: var(--gradient-brand);
-    content: "";
-  }
-
   .page-header__left,
   .page-header__right {
     position: relative;

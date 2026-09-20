@@ -665,6 +665,9 @@
     cursor: pointer;
     text-align: left;
     justify-content: flex-start;
+    font-family: inherit;
+    font-size: var(--text-md);
+    font-weight: 700;
   }
 
   .nav-chevron {

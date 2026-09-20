@@ -820,7 +820,6 @@
     flex-shrink: 0;
     overflow: hidden;
   }
-  .ac-topbar::before { position: absolute; inset: 0 auto 0 0; width: 4px; background: var(--gradient-brand); content: ""; }
 
   .ac-topbar__left,
   .catalog-pill {

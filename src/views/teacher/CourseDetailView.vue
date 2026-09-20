@@ -3044,7 +3044,6 @@
     gap: 14px;
     overflow: hidden;
   }
-  .course-header::before { position: absolute; inset: 0 auto 0 0; width: 4px; background: var(--gradient-brand); content: ""; }
 
   .course-header > .btn {
     align-self: flex-start;

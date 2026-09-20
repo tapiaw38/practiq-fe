@@ -363,13 +363,6 @@
     margin-bottom: 16px;
     overflow: hidden;
   }
-  .hero-card::before {
-    position: absolute;
-    inset: 0 auto 0 0;
-    width: 4px;
-    background: var(--gradient-brand);
-    content: "";
-  }
   .hero-card > * {
     position: relative;
     z-index: 1;
