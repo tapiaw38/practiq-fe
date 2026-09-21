@@ -733,7 +733,7 @@
     z-index: 2;
     padding: 28px 32px;
     border-radius: 28px;
-    background: var(--gradient-card-accent);
+    background: var(--surface-elevated);
     border: 1px solid var(--surface-elevated-strong);
     box-shadow: var(--shadow-soft);
     margin-bottom: 20px;
