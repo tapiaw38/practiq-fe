@@ -3377,10 +3377,21 @@
   /* Tablet portrait */
   @media (max-width: 768px) {
     .course-detail {
+      display: block;
+      width: 100%;
+      min-width: 0;
+      box-sizing: border-box;
+      overflow: hidden;
       padding: 16px 14px 32px;
       max-width: 100%;
     }
+    .course-detail > * {
+      min-width: 0;
+      max-width: 100%;
+      box-sizing: border-box;
+    }
     .course-header {
+      width: 100%;
       padding: 22px 18px;
       border-radius: 22px;
     }
