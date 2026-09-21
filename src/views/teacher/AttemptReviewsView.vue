@@ -27,10 +27,10 @@
   const filters = reactive({
     courseId: "",
     studentId: "",
-    reviewed: "unreviewed",
+    reviewed: "",
   });
   const activeFilterCount = computed(() =>
-    [filters.courseId, filters.studentId, filters.reviewed !== "unreviewed" ? filters.reviewed : ""].filter(Boolean).length,
+    [filters.courseId, filters.studentId, filters.reviewed].filter(Boolean).length,
   );
   const saving = ref<string | null>(null);
   const feedback = ref<Record<string, string>>({});
@@ -106,7 +106,7 @@
   function clearFilters() {
     filters.courseId = "";
     filters.studentId = "";
-    filters.reviewed = "unreviewed";
+    filters.reviewed = "";
     load(1);
   }
 
@@ -211,45 +211,43 @@
           <button v-if="activeFilterCount" class="filters-clear" type="button" @click="clearFilters"><i class="pi pi-filter-slash"></i> Limpiar</button>
         </div>
       <div class="filters-bar">
-        <label class="filter-field">
-          <span>Estado</span>
-          <select v-model="filters.reviewed" class="form-select" @change="applyFilters">
+        <div class="filter-group">
+          <label class="filter-label" for="attempt-review-status">Estado de revisión</label>
+          <select id="attempt-review-status" v-model="filters.reviewed" class="filter-select" @change="applyFilters">
+            <option value="">Todas las pruebas</option>
             <option value="unreviewed">Sin corregir</option>
             <option value="reviewed">Ya corregidas</option>
-            <option value="">Todas</option>
           </select>
-        </label>
+        </div>
 
-        <label class="filter-field">
-          <span>Curso</span>
-          <select v-model="filters.courseId" class="form-select" @change="applyFilters">
-            <option value="">Todos</option>
+        <div class="filter-group">
+          <label class="filter-label" for="attempt-review-course">Curso</label>
+          <select id="attempt-review-course" v-model="filters.courseId" class="filter-select" @change="applyFilters">
+            <option value="">Todos los cursos</option>
             <option v-for="course in courses" :key="course.id" :value="course.id">
               {{ course.title }}
             </option>
           </select>
-        </label>
+        </div>
 
-        <label class="filter-field">
-          <span>Alumno</span>
-          <select v-model="filters.studentId" class="form-select" @change="applyFilters">
-            <option value="">Todos</option>
+        <div class="filter-group">
+          <label class="filter-label" for="attempt-review-student">Estudiante</label>
+          <select id="attempt-review-student" v-model="filters.studentId" class="filter-select" @change="applyFilters">
+            <option value="">Todos los estudiantes</option>
             <option v-for="student in students" :key="student.id" :value="student.id">
               {{ student.name }}
             </option>
           </select>
-        </label>
+        </div>
       </div>
       </section>
 
       <p v-if="loading" class="muted">Cargando…</p>
-      <p v-else-if="!reviews.length" class="muted">
-        {{
-          filters.reviewed === "unreviewed"
-            ? "No hay entregas esperando tu corrección."
-            : "No hay entregas para este filtro."
-        }}
-      </p>
+      <div v-else-if="!reviews.length" class="empty-state">
+        <div class="empty-icon"><i class="pi pi-inbox"></i></div>
+        <h3>Sin resultados</h3>
+        <p>No encontramos pruebas de nivel con los filtros seleccionados.</p>
+      </div>
 
       <div v-else class="reviews-list">
         <article
@@ -675,18 +673,36 @@
     gap: 10px;
   }
 
-  .filter-field {
-    display: grid;
-    gap: 4px;
+  .filter-group {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
     min-width: 0;
   }
 
-  .filter-field > span {
+  .filter-label {
     color: var(--text-secondary);
     font-size: var(--text-xs);
-    font-weight: 800;
+    font-weight: 700;
     text-transform: uppercase;
-    letter-spacing: 0.04em;
+    letter-spacing: 0.06em;
+  }
+
+  .filter-select {
+    min-height: 42px;
+    padding: 10px 14px;
+    border-radius: var(--radius-md);
+    border: 1.5px solid rgba(var(--practiq-violet-rgb), 0.15);
+    font: inherit;
+    font-size: var(--text-base);
+    color: var(--text-primary);
+    background: var(--surface-elevated-strong);
+    outline: none;
+    transition: border-color 0.15s;
+  }
+
+  .filter-select:focus {
+    border-color: var(--practiq-violet);
   }
 
   .pagination-controls {

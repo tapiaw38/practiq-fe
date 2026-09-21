@@ -112,7 +112,6 @@
   async function loadCoursesData() {
     try {
       await loadCourses("teacher");
-      filters.courseId = courses.value[0]?.id || "";
     } catch (err) {
       console.error("Failed to load courses:", err);
     }
@@ -478,14 +477,13 @@
       </template>
 
       <!-- Empty State -->
-      <div v-else-if="filteredSubmissions.length === 0" class="empty-state">
+      <div v-else-if="hasScope() && filteredSubmissions.length === 0" class="empty-state">
         <div class="empty-icon">
           <i class="pi pi-inbox"></i>
         </div>
-        <h3>Sin entregas</h3>
+        <h3>Sin resultados</h3>
         <p>
-          No hay entregas de cuadernos que coincidan con los filtros
-          seleccionados.
+          No encontramos entregas de cuadernos con los filtros seleccionados.
         </p>
       </div>
 
