@@ -121,7 +121,7 @@
   .status--on { color: var(--color-success-dark); background: var(--color-success-bg); }
   .status--off { color: var(--color-warning-dark); background: var(--color-warning-bg); }
   .hint { margin: -8px 0 0; color: var(--text-secondary); font-size: var(--text-xs); line-height: 1.5; }
-  button { min-height: 46px; justify-self: start; padding: 10px 20px; border: 0; border-radius: var(--radius-md); background: linear-gradient(135deg, var(--practiq-violet), var(--color-info)); box-shadow: var(--shadow-violet); color: #fff; font-weight: 800; cursor: pointer; }
+  button { min-height: 46px; justify-self: start; padding: 10px 20px; border: 0; border-radius: var(--radius-md); background: var(--practiq-violet); box-shadow: var(--shadow-violet); color: #fff; font-weight: 800; cursor: pointer; }
   button:disabled { opacity: .6; }
   @media (max-width: 600px) {
     .page { padding: 20px 16px 36px; }

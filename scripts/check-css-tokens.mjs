@@ -4,7 +4,7 @@ import { join } from "node:path";
 const sourceRoot = new URL("../src/", import.meta.url);
 const sourceExtensions = new Set([".css", ".ts", ".vue"]);
 // Set from Vue's inline style bindings. Keep dynamic tokens explicit.
-const dynamicTokens = new Set(["--difficulty-color"]);
+const dynamicTokens = new Set(["--difficulty-color", "--subject", "--tabs"]);
 
 async function sourceFiles(directory) {
   const entries = await readdir(directory, { withFileTypes: true });
