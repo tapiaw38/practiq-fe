@@ -177,7 +177,7 @@
       justify-content: flex-end;
       gap: 2px;
     }
-    :global(:root[data-ui-theme="teacher"]) .item-actions .btn {
+    .item-actions .btn {
       width: 36px;
       min-width: 36px;
       min-height: 36px;

@@ -3444,7 +3444,7 @@
 
   /* Mobile */
   @media (max-width: 600px) {
-    :global(:root[data-ui-theme="teacher"]) .course-detail .tabs {
+    .course-detail .tabs {
       gap: 4px;
       margin-inline: 0;
       padding: 6px;

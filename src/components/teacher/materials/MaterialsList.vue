@@ -172,6 +172,6 @@
       white-space: nowrap;
     }
     .item-actions { width: auto; justify-content: flex-end; gap: 2px; }
-    :global(:root[data-ui-theme="teacher"]) .item-actions .btn { width: 36px; min-width: 36px; min-height: 36px; height: 36px; padding: 0; justify-content: center; }
+    .item-actions .btn { width: 36px; min-width: 36px; min-height: 36px; height: 36px; padding: 0; justify-content: center; }
   }
 </style>
