@@ -3378,12 +3378,16 @@
   @media (max-width: 768px) {
     .course-detail {
       display: block;
-      width: 100%;
-      min-width: 0;
+      /* This view is mounted in a legacy shell that can shrink a flex item to
+         its min-content width. Anchor it to the visual viewport instead: a
+         course title or status option must never become a vertical column. */
+      width: 100vw !important;
+      min-width: 100vw;
+      max-width: 100vw !important;
+      margin-left: calc(-1 * var(--space-4)) !important;
       box-sizing: border-box;
       overflow: hidden;
       padding: 16px 14px 32px;
-      max-width: 100%;
     }
     .course-detail > * {
       min-width: 0;
