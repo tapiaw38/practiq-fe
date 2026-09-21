@@ -333,6 +333,30 @@
 :root[data-ui-theme="teacher"] .row-item__tags { display: flex; flex-wrap: wrap; gap: var(--space-1); }
 :root[data-ui-theme="teacher"] .row-item__go { color: var(--ink-muted); }
 
+/* Course rows have no avatar. Override the generic five-column row so title,
+   badges, description and date each keep their own column on desktop. */
+:root[data-ui-theme="teacher"] .row-item.course-row {
+  grid-template-columns: minmax(240px, 1.05fr) minmax(180px, 1.35fr) 118px 20px;
+  column-gap: var(--space-5);
+}
+:root[data-ui-theme="teacher"] .course-row__main {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+:root[data-ui-theme="teacher"] .course-row__badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1);
+}
+:root[data-ui-theme="teacher"] .course-row__desc {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 /* ── Forms ───────────────────────────────────────────────── */
 :root[data-ui-theme="teacher"] .field,
 :root[data-ui-theme="teacher"] .form-group { display: flex; flex-direction: column; gap: 6px; margin: 0 0 var(--space-4); }
@@ -553,6 +577,13 @@
   :root[data-ui-theme="teacher"] .row-item__meta { grid-column: 2; }
   :root[data-ui-theme="teacher"] .row-item__tags { grid-column: 2; margin-top: var(--space-1); }
   :root[data-ui-theme="teacher"] .row-item__go { grid-column: 3; grid-row: 1 / span 3; }
+  :root[data-ui-theme="teacher"] .row-item.course-row {
+    grid-template-columns: minmax(0, 1fr) 20px;
+    gap: var(--space-2);
+  }
+  :root[data-ui-theme="teacher"] .course-row__desc,
+  :root[data-ui-theme="teacher"] .course-row__date { display: none; }
+  :root[data-ui-theme="teacher"] .course-row .row-item__go { grid-column: 2; grid-row: 1; }
 }
 
 /* Bottom sheet below 820px: same shell, anchored to the bottom edge. */

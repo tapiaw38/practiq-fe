@@ -261,18 +261,20 @@
 <template>
   <TeacherLayout>
     <div class="ac-root">
-      <!-- Top bar -->
-      <header class="ac-topbar">
-        <div class="ac-topbar__left">
-          <span class="ac-eyebrow">Organización de escuela</span>
-          <h1 class="ac-title">Académico</h1>
-          <p v-if="active" class="school-crumb"><i class="pi pi-building"></i> {{ active.name }}</p>
+      <!-- Header -->
+      <header class="page-header ac-page-header">
+        <div class="page-header__left">
+          <p class="page-kicker">Organización de escuela</p>
+          <h1 class="page-title">Académico</h1>
+          <p v-if="active" class="page-subtitle school-crumb"><i class="pi pi-building"></i> {{ active.name }}</p>
         </div>
-        <button class="catalog-pill" @click="showSubjectCatalog = true">
-          <i class="pi pi-book"></i>
-          Catálogo de materias
-          <span class="catalog-pill__badge">{{ subjects.length }}</span>
-        </button>
+        <div class="page-header__right">
+          <button class="btn btn-primary catalog-button" @click="showSubjectCatalog = true">
+            <i class="pi pi-book"></i>
+            Catálogo de materias
+            <span class="catalog-button__badge">{{ subjects.length }}</span>
+          </button>
+        </div>
       </header>
 
       <!-- Loading skeleton -->
@@ -804,66 +806,7 @@
     gap: 18px;
   }
 
-  /* Top bar */
-  .ac-topbar {
-    position: relative;
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 18px;
-    padding: 22px 24px;
-    background: linear-gradient(115deg, var(--surface-elevated), var(--surface-card));
-    border: 1px solid var(--surface-elevated-strong);
-    border-radius: var(--radius-2xl);
-    box-shadow: var(--shadow-card);
-    backdrop-filter: blur(18px);
-    flex-shrink: 0;
-    overflow: hidden;
-  }
-
-  .ac-topbar__left,
-  .catalog-pill {
-    position: relative;
-    z-index: 1;
-  }
-
-  .ac-eyebrow {
-    display: block;
-    font-size: var(--text-xs);
-    font-weight: 700;
-    letter-spacing: 0.11em;
-    text-transform: uppercase;
-    color: var(--practiq-violet);
-    margin-bottom: 2px;
-  }
-
-  .ac-title {
-    font-size: clamp(1.55rem, 2.5vw, 2rem);
-    font-weight: 800;
-    color: var(--text-heading);
-    margin: 0;
-  }
-
-  .catalog-pill {
-    display: inline-flex;
-    align-items: center;
-    gap: 8px;
-    min-height: 42px;
-    padding: 9px 14px;
-    border: 1px solid var(--practiq-violet);
-    background: var(--practiq-violet);
-    color: var(--color-on-primary);
-    border-radius: var(--radius-md);
-    font-size: var(--text-sm);
-    font-weight: 700;
-    cursor: pointer;
-    transition: var(--transition-fast);
-  }
-  .catalog-pill:hover {
-    background: var(--practiq-violet-dark);
-    border-color: var(--practiq-violet-dark);
-  }
-  .catalog-pill__badge {
+  .catalog-button__badge {
     min-width: 20px;
     height: 20px;
     padding: 0 6px;
@@ -1044,7 +987,7 @@
     gap: 2px;
   }
   .grade-mobile-select { display: none; }
-  .school-crumb { display: flex; align-items: center; gap: 6px; margin: 6px 0 0; color: var(--text-secondary); font-size: var(--text-sm); font-weight: 700; }
+  .school-crumb { display: flex; align-items: center; gap: 6px; }
 
   .grade-nav-item {
     display: flex;
@@ -1769,15 +1712,6 @@
     .ac-root {
       padding: 16px 14px 32px;
     }
-    .ac-topbar {
-      align-items: flex-start;
-      flex-direction: column;
-      padding: 22px 18px;
-      border-radius: 22px;
-    }
-    .catalog-pill {
-      align-self: flex-start;
-    }
     .ac-layout {
       grid-template-columns: 1fr;
       grid-template-rows: auto 1fr;
@@ -1788,9 +1722,6 @@
     .grade-mobile-select select { min-height: 44px; width: 100%; padding: 0 10px; border: 1px solid var(--surface-border); border-radius: var(--radius-md); background: var(--surface-card); color: var(--text-primary); font: inherit; }
     .subject-create-row {
       grid-template-columns: 1fr;
-    }
-    .ac-topbar {
-      padding: 14px 16px;
     }
     .courses-area,
     .grade-header {
