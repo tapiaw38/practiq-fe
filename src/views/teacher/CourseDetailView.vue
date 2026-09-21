@@ -3378,16 +3378,16 @@
   @media (max-width: 768px) {
     .course-detail {
       display: block;
-      /* This view is mounted in a legacy shell that can shrink a flex item to
-         its min-content width. Anchor it to the visual viewport instead: a
-         course title or status option must never become a vertical column. */
-      width: 100vw !important;
-      min-width: 100vw;
-      max-width: 100vw !important;
-      margin-left: calc(-1 * var(--space-4)) !important;
+      /* app-content already owns viewport width and gutters. Forcing 100vw
+         here overflows that shell on phones and can leave only a thin slice
+         of the course visible. */
+      width: 100% !important;
+      min-width: 0;
+      max-width: 100% !important;
+      margin-left: 0 !important;
       box-sizing: border-box;
       overflow: hidden;
-      padding: 16px 14px 32px;
+      padding: 16px 0 32px !important;
     }
     .course-detail > * {
       min-width: 0;

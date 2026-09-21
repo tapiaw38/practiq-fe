@@ -156,7 +156,7 @@
         <div class="course-stats">
           <div class="course-stat">
             <span class="course-stat__value">{{ course.practice_sheets }}</span>
-            <span class="course-stat__label">Practicas</span>
+            <span class="course-stat__label">Prácticas</span>
           </div>
           <div class="course-stat-divider"></div>
           <div class="course-stat">
@@ -579,6 +579,10 @@
     background: var(--surface-border);
   }
   .btn-levels {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
     border: 1.5px solid rgba(var(--practiq-violet-rgb), 0.2);
     border-radius: var(--radius-lg);
     padding: 10px 12px;

@@ -227,6 +227,12 @@
           viejas, así que no coincide con el total de aciertos de abajo.
         </p>
 
+        <div class="mastery-legend" aria-label="Referencia de dominio">
+          <span><i class="legend-dot legend-dot--review"></i>Para repasar: menos de 70%</span>
+          <span><i class="legend-dot legend-dot--progress"></i>En progreso: 70–89%</span>
+          <span><i class="legend-dot legend-dot--mastered"></i>Dominado: 90% o más</span>
+        </div>
+
         <div class="sort-row" role="group" aria-label="Ordenar temas">
           <button
             v-for="option in sortOptions"
@@ -444,6 +450,28 @@
     color: var(--text-muted);
     line-height: 1.5;
   }
+
+  .mastery-legend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px 14px;
+    color: var(--text-muted);
+    font-size: var(--text-xs);
+  }
+  .mastery-legend span {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .legend-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--practiq-violet);
+  }
+  .legend-dot--review { background: var(--color-warning); }
+  .legend-dot--progress { background: var(--practiq-violet); }
+  .legend-dot--mastered { background: var(--color-success); }
 
   .sort-row {
     display: flex;

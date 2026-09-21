@@ -234,4 +234,28 @@ router.beforeEach((to, _from, next) => {
   next();
 });
 
+// Deploys replace Vite's hashed lazy chunks. A tab that was already open can
+// still hold the previous entry bundle and request a chunk that no longer
+// exists, which otherwise leaves the route blank. Reload once to obtain the
+// fresh HTML manifest; the guard prevents a reload loop for unrelated errors.
+const CHUNK_RELOAD_KEY = "practiq:chunk-reload-url";
+const isStaleChunkError = (error: unknown) =>
+  /dynamically imported module|importing a module script failed|loading module/i.test(
+    error instanceof Error ? error.message : String(error),
+  );
+
+router.onError((error) => {
+  if (!isStaleChunkError(error)) return;
+
+  const currentUrl = window.location.href;
+  if (sessionStorage.getItem(CHUNK_RELOAD_KEY) === currentUrl) return;
+
+  sessionStorage.setItem(CHUNK_RELOAD_KEY, currentUrl);
+  window.location.reload();
+});
+
+router.afterEach(() => {
+  sessionStorage.removeItem(CHUNK_RELOAD_KEY);
+});
+
 export default router;

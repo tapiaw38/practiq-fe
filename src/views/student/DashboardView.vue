@@ -12,7 +12,7 @@
   import JoinTeacherCard from "@/components/student/JoinTeacherCard.vue";
   import { useProfile } from "@/composables/useProfile";
   import { useDashboard } from "@/composables/useDashboard";
-  import { needsReview } from "@/utils/mastery";
+  import { masteryTier, needsReview } from "@/utils/mastery";
   import type { TopicProgress } from "@/types";
 
   const router = useRouter();
@@ -86,8 +86,6 @@
     return Array.from(map.values());
   });
 
-  // Deliberately not a re-sort of groupedProgress: currentTopic below reads its
-  // first entry, so reordering that list would rename the banner's topic.
   const TOP_TOPICS = 6;
   const topProgress = computed(() =>
     [...groupedProgress.value]
@@ -95,23 +93,32 @@
       .slice(0, TOP_TOPICS),
   );
 
-  const currentTopic = computed(
-    () => groupedProgress.value[0]?.topic_title || "—",
+  // Prefer the latest worked-on topic. A topic without a timestamp has not
+  // been practised yet, so fall back to the weakest one to give the banner a
+  // useful next step instead of inheriting arbitrary API order.
+  const currentTopicProgress = computed(() => {
+    const topics = groupedProgress.value;
+    const practised = topics.filter((topic) => topic.last_practiced_at);
+    if (practised.length) {
+      return [...practised].sort(
+        (a, b) =>
+          new Date(b.last_practiced_at || 0).getTime() -
+          new Date(a.last_practiced_at || 0).getTime(),
+      )[0];
+    }
+    return [...topics].sort((a, b) => a.mastery_score - b.mastery_score)[0];
+  });
+  const currentTopic = computed(() => currentTopicProgress.value?.topic_title || "—");
+  const currentLevel = computed(() => currentTopicProgress.value?.current_level ?? 1);
+  const currentTopicMastery = computed(
+    () => currentTopicProgress.value?.mastery_score ?? 0,
   );
-  const currentLevel = computed(() => summaries.value[0]?.current_level ?? 1);
   const streakDays = computed(() => streakFromApi.value);
   const streakMessage = computed(() =>
     streakDays.value > 0
       ? `${streakDays.value} ${streakDays.value === 1 ? "día" : "días"} seguidos`
       : "Empezá hoy",
   );
-  const averageMastery = computed(() => {
-    if (!groupedProgress.value.length) return 0;
-    return (
-      groupedProgress.value.reduce((acc, item) => acc + item.mastery_score, 0) /
-      groupedProgress.value.length
-    );
-  });
   const totalSheets = computed(() =>
     summaries.value.reduce((acc, s) => acc + s.practice_sheets, 0),
   );
@@ -478,11 +485,12 @@
             <div class="progress-bar topic-progress">
               <div
                 class="progress-fill"
-                :style="{ width: averageMastery + '%' }"
+                :class="`progress-fill--${masteryTier(currentTopicMastery)}`"
+                :style="{ width: currentTopicMastery + '%' }"
               ></div>
             </div>
             <div class="topic-progress-meta">
-              <span>{{ Math.round(averageMastery) }}% de dominio</span>
+              <span>{{ Math.round(currentTopicMastery) }}% de dominio</span>
               <span>{{ totalSheets }} prácticas disponibles</span>
             </div>
           </div>
@@ -568,7 +576,7 @@
         <section v-if="groupedProgress.length > 0" class="mastery-section anim-rise">
           <div class="section-head">
             <div>
-              <div class="section-kicker">Resumen rápido</div>
+              <div class="section-kicker">Empezá por estos temas</div>
               <h2 class="section-title">Tu progreso por tema</h2>
             </div>
             <RouterLink
@@ -597,6 +605,7 @@
               <div class="progress-bar">
                 <div
                   class="progress-fill"
+                  :class="`progress-fill--${masteryTier(p.mastery_score)}`"
                   :style="{ width: p.mastery_score + '%' }"
                 ></div>
               </div>
@@ -1271,5 +1280,15 @@
     display: flex;
     flex-direction: column;
     gap: 8px;
+  }
+
+  .progress-fill--review {
+    background: var(--color-warning);
+  }
+  .progress-fill--progress {
+    background: var(--practiq-violet);
+  }
+  .progress-fill--mastered {
+    background: var(--color-success);
   }
 </style>
