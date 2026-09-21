@@ -1710,13 +1710,19 @@
 
   @media (max-width: 820px) {
     .ac-root {
+      display: block;
+      width: 100%;
+      min-width: 0;
       padding: 16px 14px 32px;
     }
     .ac-layout {
-      grid-template-columns: 1fr;
+      width: 100%;
+      min-width: 0;
+      grid-template-columns: minmax(0, 1fr);
       grid-template-rows: auto 1fr;
     }
-    .grade-sidebar { border-right: none; }
+    .grade-sidebar,
+    .grade-content { width: 100%; min-width: 0; border-right: none; }
     .grade-nav { display: none; }
     .grade-mobile-select { display: grid; gap: 5px; padding: 10px 12px 12px; color: var(--text-secondary); font-size: var(--text-xs); font-weight: 700; }
     .grade-mobile-select select { min-height: 44px; width: 100%; padding: 0 10px; border: 1px solid var(--surface-border); border-radius: var(--radius-md); background: var(--surface-card); color: var(--text-primary); font: inherit; }

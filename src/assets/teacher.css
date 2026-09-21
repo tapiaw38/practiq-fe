@@ -618,7 +618,10 @@
 @media (max-width: 1023px) {
   :root[data-ui-theme="teacher"] { overflow-x: hidden; }
   :root[data-ui-theme="teacher"] .app-shell,
-  :root[data-ui-theme="teacher"] .main-content { min-width: 0; overflow-x: clip; }
+  :root[data-ui-theme="teacher"] .main-content,
+  :root[data-ui-theme="teacher"] .app-content {
+    width: 100%; max-width: 100%; min-width: 0; box-sizing: border-box; overflow-x: clip;
+  }
   :root[data-ui-theme="teacher"] .dashboard,
   :root[data-ui-theme="teacher"] .course-detail,
   :root[data-ui-theme="teacher"] .courses-page,
@@ -647,6 +650,9 @@
   :root[data-ui-theme="teacher"] .tab-bar,
   :root[data-ui-theme="teacher"] .grade-sidebar,
   :root[data-ui-theme="teacher"] .pages-sidebar { max-width: 100%; overscroll-behavior-x: contain; }
+  :root[data-ui-theme="teacher"] .ac-layout,
+  :root[data-ui-theme="teacher"] .grade-sidebar,
+  :root[data-ui-theme="teacher"] .grade-content { width: 100%; min-width: 0; box-sizing: border-box; }
   :root[data-ui-theme="teacher"] input:not([type="checkbox"]):not([type="radio"]),
   :root[data-ui-theme="teacher"] select,
   :root[data-ui-theme="teacher"] textarea { font-size: 16px; }
