@@ -12,7 +12,7 @@
   import JoinTeacherCard from "@/components/student/JoinTeacherCard.vue";
   import { useProfile } from "@/composables/useProfile";
   import { useDashboard } from "@/composables/useDashboard";
-  import { masteryTier, needsReview } from "@/utils/mastery";
+  import { needsReview } from "@/utils/mastery";
   import type { TopicProgress } from "@/types";
 
   const router = useRouter();
@@ -485,7 +485,6 @@
             <div class="progress-bar topic-progress">
               <div
                 class="progress-fill"
-                :class="`progress-fill--${masteryTier(currentTopicMastery)}`"
                 :style="{ width: currentTopicMastery + '%' }"
               ></div>
             </div>
@@ -605,7 +604,6 @@
               <div class="progress-bar">
                 <div
                   class="progress-fill"
-                  :class="`progress-fill--${masteryTier(p.mastery_score)}`"
                   :style="{ width: p.mastery_score + '%' }"
                 ></div>
               </div>
@@ -1282,13 +1280,4 @@
     gap: 8px;
   }
 
-  .progress-fill--review {
-    background: var(--color-warning);
-  }
-  .progress-fill--progress {
-    background: var(--practiq-violet);
-  }
-  .progress-fill--mastered {
-    background: var(--color-success);
-  }
 </style>

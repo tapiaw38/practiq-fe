@@ -76,6 +76,7 @@
     loadCourse,
     loadStudents,
     setCourseStatus,
+    loadingCourse,
   } = useCourse();
 
   type CourseStatus = "draft" | "published" | "archived";
@@ -724,7 +725,13 @@
     edit: { x: 0, y: 0 },
   };
 
-  onMounted(async () => {
+  // The course request decides whether this screen has anything to show, so
+  // its outcome is kept: a rejection used to be swallowed by allSettled and
+  // the page rendered as an empty shell with no way back.
+  const courseFailed = ref(false);
+
+  async function loadCourseData() {
+    courseFailed.value = false;
     const [
       courseRes,
       topicsRes,
@@ -748,7 +755,24 @@
     if (notebooksRes.status === "fulfilled")
       notebooks.value = notebooksRes.value || [];
     if (levelsRes.status === "fulfilled") courseLevels.value = levelsRes.value;
-  });
+    courseFailed.value = courseRes.status === "rejected" || !course.value;
+
+    // The side panels are optional; the screen still works without them, but a
+    // silent failure left stale or empty tabs with no explanation.
+    const degraded = [topicsRes, studentsRes, sheetsRes, notebooksRes, levelsRes].some(
+      (result) => result.status === "rejected",
+    );
+    if (!courseFailed.value && degraded) {
+      toast.add({
+        severity: "warn",
+        summary: "Algunas secciones no cargaron",
+        detail: "Actualizá la página para volver a intentar.",
+        life: 4500,
+      });
+    }
+  }
+
+  onMounted(loadCourseData);
 
   watch(selectedTopicId, async (id) => {
     if (!id) return;
@@ -1716,8 +1740,23 @@
         </div>
       </div>
 
+      <div v-if="!course && loadingCourse" class="empty-state" role="status">
+        <div class="empty-state__icon"><i class="pi pi-spin pi-spinner"></i></div>
+        <h3>Cargando el curso…</h3>
+        <p>Estamos trayendo temas, materiales, alumnos y cuadernos.</p>
+      </div>
+
+      <div v-else-if="courseFailed" class="empty-state">
+        <div class="empty-state__icon"><i class="pi pi-exclamation-triangle"></i></div>
+        <h3>No pudimos abrir este curso</h3>
+        <p>Puede que ya no exista, que no tengas acceso o que se haya cortado la conexión.</p>
+        <button class="btn btn-primary btn-sm" type="button" @click="loadCourseData">
+          <i class="pi pi-refresh"></i> Reintentar
+        </button>
+      </div>
+
       <!-- Tabs -->
-      <div ref="tabsElement" class="tabs" role="tablist" aria-label="Secciones del curso">
+      <div v-if="course" ref="tabsElement" class="tabs" role="tablist" aria-label="Secciones del curso">
         <button
           v-for="(tab, index) in tabs"
           :id="`tab-${tab.id}`"
@@ -1740,6 +1779,7 @@
       </div>
 
       <div
+        v-if="course"
         id="course-tabpanel"
         role="tabpanel"
         :aria-labelledby="`tab-${activeTab}`"
@@ -3378,18 +3418,19 @@
   @media (max-width: 768px) {
     .course-detail {
       display: block;
-      /* app-content already owns viewport width and gutters. Forcing 100vw
-         here overflows that shell on phones and can leave only a thin slice
-         of the course visible. */
-      width: 100% !important;
+      /* Teacher shell owns viewport width and gutters. This view must stay a
+         normal block inside it; width forcing plus clipping caused its cards
+         to render as a narrow slice on some mobile browsers. */
+      width: auto !important;
       min-width: 0;
-      max-width: 100% !important;
+      max-width: none !important;
       margin-left: 0 !important;
       box-sizing: border-box;
-      overflow: hidden;
-      padding: 16px 0 32px !important;
+      overflow: visible;
+      padding: 0 !important;
     }
     .course-detail > * {
+      width: 100%;
       min-width: 0;
       max-width: 100%;
       box-sizing: border-box;

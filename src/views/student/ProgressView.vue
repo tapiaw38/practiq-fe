@@ -6,7 +6,7 @@
   import { useDashboard } from "@/composables/useDashboard";
   import { useCountUp } from "@/composables/useCountUp";
   import { formatRelativeTime } from "@/utils/formatters";
-  import { MASTERED_AT, masteryTier, needsReview } from "@/utils/mastery";
+  import { MASTERED_AT, needsReview } from "@/utils/mastery";
   import type { CourseSummary } from "@/services/dashboard/dashboardService";
   import type { TopicProgress } from "@/types";
 
@@ -227,11 +227,6 @@
           viejas, así que no coincide con el total de aciertos de abajo.
         </p>
 
-        <div class="mastery-legend" aria-label="Referencia de dominio">
-          <span><i class="legend-dot legend-dot--review"></i>Para repasar: menos de 70%</span>
-          <span><i class="legend-dot legend-dot--progress"></i>En progreso: 70–89%</span>
-          <span><i class="legend-dot legend-dot--mastered"></i>Dominado: 90% o más</span>
-        </div>
 
         <div class="sort-row" role="group" aria-label="Ordenar temas">
           <button
@@ -276,7 +271,6 @@
               <div class="progress-bar">
                 <div
                   class="progress-fill"
-                  :class="`progress-fill--${masteryTier(p.mastery_score)}`"
                   :style="{ width: p.mastery_score + '%' }"
                 ></div>
               </div>
@@ -451,27 +445,6 @@
     line-height: 1.5;
   }
 
-  .mastery-legend {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 8px 14px;
-    color: var(--text-muted);
-    font-size: var(--text-xs);
-  }
-  .mastery-legend span {
-    display: inline-flex;
-    align-items: center;
-    gap: 6px;
-  }
-  .legend-dot {
-    width: 8px;
-    height: 8px;
-    border-radius: 50%;
-    background: var(--practiq-violet);
-  }
-  .legend-dot--review { background: var(--color-warning); }
-  .legend-dot--progress { background: var(--practiq-violet); }
-  .legend-dot--mastered { background: var(--color-success); }
 
   .sort-row {
     display: flex;
@@ -584,24 +557,12 @@
     background: var(--fill-border-muted);
     overflow: hidden;
   }
-  /* Colour carries the same message as the number, so "what needs work" reads
-     without comparing percentages card by card. */
+  /* One brand colour keeps the percentage and bar as the only progress signal. */
   .progress-fill {
     height: 100%;
     border-radius: var(--radius-pill);
     background: var(--gradient-brand);
     transition: width 0.3s ease;
-  }
-  /* Same three tier colours as the figure above, so a card and its segment
-     always agree. */
-  .progress-fill--review {
-    background: var(--color-warning);
-  }
-  .progress-fill--progress {
-    background: var(--practiq-violet);
-  }
-  .progress-fill--mastered {
-    background: var(--color-success);
   }
 
   .mastery-meta {
