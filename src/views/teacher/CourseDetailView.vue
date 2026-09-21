@@ -184,6 +184,7 @@
   const sheetExercises = ref<Exercise[]>([]);
 
   const activeTab = ref("levels");
+  const tabsElement = ref<HTMLElement | null>(null);
   const tabs = [
     { id: "levels", label: "Niveles", icon: "pi pi-sitemap" },
     { id: "topics", label: "Temas", icon: "pi pi-list" },
@@ -199,6 +200,15 @@
     activeTab.value = tab.id;
     document.getElementById(`tab-${tab.id}`)?.focus();
   }
+
+  function revealActiveTab() {
+    const tabsRoot = tabsElement.value;
+    const selected = tabsRoot?.querySelector<HTMLElement>(".tab-active");
+    if (!tabsRoot || !selected || window.innerWidth > 600) return;
+    tabsRoot.scrollTo({ left: Math.max(0, selected.offsetLeft - 8), behavior: "smooth" });
+  }
+
+  watch(activeTab, () => nextTick(revealActiveTab));
 
   const showTopicModal = ref(false);
   const showExerciseModal = ref(false);
@@ -1707,7 +1717,7 @@
       </div>
 
       <!-- Tabs -->
-      <div class="tabs" role="tablist" aria-label="Secciones del curso">
+      <div ref="tabsElement" class="tabs" role="tablist" aria-label="Secciones del curso">
         <button
           v-for="(tab, index) in tabs"
           :id="`tab-${tab.id}`"
@@ -3378,9 +3388,12 @@
 
   /* Mobile */
   @media (max-width: 600px) {
-    .tabs {
-      margin-left: -4px;
-      margin-right: -4px;
+    :global(:root[data-ui-theme="teacher"]) .course-detail .tabs {
+      gap: 4px;
+      margin-inline: 0;
+      padding: 6px;
+      scroll-snap-type: x mandatory;
+      scroll-padding-inline: 6px;
     }
     .tab {
       padding: 9px 12px;

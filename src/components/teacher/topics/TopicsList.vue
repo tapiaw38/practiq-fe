@@ -154,6 +154,7 @@
     }
     .list-item { padding: 12px; }
     .item-info { flex: 1; }
+    .item-info > div:not(.inline-edit-row) { min-width: 0; }
     .item-title {
       overflow: hidden;
       text-overflow: ellipsis;
@@ -167,6 +168,15 @@
     }
     .item-actions {
       justify-content: flex-end;
+      gap: 2px;
+    }
+    :global(:root[data-ui-theme="teacher"]) .item-actions .btn {
+      width: 36px;
+      min-width: 36px;
+      min-height: 36px;
+      height: 36px;
+      padding: 0;
+      justify-content: center;
     }
   }
 </style>

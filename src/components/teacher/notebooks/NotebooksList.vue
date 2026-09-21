@@ -168,11 +168,13 @@
     .item-actions {
       justify-content: flex-end;
       display: flex;
-      gap: 4px;
+      gap: 2px;
     }
-    .item-actions .btn {
-      min-width: 38px;
-      min-height: 38px;
+    :global(:root[data-ui-theme="teacher"]) .item-actions .btn {
+      width: 36px;
+      min-width: 36px;
+      min-height: 36px;
+      height: 36px;
       padding: 0;
       justify-content: center;
     }
