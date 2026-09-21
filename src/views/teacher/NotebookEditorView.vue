@@ -845,7 +845,7 @@
     height: 38px;
     border-radius: 50%;
     border: 1.5px solid rgba(var(--practiq-violet-rgb), 0.2);
-    background: var(--surface-elevated-strong);
+    background: var(--surface);
     cursor: pointer;
     display: flex;
     align-items: center;
@@ -901,10 +901,10 @@
 
   /* Sidebar */
   .pages-sidebar {
-    background: var(--surface-elevated-strong);
+    background: var(--surface);
     backdrop-filter: blur(12px);
     border-radius: var(--radius-xl);
-    border: 1.5px solid rgba(var(--practiq-violet-rgb), 0.1);
+    border: 1px solid var(--line);
     padding: 16px 12px;
     display: flex;
     flex-direction: column;
@@ -980,10 +980,10 @@
 
   /* Editor main */
   .editor-main {
-    background: var(--surface-elevated-strong);
+    background: var(--surface);
     backdrop-filter: blur(12px);
     border-radius: var(--radius-2xl);
-    border: 1.5px solid rgba(var(--practiq-violet-rgb), 0.1);
+    border: 1px solid var(--line);
     box-shadow: var(--shadow-card-lg);
     padding: 24px 28px;
     display: flex;

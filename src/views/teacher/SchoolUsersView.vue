@@ -244,9 +244,11 @@
   <TeacherLayout>
     <main class="school-users">
       <header class="page-header">
-        <p class="eyebrow">Escuelas / {{ active?.kind === "personal" ? "Mi escuela" : "Institución" }}</p>
-        <h1>{{ active?.name || "Elegí una escuela" }}</h1>
-        <p>Administrá quiénes participan y qué rol cumplen dentro de este espacio.</p>
+        <div class="page-header__left">
+          <p class="page-kicker">Escuelas / {{ active?.kind === "personal" ? "Mi escuela" : "Institución" }}</p>
+          <h1 class="page-title">{{ active?.name || "Elegí una escuela" }}</h1>
+          <p class="page-intro">Administrá quiénes participan y qué rol cumplen dentro de este espacio.</p>
+        </div>
       </header>
 
       <section v-if="active" class="users-card">
