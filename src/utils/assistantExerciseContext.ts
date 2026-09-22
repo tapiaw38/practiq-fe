@@ -256,7 +256,7 @@ export async function prepareHandwritingImage(dataUrl: string): Promise<string> 
 
   const bounds = inkBounds(flatCtx, width, height);
   // No strokes found: send the flattened page rather than an empty crop.
-  if (!bounds) return flat.toDataURL("image/png");
+  if (!bounds) return exportForGrading(flat);
 
   const minX = Math.max(0, bounds.minX - INK_CROP_PADDING);
   const minY = Math.max(0, bounds.minY - INK_CROP_PADDING);
@@ -265,13 +265,13 @@ export async function prepareHandwritingImage(dataUrl: string): Promise<string> 
   const cropW = Math.max(1, maxX - minX + 1);
   const cropH = Math.max(1, maxY - minY + 1);
 
-  if (cropW === width && cropH === height) return flat.toDataURL("image/png");
+  if (cropW === width && cropH === height) return exportForGrading(flat);
 
   const out = document.createElement("canvas");
   out.width = cropW;
   out.height = cropH;
   const ctx = out.getContext("2d");
-  if (!ctx) return flat.toDataURL("image/png");
+  if (!ctx) return exportForGrading(flat);
 
   ctx.fillStyle = "#ffffff";
   ctx.fillRect(0, 0, cropW, cropH);
@@ -279,6 +279,28 @@ export async function prepareHandwritingImage(dataUrl: string): Promise<string> 
 
   // PNG, like composeTeacherAndStudentImage: handwriting is line art, so this
   // stays small and skips the JPEG ringing that blurs thin strokes.
+  return exportForGrading(out);
+}
+
+/** Below this the grader answers "the image is too small to read". */
+const MIN_GRADING_SIDE = 1000;
+/** Past this an upscale only enlarges the blur. */
+const MAX_GRADING_UPSCALE = 4;
+
+function exportForGrading(canvas: HTMLCanvasElement): string {
+  const longest = Math.max(canvas.width, canvas.height);
+  if (!longest || longest >= MIN_GRADING_SIDE) return canvas.toDataURL("image/png");
+
+  const scale = Math.min(MAX_GRADING_UPSCALE, MIN_GRADING_SIDE / longest);
+  const out = document.createElement("canvas");
+  out.width = Math.round(canvas.width * scale);
+  out.height = Math.round(canvas.height * scale);
+  const ctx = out.getContext("2d");
+  if (!ctx) return canvas.toDataURL("image/png");
+
+  ctx.imageSmoothingEnabled = true;
+  ctx.imageSmoothingQuality = "high";
+  ctx.drawImage(canvas, 0, 0, out.width, out.height);
   return out.toDataURL("image/png");
 }
 

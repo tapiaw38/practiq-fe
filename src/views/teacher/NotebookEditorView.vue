@@ -51,6 +51,7 @@
   const penSize = ref(3);
   const isDrawing = ref(false);
   const undoStack = ref<ImageData[]>([]);
+  let pixelScale = 1;
 
   function cssVar(name: string, fallback: string, depth = 0): string {
     if (typeof window === "undefined") return fallback;
@@ -329,8 +330,9 @@
     const canvas = editorCanvas.value;
     if (!canvas) return;
     const rect = canvas.getBoundingClientRect();
-    canvas.width = rect.width || 700;
-    canvas.height = rect.height || 400;
+    pixelScale = window.devicePixelRatio || 1;
+    canvas.width = Math.round((rect.width || 700) * pixelScale);
+    canvas.height = Math.round((rect.height || 400) * pixelScale);
     const ctx = canvas.getContext("2d")!;
 
     ctx.fillStyle = cssVar("--surface-card", "#ffffff");
@@ -382,7 +384,8 @@
     ctx.globalCompositeOperation =
       tool.value === "eraser" ? "destination-out" : "source-over";
     ctx.strokeStyle = penColor.value;
-    ctx.lineWidth = tool.value === "eraser" ? penSize.value * 4 : penSize.value;
+    ctx.lineWidth =
+      (tool.value === "eraser" ? penSize.value * 4 : penSize.value) * pixelScale;
     ctx.lineCap = "round";
     ctx.lineJoin = "round";
     ctx.lineTo(x, y);

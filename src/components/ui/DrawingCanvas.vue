@@ -19,6 +19,7 @@
   const undoStack = ref<ImageData[]>([]);
   const isDrawing = ref(false);
   const lastPos = ref({ x: 0, y: 0 });
+  let pixelScale = 1;
 
   function initCanvas() {
     const canvas = canvasRef.value;
@@ -29,10 +30,11 @@
       if (token !== loadToken) return;
       const w = canvas.offsetWidth || 600;
       const h = canvas.offsetHeight || props.height;
-      canvas.width = w;
-      canvas.height = h;
+      pixelScale = window.devicePixelRatio || 1;
+      canvas.width = Math.round(w * pixelScale);
+      canvas.height = Math.round(h * pixelScale);
       const ctx = canvas.getContext("2d")!;
-      ctx.clearRect(0, 0, w, h);
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
       undoStack.value = [];
 
       // Load existing image if any
@@ -40,7 +42,7 @@
         const img = new Image();
         img.onload = () => {
           if (token !== loadToken) return;
-          ctx.drawImage(img, 0, 0, w, h);
+          ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
         };
         img.src = props.modelValue;
       }
@@ -76,7 +78,8 @@
     ctx.globalCompositeOperation =
       props.tool === "eraser" ? "destination-out" : "source-over";
     ctx.strokeStyle = props.penColor;
-    ctx.lineWidth = props.tool === "eraser" ? props.penSize * 4 : props.penSize;
+    ctx.lineWidth =
+      (props.tool === "eraser" ? props.penSize * 4 : props.penSize) * pixelScale;
     ctx.lineCap = "round";
     ctx.lineJoin = "round";
 
