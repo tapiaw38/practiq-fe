@@ -555,7 +555,7 @@
                numerator of Precision global right below it. -->
           <div class="metric-card">
             <div class="metric-card__icon metric-card__icon--xp">
-              <i class="pi pi-bolt" aria-hidden="true"></i>
+              <img src="@/assets/bolt.png" alt="" class="metric-icon-img" />
             </div>
             <div>
               <div class="metric-card__value">{{ xpShown }}</div>
@@ -966,10 +966,10 @@
   .metric-card__icon--ice {
     background: rgba(var(--color-info-rgb), 0.12);
   }
+  /* The bolt is amber, so it sits on the warm wash the star used rather than
+     the violet one: a yellow glyph on a violet tint fought itself. */
   .metric-card__icon--xp {
-    background: var(--gradient-brand-soft);
-    color: var(--practiq-violet);
-    font-size: 26px;
+    background: var(--gradient-star-soft);
   }
   .metric-card__icon--goal {
     background: var(--gradient-goal-soft);
