@@ -31,8 +31,23 @@ export interface StudentDashboard {
   };
 }
 
+export interface LeaderboardEntry {
+  /** First name plus a surname initial: the server never sends more. */
+  name: string;
+  total_xp: number;
+  position: number;
+  is_me?: boolean;
+}
+
+export interface CourseLeaderboard {
+  data: LeaderboardEntry[];
+  /** Absent until the student earns something: nowhere yet, not last. */
+  me?: LeaderboardEntry;
+}
+
 export interface IDashboardService {
   get(): Promise<{ data: StudentDashboard }>;
+  leaderboard(courseID: string): Promise<CourseLeaderboard>;
 }
 
 export class DashboardService implements IDashboardService {
@@ -45,6 +60,12 @@ export class DashboardService implements IDashboardService {
    */
   async get(): Promise<{ data: StudentDashboard }> {
     const { data } = await this.api.get("/students/me/dashboard");
+    return data;
+  }
+
+  /** Top of the course plus the student's own row when it falls outside. */
+  async leaderboard(courseID: string): Promise<CourseLeaderboard> {
+    const { data } = await this.api.get(`/students/me/courses/${courseID}/leaderboard`);
     return data;
   }
 }
