@@ -505,6 +505,9 @@
     background: var(--color-info-bg);
     color: var(--color-info-dark);
   }
+  .courses-grid:not(.courses-grid--list) .course-grade-pill {
+    margin-left: auto;
+  }
   .course-title {
     margin: 0;
     color: var(--text-heading);
