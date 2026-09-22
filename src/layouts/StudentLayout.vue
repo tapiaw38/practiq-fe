@@ -970,12 +970,18 @@
     flex: 1;
   }
 
-  .topbar-avatar-link { display:inline-flex; border-radius:50%; text-decoration:none; }
+  .topbar-avatar-link {
+    display: inline-flex;
+    overflow: hidden;
+    border-radius: 50%;
+    text-decoration: none;
+  }
   .user-avatar,
   .topbar-avatar {
     width: 46px;
     height: 46px;
-    border-radius: var(--radius-xl);
+    border-radius: 50%;
+    overflow: hidden;
     background: var(--gradient-brand);
     color: var(--color-on-primary);
     display: grid;
@@ -1099,7 +1105,7 @@
     .topbar-avatar {
       width: 42px;
       height: 42px;
-      border-radius: var(--radius-xl);
+      border-radius: 50%;
     }
 
     .drawer-backdrop {
