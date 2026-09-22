@@ -2523,6 +2523,29 @@
     }
   }
 
+  /* Side by side stopped being enough once the XP breakdown and a fourth stat
+     card joined the box: the result is simply taller than a phone. Pinning the
+     actions to the bottom of the scroller keeps the only way out of this modal
+     on screen no matter how much is above it. The padding and the negative
+     margin reach into .modal-box's own padding so the buttons sit flush
+     against the bottom edge rather than floating over a strip of content. */
+  .results-box .modal-actions {
+    position: sticky;
+    bottom: calc(var(--results-actions-inset) * -1);
+    margin: 0 calc(var(--results-actions-inset) * -1) calc(var(--results-actions-inset) * -1);
+    padding: 12px var(--results-actions-inset) var(--results-actions-inset);
+    background: var(--surface-card);
+    border-top: 1px solid var(--surface-glass-border);
+  }
+  .results-box {
+    --results-actions-inset: 32px;
+  }
+  @media (max-width: 768px) {
+    .results-box {
+      --results-actions-inset: 24px;
+    }
+  }
+
   .results-header {
     text-align: center;
     margin-bottom: 16px;
