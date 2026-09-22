@@ -142,9 +142,14 @@
   const totalAttempts = computed(() =>
     groupedProgress.value.reduce((acc, item) => acc + item.total_attempts, 0),
   );
+  // XP is earned per course; the home speaks about the student, so the tile
+  // adds the balances up. The parts stay visible per course in Mi liga.
+  const totalXp = computed(() =>
+    summaries.value.reduce((acc, s) => acc + (s.course_xp || 0), 0),
+  );
   // The biggest number on the screen and the most inert: it counts up once,
   // when the totals arrive.
-  const correctShown = useCountUp(totalCorrect);
+  const xpShown = useCountUp(totalXp);
 
   const goalProgress = computed(() =>
     totalAttempts.value > 0
@@ -546,13 +551,15 @@
             </div>
           </div>
 
+          <!-- Aciertos used to sit here showing the same number as the
+               numerator of Precision global right below it. -->
           <div class="metric-card">
-            <div class="metric-card__icon metric-card__icon--star">
-              <img src="@/assets/stars.png" alt="" class="metric-icon-img" />
+            <div class="metric-card__icon metric-card__icon--xp">
+              <i class="pi pi-bolt" aria-hidden="true"></i>
             </div>
             <div>
-              <div class="metric-card__value">{{ correctShown }}</div>
-              <div class="metric-card__label">Aciertos</div>
+              <div class="metric-card__value">{{ xpShown }}</div>
+              <div class="metric-card__label">XP total</div>
             </div>
           </div>
 
@@ -959,8 +966,10 @@
   .metric-card__icon--ice {
     background: rgba(var(--color-info-rgb), 0.12);
   }
-  .metric-card__icon--star {
-    background: var(--gradient-star-soft);
+  .metric-card__icon--xp {
+    background: var(--gradient-brand-soft);
+    color: var(--practiq-violet);
+    font-size: 26px;
   }
   .metric-card__icon--goal {
     background: var(--gradient-goal-soft);
