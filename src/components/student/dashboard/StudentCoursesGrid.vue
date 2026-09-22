@@ -97,6 +97,9 @@
       >
         <div class="course-card__eyebrow">
           <span class="course-subject">{{ course.subject || "General" }}</span>
+          <span v-if="course.grade_name" class="course-grade-pill">{{
+            course.grade_name
+          }}</span>
           <span class="course-level-pill"
             >Nivel {{ course.current_level }}</span
           >
@@ -463,6 +466,7 @@
     }
 
     .courses-grid--list .course-subject,
+    .courses-grid--list .course-grade-pill,
     .courses-grid--list .course-level-pill {
       padding: 3px 7px;
     }
@@ -483,6 +487,7 @@
     gap: 10px;
   }
   .course-subject,
+  .course-grade-pill,
   .course-level-pill,
   .review-topic-tag,
   .review-more {
@@ -495,6 +500,7 @@
     background: var(--fill-primary-soft);
     color: var(--practiq-violet);
   }
+  .course-grade-pill,
   .course-level-pill {
     background: var(--color-info-bg);
     color: var(--color-info-dark);

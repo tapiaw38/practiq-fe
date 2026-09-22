@@ -8,6 +8,7 @@ export interface CourseSummary {
   school_name?: string;
   title: string;
   subject: string;
+  grade_name?: string;
   practice_sheets: number;
   level_tests: number;
   notebooks: number;
