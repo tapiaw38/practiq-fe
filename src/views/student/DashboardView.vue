@@ -54,6 +54,12 @@
     loadDismissedReviewCards(),
   );
   const lastPracticedSheetId = ref<string>("");
+  const resumePractice = ref<{
+    sheet_id: string;
+    topic_id?: string;
+    topic_title?: string;
+    level: number;
+  } | null>(null);
   const loading = ref(true);
   const loadError = ref(false);
   const showAssistant = ref(false);
@@ -98,6 +104,10 @@
   // useful next step instead of inheriting arbitrary API order.
   const currentTopicProgress = computed(() => {
     const topics = groupedProgress.value;
+    const resumedTopic = resumePractice.value?.topic_id
+      ? topics.find((topic) => topic.topic_id === resumePractice.value?.topic_id)
+      : undefined;
+    if (resumedTopic) return resumedTopic;
     const practised = topics.filter((topic) => topic.last_practiced_at);
     if (practised.length) {
       return [...practised].sort(
@@ -108,8 +118,12 @@
     }
     return [...topics].sort((a, b) => a.mastery_score - b.mastery_score)[0];
   });
-  const currentTopic = computed(() => currentTopicProgress.value?.topic_title || "—");
-  const currentLevel = computed(() => currentTopicProgress.value?.current_level ?? 1);
+  const currentTopic = computed(
+    () => resumePractice.value?.topic_title || currentTopicProgress.value?.topic_title || "—",
+  );
+  const currentLevel = computed(
+    () => resumePractice.value?.level ?? currentTopicProgress.value?.current_level ?? 1,
+  );
   const currentTopicMastery = computed(
     () => currentTopicProgress.value?.mastery_score ?? 0,
   );
@@ -201,6 +215,7 @@
       progress.value = data.progress || [];
       streakFromApi.value = data.streak_days || 0;
       lastPracticedSheetId.value = data.last_practiced_sheet_id || "";
+      resumePractice.value = data.resume_practice || null;
       window.dispatchEvent(
         new CustomEvent("practiq:last-practice-changed", {
           detail: { id: lastPracticedSheetId.value },
@@ -239,6 +254,7 @@
       progress.value = data.progress || [];
       streakFromApi.value = data.streak_days || 0;
       lastPracticedSheetId.value = data.last_practiced_sheet_id || "";
+      resumePractice.value = data.resume_practice || null;
       window.dispatchEvent(
         new CustomEvent("practiq:last-practice-changed", {
           detail: { id: lastPracticedSheetId.value },

@@ -22,6 +22,12 @@ export interface StudentDashboard {
   progress: TopicProgress[];
   streak_days: number;
   last_practiced_sheet_id?: string;
+  resume_practice?: {
+    sheet_id: string;
+    topic_id?: string;
+    topic_title?: string;
+    level: number;
+  };
 }
 
 export interface IDashboardService {

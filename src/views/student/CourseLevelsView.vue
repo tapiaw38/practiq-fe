@@ -115,7 +115,7 @@
     <div class="levels-shell">
       <!-- Header -->
       <header class="levels-header">
-        <button class="btn-back" @click="router.back()">
+        <button class="btn-back" type="button" aria-label="Volver" @click="router.back()">
           <i class="pi pi-arrow-left"></i>
         </button>
         <div class="header-info">
@@ -315,44 +315,47 @@
     font-family: inherit;
   }
   .levels-shell {
-    max-width: 760px;
+    max-width: 1200px;
     margin: 0 auto;
     padding: 24px 20px 60px;
     display: flex;
     flex-direction: column;
-    gap: 20px;
+    gap: 16px;
   }
 
   /* Header */
   .levels-header {
     display: flex;
-    align-items: center;
+    align-items: flex-start;
     gap: 16px;
     padding: 20px 24px;
-    background: rgba(var(--surface-card-rgb), 0.92);
+    background: var(--elevation-tint-bg);
     border-radius: var(--radius-2xl);
-    box-shadow: 0 4px 20px rgba(var(--practiq-violet-rgb), 0.06);
+    border: 1.5px solid rgba(var(--practiq-violet-rgb), 0.12);
+    box-shadow: var(--shadow-card);
   }
 
   .btn-back {
     width: 38px;
     height: 38px;
     border-radius: 50%;
-    border: none;
-    background: rgba(var(--practiq-violet-rgb), 0.08);
+    border: 1.5px solid rgba(var(--practiq-violet-rgb), 0.2);
+    background: var(--surface-elevated-strong);
     cursor: pointer;
     display: flex;
     align-items: center;
     justify-content: center;
     flex-shrink: 0;
+    margin-top: 2px;
     transition: background 0.15s;
   }
   .btn-back:hover {
-    background: rgba(var(--practiq-violet-rgb), 0.06);
+    background: var(--fill-primary-faint);
   }
 
   .header-info {
     flex: 1;
+    min-width: 0;
   }
   .header-kicker {
     font-size: var(--text-xs);
