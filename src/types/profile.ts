@@ -13,5 +13,7 @@ export interface UserProfile {
    *  it stay on the server and never reach the browser. */
   assistant_enabled: boolean;
   ui_theme: "primary" | "secondary";
+  /** Opaque token the avatar is drawn from. Empty means none chosen. */
+  avatar_seed?: string;
   created_at: string;
 }

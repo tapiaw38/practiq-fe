@@ -11,6 +11,11 @@ export type UIThemeParams = {
   ui_theme: "primary" | "secondary";
 };
 
+export type AvatarParams = {
+  /** Opaque token the client draws the avatar from. Empty clears it. */
+  avatar_seed: string;
+};
+
 export type AcademicStatusParams = {
   academic_status: "active" | "blocked";
 };
@@ -32,6 +37,7 @@ export interface IProfileService {
   getById(id: string): Promise<{ data: UserProfile }>;
   findByEmail(email: string): Promise<{ data: FoundUser }>;
   updateUITheme(params: UIThemeParams): Promise<{ data: UserProfile }>;
+  updateAvatar(params: AvatarParams): Promise<{ data: UserProfile }>;
   updateUIThemeById(
     id: string,
     params: UIThemeParams,
@@ -89,6 +95,11 @@ export class ProfileService implements IProfileService {
 
   async updateUITheme(params: UIThemeParams): Promise<{ data: UserProfile }> {
     const { data } = await this.api.put("/profile/ui-theme", params);
+    return data;
+  }
+
+  async updateAvatar(params: AvatarParams): Promise<{ data: UserProfile }> {
+    const { data } = await this.api.put("/profile/avatar", params);
     return data;
   }
 

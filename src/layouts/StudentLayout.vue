@@ -7,6 +7,7 @@
   import ChangePasswordModal from "@/components/auth/ChangePasswordModal.vue";
   import SetPasswordModal from "@/components/auth/SetPasswordModal.vue";
   import NotificationBell from "@/components/ui/NotificationBell.vue";
+  import UserAvatar from "@/components/ui/UserAvatar.vue";
   import type { LevelData } from "@/types";
 
   interface CourseNavItem {
@@ -23,6 +24,7 @@
   const { loadDashboard } = useDashboard();
   const { loadCourseLevels } = useLevel();
   const profile = computed(() => authStore.profile);
+  const avatarSeed = computed(() => profile.value?.avatar_seed || "");
   const userInitial = computed(
     () => profile.value?.name?.[0]?.toUpperCase() || "A",
   );
@@ -204,7 +206,10 @@
 
       <div class="topbar-right">
         <NotificationBell />
-        <div class="topbar-avatar">{{ userInitial }}</div>
+        <RouterLink to="/student/profile" class="topbar-avatar-link" aria-label="Tu perfil">
+          <UserAvatar v-if="avatarSeed" :seed="avatarSeed" :size="38" />
+          <span v-else class="topbar-avatar">{{ userInitial }}</span>
+        </RouterLink>
       </div>
     </header>
 
@@ -419,7 +424,8 @@
 
       <div class="sidebar-footer">
         <div class="user-info">
-          <div class="user-avatar">{{ userInitial }}</div>
+          <UserAvatar v-if="avatarSeed" :seed="avatarSeed" :size="42" />
+          <div v-else class="user-avatar">{{ userInitial }}</div>
           <div class="user-details">
             <div class="user-name">{{ profile?.name || "Alumno" }}</div>
             <div class="user-role">Estudiante</div>
@@ -462,11 +468,12 @@
       <RouterLink to="/student/dashboard" class="student-bottom-nav__item" active-class="student-bottom-nav__item--active">
         <i class="pi pi-home"></i><span>Inicio</span>
       </RouterLink>
-      <RouterLink to="/student/progress" class="student-bottom-nav__item" active-class="student-bottom-nav__item--active">
-        <i class="pi pi-chart-line"></i><span>Progreso</span>
-      </RouterLink>
       <RouterLink to="/student/league" class="student-bottom-nav__item" active-class="student-bottom-nav__item--active">
         <i class="pi pi-bolt"></i><span>Mi liga</span>
+      </RouterLink>
+      <!-- Progreso salio de la barra, sigue en el menu "Mas" como Mi progreso. -->
+      <RouterLink to="/student/profile" class="student-bottom-nav__item" active-class="student-bottom-nav__item--active">
+        <i class="pi pi-user"></i><span>Perfil</span>
       </RouterLink>
       <button class="student-bottom-nav__item" type="button" @click="navOpen = true">
         <i class="pi pi-bars"></i><span>Más</span>
@@ -953,6 +960,7 @@
     flex: 1;
   }
 
+  .topbar-avatar-link { display:inline-flex; border-radius:50%; text-decoration:none; }
   .user-avatar,
   .topbar-avatar {
     width: 46px;

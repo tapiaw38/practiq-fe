@@ -10,6 +10,8 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@dicebear/core": "^10.7.0",
+    "@dicebear/styles": "^10.6.0",
     "@primeuix/themes": "^3.0.0-alpha.6",
     "@tanstack/vue-query": "^5.62.11",
     "axios": "^1.7.9",

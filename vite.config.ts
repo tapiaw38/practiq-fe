@@ -22,6 +22,9 @@ export default defineConfig({
           }
           if (id.includes('vue') || id.includes('pinia')) return 'vendor-vue'
           if (id.includes('katex')) return 'vendor-katex'
+          // Only the avatar draws with it. Left in the shared vendor chunk it
+          // added ~226 kB to every page, profile or not.
+          if (id.includes('@dicebear')) return 'vendor-dicebear'
           if (id.includes('mathlive')) return 'vendor-mathlive'
           return 'vendor'
         }

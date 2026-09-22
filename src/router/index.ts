@@ -114,6 +114,12 @@ const router = createRouter({
       meta: { requiresAuth: true, profileType: "student" },
     },
     {
+      path: "/student/profile",
+      name: "student-profile",
+      component: () => import("@/views/student/ProfileView.vue"),
+      meta: { requiresAuth: true, profileType: "student" },
+    },
+    {
       path: "/student/courses/:courseId/levels",
       name: "student-course-levels",
       component: () => import("@/views/student/CourseLevelsView.vue"),
