@@ -7,6 +7,7 @@
   import StudentLayout from "@/layouts/StudentLayout.vue";
   import Skeleton from "@/components/ui/Skeleton.vue";
   import ConfirmModal from "@/components/ui/ConfirmModal.vue";
+  import XPBubbles from "@/components/ui/XPBubbles.vue";
   import DrawingCanvas from "@/components/ui/DrawingCanvas.vue";
   import ColorPalette from "@/components/ui/ColorPalette.vue";
   import { BASE_COLORS } from "@/utils/palette";
@@ -1569,7 +1570,24 @@
                   </div>
                   <div class="stat-label">Dominio</div>
                 </div>
+                <!-- The course balance, not what this sheet paid: a resubmission
+                     earns nothing and a card reading 0 would land as a scolding.
+                     What was just earned is the bubbles' job. -->
+                <div class="stat-card stat-card--xp">
+                  <div class="stat-value">{{ result.course_xp }}</div>
+                  <div class="stat-label">XP del curso</div>
+                </div>
               </div>
+              <!-- Resubmitting the same sheet earns nothing, so a zero here is
+                   normal and showing "+0 XP" would read as a punishment. -->
+              <XPBubbles
+                v-if="result.xp_gained > 0 && result.xp_breakdown?.length"
+                class="xp-bubbles-slot"
+                :entries="result.xp_breakdown"
+                :total="result.xp_gained"
+                :course-total="allUngraded ? result.course_xp : undefined"
+              />
+
               <div v-if="!allUngraded" class="results-recommendation">
                 <div class="rec-icon">
                   <i
@@ -2511,10 +2529,37 @@
   }
   /* An emoji arrived with its own colour; an icon inherits one, so the meaning
      that was in the picture now has to be in the palette. */
+  /* A medal on a halo instead of a bare glyph: the icon carries the whole
+     celebration, so at 38px flat it read as an error dialog. The halo colour
+     follows the icon through currentColor, so each outcome keeps its tint. */
   .results-emoji {
-    font-size: 38px;
+    width: 92px;
+    height: 92px;
+    margin: 0 auto 14px;
+    display: grid;
+    place-items: center;
+    font-size: 40px;
     line-height: 1;
-    margin-bottom: 10px;
+    border-radius: 50%;
+    color: var(--practiq-violet);
+    background:
+      radial-gradient(
+        circle at 50% 50%,
+        color-mix(in srgb, currentColor 22%, transparent) 0%,
+        color-mix(in srgb, currentColor 10%, transparent) 55%,
+        transparent 72%
+      );
+  }
+  .results-emoji::before {
+    content: "";
+    grid-area: 1 / 1;
+    width: 68px;
+    height: 68px;
+    border-radius: 50%;
+    background: color-mix(in srgb, currentColor 16%, transparent);
+  }
+  .results-emoji > i {
+    grid-area: 1 / 1;
   }
   .results-emoji--good {
     color: var(--color-warning);
@@ -2531,7 +2576,7 @@
 
   .results-stats {
     display: grid;
-    grid-template-columns: repeat(3, 1fr);
+    grid-template-columns: repeat(2, 1fr);
     gap: 12px;
     margin-bottom: 16px;
   }
@@ -2545,6 +2590,11 @@
   .stat-value {
     font-size: 1.7rem;
     font-weight: 800;
+  }
+  /* Tinted to tie the card to the XP bubbles above it. The other three take
+     their colour from the score, so they cannot carry the link. */
+  .stat-card--xp .stat-value {
+    color: var(--practiq-violet-dark);
   }
   .stat-label {
     font-size: 0.75rem;
@@ -2575,6 +2625,12 @@
   }
 
   /* Exercise results */
+  /* .results-box is block flow: siblings space themselves with margins and
+     nothing below this one has a margin-top to lean on. */
+  .xp-bubbles-slot {
+    margin-top: 16px;
+    margin-bottom: 16px;
+  }
   .ungraded-badge {
     display: flex;
     align-items: center;
@@ -2818,8 +2874,22 @@
       border: 0;
     }
 
-    /* Puntaje/Correctas/Dominio se piden en una sola fila incluso en mobile
-       (antes se apilaban acá). El texto es corto, entra sin recorte. */
+    /* El modal ya carga cuatro tarjetas, burbujas, recomendación y botones:
+       el halo a tamaño completo empujaba el botón fuera de pantalla. */
+    .results-emoji {
+      width: 68px;
+      height: 68px;
+      margin-bottom: 10px;
+      font-size: 30px;
+    }
+    .results-emoji::before {
+      width: 50px;
+      height: 50px;
+    }
+
+    /* Cuatro tarjetas en 2x2. Antes eran tres en una sola fila, pedido
+       expreso para que no se apilaran; con la cuarta (XP) no entran sin
+       recortar el texto, y 2x2 es además la forma de la referencia. */
     .results-stats {
       gap: 8px;
     }

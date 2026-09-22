@@ -74,6 +74,14 @@ export interface ExerciseResult {
   not_graded?: boolean;
 }
 
+/** Why XP was paid and how much, grouped by reason. Built by the server. */
+export interface XPBreakdownEntry {
+  event_type: string;
+  points: number;
+  /** How many awards of this kind: three solved exercises are one entry. */
+  count: number;
+}
+
 export interface SubmitResult {
   score: number;
   correct: number;
@@ -91,6 +99,15 @@ export interface SubmitResult {
   next_level: number;
   /** Global student streak after submission. */
   streak_days: number;
+  /** XP earned by this submission. Resubmitting the same sheet earns nothing. */
+  xp_gained: number;
+  /** Total XP in the course after this submission. */
+  course_xp: number;
+  /**
+   * One entry per reason that paid, in the order it was earned. Absent when
+   * the submission earned nothing.
+   */
+  xp_breakdown?: XPBreakdownEntry[];
   exercise_results: ExerciseResult[];
 }
 

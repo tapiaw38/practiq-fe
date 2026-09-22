@@ -7,6 +7,7 @@
   import StudentLayout from "@/layouts/StudentLayout.vue";
   import Skeleton from "@/components/ui/Skeleton.vue";
   import ConfirmModal from "@/components/ui/ConfirmModal.vue";
+  import XPBubbles from "@/components/ui/XPBubbles.vue";
   import DrawingCanvas from "@/components/ui/DrawingCanvas.vue";
   import ColorPalette from "@/components/ui/ColorPalette.vue";
   import { BASE_COLORS } from "@/utils/palette";
@@ -1176,6 +1177,15 @@
             <i class="pi pi-unlock" aria-hidden="true"></i>
             Nivel {{ result.next_level }} desbloqueado
           </div>
+
+          <!-- Retaking a test already passed earns nothing, so a zero here is
+               normal and showing "+0 XP" would read as a punishment. -->
+          <XPBubbles
+            v-if="result.xp_gained > 0 && result.xp_breakdown?.length"
+            :entries="result.xp_breakdown"
+            :total="result.xp_gained"
+            :course-total="result.course_xp"
+          />
 
           <p class="result-rec">{{ result.recommendation }}</p>
 
