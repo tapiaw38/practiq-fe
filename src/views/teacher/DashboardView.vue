@@ -428,6 +428,7 @@
                 <span class="badge subject-badge" :style="{ '--subject': subjectColor(course.subject) }">
                   {{ course.subject || "General" }}
                 </span>
+                <span v-if="course.grade_name" class="badge">{{ course.grade_name }}</span>
                 <span v-if="course.level" class="badge">{{ course.level }}</span>
                 <span v-if="statusLabel[course.status]" class="badge badge-warning">
                   {{ statusLabel[course.status] }}
@@ -458,6 +459,7 @@
                   <span class="badge subject-badge" :style="{ '--subject': subjectColor(course.subject) }">
                     {{ course.subject || "General" }}
                   </span>
+                  <span v-if="course.grade_name" class="badge">{{ course.grade_name }}</span>
                   <span v-if="course.level" class="badge">{{ course.level }}</span>
                   <span v-if="statusLabel[course.status]" class="badge badge-warning">
                     {{ statusLabel[course.status] }}
