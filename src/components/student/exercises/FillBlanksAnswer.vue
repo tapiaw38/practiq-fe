@@ -26,6 +26,8 @@
   // options stay independent — a repeated answer needs a bloque per blank.
   const placements = ref<Record<number, number>>({});
   const selected = ref<number | null>(null);
+  const dragging = ref<number | null>(null);
+  const dragOverBlank = ref<number | null>(null);
 
   // Shuffled once per exercise so each student gets a different order, but not
   // on every keystroke or re-render.
@@ -96,8 +98,16 @@
   }
 
   function tapBlank(blankId: number) {
-    // A filled blank returns its option to the pool, so a mistake is undone
-    // with the same gesture that made it.
+    if (selected.value !== null) {
+      // Replacing a filled blank automatically returns its former option to
+      // the pool. This makes both tap-to-place and drag-to-place repairable
+      // without a separate remove action.
+      placements.value = { ...placements.value, [blankId]: selected.value };
+      selected.value = null;
+      emitAnswer();
+      return;
+    }
+    // With no option selected, a filled blank returns its option to the pool.
     if (placements.value[blankId] !== undefined) {
       const next = { ...placements.value };
       delete next[blankId];
@@ -109,6 +119,31 @@
     placements.value = { ...placements.value, [blankId]: selected.value };
     selected.value = null;
     emitAnswer();
+  }
+
+  function startDrag(event: DragEvent, index: number) {
+    if (usedIndexes.value.has(index)) return;
+    dragging.value = index;
+    selected.value = index;
+    event.dataTransfer?.setData("text/plain", String(index));
+    if (event.dataTransfer) event.dataTransfer.effectAllowed = "move";
+  }
+
+  function endDrag() {
+    dragging.value = null;
+    dragOverBlank.value = null;
+  }
+
+  function dropOnBlank(event: DragEvent, blankId: number) {
+    event.preventDefault();
+    const rawIndex = event.dataTransfer?.getData("text/plain");
+    const transferred = rawIndex ? Number(rawIndex) : NaN;
+    const index = Number.isInteger(transferred) ? transferred : dragging.value;
+    if (index !== null && index !== undefined && index >= 0 && !usedIndexes.value.has(index)) {
+      selected.value = index;
+      tapBlank(blankId);
+    }
+    endDrag();
   }
 
   function clearAll() {
@@ -137,6 +172,7 @@
           :class="{
             'fb-blank--filled': placements[segment.id] !== undefined,
             'fb-blank--target': selected !== null && placements[segment.id] === undefined,
+            'fb-blank--drag-over': dragOverBlank === segment.id,
           }"
           :aria-label="
             placements[segment.id] !== undefined
@@ -144,6 +180,10 @@
               : `Hueco ${segment.id} vacío`
           "
           @click="tapBlank(segment.id)"
+          @dragover.prevent
+          @dragenter.prevent="dragOverBlank = segment.id"
+          @dragleave="dragOverBlank = null"
+          @drop="dropOnBlank($event, segment.id)"
         >
           {{ optionAt(segment.id) }}
         </button>
@@ -161,7 +201,10 @@
           'fb-option--selected': selected === index,
         }"
         :disabled="usedIndexes.has(index)"
+        :draggable="!usedIndexes.has(index)"
         @click="pickOption(index)"
+        @dragstart="startDrag($event, index)"
+        @dragend="endDrag"
       >
         {{ option }}
       </button>
@@ -172,7 +215,7 @@
         {{
           selected !== null
             ? "Ahora tocá el hueco donde va"
-            : "Tocá una opción y después el hueco"
+            : "Tocá una opción y después el hueco, o arrastrala"
         }}
         · quedan {{ remaining }}
       </span>
@@ -240,6 +283,11 @@
     animation: fb-pulse 1.2s ease-in-out infinite;
   }
 
+  .fb-blank--drag-over {
+    border-color: var(--practiq-violet);
+    background: var(--fill-primary-soft);
+  }
+
   @keyframes fb-pulse {
     50% {
       background: var(--fill-primary-soft);
@@ -270,6 +318,10 @@
     font-weight: 700;
     cursor: pointer;
     transition: var(--transition-fast);
+  }
+
+  .fb-option:not(:disabled):active {
+    cursor: grabbing;
   }
 
   .fb-option--selected {

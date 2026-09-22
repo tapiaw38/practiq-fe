@@ -442,5 +442,12 @@
     .assign-button,.remove-button { width: auto; min-height: 36px; padding: .35rem .55rem; font-size: .78rem; }
     .school-kind { white-space: normal; }
     .assign-row { flex-direction: column; }
+    /* These actions become full-width after the row stacks. Without a fixed
+       touch height, their content determined the height and they looked like
+       thin separators instead of primary actions. */
+    .assign-row select,
+    .assistant-fields select { min-height: 48px; font-size: var(--text-md); }
+    .assign-row button,
+    .assistant-save { width: 100%; min-height: 48px; padding: 0 1rem; font-size: var(--text-md); }
   }
 </style>
