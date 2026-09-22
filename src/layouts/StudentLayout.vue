@@ -37,6 +37,12 @@
   const showSetPassword = ref(false);
   const lastPracticedSheetId = ref("");
   const isGoogleUser = computed(() => authStore.authMethod === "google");
+  const showMobileBottomNav = computed(() => ![
+    "student-practice",
+    "student-level-test",
+    "student-notebook",
+    "student-course-levels",
+  ].includes(String(route.name || "")));
   const drawerViewportStyle = computed(() => {
     if (window.innerWidth > 920 || !drawerViewportHeight.value) return undefined;
     return {
@@ -451,6 +457,21 @@
     <main class="main-content">
       <slot />
     </main>
+
+    <nav v-if="showMobileBottomNav" class="student-bottom-nav" aria-label="Navegación principal">
+      <RouterLink to="/student/dashboard" class="student-bottom-nav__item" active-class="student-bottom-nav__item--active">
+        <i class="pi pi-home"></i><span>Inicio</span>
+      </RouterLink>
+      <RouterLink to="/student/progress" class="student-bottom-nav__item" active-class="student-bottom-nav__item--active">
+        <i class="pi pi-chart-line"></i><span>Progreso</span>
+      </RouterLink>
+      <RouterLink to="/student/league" class="student-bottom-nav__item" active-class="student-bottom-nav__item--active">
+        <i class="pi pi-bolt"></i><span>Mi liga</span>
+      </RouterLink>
+      <button class="student-bottom-nav__item" type="button" @click="navOpen = true">
+        <i class="pi pi-bars"></i><span>Más</span>
+      </button>
+    </nav>
   </div>
 
   <Teleport to="body">
@@ -979,6 +1000,8 @@
     display: none;
   }
 
+  .student-bottom-nav { display: none; }
+
   @media (max-width: 1100px) {
     .sidebar {
       width: 250px;
@@ -1094,6 +1117,9 @@
     .nav-course-toggle {
       min-height: 48px;
     }
+
+    .student-bottom-nav { position:fixed; z-index:28; left:0; right:0; bottom:0; height:72px; display:grid; grid-template-columns:repeat(4,1fr); padding:7px 10px calc(7px + env(safe-area-inset-bottom)); background:var(--surface-glass); border-top:1px solid var(--surface-glass-border); box-shadow:0 -8px 28px rgba(var(--text-primary-rgb),.06); backdrop-filter:blur(18px); }
+    .student-bottom-nav__item { min-width:0; display:grid; place-items:center; align-content:center; gap:4px; border:0; background:transparent; color:var(--text-secondary); text-decoration:none; font:inherit; font-size:10px; font-weight:700; cursor:pointer; }.student-bottom-nav__item i { font-size:1.05rem; }.student-bottom-nav__item--active { color:var(--practiq-violet-dark); }.student-bottom-nav__item--active i { width:40px; height:28px; display:grid; place-items:center; border-radius:var(--radius-pill); background:var(--fill-primary-soft); }
   }
 
   @media (min-width: 921px) {

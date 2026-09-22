@@ -13,6 +13,7 @@ export interface CourseSummary {
   level_tests: number;
   notebooks: number;
   current_level: number;
+  course_xp: number;
   /** Topics the course covers, so the home can flag ones needing review. */
   topic_ids: string[];
 }
