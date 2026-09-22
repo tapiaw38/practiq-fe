@@ -338,8 +338,9 @@
   onMounted(async () => {
     try {
       sheet.value = await loadPracticeSheet(sheetId);
-      localStorage.setItem("practiq-last-practice", sheetId);
-      window.dispatchEvent(new CustomEvent("practiq:last-practice-changed"));
+      window.dispatchEvent(
+        new CustomEvent("practiq:last-practice-changed", { detail: { id: sheetId } }),
+      );
       loadTeacherImages();
       // Publish where the student starts. Nothing else does it now: the label
       // used to be published by the hover handler on every exercise card, and

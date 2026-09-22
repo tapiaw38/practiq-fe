@@ -201,11 +201,6 @@
       progress.value = data.progress || [];
       streakFromApi.value = data.streak_days || 0;
       lastPracticedSheetId.value = data.last_practiced_sheet_id || "";
-      if (lastPracticedSheetId.value) {
-        localStorage.setItem("practiq-last-practice", lastPracticedSheetId.value);
-      } else {
-        localStorage.removeItem("practiq-last-practice");
-      }
       window.dispatchEvent(
         new CustomEvent("practiq:last-practice-changed", {
           detail: { id: lastPracticedSheetId.value },
@@ -244,11 +239,6 @@
       progress.value = data.progress || [];
       streakFromApi.value = data.streak_days || 0;
       lastPracticedSheetId.value = data.last_practiced_sheet_id || "";
-      if (lastPracticedSheetId.value) {
-        localStorage.setItem("practiq-last-practice", lastPracticedSheetId.value);
-      } else {
-        localStorage.removeItem("practiq-last-practice");
-      }
       window.dispatchEvent(
         new CustomEvent("practiq:last-practice-changed", {
           detail: { id: lastPracticedSheetId.value },

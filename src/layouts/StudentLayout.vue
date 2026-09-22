@@ -35,9 +35,7 @@
   const openCourses = ref(new Set<string>());
   const showChangePassword = ref(false);
   const showSetPassword = ref(false);
-  const lastPracticedSheetId = ref(
-    localStorage.getItem("practiq-last-practice") || "",
-  );
+  const lastPracticedSheetId = ref("");
   const isGoogleUser = computed(() => authStore.authMethod === "google");
   const drawerViewportStyle = computed(() => {
     if (window.innerWidth > 920 || !drawerViewportHeight.value) return undefined;
@@ -137,7 +135,6 @@
   function syncLastPractice(event: Event) {
     const id = (event as CustomEvent<{ id?: string }>).detail?.id || "";
     lastPracticedSheetId.value = id;
-    if (id) localStorage.setItem("practiq-last-practice", id);
   }
 
   watch(
@@ -160,6 +157,13 @@
     window.visualViewport?.addEventListener("resize", syncDrawerViewport);
     window.visualViewport?.addEventListener("scroll", syncDrawerViewport);
     window.addEventListener("practiq:last-practice-changed", syncLastPractice);
+    // Sidebar can open before Inicio. Read server-owned resume state once;
+    // browser storage would leak stale sheets across devices and accounts.
+    void loadDashboard()
+      .then((dashboard) => {
+        lastPracticedSheetId.value = dashboard.last_practiced_sheet_id || "";
+      })
+      .catch(() => undefined);
   });
   onUnmounted(() => {
     window.removeEventListener("resize", syncDesktopState);
@@ -172,7 +176,6 @@
   function logout() {
     authStore.clearAuth();
     localStorage.removeItem("practiq_profile");
-    localStorage.removeItem("practiq-last-practice");
     router.push("/login");
   }
 </script>
