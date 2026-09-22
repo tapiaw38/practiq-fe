@@ -34,6 +34,8 @@ export interface PracticeSheet {
   deadline?: string;
   created_by: string;
   created_at: string;
+  /** Global student streak at time this practice opened. */
+  streak_days: number;
   exercises: PracticeSheetExercise[];
 }
 
@@ -87,6 +89,8 @@ export interface SubmitResult {
    */
   pending_review?: boolean;
   next_level: number;
+  /** Global student streak after submission. */
+  streak_days: number;
   exercise_results: ExerciseResult[];
 }
 

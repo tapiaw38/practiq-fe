@@ -627,17 +627,6 @@
     box-shadow: var(--shadow-card);
   }
 
-  .nav-item-active::before {
-    content: "";
-    position: absolute;
-    left: -4px;
-    top: 12px;
-    bottom: 12px;
-    width: 3px;
-    border-radius: var(--radius-pill);
-    background: var(--practiq-violet);
-  }
-
   .nav-icon {
     width: 30px;
     height: 30px;

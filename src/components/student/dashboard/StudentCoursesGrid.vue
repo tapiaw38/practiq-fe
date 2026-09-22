@@ -161,12 +161,10 @@
             <span class="course-stat__value">{{ course.practice_sheets }}</span>
             <span class="course-stat__label">Prácticas</span>
           </div>
-          <div class="course-stat-divider"></div>
           <div class="course-stat">
             <span class="course-stat__value">{{ course.level_tests }}</span>
             <span class="course-stat__label">Pruebas</span>
           </div>
-          <div class="course-stat-divider"></div>
           <div class="course-stat">
             <span class="course-stat__value">{{ course.notebooks }}</span>
             <span class="course-stat__label">Cuadernos</span>
@@ -581,11 +579,6 @@
   .course-stat__label {
     color: var(--text-secondary);
     font-size: var(--text-xs);
-  }
-  .course-stat-divider {
-    width: 1px;
-    height: 28px;
-    background: var(--surface-border);
   }
   .btn-levels {
     display: inline-flex;

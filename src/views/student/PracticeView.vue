@@ -16,8 +16,7 @@
   import FillBlanksAnswer from "@/components/student/exercises/FillBlanksAnswer.vue";
   import { usePracticeSheet } from "@/composables/usePracticeSheet";
   import { useLeaveWarning } from "@/composables/useLeaveWarning";
-  import { useProgress } from "@/composables/useProgress";
-  import type { PracticeSheet, SubmitResult, TopicProgress } from "@/types";
+  import type { PracticeSheet, SubmitResult } from "@/types";
   import type { UploadedFile } from "@/services/uploads/uploadService";
   import {
     composeAssistantWorkImage,
@@ -63,7 +62,6 @@
   const { leaveConfirmState, onLeaveConfirm, onLeaveCancel } = useLeaveWarning(
     () => hasPendingWork.value,
   );
-  const { loadCourseProgress } = useProgress();
   const { loadPracticeSheet, submitPracticeSheetAsync, loadSubmitJob } =
     usePracticeSheet();
   const { fireSuccess } = useConfetti();
@@ -292,16 +290,7 @@
       : 0,
   );
 
-  const topicProgress = ref<TopicProgress[]>([]);
-
-  const streakCount = computed(() => {
-    const topicId = sheet.value?.topic_id;
-    const match = topicId
-      ? topicProgress.value.find((p) => p.topic_id === topicId)
-      : undefined;
-    if (match) return match.streak_days;
-    return Math.max(...topicProgress.value.map((p) => p.streak_days), 0);
-  });
+  const streakCount = computed(() => sheet.value?.streak_days ?? 0);
   const studentInitial = computed(() => {
     const name = authStore.profile?.name?.trim() || "Estudiante";
     return name.charAt(0).toUpperCase();
@@ -358,7 +347,6 @@
       }
 
       startTimer();
-      loadTopicProgress();
       say(
         totalCount.value === 1
           ? "Un ejercicio. Tomate tu tiempo."
@@ -602,7 +590,7 @@
       showSubmitConfirm.value = false;
       showAllErrors.value = false;
       showResults.value = true;
-      loadTopicProgress();
+      if (sheet.value) sheet.value.streak_days = result.value.streak_days;
       clearDraft();
 
       // A practice always comes back scored. Only when nothing at all could be
@@ -624,17 +612,6 @@
         clearInterval(loadingMsgInterval);
         loadingMsgInterval = null;
       }
-    }
-  }
-
-  async function loadTopicProgress() {
-    const courseId = sheet.value?.course_id;
-    if (!courseId) return;
-    try {
-      const res = await loadCourseProgress(courseId);
-      topicProgress.value = res ?? [];
-    } catch {
-      topicProgress.value = [];
     }
   }
 
@@ -1468,14 +1445,19 @@
               </p>
             </div>
             <div class="practice-submit-summary">
-              <div class="practice-submit-summary-item">
+              <div
+                class="practice-submit-summary-item practice-submit-summary-item--done"
+                :class="{ 'is-empty': answeredCount === 0 }"
+              >
                 <span class="practice-submit-summary-value">
                   {{ answeredCount }}
                 </span>
                 <span class="practice-submit-summary-label">Listas</span>
               </div>
-              <div class="practice-submit-summary-divider"></div>
-              <div class="practice-submit-summary-item">
+              <div
+                class="practice-submit-summary-item practice-submit-summary-item--pending"
+                :class="{ 'is-empty': totalCount - answeredCount === 0 }"
+              >
                 <span class="practice-submit-summary-value">
                   {{ totalCount - answeredCount }}
                 </span>
@@ -2421,47 +2403,76 @@
     justify-items: start;
   }
 
+  /* The badge carried no styles, so the icon and label rendered as plain
+     black text next to a coloured modal. */
+  .practice-submit-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 5px 12px;
+    border-radius: var(--radius-2xl);
+    background: var(--fill-primary-soft);
+    color: var(--practiq-violet-dark);
+    font-size: 0.75rem;
+    font-weight: 800;
+    letter-spacing: 0.02em;
+  }
+
+  .practice-submit-badge .pi {
+    font-size: 0.8rem;
+  }
+
   .practice-submit-copy {
     margin-bottom: 0;
     max-width: 42ch;
   }
 
+  /* Two tiles instead of one panel split by a rule: the gap does the
+     separating, so no vertical line is needed. */
   .practice-submit-summary {
     display: grid;
-    grid-template-columns: 1fr auto 1fr;
-    align-items: center;
-    gap: 12px;
-    padding: 14px 16px;
-    border-radius: var(--radius-xl);
-    background: var(--surface-bg-soft);
-    border: 1px solid rgba(var(--practiq-violet-rgb), 0.1);
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
   }
 
   .practice-submit-summary-item {
     display: grid;
-    gap: 2px;
+    gap: 4px;
+    padding: 14px 12px;
+    border-radius: var(--radius-xl);
     text-align: center;
   }
 
+  .practice-submit-summary-item--done {
+    background: rgba(var(--color-success-rgb), 0.1);
+    color: var(--color-success-dark);
+  }
+
+  .practice-submit-summary-item--pending {
+    background: rgba(var(--color-warning-rgb), 0.12);
+    color: var(--color-warning-dark);
+  }
+
+  /* A zero reads as "nothing to see here", not as a status worth colouring. */
+  .practice-submit-summary-item.is-empty {
+    background: var(--surface-bg-soft);
+    color: var(--text-muted);
+  }
+
   .practice-submit-summary-value {
-    font-size: 1.4rem;
+    font-size: 1.6rem;
     font-weight: 800;
-    color: var(--text-primary);
+    color: inherit;
     line-height: 1;
   }
 
   .practice-submit-summary-label {
-    font-size: 0.75rem;
-    color: var(--text-secondary);
+    font-size: 0.72rem;
+    color: inherit;
+    opacity: 0.85;
     text-transform: uppercase;
     letter-spacing: 0.04em;
     font-weight: 700;
-  }
-
-  .practice-submit-summary-divider {
-    width: 1px;
-    height: 38px;
-    background: rgba(var(--practiq-violet-rgb), 0.14);
   }
 
   .practice-submit-question {
