@@ -124,7 +124,7 @@
 </template>
 
 <style scoped>
-  .profile-shell { max-width: 900px; margin: 0 auto; padding: 24px 20px 72px; display: grid; gap: 18px; }
+  .profile-shell { max-width: 1200px; margin: 0 auto; padding: 24px 20px 72px; display: grid; gap: 18px; }
   .profile-header { display:flex; align-items:center; gap:16px; padding:22px 26px; border:1px solid rgba(var(--practiq-violet-rgb),.12); border-radius:var(--radius-2xl); background:var(--elevation-tint-bg); box-shadow:var(--shadow-card); }
   h1, h2, p { margin:0; }
   h1 { color:var(--text-heading); font-size:1.4rem; line-height:1.2; }
