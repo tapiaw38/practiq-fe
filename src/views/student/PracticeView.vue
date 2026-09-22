@@ -1674,7 +1674,7 @@
     display: flex;
     flex-direction: column;
     gap: 16px;
-    background: var(--gradient-app-bg);
+    background: transparent;
   }
 
   /* Header */

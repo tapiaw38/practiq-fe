@@ -307,12 +307,12 @@
 
 <style scoped>
   .progress-shell {
-    max-width: 960px;
+    max-width: 1200px;
     margin: 0 auto;
     padding: 24px 20px 60px;
     display: flex;
     flex-direction: column;
-    gap: 20px;
+    gap: 16px;
   }
 
   .progress-header {
@@ -320,17 +320,18 @@
     align-items: center;
     gap: 16px;
     padding: 20px 24px;
-    background: var(--elevation-panel-bg);
+    background: var(--elevation-tint-bg);
     border-radius: var(--radius-2xl);
-    box-shadow: var(--elevation-panel-shadow);
+    border: 1.5px solid rgba(var(--practiq-violet-rgb), 0.12);
+    box-shadow: var(--shadow-card);
   }
 
   .btn-back {
     width: 38px;
     height: 38px;
     border-radius: 50%;
-    border: none;
-    background: rgba(var(--practiq-violet-rgb), 0.08);
+    border: 1.5px solid rgba(var(--practiq-violet-rgb), 0.2);
+    background: var(--surface-elevated-strong);
     cursor: pointer;
     display: flex;
     align-items: center;
@@ -339,7 +340,7 @@
     transition: background 0.15s;
   }
   .btn-back:hover {
-    background: rgba(var(--practiq-violet-rgb), 0.16);
+    background: var(--fill-primary-faint);
   }
 
   .header-info {
