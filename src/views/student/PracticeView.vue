@@ -982,7 +982,15 @@
         >
           <i class="pi pi-arrow-left"></i>
         </button>
-        <div class="practice-header-info">
+        <div v-if="loading" class="practice-header-info practice-header-info--skeleton" aria-hidden="true">
+          <div class="level-badges">
+            <Skeleton variant="badge" width="64px" height="26px" />
+            <Skeleton variant="badge" width="70px" height="26px" />
+          </div>
+          <Skeleton width="min(360px, 72%)" height="24px" />
+          <Skeleton width="min(460px, 90%)" height="14px" class="practice-subtitle-skeleton" />
+        </div>
+        <div v-else class="practice-header-info">
           <div class="level-badges">
             <div class="level-badge">Nivel {{ sheet?.level }}</div>
             <div
@@ -1007,7 +1015,11 @@
             }}
           </span>
         </div>
-        <div class="header-right">
+        <div v-if="loading" class="header-right header-right--skeleton" aria-hidden="true">
+          <Skeleton width="88px" height="48px" class="streak-skeleton" />
+          <Skeleton variant="avatar" size="46px" />
+        </div>
+        <div v-else class="header-right">
           <div
             class="streak-chip"
             :class="{ 'streak-chip--active': streakCount > 0 }"
@@ -1031,6 +1043,7 @@
           <div class="student-avatar">{{ studentInitial }}</div>
         </div>
         <div
+          v-if="!loading"
           class="mobile-practice-progress"
           role="progressbar"
           aria-label="Progreso de ejercicios"
@@ -1044,6 +1057,7 @@
             :style="{ width: progressPct + '%' }"
           ></div>
         </div>
+        <Skeleton v-else width="100%" height="8px" class="mobile-practice-progress-skeleton" />
       </header>
 
       <!-- Loading Skeleton -->
@@ -1669,7 +1683,7 @@
     align-items: flex-start;
     gap: 16px;
     padding: 20px 24px;
-    background: var(--gradient-card-accent);
+    background: var(--elevation-tint-bg);
     border-radius: var(--radius-2xl);
     border: 1.5px solid rgba(var(--practiq-violet-rgb), 0.12);
     box-shadow: var(--shadow-card);
@@ -1695,6 +1709,14 @@
   .practice-header-info {
     flex: 1;
   }
+  .practice-header-info--skeleton {
+    display: flex;
+    min-width: 0;
+    flex-direction: column;
+    justify-content: center;
+    gap: 8px;
+  }
+  .practice-subtitle-skeleton { display: block; }
 
   .level-badges {
     display: flex;
@@ -1761,6 +1783,8 @@
     align-items: center;
     gap: 12px;
   }
+  .header-right--skeleton { pointer-events: none; }
+  .streak-skeleton { border-radius: var(--radius-lg); }
 
   /* Same identity anchor as the student avatar in the sidebar. Without this
      base style the header rendered only its initial as plain text on desktop. */
@@ -1858,6 +1882,7 @@
   }
 
   .mobile-practice-progress,
+  .mobile-practice-progress-skeleton,
   .mobile-stepper-status {
     display: none;
   }
@@ -2679,17 +2704,24 @@
       border-radius: var(--radius-lg);
     }
     .practice-header-info { display: contents; }
+    .practice-header-info--skeleton {
+      display: contents;
+    }
     .btn-back { grid-column: 1; grid-row: 1; margin: 0; }
     .practice-title,
     .practice-subtitle { display: none; }
     .student-avatar { display: none; }
     .header-right { grid-column: 3; grid-row: 1; justify-content: center; }
+    .header-right--skeleton :deep(.skeleton),
+    .header-right--skeleton :deep(.skeleton-wrapper) { display: none; }
     .level-badges {
       grid-column: 2;
       grid-row: 1;
       justify-content: center;
       margin: 0;
     }
+    .practice-header-info--skeleton .level-badges { display: flex; }
+    .practice-header-info--skeleton > :not(.level-badges) { display: none; }
     .level-test-badge,
     .input-mode-badge { display: none; }
     .level-badge {
@@ -2708,6 +2740,12 @@
       border-radius: 50%;
       background: transparent;
       box-shadow: none;
+    }
+    .mobile-practice-progress-skeleton {
+      display: block;
+      grid-column: 1 / -1;
+      grid-row: 2;
+      border-radius: var(--radius-pill);
     }
     .streak-icon {
       width: 29px;
