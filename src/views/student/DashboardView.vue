@@ -12,6 +12,7 @@
   import JoinTeacherCard from "@/components/student/JoinTeacherCard.vue";
   import { useProfile } from "@/composables/useProfile";
   import { useDashboard } from "@/composables/useDashboard";
+  import { useLevel } from "@/composables/useLevel";
   import { needsReview } from "@/utils/mastery";
   import type { TopicProgress } from "@/types";
 
@@ -20,6 +21,7 @@
   const { loadProfile } = useProfile();
   const toast = useToast();
   const { refreshDashboard } = useDashboard();
+  const { loadCourseLevels } = useLevel();
 
   const progress = ref<TopicProgress[]>([]);
   const summaries = ref<CourseSummary[]>([]);
@@ -63,6 +65,7 @@
   const loading = ref(true);
   const loadError = ref(false);
   const showAssistant = ref(false);
+  const openingTopicID = ref("");
 
   const firstName = computed(() => {
     const name = authStore.profile?.name || "";
@@ -298,6 +301,39 @@
     if (hasCourses.value) scrollToCourses();
   }
 
+  async function openTopicPractice(topic: TopicProgress) {
+    if (openingTopicID.value) return;
+    const course = summaries.value.find((item) =>
+      item.topic_ids.includes(topic.topic_id),
+    );
+    if (!course) return;
+
+    openingTopicID.value = topic.topic_id;
+    try {
+      const data = await loadCourseLevels(course.course_id);
+      // Current level first. A topic can have an older open sheet too, but the
+      // quickest useful route is the student's active level.
+      const levels = [...data.levels].sort(
+        (a, b) =>
+          Number(b.level === topic.current_level) - Number(a.level === topic.current_level),
+      );
+      const sheet = levels
+        .filter((level) => level.unlocked)
+        .flatMap((level) => level.practices)
+        .find((practice) => practice.topic_id === topic.topic_id);
+      if (sheet) {
+        startPractice(sheet.id);
+        return;
+      }
+      // Some topics only have material at another step. Keep the card useful
+      // by taking the student to that course instead of pretending a practice
+      // exists.
+      openCourseLevels(course.course_id);
+    } finally {
+      openingTopicID.value = "";
+    }
+  }
+
   function scrollToCourses() {
     document
       .getElementById("courses-section")
@@ -480,8 +516,8 @@
             <div class="welcome-kicker">Tu práctica de hoy</div>
             <h1 class="welcome-title">Hola, {{ firstName }}.</h1>
             <p class="welcome-subtitle">
-              Sigamos avanzando con ejercicios cortos, retroalimentación
-              inmediata y ayuda paso a paso.
+              <span class="welcome-subtitle__desktop">Sigamos avanzando con ejercicios cortos, retroalimentación inmediata y ayuda paso a paso.</span>
+              <span class="welcome-subtitle__mobile">Practicá a tu ritmo.</span>
             </p>
           </div>
 
@@ -605,10 +641,15 @@
             class="mastery-grid anim-stagger"
             aria-label="Progreso por tema. Deslizá horizontalmente para ver más temas."
           >
-            <article
+            <button
               v-for="p in topProgress"
               :key="p.topic_id"
               class="mastery-card"
+              type="button"
+              :class="{ 'mastery-card--opening': openingTopicID === p.topic_id }"
+              :disabled="Boolean(openingTopicID)"
+              :aria-label="`Practicar ${p.topic_title}`"
+              @click="openTopicPractice(p)"
             >
               <div class="mastery-card__top">
                 <div class="mastery-topic">{{ p.topic_title }}</div>
@@ -629,7 +670,7 @@
                   aciertos</span
                 >
               </div>
-            </article>
+            </button>
           </div>
         </section>
 
@@ -810,6 +851,7 @@
     line-height: 1.65;
     margin-bottom: 20px;
   }
+  .welcome-subtitle__mobile { display: none; }
 
   .welcome-topic-card {
     background: var(--surface-elevated);
@@ -1054,6 +1096,11 @@
   }
 
   .mastery-card {
+    width: 100%;
+    border: 1px solid var(--surface-elevated-strong);
+    font: inherit;
+    text-align: left;
+    cursor: pointer;
     padding: 18px 20px;
     border-radius: var(--radius-2xl);
     background: var(--surface-elevated);
@@ -1068,6 +1115,9 @@
     transform: translateY(-2px);
     box-shadow: var(--shadow-card-lg);
   }
+  .mastery-card:focus-visible { outline: 3px solid rgba(var(--practiq-violet-rgb), .35); outline-offset: 2px; }
+  .mastery-card:disabled { cursor: wait; }
+  .mastery-card--opening { opacity: .68; }
 
   .mastery-card__top {
     display: flex;
@@ -1168,6 +1218,9 @@
     .welcome-title {
       font-size: 1.6rem;
     }
+    .welcome-subtitle { margin-bottom: 14px; font-size: var(--text-md); line-height: 1.4; }
+    .welcome-subtitle__desktop { display: none; }
+    .welcome-subtitle__mobile { display: inline; }
     .welcome-actions {
       flex-direction: column;
     }
