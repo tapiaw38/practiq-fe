@@ -2,6 +2,7 @@
   import { computed, onMounted, ref, watch } from "vue";
   import StudentLayout from "@/layouts/StudentLayout.vue";
   import Skeleton from "@/components/ui/Skeleton.vue";
+  import UserAvatar from "@/components/ui/UserAvatar.vue";
   import { practiqApi } from "@/api/request/server";
   import { useDashboard } from "@/composables/useDashboard";
   import { DashboardService } from "@/services/dashboard/dashboardService";
@@ -21,8 +22,18 @@
     () => courses.value.find((course) => course.course_id === selectedCourseID.value) || courses.value[0],
   );
 
-  const medalFor = (position: number) =>
-    ({ 1: "🥇", 2: "🥈", 3: "🥉" })[position] ?? "";
+  const MEDALS: Record<number, string> = { 1: "🥇", 2: "🥈", 3: "🥉" };
+
+  /**
+   * A podium nobody scored on is not a podium. At the start of a course every
+   * student is tied on zero, so a rank of 1 is shared by the whole class:
+   * four gold medals, or four rows all reading "1", both look like a bug. A
+   * place is only shown once it has been earned.
+   */
+  const placeFor = (position: number, totalXp: number) => {
+    if (totalXp <= 0) return "–";
+    return MEDALS[position] || String(position);
+  };
 
   async function loadBoard(courseID: string) {
     if (!courseID) return;
@@ -139,7 +150,8 @@
                 class="board-row"
                 :class="{ 'board-row--me': entry.is_me }"
               >
-                <span class="board-pos">{{ medalFor(entry.position) || entry.position }}</span>
+                <span class="board-pos">{{ placeFor(entry.position, entry.total_xp) }}</span>
+                <UserAvatar :seed="entry.avatar_seed || ''" :size="34" :label="entry.name" />
                 <span class="board-name">{{ entry.is_me ? "Vos" : entry.name }}</span>
                 <span class="board-xp">{{ entry.total_xp }} XP</span>
               </li>
@@ -149,7 +161,8 @@
                  themselves without scrolling the whole course. -->
             <div v-if="board.me" class="board-rows board-rows--detached">
               <div class="board-row board-row--me">
-                <span class="board-pos">{{ board.me.position }}</span>
+                <span class="board-pos">{{ placeFor(board.me.position, board.me.total_xp) }}</span>
+                <UserAvatar :seed="board.me.avatar_seed || ''" :size="34" :label="board.me.name" />
                 <span class="board-name">Vos</span>
                 <span class="board-xp">{{ board.me.total_xp }} XP</span>
               </div>
@@ -174,7 +187,7 @@
   .league-board { display:grid; gap:14px; }
   .board-rows { display:grid; gap:6px; margin:0; padding:0; list-style:none; }
   .board-rows--detached { margin-top:10px; padding-top:12px; border-top:1px dashed rgba(var(--surface-border-rgb),.4); }
-  .board-row { display:grid; grid-template-columns:34px 1fr auto; align-items:center; gap:10px; padding:9px 12px; border-radius:var(--radius-xl); background:var(--surface-subtle); }
+  .board-row { display:grid; grid-template-columns:28px auto 1fr auto; align-items:center; gap:10px; padding:9px 12px; border-radius:var(--radius-xl); background:var(--surface-subtle); }
   /* The student's own row is tinted rather than just bolded: on a list of
      short similar names, weight alone is easy to miss. */
   .board-row--me { background:var(--fill-primary-soft); color:var(--practiq-violet-dark); }

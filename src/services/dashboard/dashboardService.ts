@@ -34,6 +34,8 @@ export interface StudentDashboard {
 export interface LeaderboardEntry {
   /** First name plus a surname initial: the server never sends more. */
   name: string;
+  /** Opaque token the avatar is drawn from; empty means none chosen. */
+  avatar_seed?: string;
   total_xp: number;
   position: number;
   is_me?: boolean;

@@ -257,6 +257,16 @@
           <span>Mi progreso</span>
         </RouterLink>
 
+        <RouterLink
+          to="/student/profile"
+          class="nav-item"
+          active-class="nav-item-active"
+          @click="navOpen = false"
+        >
+          <span class="nav-icon"><i class="pi pi-user"></i></span>
+          <span>Mi perfil</span>
+        </RouterLink>
+
         <!-- Courses and levels -->
         <div class="nav-group">
           <button
@@ -1064,6 +1074,13 @@
   }
 
   @media (max-width: 920px) {
+    /* The bottom bar is fixed from here down, so the scroll container has to
+       end above it. Views used to pad for it one by one and the ones that
+       forgot had their last card sitting under the nav. */
+    .main-content {
+      padding-bottom: calc(72px + 16px + env(safe-area-inset-bottom));
+    }
+
     .app-shell {
       display: block;
     }
