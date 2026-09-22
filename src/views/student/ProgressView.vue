@@ -6,7 +6,7 @@
   import { useDashboard } from "@/composables/useDashboard";
   import { useCountUp } from "@/composables/useCountUp";
   import { formatRelativeTime } from "@/utils/formatters";
-  import { MASTERED_AT, needsReview } from "@/utils/mastery";
+  import { needsReview } from "@/utils/mastery";
   import type { CourseSummary } from "@/services/dashboard/dashboardService";
   import type { TopicProgress } from "@/types";
 
@@ -112,19 +112,6 @@
 
   /** Counts on unique topics, so they still add up when a shared topic is
    *  drawn under two courses below. */
-  const stats = computed(() => {
-    const all = groupedProgress.value;
-    return {
-      total: all.length,
-      review: all.filter(needsReview).length,
-      // A topic with no attempts has no score to judge, so its zero is not
-      // counted as either a failure or a mastery.
-      mastered: all.filter(
-        (p) => p.total_attempts > 0 && p.mastery_score >= MASTERED_AT,
-      ).length,
-    };
-  });
-
   const averageMastery = computed(() => {
     if (!groupedProgress.value.length) return 0;
     const total = groupedProgress.value.reduce(
@@ -138,9 +125,6 @@
   // counting them in makes the progress summary feel responsive without
   // changing the mastery calculation itself.
   const averageMasteryShown = useCountUp(averageMastery);
-  const totalTopicsShown = useCountUp(computed(() => stats.value.total));
-  const reviewTopicsShown = useCountUp(computed(() => stats.value.review));
-  const masteredTopicsShown = useCountUp(computed(() => stats.value.mastered));
 
   onMounted(async () => {
     try {
@@ -153,6 +137,35 @@
       loading.value = false;
     }
   });
+
+  /**
+   * One row per topic per course. A topic shared by two courses still shows
+   * twice, as it did under two headings, but the course now rides on the card
+   * instead of costing a section header of its own — with one topic per course
+   * there were as many headings as cards.
+   */
+  const topicRows = computed(() =>
+    courseGroups.value.flatMap((group) =>
+      group.topics.map((topic) => ({
+        key: `${group.id}:${topic.topic_id}`,
+        courseId: group.id,
+        courseTitle: group.title,
+        topic,
+      })),
+    ),
+  );
+
+  /** Kept as one closing line rather than a count on every heading. */
+  const notStartedTotal = computed(() =>
+    courseGroups.value.reduce((acc, group) => acc + group.notStarted, 0),
+  );
+
+  function openTopic(courseId: string) {
+    // The levels path is where the practices for a course live; there is no
+    // per-topic route to deep link into yet.
+    if (courseId === "__ungrouped__") return;
+    router.push(`/student/courses/${courseId}/levels`);
+  }
 </script>
 
 <template>
@@ -202,32 +215,6 @@
       </div>
 
       <template v-else>
-        <div class="stat-row">
-          <div class="stat-tile">
-            <span class="stat-value">{{ totalTopicsShown }}</span>
-            <span class="stat-label">Temas</span>
-          </div>
-          <div class="stat-tile">
-            <span class="stat-value">
-              <span class="stat-dot stat-dot--review"></span>{{ reviewTopicsShown }}
-            </span>
-            <span class="stat-label">Para repasar</span>
-          </div>
-          <div class="stat-tile">
-            <span class="stat-value">
-              <span class="stat-dot stat-dot--mastered"></span
-              >{{ masteredTopicsShown }}
-            </span>
-            <span class="stat-label">Dominados</span>
-          </div>
-        </div>
-
-        <p class="metric-note">
-          El <strong>dominio</strong> pesa más tus prácticas recientes que las
-          viejas, así que no coincide con el total de aciertos de abajo.
-        </p>
-
-
         <div class="sort-row" role="group" aria-label="Ordenar temas">
           <button
             v-for="option in sortOptions"
@@ -242,64 +229,53 @@
           </button>
         </div>
 
-        <div class="course-groups">
-          <section
-            v-for="group in courseGroups"
-            :key="group.id"
-            class="course-group"
+        <div class="mastery-grid">
+          <button
+            v-for="row in topicRows"
+            :key="row.key"
+            type="button"
+            class="mastery-card"
+            @click="openTopic(row.courseId)"
           >
-            <div class="course-head">
-              <h2 class="course-title">{{ group.title }}</h2>
-              <span class="course-count">
-                {{ group.topics.length }}
-                {{ group.topics.length === 1 ? "tema" : "temas" }}
-              </span>
-              <span v-if="group.notStarted" class="course-pending">
-                {{ group.notStarted }} sin empezar
-              </span>
+            <div class="mastery-card__top">
+              <div class="mastery-topic">{{ row.topic.topic_title }}</div>
+              <div class="mastery-level">Nivel {{ row.topic.current_level }}</div>
             </div>
-
-            <div v-if="group.topics.length" class="mastery-grid">
-              <article
-                v-for="p in group.topics"
-                :key="p.topic_id"
-                class="mastery-card"
+            <div class="mastery-course">{{ row.courseTitle }}</div>
+            <!-- The bar is the mastery score; printing it again as a percentage
+                 was the only reason the page had to explain why two numbers on
+                 one card disagreed. -->
+            <div class="progress-bar">
+              <div
+                class="progress-fill"
+                :style="{ width: row.topic.mastery_score + '%' }"
+              ></div>
+            </div>
+            <div class="mastery-meta">
+              <span
+                >{{ row.topic.correct_attempts }}/{{ row.topic.total_attempts }}
+                aciertos</span
               >
-              <div class="mastery-card__top">
-                <div class="mastery-topic">{{ p.topic_title }}</div>
-                <div class="mastery-level">Nivel {{ p.current_level }}</div>
-              </div>
-              <div class="progress-bar">
-                <div
-                  class="progress-fill"
-                  :style="{ width: p.mastery_score + '%' }"
-                ></div>
-              </div>
-              <div class="mastery-meta">
-                <span>{{ Math.round(p.mastery_score) }}% dominio</span>
-                <span
-                  >{{ p.correct_attempts }}/{{ p.total_attempts }} aciertos en
-                  total</span
-                >
-              </div>
-              <div class="mastery-foot">
-                <span v-if="p.last_practiced_at" class="mastery-last">
-                  <i class="pi pi-clock"></i>
-                  {{ formatRelativeTime(p.last_practiced_at) }}
-                </span>
-                <span v-if="needsReview(p)" class="review-tag">
-                  <i class="pi pi-refresh"></i>
-                  Para repasar
-                </span>
-              </div>
-              </article>
             </div>
-
-            <p v-else class="course-empty">
-              Todavía no empezaste ningún tema de este curso.
-            </p>
-          </section>
+            <div class="mastery-foot">
+              <span v-if="row.topic.last_practiced_at" class="mastery-last">
+                <i class="pi pi-clock"></i>
+                {{ formatRelativeTime(row.topic.last_practiced_at) }}
+              </span>
+              <span v-if="needsReview(row.topic)" class="review-tag">
+                <i class="pi pi-refresh"></i>
+                Para repasar
+              </span>
+            </div>
+          </button>
         </div>
+
+        <p v-if="notStartedTotal" class="not-started-note">
+          Te quedan {{ notStartedTotal }}
+          {{ notStartedTotal === 1 ? "tema sin empezar" : "temas sin empezar" }}
+          en tus cursos.
+        </p>
+
       </template>
     </div>
   </StudentLayout>
@@ -395,58 +371,9 @@
   }
 
   /* Summary */
-  .stat-row {
-    display: grid;
-    grid-template-columns: repeat(3, 1fr);
-    gap: 12px;
-  }
-  .stat-tile {
-    display: flex;
-    flex-direction: column;
-    gap: 2px;
-    padding: 14px 16px;
-    border-radius: var(--radius-xl);
-    background: var(--elevation-tint-bg);
-    box-shadow: var(--elevation-tint-shadow);
-  }
-  .stat-value {
-    display: flex;
-    align-items: center;
-    gap: 7px;
-    font-size: 1.6rem;
-    font-weight: 800;
-    line-height: 1.1;
-    color: var(--text-heading);
-  }
   /* Identity rides the swatch, never the digits: a light status hue is hard to
      read as text, and the number stays in ink at full contrast. */
-  .stat-dot {
-    width: 9px;
-    height: 9px;
-    border-radius: 50%;
-    flex-shrink: 0;
-    background: var(--seg-color);
-  }
-  .stat-dot--review {
-    --seg-color: var(--color-warning);
-  }
-  .stat-dot--mastered {
-    --seg-color: var(--color-success);
-  }
-  .stat-label {
-    font-size: var(--text-xs);
-    font-weight: 700;
-    text-transform: uppercase;
-    letter-spacing: 0.06em;
-    color: var(--text-secondary);
-  }
 
-  .metric-note {
-    margin: 0;
-    font-size: var(--text-xs);
-    color: var(--text-muted);
-    line-height: 1.5;
-  }
 
 
   .sort-row {
@@ -476,49 +403,6 @@
   }
 
   /* Course grouping */
-  .course-group {
-    display: flex;
-    flex-direction: column;
-    gap: 12px;
-  }
-  .course-groups {
-    display: grid;
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-    align-items: start;
-    gap: 24px 14px;
-  }
-  .course-head {
-    display: flex;
-    align-items: baseline;
-    flex-wrap: wrap;
-    gap: 10px;
-  }
-  .course-title {
-    font-size: var(--text-lg);
-    font-weight: 800;
-    color: var(--text-heading);
-    margin: 0;
-  }
-  .course-count {
-    font-size: var(--text-sm);
-    color: var(--text-secondary);
-  }
-  .course-pending {
-    padding: 3px 10px;
-    border-radius: var(--radius-pill);
-    background: var(--fill-primary-soft);
-    color: var(--practiq-violet-dark);
-    font-size: var(--text-xs);
-    font-weight: 700;
-  }
-  .course-empty {
-    padding: 16px 18px;
-    border-radius: var(--radius-xl);
-    background: var(--elevation-tint-bg);
-    box-shadow: var(--elevation-tint-shadow);
-    color: var(--text-secondary);
-    font-size: var(--text-sm);
-  }
 
   .mastery-grid {
     display: grid;
@@ -526,12 +410,31 @@
     gap: 14px;
   }
 
+  /* A button now: the card is the way into the topic's practices, so it needs
+     the reset a button brings and a left-aligned text flow back. */
   .mastery-card {
+    width: 100%;
+    display: block;
+    text-align: left;
+    border: 0;
+    font: inherit;
+    cursor: pointer;
     padding: 18px 20px;
     border-radius: var(--radius-2xl);
     background: var(--elevation-tint-bg);
     box-shadow: var(--elevation-tint-shadow);
     transition: var(--transition);
+  }
+  .mastery-course {
+    margin-top: 2px;
+    color: var(--text-muted);
+    font-size: var(--text-xs);
+    font-weight: 700;
+  }
+  .not-started-note {
+    margin: 0;
+    color: var(--text-muted);
+    font-size: var(--text-sm);
   }
   .mastery-card:hover {
     transform: translateY(-2px);
@@ -645,10 +548,6 @@
     }
     .hb-value {
       font-size: 1.5rem;
-    }
-    .course-groups {
-      grid-template-columns: 1fr;
-      gap: 18px;
     }
   }
 
