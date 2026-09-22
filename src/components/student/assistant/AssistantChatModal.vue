@@ -1964,6 +1964,7 @@
     color: var(--text-primary);
     text-align: left;
     cursor: pointer;
+    transition: var(--transition-fast);
   }
 
   .acm-practice-mode > i {
@@ -1984,25 +1985,40 @@
   .acm-practice-mode--selected {
     border-color: var(--practiq-violet);
     background: var(--fill-primary-subtle);
+    box-shadow: var(--shadow-violet);
+    color: var(--practiq-violet-dark);
+    transform: translateY(-1px);
   }
 
   .acm-practice-chip {
     min-height: 40px;
     padding: 8px 13px;
-    border: 2px solid var(--surface-border);
+    border: 0;
     border-radius: var(--radius-pill);
-    background: var(--surface-card);
+    background: var(--elevation-tint-bg);
+    box-shadow: var(--elevation-tint-shadow);
     color: var(--text-primary);
     font-family: var(--font-ui-family);
     font-size: .9rem;
     font-weight: 700;
     cursor: pointer;
+    transition: var(--transition-fast);
   }
 
   .acm-practice-chip--selected {
-    border-color: var(--practiq-violet);
     background: var(--fill-primary-subtle);
     color: var(--practiq-violet-dark);
+    box-shadow: var(--shadow-violet);
+    transform: translateY(-1px);
+  }
+  .acm-practice-chip:hover:not(.acm-practice-chip--selected),
+  .acm-practice-mode:hover:not(.acm-practice-mode--selected) {
+    color: var(--practiq-violet-dark);
+  }
+  .acm-practice-chip:focus-visible,
+  .acm-practice-mode:focus-visible {
+    outline: 3px solid rgba(var(--practiq-violet-rgb), 0.28);
+    outline-offset: 2px;
   }
 
   .acm-practice-picker__loading {

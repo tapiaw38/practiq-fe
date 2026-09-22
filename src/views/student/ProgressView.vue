@@ -242,28 +242,29 @@
           </button>
         </div>
 
-        <section
-          v-for="group in courseGroups"
-          :key="group.id"
-          class="course-group"
-        >
-          <div class="course-head">
-            <h2 class="course-title">{{ group.title }}</h2>
-            <span class="course-count">
-              {{ group.topics.length }}
-              {{ group.topics.length === 1 ? "tema" : "temas" }}
-            </span>
-            <span v-if="group.notStarted" class="course-pending">
-              {{ group.notStarted }} sin empezar
-            </span>
-          </div>
+        <div class="course-groups">
+          <section
+            v-for="group in courseGroups"
+            :key="group.id"
+            class="course-group"
+          >
+            <div class="course-head">
+              <h2 class="course-title">{{ group.title }}</h2>
+              <span class="course-count">
+                {{ group.topics.length }}
+                {{ group.topics.length === 1 ? "tema" : "temas" }}
+              </span>
+              <span v-if="group.notStarted" class="course-pending">
+                {{ group.notStarted }} sin empezar
+              </span>
+            </div>
 
-          <div v-if="group.topics.length" class="mastery-grid">
-            <article
-              v-for="p in group.topics"
-              :key="p.topic_id"
-              class="mastery-card"
-            >
+            <div v-if="group.topics.length" class="mastery-grid">
+              <article
+                v-for="p in group.topics"
+                :key="p.topic_id"
+                class="mastery-card"
+              >
               <div class="mastery-card__top">
                 <div class="mastery-topic">{{ p.topic_title }}</div>
                 <div class="mastery-level">Nivel {{ p.current_level }}</div>
@@ -291,13 +292,14 @@
                   Para repasar
                 </span>
               </div>
-            </article>
-          </div>
+              </article>
+            </div>
 
-          <p v-else class="course-empty">
-            Todavía no empezaste ningún tema de este curso.
-          </p>
-        </section>
+            <p v-else class="course-empty">
+              Todavía no empezaste ningún tema de este curso.
+            </p>
+          </section>
+        </div>
       </template>
     </div>
   </StudentLayout>
@@ -478,6 +480,12 @@
     flex-direction: column;
     gap: 12px;
   }
+  .course-groups {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    align-items: start;
+    gap: 24px 14px;
+  }
   .course-head {
     display: flex;
     align-items: baseline;
@@ -636,6 +644,10 @@
     }
     .hb-value {
       font-size: 1.5rem;
+    }
+    .course-groups {
+      grid-template-columns: 1fr;
+      gap: 18px;
     }
   }
 
