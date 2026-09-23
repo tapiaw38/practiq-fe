@@ -1619,6 +1619,19 @@
       flex-direction: column;
       align-items: stretch;
     }
+    /* Stacked, these become full-width primary actions, but .btn-sm sets only
+       padding: a 13px label in 6px of padding left them about 31px tall and
+       reading as separators rather than buttons. Same fix SchoolUsersView
+       already carries for its own assign rows. */
+    .action-row .btn,
+    .action-row .form-select {
+      width: 100%;
+      min-height: 48px;
+      font-size: var(--text-md);
+    }
+    .action-row .btn {
+      padding: 0 1rem;
+    }
 
     /* Tap targets >= 44px en mobile */
     .modal-close {
