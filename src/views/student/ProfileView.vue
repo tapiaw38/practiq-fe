@@ -67,13 +67,15 @@
 <template>
   <StudentLayout>
     <div class="profile-shell">
-      <header class="profile-header">
+      <header class="profile-header anim-rise">
         <template v-if="loading">
           <Skeleton variant="avatar" size="72px" />
           <Skeleton width="160px" height="22px" />
         </template>
         <template v-else-if="profile">
-          <UserAvatar :seed="picked" :size="72" :label="profile.name" />
+          <span class="profile-avatar-frame">
+            <UserAvatar :seed="picked" :size="72" :label="profile.name" />
+          </span>
           <div>
             <h1>{{ profile.name }}</h1>
             <p>{{ profile.email }}</p>
@@ -100,7 +102,7 @@
         No pudimos cargar tu perfil. Probá de nuevo en un momento.
       </div>
 
-      <section v-else class="profile-card">
+      <section v-else class="profile-card anim-rise">
         <div class="profile-card__top">
           <h2>Elegí tu avatar</h2>
           <button type="button" class="shuffle-btn" :disabled="saving" @click="shuffle()">
@@ -108,7 +110,7 @@
           </button>
         </div>
 
-        <div class="avatar-grid" role="radiogroup" aria-label="Opciones de avatar">
+        <div class="avatar-grid anim-stagger" role="radiogroup" aria-label="Opciones de avatar">
           <button
             v-for="seed in options"
             :key="seed"
@@ -122,6 +124,9 @@
             @click="save(seed)"
           >
             <UserAvatar :seed="seed" :size="64" />
+            <span v-if="picked === seed" class="avatar-check" aria-hidden="true">
+              <i class="pi pi-check"></i>
+            </span>
           </button>
         </div>
 
@@ -144,17 +149,23 @@
   h1 { color:var(--text-heading); font-size:1.4rem; line-height:1.2; }
   h2 { color:var(--text-heading); font-size:17px; }
   .profile-header p { margin-top:4px; color:var(--text-secondary); font-size:var(--text-sm); overflow-wrap:anywhere; }
+  /* Same ring the topbar gives the avatar that links here, so this reads as
+     the same picture rather than a plainer copy of it. */
+  .profile-avatar-frame { display:inline-flex; border-radius:50%; box-shadow:var(--shadow-indigo); flex:none; }
   .profile-card { padding:24px; border-radius:var(--radius-2xl); background:var(--elevation-tint-bg); border:1px solid var(--surface-glass-border); box-shadow:var(--shadow-card); display:grid; gap:16px; }
   .profile-card__top { display:flex; align-items:center; justify-content:space-between; gap:12px; }
   .shuffle-btn { display:inline-flex; align-items:center; gap:7px; padding:8px 14px; border:1px solid var(--surface-glass-border); border-radius:var(--radius-pill); background:var(--surface-card); color:var(--practiq-violet-dark); font:inherit; font-size:var(--text-sm); font-weight:700; cursor:pointer; transition:var(--transition-fast); }
   .shuffle-btn:hover:not(:disabled) { border-color:var(--practiq-violet); }
   .shuffle-btn:disabled { opacity:.55; cursor:default; }
   .avatar-grid { display:grid; grid-template-columns:repeat(auto-fill, minmax(84px, 1fr)); gap:10px; }
-  .avatar-option { display:grid; place-items:center; padding:8px; border:2px solid transparent; border-radius:var(--radius-xl); background:var(--surface-subtle); cursor:pointer; transition:var(--transition-fast); }
-  .avatar-option:hover:not(:disabled) { background:var(--fill-primary-soft); }
+  .avatar-option { position:relative; display:grid; place-items:center; padding:8px; border:2px solid transparent; border-radius:var(--radius-xl); background:var(--surface-subtle); cursor:pointer; transition:var(--transition-fast); }
+  .avatar-option:hover:not(:disabled) { background:var(--fill-primary-soft); transform:scale(1.05); }
   .avatar-option--picked { border-color:var(--practiq-violet); background:var(--fill-primary-soft); }
   .avatar-option:disabled { cursor:default; }
   .avatar-option--skeleton { cursor:default; }
+  /* The chosen avatar earns a mark of its own rather than a border colour
+     alone, which is easy to miss against twelve near-identical circles. */
+  .avatar-check { position:absolute; bottom:0; right:0; width:20px; height:20px; display:grid; place-items:center; border-radius:50%; background:var(--practiq-violet); color:var(--color-on-primary); font-size:10px; box-shadow:var(--shadow-card); }
   .profile-note { color:var(--text-muted); font-size:var(--text-sm); display:flex; align-items:center; gap:7px; }
   .profile-note--ok { color:var(--color-success); }
   .profile-note--error { color:var(--color-error); }
