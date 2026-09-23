@@ -243,6 +243,18 @@
     coachBeat.value += 1;
   }
 
+  /**
+   * Quanty says who he is before he says what to do. A volunteered bubble
+   * lasts 4200ms, so the briefing lands just under that: soon enough to read
+   * as the same thought continuing, late enough that the greeting was read.
+   */
+  let introTimer = 0;
+
+  function greetThenBrief(brief: string) {
+    say("Soy Quanty. Preguntame lo que quieras.");
+    introTimer = window.setTimeout(() => say(brief), 4000);
+  }
+
 
 
   /**
@@ -348,7 +360,7 @@
       }
 
       startTimer();
-      say(
+      greetThenBrief(
         totalCount.value === 1
           ? "Un ejercicio. Tomate tu tiempo."
           : `Son ${totalCount.value} ejercicios. A tu ritmo.`,
@@ -369,6 +381,7 @@
   });
 
   onUnmounted(() => {
+    clearTimeout(introTimer);
     clearInterval(timerInterval);
     if (draftBadgeTimer) clearTimeout(draftBadgeTimer);
     if (loadingMsgInterval) clearInterval(loadingMsgInterval);
