@@ -69,7 +69,7 @@
     <div class="profile-shell">
       <header class="profile-header">
         <template v-if="loading">
-          <Skeleton width="72px" height="72px" />
+          <Skeleton variant="avatar" size="72px" />
           <Skeleton width="160px" height="22px" />
         </template>
         <template v-else-if="profile">
@@ -81,12 +81,26 @@
         </template>
       </header>
 
-      <div v-if="loadError" class="profile-empty">
+      <!-- One chain: loading, then the error, then the card. Split into two
+           v-ifs a failed load rendered its message above an empty card. -->
+      <section v-if="loading" class="profile-card" aria-hidden="true">
+        <div class="profile-card__top">
+          <Skeleton width="140px" height="18px" />
+          <Skeleton width="104px" height="36px" rounded />
+        </div>
+        <div class="avatar-grid">
+          <div v-for="n in OPTIONS" :key="n" class="avatar-option avatar-option--skeleton">
+            <Skeleton variant="avatar" size="64px" />
+          </div>
+        </div>
+      </section>
+
+      <div v-else-if="loadError" class="profile-empty">
         <i class="pi pi-exclamation-circle"></i>
         No pudimos cargar tu perfil. Probá de nuevo en un momento.
       </div>
 
-      <section v-else-if="!loading" class="profile-card">
+      <section v-else class="profile-card">
         <div class="profile-card__top">
           <h2>Elegí tu avatar</h2>
           <button type="button" class="shuffle-btn" :disabled="saving" @click="shuffle()">
@@ -140,6 +154,7 @@
   .avatar-option:hover:not(:disabled) { background:var(--fill-primary-soft); }
   .avatar-option--picked { border-color:var(--practiq-violet); background:var(--fill-primary-soft); }
   .avatar-option:disabled { cursor:default; }
+  .avatar-option--skeleton { cursor:default; }
   .profile-note { color:var(--text-muted); font-size:var(--text-sm); display:flex; align-items:center; gap:7px; }
   .profile-note--ok { color:var(--color-success); }
   .profile-note--error { color:var(--color-error); }
