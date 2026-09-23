@@ -285,7 +285,7 @@
         </div>
         <div class="feature-pill">
           <i class="pi pi-check-circle"></i>
-          <span>Asistente con pistas y ejemplos</span>
+          <span>Quanty, con pistas y ejemplos</span>
         </div>
         <div class="feature-pill">
           <i class="pi pi-check-circle"></i>

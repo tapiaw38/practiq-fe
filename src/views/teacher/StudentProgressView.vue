@@ -1012,8 +1012,8 @@
                           >
                             {{
                               page.submission.ai_is_correct
-                                ? "Asistente: Correcto"
-                                : "Asistente: Incorrecto"
+                                ? "Quanty: Correcto"
+                                : "Quanty: Incorrecto"
                             }}
                           </span>
                           <span

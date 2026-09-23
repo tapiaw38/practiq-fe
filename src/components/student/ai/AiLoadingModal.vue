@@ -11,7 +11,7 @@
           <i class="pi pi-sparkles"></i>
           <span>{{ badgeLabel }}</span>
         </div>
-        <img :src="aiLoadingAnimation" alt="" class="ai-loading-illustration" />
+        <img :src="quantyIllustration" alt="" class="ai-loading-illustration" />
         <h3 class="ai-loading-title">{{ title }}</h3>
         <p class="ai-loading-message">
           {{ message }}
@@ -25,7 +25,7 @@
 </template>
 
 <script setup lang="ts">
-  import aiLoadingAnimation from "@/assets/ai-loading.webp";
+  import quantyIllustration from "@/assets/quanty.png";
   import UiModal from "@/components/ui/UiModal.vue";
 
   withDefaults(

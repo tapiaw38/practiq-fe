@@ -12,7 +12,7 @@
           <div class="acm-header">
             <div class="acm-header-info">
               <div class="acm-avatar" aria-hidden="true">
-                <img src="@/assets/robot.png" alt="" />
+                <img src="@/assets/quanty.png" alt="" />
               </div>
               <div>
                 <div class="acm-title">Quanty</div>
@@ -1670,8 +1670,9 @@
     width: 44px;
     height: 44px;
     min-width: 44px;
-    border-radius: 0;
-    background: transparent;
+    overflow: hidden;
+    border-radius: 50%;
+    background: var(--fill-primary-soft);
     border: none;
     color: var(--color-on-primary);
     display: flex;
@@ -1684,9 +1685,11 @@
 
   .acm-avatar img {
     display: block;
-    width: 42px;
-    height: 42px;
-    object-fit: contain;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    object-position: 50% 22%;
+    transform: scale(1.65);
     filter: drop-shadow(0 3px 6px rgba(var(--text-primary-rgb), 0.16));
   }
 

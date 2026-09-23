@@ -553,10 +553,10 @@
             <button
               class="btn btn-secondary welcome-btn assistant-cta"
               @click="showAssistant = true"
-              aria-label="Abrir asistente para practicar"
+              aria-label="Practicar con Quanty"
             >
               <i class="pi pi-comments"></i>
-              Practicar con mi asistente
+              Practicar con Quanty
             </button>
           </div>
         </section>

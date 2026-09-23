@@ -2005,7 +2005,7 @@
               />
               <small class="field-hint">
                 Opcional. Imagen, audio, PDF o documento. El alumno lo recibe
-                junto a la consigna; el asistente sólo lee imágenes y audio.
+                junto a la consigna; Quanty sólo lee imágenes y audio.
                 Máximo 50 MB.
               </small>
             </div>
@@ -2936,7 +2936,7 @@
               />
               <small class="field-hint">
                 Opcional. Imagen, audio, PDF o documento. El alumno lo recibe
-                junto a la consigna; el asistente sólo lee imágenes y audio.
+                junto a la consigna; Quanty sólo lee imágenes y audio.
                 Máximo 50 MB.
               </small>
             </div>
