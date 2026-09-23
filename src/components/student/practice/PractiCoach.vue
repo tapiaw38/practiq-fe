@@ -28,7 +28,7 @@
    * The quick asks are a pointer affordance and nothing else.
    *
    * A touch screen has no hover, so they would have to stand there permanently
-   * — which is what they did, sitting on top of the exercise. Tapping Practi
+   * — which is what they did, sitting on top of the exercise. Tapping Quanty
    * opens the chat, and the chat offers the same three actions along its
    * bottom edge, so nothing is out of reach without them.
    */
@@ -340,7 +340,7 @@
     color: var(--practiq-violet);
   }
   /* The tail points down at the launcher, which is what makes the text read as
-     something Practi said rather than a notification that happened to land. */
+     something Quanty said rather than a notification that happened to land. */
   .coach-bubble::after {
     content: "";
     position: absolute;

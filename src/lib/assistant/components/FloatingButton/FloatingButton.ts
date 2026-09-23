@@ -62,7 +62,7 @@ export class FloatingButton {
     } else {
       const face = document.createElement("span");
       face.className = "floating-button-face";
-      face.innerHTML = `<svg class="floating-button-mascot" viewBox="0 0 1254 1254" aria-hidden="true"><defs><linearGradient id="fb-shell" x1="230" y1="250" x2="1080" y2="1010" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="#fff"/><stop offset=".58" stop-color="#fafafa"/><stop offset="1" stop-color="#ececec"/></linearGradient><linearGradient id="fb-ear" x1="110" y1="642" x2="1144" y2="642" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="#6B42FF"/><stop offset="1" stop-color="#8B6BFF"/></linearGradient><linearGradient id="fb-cap" x1="475" y1="272" x2="779" y2="272" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="#6B42FF"/><stop offset="1" stop-color="#8766FF"/></linearGradient><linearGradient id="fb-eye" x1="350" y1="554" x2="904" y2="752" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="#53DDE9"/><stop offset="1" stop-color="#76EDF2"/></linearGradient></defs><g class="floating-button-head-group"><rect class="floating-button-ear" x="110" y="500" width="113" height="295" rx="47"/><rect class="floating-button-ear" x="1031" y="500" width="113" height="295" rx="47"/><rect class="floating-button-shell" x="190" y="275" width="872" height="740" rx="154"/><rect class="floating-button-cap" x="476" y="223" width="302" height="97" rx="46"/><rect class="floating-button-visor" x="271" y="380" width="709" height="533" rx="98"/><g class="floating-button-eye-group"><rect class="floating-button-eye" x="350" y="554" width="198" height="198" rx="50"/><rect class="floating-button-eye" x="706" y="554" width="198" height="198" rx="50"/></g></g></svg>`;
+      face.innerHTML = this.quantyMascotSvg();
       this.element.appendChild(face);
     }
     if (text) {
@@ -121,6 +121,27 @@ export class FloatingButton {
     }
   }
 
+  /** Compact Quanty head; its eye classes keep existing blink and gaze effects. */
+  private quantyMascotSvg(): string {
+    return `<svg class="floating-button-mascot floating-button-mascot--quanty" viewBox="0 0 160 132" aria-hidden="true" focusable="false">
+      <defs>
+        <linearGradient id="fbq-shell" x1="35" y1="28" x2="123" y2="119" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="#ffffff"/><stop offset=".52" stop-color="#f4f9ff"/><stop offset="1" stop-color="#c8def8"/></linearGradient>
+        <linearGradient id="fbq-antenna" x1="74" y1="4" x2="95" y2="43" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="#b9e1ff"/><stop offset="1" stop-color="#2074d7"/></linearGradient>
+      </defs>
+      <g class="floating-button-head-group">
+        <path d="M86 36V20" fill="none" stroke="#1764bf" stroke-width="7" stroke-linecap="round"/>
+        <circle class="floating-button-cap" cx="86" cy="13" r="8" fill="url(#fbq-antenna)"/>
+        <path d="M77 43c3-6 8-9 15-9s12 3 15 9" fill="none" stroke="#1764bf" stroke-width="7" stroke-linecap="round"/>
+        <path class="floating-button-shell" d="M21 76c0-30 24-53 55-53h20c31 0 55 23 55 53 0 30-25 50-56 50H77C46 126 21 106 21 76z" fill="url(#fbq-shell)"/>
+        <path class="floating-button-visor" d="M31 78c0-24 19-42 45-42h20c26 0 45 18 45 42 0 23-19 37-46 37H77c-27 0-46-14-46-37z" fill="#0c1c3b"/>
+        <g class="floating-button-eye-group">
+          <ellipse class="floating-button-eye" cx="63" cy="78" rx="10" ry="13" fill="#35d9d0"/>
+          <ellipse class="floating-button-eye" cx="108" cy="78" rx="10" ry="13" fill="#35d9d0"/>
+        </g>
+      </g>
+    </svg>`;
+  }
+
   private loadStyles(): void {
     const styleElement = document.createElement("style");
     styleElement.id = "floating-button-styles";
@@ -172,6 +193,10 @@ export class FloatingButton {
       .floating-button-cap { fill:url(#fb-cap); }
       .floating-button-visor { fill:#05060b; }
       .floating-button-eye { fill:url(#fb-eye); transform-box:fill-box; transform-origin:center; }
+      .floating-button-mascot--quanty .floating-button-shell { fill:url(#fbq-shell); }
+      .floating-button-mascot--quanty .floating-button-cap { fill:url(#fbq-antenna); }
+      .floating-button-mascot--quanty .floating-button-visor { fill:#0c1c3b; }
+      .floating-button-mascot--quanty .floating-button-eye { fill:#35d9d0; }
       .floating-button-eye-group { transform-box:fill-box; transform-origin:center; transition:transform .28s cubic-bezier(.2,.8,.2,1); }
       .floating-button--blink .floating-button-eye { animation:floating-robot-blink .16s ease-in-out 1; }
       .floating-button--nod .floating-button-face { animation:floating-robot-nod .7s ease-in-out 1; }

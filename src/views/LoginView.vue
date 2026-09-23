@@ -273,7 +273,7 @@
           <span>avanza con confianza.</span>
         </h1>
         <p>
-          Ejercicios paso a paso, retroalimentación al instante y Practi, el
+          Ejercicios paso a paso, retroalimentación al instante y Quanty, el
           asistente que te acompaña en cada tema.
         </p>
       </div>
@@ -295,9 +295,9 @@
 
       <div class="left-preview">
         <img
-          src="@/assets/robot.png"
+          src="@/assets/quanty.png"
           class="preview-robot"
-          alt="Practi, el asistente de Practiq"
+          alt="Quanty, el asistente de Practiq"
         />
       </div>
     </section>

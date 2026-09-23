@@ -7,7 +7,7 @@
         :style="mobileViewportStyle"
         @click.self="requestClose"
       >
-        <div class="acm-modal" role="dialog" aria-label="Practi, el asistente de práctica">
+        <div class="acm-modal" role="dialog" aria-label="Quanty, el asistente de práctica">
           <!-- ── Header ── -->
           <div class="acm-header">
             <div class="acm-header-info">
@@ -15,7 +15,7 @@
                 <img src="@/assets/robot.png" alt="" />
               </div>
               <div>
-                <div class="acm-title">Practi</div>
+                <div class="acm-title">Quanty</div>
                 <div class="acm-status">
                   <span
                     class="acm-dot"
@@ -66,7 +66,7 @@
               <div class="acm-practice-picker__intro">
                 <span class="acm-practice-picker__eyebrow">Práctica guiada</span>
                 <h3>¿Qué querés practicar?</h3>
-                <p>Elegí un curso y un tema. Practi preparará ejercicios solo sobre esa elección.</p>
+                <p>Elegí un curso y un tema. Quanty preparará ejercicios solo sobre esa elección.</p>
               </div>
 
               <div class="acm-practice-picker__group">
@@ -1574,7 +1574,7 @@
       conversationId = null;
       addMsg(
         "assistant",
-        "¡Hola! Soy Practi. ¿Qué hacemos hoy?",
+        "¡Hola! Soy Quanty. ¿Qué hacemos hoy?",
       );
       await loadHistory();
     },

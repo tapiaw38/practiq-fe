@@ -3062,7 +3062,7 @@
     }
   }
   /* Sits in a row of badges, so without an icon and a solid fill it read as
-     one more label rather than the way into Practi from the exercise. */
+     one more label rather than the way into Quanty from the exercise. */
   .exercise-assistant-trigger {
     display: inline-flex;
     align-items: center;

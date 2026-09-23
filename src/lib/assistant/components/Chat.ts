@@ -97,7 +97,7 @@ export class Chat {
   private isRecording: boolean = false;
   private recordingTimer?: number;
   private mobileExpanded = false;
-  // Practi answers out loud and plays it as soon as it arrives. A student who
+  // Quanty answers out loud and plays it as soon as it arrives. A student who
   // reads slowly gets the answer anyway, and the one who does not want it turns
   // it off once — a stored preference always wins over these.
   private preferences = { audio: true, autoplay: true, speed: 1 };
@@ -1332,7 +1332,7 @@ export class Chat {
     const speed = document.createElement("select");
 
     // A switch reads as on or off at a glance; a bare checkbox in a dark panel
-    // did not, and this row is the one that decides whether Practi speaks.
+    // did not, and this row is the one that decides whether Quanty speaks.
     const row = (
       label: string,
       hint: string,
@@ -1387,9 +1387,9 @@ export class Chat {
 
     panel.append(
       header,
-      row("Responder con voz", "Practi lee su respuesta en voz alta", toggle(audio, this.preferences.audio)),
+      row("Responder con voz", "Quanty lee su respuesta en voz alta", toggle(audio, this.preferences.audio)),
       row("Reproducir al recibir", "Sin tener que apretar play", toggle(autoplay, this.preferences.autoplay)),
-      row("Velocidad", "De la voz de Practi", speed),
+      row("Velocidad", "De la voz de Quanty", speed),
     );
 
     speed.value = String(this.preferences.speed);
