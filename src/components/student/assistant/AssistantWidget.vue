@@ -337,8 +337,10 @@
          the footer it clears grows a row whenever the draft-saved indicator
          shows, so a fixed guess was either wasted space or still overlapped
          it. 140px is the fallback for the first paint, before the observer
-         reports the real height. */
-      bottom: calc(var(--practiq-footer-h, 140px) + 12px) !important;
+         reports the real height. The 4px is all the gap this needs: the
+         launcher should read as tucked against the footer, and 12px left it
+         floating over the content above instead. */
+      bottom: calc(var(--practiq-footer-h, 140px) + 4px) !important;
     }
   }
 </style>
