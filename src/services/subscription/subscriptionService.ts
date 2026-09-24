@@ -32,6 +32,9 @@ export interface TeacherSubscription {
    * says why, so the screen does not just read "0 de 0".
    */
   trial_expired?: boolean;
+  /** Set while a lapsed plan is still honoured. After this, students over the
+   *  cap go read-only — and if the trial is spent, all of them do. */
+  grace_ends_at?: string;
 }
 
 export interface CatalogPlan {

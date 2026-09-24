@@ -36,6 +36,17 @@
   /** Authorised at the gateway, not confirmed here yet: the webhook decides. */
   const isPending = computed(() => subscription.value?.status === "pending");
 
+  /** Lapsed but still honoured, for a few days. */
+  const graceEndsLabel = computed(() => {
+    const ends = subscription.value?.grace_ends_at;
+    if (!ends) return "";
+    return new Date(ends).toLocaleDateString("es-AR", {
+      day: "numeric",
+      month: "long",
+      year: "numeric",
+    });
+  });
+
   /**
    * Who would lose access if the plan were enforced right now.
    *
@@ -210,6 +221,7 @@
     // paused subscription is now entitled, so "active" no longer means "being
     // charged" and answering "Activo" would tell somebody who just paused that
     // nothing happened.
+    if (graceEndsLabel.value) return "Por vencer";
     if (isPaused.value) return "Pausado";
     if (isPending.value) return "Confirmando pago";
     if (s.active) return "Activo";
@@ -356,7 +368,8 @@
                 subscription.uncapped,
               'plan-state--paused': isPaused,
               'plan-state--pending': isPending,
-              'plan-state--expired': subscription.trial_expired,
+              'plan-state--expired':
+                Boolean(graceEndsLabel) || subscription.trial_expired,
               'plan-state--free':
                 !subscription.active &&
                 !isPaused &&
@@ -421,7 +434,13 @@
           </p>
         </div>
 
-        <p v-if="isPaused" class="plan-renews">
+        <p v-if="graceEndsLabel" class="plan-warn">
+          <i class="pi pi-exclamation-triangle" aria-hidden="true"></i>
+          Tu plan dejó de pagarse. Lo mantenemos hasta el
+          {{ graceEndsLabel }}; después, los alumnos que excedan el plan pasan
+          a solo lectura. Podés elegir cuáles se quedan activos.
+        </p>
+        <p v-else-if="isPaused" class="plan-renews">
           Pausada: no se te cobra nada.
           <template v-if="renewsLabel">
             Conservás este plan y tus alumnos hasta el {{ renewsLabel }}, porque
@@ -769,6 +788,24 @@
   .plan-pending i {
     margin-top: 0.15rem;
     color: var(--practiq-violet);
+  }
+
+  .plan-warn {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.5rem;
+    margin: 0 0 1rem;
+    padding: 0.7rem 0.85rem;
+    border-radius: var(--radius-md);
+    background: var(--fill-warning-subtle);
+    font-size: 0.85rem;
+    line-height: 1.5;
+    color: var(--text-secondary);
+  }
+
+  .plan-warn i {
+    margin-top: 0.15rem;
+    color: var(--color-warning-dark);
   }
 
   .plan-state--pending {
