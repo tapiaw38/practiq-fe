@@ -1,5 +1,6 @@
 <script setup lang="ts">
-  import { computed, onMounted, reactive, ref } from "vue";
+  import UiModal from "@/components/ui/UiModal.vue";
+  import { computed, onMounted, reactive, ref, watch } from "vue";
   import { useRouter } from "vue-router";
   import TeacherLayout from "@/layouts/TeacherLayout.vue";
   import Skeleton from "@/components/ui/Skeleton.vue";
@@ -9,6 +10,7 @@
   import { useGrade } from "@/composables/useGrade";
   import { useSubject } from "@/composables/useSubject";
   import type { Course, Grade, Subject } from "@/types";
+  import { useSchools } from "@/composables/useSchools";
 
   const router = useRouter();
   const { confirmState, showConfirm, onConfirm, onCancel } = useConfirm();
@@ -35,6 +37,7 @@
   } = useSubject();
 
   const loading = ref(false);
+  const { activeId, active } = useSchools();
   const saving = ref(false);
   const selectedGradeId = ref<string | null>(null);
 
@@ -50,7 +53,7 @@
     description: string;
   } | null>(null);
 
-  const gradeForm = reactive({ name: "", description: "" });
+  const gradeForm = reactive({ name: "", description: "", visualTheme: "primary" as "primary" | "secondary" });
   const courseForm = reactive({
     subjectId: "",
     title: "",
@@ -75,6 +78,7 @@
   }
 
   onMounted(loadData);
+  watch(activeId, () => { selectedGradeId.value = null; loadData(); });
 
   async function loadData() {
     loading.value = true;
@@ -92,6 +96,7 @@
     editingGrade.value = null;
     gradeForm.name = "";
     gradeForm.description = "";
+    gradeForm.visualTheme = "primary";
     showGradeModal.value = true;
   }
 
@@ -99,6 +104,7 @@
     editingGrade.value = grade;
     gradeForm.name = grade.name;
     gradeForm.description = grade.description || "";
+    gradeForm.visualTheme = grade.visual_theme || "primary";
     showGradeModal.value = true;
   }
 
@@ -114,11 +120,13 @@
         await updateGradeService(editingGrade.value.id, {
           name: gradeForm.name,
           description: gradeForm.description,
+          visual_theme: gradeForm.visualTheme,
         });
       } else {
         const grade = await createGradeService({
           name: gradeForm.name,
           description: gradeForm.description,
+          visual_theme: gradeForm.visualTheme,
         });
         selectedGradeId.value = grade.id;
       }
@@ -175,6 +183,7 @@
         await updateCourseService(editingCourse.value.id, {
           title: courseForm.title,
           description: courseForm.description,
+          grade_id: selectedGrade.value.id,
           subject_id: courseForm.subjectId,
           subject: subjectName,
           level: courseForm.level,
@@ -199,10 +208,6 @@
     const ok = await showConfirm("¿Eliminar este curso?");
     if (!ok) return;
     await deleteCourseService(id);
-  }
-
-  function goToCourse(courseId: string) {
-    router.push(`/teacher/courses/${courseId}`);
   }
 
   async function createSubject() {
@@ -256,17 +261,20 @@
 <template>
   <TeacherLayout>
     <div class="ac-root">
-      <!-- Top bar -->
-      <header class="ac-topbar">
-        <div class="ac-topbar__left">
-          <span class="ac-eyebrow">Panel del docente</span>
-          <h1 class="ac-title">Académico</h1>
+      <!-- Header -->
+      <header class="page-header ac-page-header">
+        <div class="page-header__left">
+          <p class="page-kicker">Organización de escuela</p>
+          <h1 class="page-title">Académico</h1>
+          <p v-if="active" class="page-subtitle school-crumb"><i class="pi pi-building"></i> {{ active.name }}</p>
         </div>
-        <button class="catalog-pill" @click="showSubjectCatalog = true">
-          <i class="pi pi-book"></i>
-          Catálogo de materias
-          <span class="catalog-pill__badge">{{ subjects.length }}</span>
-        </button>
+        <div class="page-header__right">
+          <button class="btn btn-primary catalog-button" @click="showSubjectCatalog = true">
+            <i class="pi pi-book"></i>
+            Catálogo de materias
+            <span class="catalog-button__badge">{{ subjects.length }}</span>
+          </button>
+        </div>
       </header>
 
       <!-- Loading skeleton -->
@@ -288,7 +296,7 @@
         </aside>
         <main class="ac-main">
           <div class="main-header">
-            <div>
+            <div style="display: flex; flex-direction: column; gap: 8px">
               <Skeleton width="100px" height="14px" />
               <Skeleton width="180px" height="28px" />
             </div>
@@ -299,7 +307,14 @@
               :key="i"
               class="course-tile course-tile--skeleton"
             >
-              <div class="course-tile__top">
+              <div
+                class="course-tile__top"
+                style="
+                  display: flex;
+                  align-items: center;
+                  justify-content: space-between;
+                "
+              >
                 <Skeleton width="70px" height="20px" rounded />
                 <Skeleton width="24px" height="24px" variant="circle" />
               </div>
@@ -372,9 +387,17 @@
               @click="openCreateGrade"
             >
               <i class="pi pi-plus"></i>
-              Nuevo
+              Nuevo grado
             </button>
           </div>
+          <label class="grade-mobile-select">
+            <span>Grado activo</span>
+            <select v-model="selectedGradeId">
+              <option v-for="grade in grades" :key="grade.id" :value="grade.id">
+                {{ grade.name }} · {{ gradeCourses(grade.id).length }} cursos
+              </option>
+            </select>
+          </label>
           <nav class="grade-nav">
             <button
               v-for="grade in grades"
@@ -439,7 +462,7 @@
                     Cada curso combina este grado con una materia del catálogo.
                   </p>
                 </div>
-                <button class="btn-add-course" @click="openCreateCourse">
+                <button v-if="selectedCourses.length" class="btn-add-course" @click="openCreateCourse">
                   <i class="pi pi-plus"></i> Nuevo curso
                 </button>
               </div>
@@ -485,21 +508,23 @@
                       </button>
                     </div>
                   </div>
-                  <div class="course-card__body" @click="goToCourse(course.id)">
-                    <h4 class="course-card__title">{{ course.title }}</h4>
-                    <p v-if="course.description" class="course-card__desc">
-                      {{ course.description }}
-                    </p>
-                  </div>
-                  <div
-                    class="course-card__footer"
-                    @click="goToCourse(course.id)"
+                  <RouterLink
+                    class="course-card__open"
+                    :to="`/teacher/courses/${course.id}`"
                   >
-                    <span v-if="course.level" class="level-chip">{{
-                      course.level
-                    }}</span>
-                    <i class="pi pi-arrow-right course-card__go"></i>
-                  </div>
+                    <div class="course-card__body">
+                      <h4 class="course-card__title">{{ course.title }}</h4>
+                      <p v-if="course.description" class="course-card__desc">
+                        {{ course.description }}
+                      </p>
+                    </div>
+                    <div class="course-card__footer">
+                      <span v-if="course.level" class="level-chip">{{
+                        course.level
+                      }}</span>
+                      <i class="pi pi-arrow-right course-card__go"></i>
+                    </div>
+                  </RouterLink>
                 </article>
               </div>
             </div>
@@ -508,12 +533,11 @@
       </div>
 
       <!-- ── Modal: grado ── -->
-      <Teleport to="body">
-        <div
-          v-if="showGradeModal"
-          class="modal-backdrop"
-          @click.self="closeGradeModal"
-        >
+      <UiModal
+        :visible="Boolean(showGradeModal)"
+        @close="closeGradeModal"
+      >
+        <template v-if="showGradeModal">
           <div class="modal-card">
             <div class="modal-head">
               <h3>{{ editingGrade ? "Editar grado" : "Nuevo grado" }}</h3>
@@ -554,16 +578,15 @@
               </div>
             </form>
           </div>
-        </div>
-      </Teleport>
+        </template>
+      </UiModal>
 
       <!-- ── Modal: curso ── -->
-      <Teleport to="body">
-        <div
-          v-if="showCourseModal"
-          class="modal-backdrop"
-          @click.self="closeCourseModal"
-        >
+      <UiModal
+        :visible="Boolean(showCourseModal)"
+        @close="closeCourseModal"
+      >
+        <template v-if="showCourseModal">
           <div class="modal-card modal-card--wide">
             <div class="modal-head">
               <div>
@@ -652,16 +675,15 @@
               </div>
             </form>
           </div>
-        </div>
-      </Teleport>
+        </template>
+      </UiModal>
 
       <!-- ── Modal: catálogo de materias ── -->
-      <Teleport to="body">
-        <div
-          v-if="showSubjectCatalog"
-          class="modal-backdrop"
-          @click.self="showSubjectCatalog = false"
-        >
+      <UiModal
+        :visible="Boolean(showSubjectCatalog)"
+        @close="showSubjectCatalog = false"
+      >
+        <template v-if="showSubjectCatalog">
           <div class="modal-card modal-card--wide">
             <div class="modal-head">
               <div>
@@ -761,8 +783,8 @@
               </ul>
             </div>
           </div>
-        </div>
-      </Teleport>
+        </template>
+      </UiModal>
     </div>
 
     <ConfirmModal
@@ -784,82 +806,12 @@
     gap: 18px;
   }
 
-  /* Top bar */
-  .ac-topbar {
-    position: relative;
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 18px;
-    padding: 24px 28px;
-    background: var(--gradient-card-accent);
-    border: 1px solid var(--surface-elevated-strong);
-    border-radius: 28px;
-    box-shadow: var(--shadow-soft);
-    backdrop-filter: blur(18px);
-    flex-shrink: 0;
-    overflow: hidden;
-  }
-
-  .ac-topbar::after {
-    content: "";
-    position: absolute;
-    right: 28px;
-    bottom: -48px;
-    width: 170px;
-    height: 170px;
-    border-radius: 50%;
-    background: var(--gradient-brand-soft);
-    pointer-events: none;
-  }
-
-  .ac-topbar__left,
-  .catalog-pill {
-    position: relative;
-    z-index: 1;
-  }
-
-  .ac-eyebrow {
-    display: block;
-    font-size: var(--text-xs);
-    font-weight: 700;
-    letter-spacing: 0.11em;
-    text-transform: uppercase;
-    color: var(--practiq-violet);
-    margin-bottom: 2px;
-  }
-
-  .ac-title {
-    font-size: clamp(1.4rem, 2.4vw, 2rem);
-    font-weight: 800;
-    color: var(--text-heading);
-    margin: 0;
-  }
-
-  .catalog-pill {
-    display: inline-flex;
-    align-items: center;
-    gap: 8px;
-    padding: 6px 12px;
-    border: 1.5px solid rgba(var(--practiq-violet-rgb), 0.2);
-    background: var(--practiq-violet-bg);
-    color: var(--practiq-violet-dark);
-    border-radius: var(--radius-pill);
-    font-size: var(--text-sm);
-    font-weight: 700;
-    cursor: pointer;
-    transition: var(--transition-fast);
-  }
-  .catalog-pill:hover {
-    background: var(--practiq-violet-pale);
-    border-color: var(--practiq-violet-light);
-  }
-  .catalog-pill__badge {
+  .catalog-button__badge {
     min-width: 20px;
     height: 20px;
     padding: 0 6px;
     border-radius: var(--radius-pill);
-    background: var(--practiq-violet);
+    background: rgba(255, 255, 255, .2);
     color: var(--color-on-primary);
     font-size: var(--text-xs);
     font-weight: 800;
@@ -991,6 +943,7 @@
     flex: 1;
     display: grid;
     grid-template-columns: 248px 1fr;
+    align-items: start;
     min-height: 0;
     overflow: hidden;
     gap: 18px;
@@ -1033,6 +986,8 @@
     flex-direction: column;
     gap: 2px;
   }
+  .grade-mobile-select { display: none; }
+  .school-crumb { display: flex; align-items: center; gap: 6px; }
 
   .grade-nav-item {
     display: flex;
@@ -1100,7 +1055,7 @@
     gap: 6px;
     padding: 7px 10px;
     border: 1px solid rgba(var(--practiq-violet-rgb), 0.18);
-    border-radius: var(--radius-pill);
+    border-radius: var(--radius-md);
     background: var(--fill-primary-faint);
     color: var(--practiq-violet-dark);
     font-size: var(--text-sm);
@@ -1117,6 +1072,7 @@
 
   /* Grade content */
   .grade-content {
+    min-width: 0;
     overflow-y: auto;
     display: flex;
     flex-direction: column;
@@ -1124,6 +1080,14 @@
     border: 1px solid var(--surface-elevated-strong);
     border-radius: var(--radius-2xl);
     box-shadow: var(--shadow-card);
+  }
+
+  @media (min-width: 821px) {
+    .grade-sidebar {
+      position: sticky;
+      top: 20px;
+      max-height: calc(100dvh - 40px);
+    }
   }
 
   .select-hint {
@@ -1258,6 +1222,14 @@
     border-color: rgba(var(--practiq-violet-rgb), 0.22);
     box-shadow: var(--shadow-card-lg);
     transform: translateY(-2px);
+  }
+
+  .course-card__open {
+    display: flex;
+    flex: 1;
+    flex-direction: column;
+    color: inherit;
+    text-decoration: none;
   }
 
   .course-card__subject-bar {
@@ -1492,22 +1464,14 @@
   }
 
   /* Modals */
-  .modal-backdrop {
-    position: fixed;
-    inset: 0;
-    background: var(--surface-scrim);
-    display: grid;
-    place-items: center;
-    padding: 24px;
-    z-index: 100;
-    backdrop-filter: blur(2px);
-  }
-
   .modal-card {
     background: var(--surface-card);
     border-radius: var(--radius-2xl);
     width: min(500px, 100%);
-    max-height: calc(100vh - 48px);
+    /* dvh, not vh: on mobile vh is the viewport with the URL bar retracted,
+       so the card could end up taller than what is actually on screen and
+       push its own buttons under the browser chrome. */
+    max-height: calc(100dvh - 48px);
     overflow-y: auto;
     box-shadow: var(--shadow-panel);
   }
@@ -1746,43 +1710,65 @@
 
   @media (max-width: 820px) {
     .ac-root {
+      display: block;
+      width: 100%;
+      min-width: 0;
       padding: 16px 14px 32px;
     }
-    .ac-topbar {
-      align-items: flex-start;
-      flex-direction: column;
-      padding: 22px 18px;
-      border-radius: 22px;
-    }
-    .catalog-pill {
-      align-self: flex-start;
-    }
     .ac-layout {
-      grid-template-columns: 1fr;
+      width: 100%;
+      min-width: 0;
+      grid-template-columns: minmax(0, 1fr);
       grid-template-rows: auto 1fr;
     }
-    .grade-sidebar {
-      border-right: none;
-      max-height: 180px;
-    }
-    .grade-nav {
-      flex-direction: row;
-      flex-wrap: nowrap;
-      overflow-x: auto;
-      padding: 4px 8px;
-    }
-    .grade-nav-item {
-      flex-shrink: 0;
-    }
+    .grade-sidebar,
+    .grade-content { width: 100%; min-width: 0; border-right: none; }
+    .grade-nav { display: none; }
+    .grade-mobile-select { display: grid; gap: 5px; padding: 10px 12px 12px; color: var(--text-secondary); font-size: var(--text-xs); font-weight: 700; }
+    .grade-mobile-select select { min-height: 44px; width: 100%; padding: 0 10px; border: 1px solid var(--surface-border); border-radius: var(--radius-md); background: var(--surface-card); color: var(--text-primary); font: inherit; }
     .subject-create-row {
       grid-template-columns: 1fr;
-    }
-    .ac-topbar {
-      padding: 14px 16px;
     }
     .courses-area,
     .grade-header {
       padding: 16px;
+    }
+    .grade-header__actions { align-self: flex-start; }
+
+    /* Tap targets >= 44px en mobile */
+    .icon-btn,
+    .icon-btn--sm,
+    .card-action-btn,
+    .modal-close {
+      width: 44px;
+      height: 44px;
+    }
+
+    /* At 44px the filled grey square reads as a heavy block next to the
+       title. Keep the tap target, drop the weight. */
+    .modal-close {
+      background: transparent;
+      font-size: 22px;
+    }
+  }
+
+  @media (max-width: 820px) {
+    .modal-card,
+    .modal-card--wide {
+      width: 100%;
+      max-width: 100%;
+      max-height: 95dvh;
+    }
+
+    .modal-actions {
+      flex-direction: column-reverse;
+      /* The global .modal-actions fallback adds margin-top: 20px on top of
+         this block's padding-top, which read as dead space above the
+         buttons once they went full-width. */
+      margin-top: 4px;
+    }
+    .modal-actions > * {
+      width: 100%;
     }
   }
 </style>

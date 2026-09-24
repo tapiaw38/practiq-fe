@@ -2,10 +2,12 @@
   import { computed, onMounted, onUnmounted, ref, reactive, watch } from "vue";
   import { useRoute, useRouter } from "vue-router";
   import { useAuthStore } from "@/stores/authStore";
-  import { useCourse } from "@/composables/useCourse";
+  import { useDashboard } from "@/composables/useDashboard";
   import { useLevel } from "@/composables/useLevel";
   import ChangePasswordModal from "@/components/auth/ChangePasswordModal.vue";
   import SetPasswordModal from "@/components/auth/SetPasswordModal.vue";
+  import NotificationBell from "@/components/ui/NotificationBell.vue";
+  import UserAvatar from "@/components/ui/UserAvatar.vue";
   import type { LevelData } from "@/types";
 
   interface CourseNavItem {
@@ -19,20 +21,38 @@
   const route = useRoute();
   const router = useRouter();
   const authStore = useAuthStore();
-  const { loadCourses } = useCourse();
+  const { loadDashboard } = useDashboard();
   const { loadCourseLevels } = useLevel();
   const profile = computed(() => authStore.profile);
+  const avatarSeed = computed(() => profile.value?.avatar_seed || "");
   const userInitial = computed(
     () => profile.value?.name?.[0]?.toUpperCase() || "A",
   );
   const navOpen = ref(false);
+  const drawerViewportHeight = ref(0);
+  const drawerViewportTop = ref(0);
   const coursesOpen = ref(false);
   const loadingCourses = ref(false);
   const coursesData = ref<CourseNavItem[]>([]);
   const openCourses = ref(new Set<string>());
   const showChangePassword = ref(false);
   const showSetPassword = ref(false);
+  const lastPracticedSheetId = ref("");
+  let drawerSwipeStart: { x: number; y: number; wasOpen: boolean } | null = null;
   const isGoogleUser = computed(() => authStore.authMethod === "google");
+  const showMobileBottomNav = computed(() => ![
+    "student-practice",
+    "student-level-test",
+    "student-notebook",
+    "student-course-levels",
+  ].includes(String(route.name || "")));
+  const drawerViewportStyle = computed(() => {
+    if (window.innerWidth > 920 || !drawerViewportHeight.value) return undefined;
+    return {
+      top: `${drawerViewportTop.value + 12}px`,
+      height: `${Math.max(0, drawerViewportHeight.value - 24)}px`,
+    };
+  });
   // openLevels[courseId] = Set of open level numbers
   const openLevels = reactive<Record<string, Set<number>>>({});
 
@@ -74,14 +94,22 @@
     if (!open || coursesData.value.length) return;
     loadingCourses.value = true;
     try {
-      const courses = await loadCourses("student");
-      coursesData.value = (courses || []).map((c) => ({
-        id: c.id,
+      // The home already read these, so opening this list from there costs
+      // nothing. It used to call `/courses?role=student` again, which answered
+      // with grade ids, subject ids and descriptions to draw a title.
+      const dashboard = await loadDashboard();
+      coursesData.value = (dashboard.courses || []).map((c) => ({
+        id: c.course_id,
         title: c.title,
-        currentLevel: 1,
+        // The level the student is on, which the badge shows. It used to start
+        // at 1 for every course until the levels call came back and corrected
+        // it, so the sidebar briefly claimed everyone was on level 1.
+        currentLevel: c.current_level,
         levels: [],
         loading: false,
       }));
+    } catch {
+      coursesData.value = [];
     } finally {
       loadingCourses.value = false;
     }
@@ -106,6 +134,44 @@
     if (window.innerWidth > 920) navOpen.value = false;
   }
 
+  function syncDrawerViewport() {
+    drawerViewportHeight.value = Math.round(
+      window.visualViewport?.height ?? window.innerHeight,
+    );
+    drawerViewportTop.value = Math.round(window.visualViewport?.offsetTop ?? 0);
+  }
+
+  function syncLastPractice(event: Event) {
+    const id = (event as CustomEvent<{ id?: string }>).detail?.id || "";
+    lastPracticedSheetId.value = id;
+  }
+
+  function canUseDrawerSwipe() {
+    return window.innerWidth <= 920 && showMobileBottomNav.value;
+  }
+
+  function onDrawerTouchStart(event: TouchEvent) {
+    if (!canUseDrawerSwipe() || event.touches.length !== 1) return;
+    const touch = event.touches[0];
+    if (!touch) return;
+    drawerSwipeStart = { x: touch.clientX, y: touch.clientY, wasOpen: navOpen.value };
+  }
+
+  function onDrawerTouchEnd(event: TouchEvent) {
+    const start = drawerSwipeStart;
+    drawerSwipeStart = null;
+    const touch = event.changedTouches[0];
+    if (!start || !touch || !canUseDrawerSwipe()) return;
+
+    const deltaX = touch.clientX - start.x;
+    const deltaY = touch.clientY - start.y;
+    // Horizontal intent only. This preserves regular vertical page/sidebar
+    // scrolling and reserves opening for a deliberate left-edge gesture.
+    if (Math.abs(deltaX) < 64 || Math.abs(deltaX) <= Math.abs(deltaY) * 1.35) return;
+    if (!start.wasOpen && start.x <= 32 && deltaX > 0) navOpen.value = true;
+    if (start.wasOpen && deltaX < 0) navOpen.value = false;
+  }
+
   watch(
     () => route.fullPath,
     () => {
@@ -113,11 +179,37 @@
     },
   );
 
+  watch(navOpen, (open) => {
+    window.dispatchEvent(
+      new CustomEvent("student-drawer-toggled", { detail: { open } }),
+    );
+  });
+
   onMounted(() => {
+    syncDrawerViewport();
     window.addEventListener("resize", syncDesktopState);
+    window.addEventListener("resize", syncDrawerViewport);
+    window.visualViewport?.addEventListener("resize", syncDrawerViewport);
+    window.visualViewport?.addEventListener("scroll", syncDrawerViewport);
+    window.addEventListener("practiq:last-practice-changed", syncLastPractice);
+    window.addEventListener("touchstart", onDrawerTouchStart, { passive: true });
+    window.addEventListener("touchend", onDrawerTouchEnd, { passive: true });
+    // Sidebar can open before Inicio. Read server-owned resume state once;
+    // browser storage would leak stale sheets across devices and accounts.
+    void loadDashboard()
+      .then((dashboard) => {
+        lastPracticedSheetId.value = dashboard.last_practiced_sheet_id || "";
+      })
+      .catch(() => undefined);
   });
   onUnmounted(() => {
     window.removeEventListener("resize", syncDesktopState);
+    window.removeEventListener("resize", syncDrawerViewport);
+    window.visualViewport?.removeEventListener("resize", syncDrawerViewport);
+    window.visualViewport?.removeEventListener("scroll", syncDrawerViewport);
+    window.removeEventListener("practiq:last-practice-changed", syncLastPractice);
+    window.removeEventListener("touchstart", onDrawerTouchStart);
+    window.removeEventListener("touchend", onDrawerTouchEnd);
   });
 
   function logout() {
@@ -130,7 +222,12 @@
 <template>
   <div class="app-shell">
     <header class="mobile-topbar">
-      <button class="topbar-btn" type="button" @click="navOpen = true">
+      <button
+        class="topbar-btn"
+        type="button"
+        aria-label="Abrir menú de navegación"
+        @click="navOpen = true"
+      >
         <i class="pi pi-bars"></i>
       </button>
 
@@ -138,12 +235,18 @@
         <img src="@/assets/logo.png" class="topbar-logo" alt="Practiq" />
       </div>
 
-      <div class="topbar-avatar">{{ userInitial }}</div>
+      <div class="topbar-right">
+        <NotificationBell />
+        <RouterLink to="/student/profile" class="topbar-avatar-link" aria-label="Tu perfil">
+          <UserAvatar v-if="avatarSeed" :seed="avatarSeed" :size="38" />
+          <span v-else class="topbar-avatar">{{ userInitial }}</span>
+        </RouterLink>
+      </div>
     </header>
 
     <div v-if="navOpen" class="drawer-backdrop" @click="navOpen = false"></div>
 
-    <aside class="sidebar" :class="{ 'sidebar--open': navOpen }">
+    <aside class="sidebar" :class="{ 'sidebar--open': navOpen }" :style="drawerViewportStyle">
       <div class="sidebar-brand">
         <img src="@/assets/logo.png" class="sidebar-logo" alt="Practiq" />
         <button class="close-btn" type="button" @click="navOpen = false">
@@ -163,10 +266,55 @@
           <span>Inicio</span>
         </RouterLink>
 
+        <RouterLink
+          v-if="lastPracticedSheetId"
+          :to="`/student/practice/${lastPracticedSheetId}`"
+          class="nav-item nav-item--continue"
+          title="Continuar última práctica"
+          aria-label="Continuar última práctica"
+          @click="navOpen = false"
+        >
+          <span class="nav-icon"><i class="pi pi-play-circle"></i></span>
+          <span>Continuar</span>
+        </RouterLink>
+
+        <RouterLink
+          to="/student/progress"
+          class="nav-item"
+          active-class="nav-item-active"
+          @click="navOpen = false"
+        >
+          <span class="nav-icon"><i class="pi pi-chart-line"></i></span>
+          <span>Mi progreso</span>
+        </RouterLink>
+
+        <RouterLink
+          to="/student/league"
+          class="nav-item"
+          active-class="nav-item-active"
+          @click="navOpen = false"
+        >
+          <span class="nav-icon"><i class="pi pi-bolt"></i></span>
+          <span>Mi liga</span>
+        </RouterLink>
+
+        <RouterLink
+          to="/student/profile"
+          class="nav-item"
+          active-class="nav-item-active"
+          @click="navOpen = false"
+        >
+          <span class="nav-icon"><i class="pi pi-user"></i></span>
+          <span>Mi perfil</span>
+        </RouterLink>
+
         <!-- Courses and levels -->
         <div class="nav-group">
           <button
             class="nav-item nav-item-btn"
+            :title="coursesOpen ? 'Cerrar Mis Cursos' : 'Abrir Mis Cursos'"
+            :aria-expanded="coursesOpen"
+            aria-controls="student-courses-nav"
             @click="coursesOpen = !coursesOpen"
           >
             <span class="nav-icon"><i class="pi pi-book"></i></span>
@@ -177,9 +325,15 @@
             ></i>
           </button>
 
-          <div v-if="coursesOpen" class="nav-sub">
-            <div v-if="loadingCourses" class="nav-sub-loading">
-              <i class="pi pi-spin pi-spinner"></i>
+          <div v-if="coursesOpen" id="student-courses-nav" class="nav-sub">
+            <div
+              v-if="loadingCourses"
+              class="nav-sub-loading"
+              role="status"
+              aria-busy="true"
+              aria-label="Cargando cursos"
+            >
+              <i class="pi pi-spin pi-spinner" aria-hidden="true"></i>
             </div>
             <template v-else-if="coursesData.length">
               <div
@@ -285,10 +439,16 @@
                           <div class="nav-section-tag">Prueba de Nivel</div>
                           <button
                             class="nav-book-item nav-book-item--test"
+                            :disabled="lv.level_test.submitted"
                             @click="goLevelTest(lv.level_test!.id)"
                           >
                             <i class="pi pi-star"></i>
-                            <span>{{ lv.level_test.title }}</span>
+                            <span>
+                              {{ lv.level_test.title }}
+                              <small v-if="lv.level_test.submitted">
+                                · {{ lv.level_test.pending_review ? "En revisión" : "Realizada" }}
+                              </small>
+                            </span>
                           </button>
                         </template>
 
@@ -315,13 +475,16 @@
 
       <div class="sidebar-footer">
         <div class="user-info">
-          <div class="user-avatar">{{ userInitial }}</div>
+          <UserAvatar v-if="avatarSeed" :seed="avatarSeed" :size="42" />
+          <div v-else class="user-avatar">{{ userInitial }}</div>
           <div class="user-details">
             <div class="user-name">{{ profile?.name || "Alumno" }}</div>
             <div class="user-role">Estudiante</div>
           </div>
         </div>
         <div class="footer-actions">
+          <!-- Desktop entry point: the topbar bell only shows on mobile. -->
+          <NotificationBell class="footer-bell" />
           <button
             class="icon-btn"
             type="button"
@@ -351,6 +514,22 @@
     <main class="main-content">
       <slot />
     </main>
+
+    <nav v-if="showMobileBottomNav" class="student-bottom-nav" aria-label="Navegación principal">
+      <RouterLink to="/student/dashboard" class="student-bottom-nav__item" active-class="student-bottom-nav__item--active">
+        <i class="pi pi-home"></i><span>Inicio</span>
+      </RouterLink>
+      <RouterLink to="/student/league" class="student-bottom-nav__item" active-class="student-bottom-nav__item--active">
+        <i class="pi pi-bolt"></i><span>Mi liga</span>
+      </RouterLink>
+      <!-- Progreso salio de la barra, sigue en el menu "Mas" como Mi progreso. -->
+      <RouterLink to="/student/profile" class="student-bottom-nav__item" active-class="student-bottom-nav__item--active">
+        <i class="pi pi-user"></i><span>Perfil</span>
+      </RouterLink>
+      <button class="student-bottom-nav__item" type="button" @click="navOpen = true">
+        <i class="pi pi-bars"></i><span>Más</span>
+      </button>
+    </nav>
   </div>
 
   <Teleport to="body">
@@ -361,6 +540,9 @@
 
 <style scoped>
   .app-shell {
+    /* Fallback for views that reserve assistant desktop rail. Package writes
+       same token while loaded; local declaration keeps host CSS self-contained. */
+    --practiq-assistant-rail: clamp(320px, 27vw, 430px);
     min-height: 100vh;
     display: flex;
     background: var(--gradient-app-bg);
@@ -460,8 +642,8 @@
   .close-btn,
   .topbar-btn,
   .logout-btn {
-    width: 42px;
-    height: 42px;
+    width: 44px;
+    height: 44px;
     border: none;
     border-radius: var(--radius-lg);
     background: var(--surface-subtle);
@@ -524,17 +706,6 @@
     box-shadow: var(--shadow-card);
   }
 
-  .nav-item-active::before {
-    content: "";
-    position: absolute;
-    left: -4px;
-    top: 12px;
-    bottom: 12px;
-    width: 3px;
-    border-radius: var(--radius-pill);
-    background: var(--practiq-violet);
-  }
-
   .nav-icon {
     width: 30px;
     height: 30px;
@@ -565,6 +736,9 @@
     cursor: pointer;
     text-align: left;
     justify-content: flex-start;
+    font-family: inherit;
+    font-size: var(--text-md);
+    font-weight: 700;
   }
 
   .nav-chevron {
@@ -584,9 +758,17 @@
   }
 
   .nav-sub-loading {
+    display: flex;
+    align-items: center;
     padding: 8px 12px;
-    font-size: var(--text-sm);
     color: var(--text-secondary);
+    font-size: var(--text-sm);
+    font-weight: 600;
+  }
+
+  .nav-sub-loading .pi-spinner {
+    color: var(--practiq-violet);
+    font-size: var(--text-sm);
   }
 
   .nav-sub-empty {
@@ -608,7 +790,7 @@
     gap: 9px;
     padding: 10px 11px;
     border-radius: var(--radius-lg);
-    border: 1px solid transparent;
+    border: none;
     background: rgba(var(--surface-card-rgb), 0.42);
     cursor: pointer;
     text-align: left;
@@ -616,8 +798,7 @@
     width: 100%;
   }
   .nav-course-toggle:hover {
-    background: var(--surface-elevated-strong);
-    border-color: rgba(var(--practiq-violet-rgb), 0.12);
+    background: rgba(var(--practiq-violet-rgb), 0.1);
   }
   .nav-course-toggle .pi-graduation-cap {
     width: 26px;
@@ -654,7 +835,7 @@
     gap: 8px;
     padding: 8px 10px;
     border-radius: var(--radius-md);
-    border: 1px solid transparent;
+    border: none;
     background: transparent;
     cursor: pointer;
     width: 100%;
@@ -663,11 +844,9 @@
   }
   .nav-level-row:hover:not(:disabled) {
     background: var(--surface-elevated-strong);
-    border-color: rgba(var(--practiq-violet-rgb), 0.1);
   }
   .nav-level-row--current {
     background: var(--fill-primary-subtle);
-    border-color: rgba(var(--practiq-violet-rgb), 0.12);
   }
   .nav-level-row--locked {
     cursor: default;
@@ -725,7 +904,7 @@
     gap: 8px;
     padding: 8px 10px 8px 12px;
     border-radius: var(--radius-md);
-    border: 1px solid transparent;
+    border: none;
     background: rgba(var(--surface-bg-rgb), 0.5);
     cursor: pointer;
     font-size: var(--text-sm);
@@ -738,25 +917,21 @@
 
   .nav-book-item:hover {
     background: var(--fill-primary-subtle);
-    border-color: rgba(var(--practiq-violet-rgb), 0.12);
     color: var(--practiq-violet-dark);
   }
 
   .nav-book-item--practice:hover {
     background: var(--fill-success-subtle);
-    border-color: rgba(var(--color-success-rgb), 0.14);
     color: var(--color-success-dark);
   }
 
   .nav-book-item--test:hover {
     background: var(--fill-warning-subtle);
-    border-color: rgba(var(--color-warning-rgb), 0.16);
     color: var(--color-warning-strong);
   }
 
   .nav-book-item--notebook:hover {
     background: var(--fill-primary-subtle);
-    border-color: rgba(var(--practiq-violet-rgb), 0.12);
     color: var(--practiq-violet);
   }
 
@@ -794,9 +969,21 @@
     flex-shrink: 0;
   }
 
+  .topbar-right {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+
+  /* Match the sibling icon buttons in the sidebar footer. */
+  .footer-bell :deep(.bell-btn) {
+    width: 44px;
+    height: 44px;
+  }
+
   .icon-btn {
-    width: 36px;
-    height: 36px;
+    width: 44px;
+    height: 44px;
     border: none;
     border-radius: var(--radius-md);
     background: var(--surface-subtle);
@@ -824,11 +1011,18 @@
     flex: 1;
   }
 
+  .topbar-avatar-link {
+    display: inline-flex;
+    overflow: hidden;
+    border-radius: 50%;
+    text-decoration: none;
+  }
   .user-avatar,
   .topbar-avatar {
     width: 46px;
     height: 46px;
-    border-radius: var(--radius-xl);
+    border-radius: 50%;
+    overflow: hidden;
     background: var(--gradient-brand);
     color: var(--color-on-primary);
     display: grid;
@@ -840,6 +1034,12 @@
 
   .user-details {
     min-width: 0;
+    /* The desktop sidebar (220-280px depending on the breakpoint) never had
+       room for three 44px action buttons plus a name: at 1280px this still
+       squeezed "Walter Tapia" into a 20px-wide box, unreadable rather than
+       actually hidden. The 920px drawer is a flat 320px regardless of the
+       viewport, wide enough to show it — re-enabled there below. */
+    display: none;
   }
 
   .user-name {
@@ -865,6 +1065,8 @@
     display: none;
   }
 
+  .student-bottom-nav { display: none; }
+
   @media (max-width: 1100px) {
     .sidebar {
       width: 250px;
@@ -884,6 +1086,31 @@
     .main-content {
       padding: 16px;
     }
+
+    /* The footer's three 44px action buttons never shrink (flex-shrink: 0),
+       so at this sidebar width they ran out of room and sat on top of the
+       avatar instead of next to it. */
+    .sidebar-footer {
+      gap: 6px;
+      padding: 14px 4px 0;
+    }
+
+    .user-avatar {
+      width: 38px;
+      height: 38px;
+      font-size: var(--text-sm);
+    }
+
+    .footer-actions {
+      gap: 3px;
+    }
+
+    .icon-btn,
+    .footer-bell :deep(.bell-btn) {
+      width: 34px;
+      height: 34px;
+      font-size: var(--text-sm);
+    }
   }
 
   /* Tablet portrait */
@@ -894,6 +1121,13 @@
   }
 
   @media (max-width: 920px) {
+    /* The bottom bar is fixed from here down, so the scroll container has to
+       end above it. Views used to pad for it one by one and the ones that
+       forgot had their last card sitting under the nav. */
+    .main-content {
+      padding-bottom: calc(72px + 16px + env(safe-area-inset-bottom));
+    }
+
     .app-shell {
       display: block;
     }
@@ -912,7 +1146,7 @@
     .topbar-avatar {
       width: 42px;
       height: 42px;
-      border-radius: var(--radius-xl);
+      border-radius: 50%;
     }
 
     .drawer-backdrop {
@@ -920,7 +1154,7 @@
       position: fixed;
       inset: 0;
       background: var(--surface-scrim);
-      z-index: 34;
+      z-index: 250;
     }
 
     .sidebar {
@@ -932,17 +1166,107 @@
       height: calc(100vh - 24px);
       transform: translateX(-110%);
       transition: transform 0.24s ease;
-      z-index: 40;
+      z-index: 260;
     }
 
     .sidebar--open {
       transform: translateX(0);
     }
+
+    /* Drawer is a flat 320px here regardless of viewport width, wide enough
+       to show the name next to the avatar again. */
+    .user-details {
+      display: block;
+    }
+
+    /* Tap targets >= 44px en mobile */
+    .nav-item {
+      min-height: 52px;
+    }
+
+    .nav-level-row,
+    .nav-book-item,
+    .nav-course-toggle {
+      min-height: 48px;
+    }
+
+    .student-bottom-nav { position:fixed; z-index:28; left:0; right:0; bottom:0; height:72px; display:grid; grid-template-columns:repeat(4,1fr); padding:7px 10px calc(7px + env(safe-area-inset-bottom)); background:var(--surface-glass); border-top:1px solid var(--surface-glass-border); box-shadow:0 -8px 28px rgba(var(--text-primary-rgb),.06); backdrop-filter:blur(18px); }
+    .student-bottom-nav__item { min-width:0; display:grid; place-items:center; align-content:center; gap:4px; border:0; background:transparent; color:var(--text-secondary); text-decoration:none; font:inherit; font-size:10px; font-weight:700; cursor:pointer; }.student-bottom-nav__item i { font-size:1.05rem; }.student-bottom-nav__item--active { color:var(--practiq-violet-dark); }.student-bottom-nav__item--active i { width:40px; height:28px; display:grid; place-items:center; border-radius:var(--radius-pill); background:var(--fill-primary-soft); }
   }
 
   @media (min-width: 921px) {
     .close-btn {
       display: none;
+    }
+
+    /* Assistant desktop rail takes space from the right. Collapse navigation
+       first, rather than scaling the student's drawing canvas. */
+    :global(.practiq-assistant-focus-target--open .sidebar) {
+      width: 76px;
+      margin-left: 12px;
+      padding: 14px 10px;
+      border-radius: 24px;
+    }
+
+    /* Package only marks #app as focused. Keep its flex root at full width;
+       shrinking #app made the complete student view render as a blank sheet.
+       Collapsing the sidebar frees room for the assistant without scaling the
+       drawing canvas. */
+    :global(.practiq-assistant-focus-target--open .app-shell) {
+      min-width: 0;
+    }
+
+    :global(.practiq-assistant-focus-target--open .sidebar-brand) {
+      justify-content: center;
+      padding: 2px 0 12px;
+    }
+
+    :global(.practiq-assistant-focus-target--open .sidebar-logo) {
+      width: 40px;
+      height: 40px;
+      object-fit: cover;
+      object-position: left center;
+    }
+
+    :global(.practiq-assistant-focus-target--open .sidebar-nav) {
+      align-items: center;
+      padding: 0;
+    }
+
+    :global(.practiq-assistant-focus-target--open .nav-section-label),
+    :global(.practiq-assistant-focus-target--open .nav-item > span:not(.nav-icon)),
+    :global(.practiq-assistant-focus-target--open .nav-chevron),
+    :global(.practiq-assistant-focus-target--open .nav-sub) {
+      display: none;
+    }
+
+    :global(.practiq-assistant-focus-target--open .nav-group),
+    :global(.practiq-assistant-focus-target--open .nav-item) {
+      width: 100%;
+    }
+
+    :global(.practiq-assistant-focus-target--open .nav-item) {
+      justify-content: center;
+      padding: 8px;
+    }
+
+    :global(.practiq-assistant-focus-target--open .sidebar-footer) {
+      flex-direction: column;
+      padding: 10px 0 0;
+      gap: 8px;
+    }
+
+    :global(.practiq-assistant-focus-target--open .user-details) {
+      display: none;
+    }
+
+    :global(.practiq-assistant-focus-target--open .user-info),
+    :global(.practiq-assistant-focus-target--open .footer-actions) {
+      flex: 0 0 auto;
+    }
+
+    :global(.practiq-assistant-focus-target--open .footer-actions) {
+      flex-direction: column;
     }
   }
 </style>

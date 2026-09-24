@@ -1,4 +1,5 @@
 <script setup lang="ts">
+  import UiModal from "@/components/ui/UiModal.vue";
   import { computed, onMounted, reactive, ref } from "vue";
   import { useRoute, useRouter } from "vue-router";
   import TeacherLayout from "@/layouts/TeacherLayout.vue";
@@ -103,10 +104,6 @@
     router.push("/teacher/admin/academic");
   }
 
-  function openCourse(id: string) {
-    router.push(`/teacher/courses/${id}`);
-  }
-
 </script>
 
 <template>
@@ -206,7 +203,6 @@
           v-for="course in filteredCourses"
           :key="course.id"
           class="course-card"
-          @click="openCourse(course.id)"
         >
           <div class="course-card__accent"></div>
           <div class="course-card__body">
@@ -218,7 +214,14 @@
                 course.level
               }}</span>
             </div>
-            <h3 class="course-title">{{ course.title }}</h3>
+            <h3 class="course-title">
+              <RouterLink
+                class="course-title__link"
+                :to="`/teacher/courses/${course.id}`"
+              >
+                {{ course.title }}
+              </RouterLink>
+            </h3>
             <p class="course-desc">
               {{ course.description || "Sin descripción" }}
             </p>
@@ -227,116 +230,114 @@
                 <i class="pi pi-calendar"></i>
                 {{ formatDate(course.created_at) }}
               </span>
-              <button
-                class="btn btn-secondary btn-sm"
-                type="button"
-                @click.stop="openCourse(course.id)"
-              >
-                Abrir
-              </button>
+              <span class="course-cta" aria-hidden="true">
+                Abrir <i class="pi pi-arrow-right"></i>
+              </span>
             </div>
           </div>
         </article>
       </div>
 
-      <Teleport to="body">
-        <Transition name="fade">
-          <div
-            v-if="showCreateModal"
-            class="modal-overlay"
-            @click.self="showCreateModal = false"
-          >
-            <div class="modal-box">
+      <UiModal
+        :visible="Boolean(showCreateModal)"
+        @close="showCreateModal = false"
+      >
+        <template v-if="showCreateModal">
+          <div class="modal-box">
+            <div class="modal-header">
               <h3 class="modal-title">
                 Crear curso en {{ subject?.name || "materia" }}
               </h3>
-
-              <div v-if="grades.length === 0" class="setup-notice">
-                <i class="pi pi-info-circle"></i>
-                <span>
-                  Antes de crear un curso necesitas tener grados configurados.
-                  <router-link
-                    to="/teacher/admin/academic"
-                    @click="showCreateModal = false"
-                    class="setup-link"
-                  >
-                    Volver a académico ->
-                  </router-link>
-                </span>
-              </div>
-
-              <form @submit.prevent="createCourse">
-                <div class="form-group">
-                  <label class="form-label">Título *</label>
-                  <input
-                    v-model="newCourse.title"
-                    class="form-input"
-                    placeholder="Matemática - Primer grado"
-                    required
-                  />
-                </div>
-                <div class="form-group">
-                  <label class="form-label">Descripción</label>
-                  <textarea
-                    v-model="newCourse.description"
-                    class="form-textarea"
-                    placeholder="Describe el curso..."
-                    rows="3"
-                  ></textarea>
-                </div>
-                <div class="form-row">
-                  <div class="form-group">
-                    <label class="form-label">Materia</label>
-                    <input
-                      :value="subject?.name || ''"
-                      class="form-input"
-                      disabled
-                    />
-                  </div>
-                  <div class="form-group">
-                    <label class="form-label">Grado</label>
-                    <select v-model="newCourse.grade_id" class="form-select">
-                      <option value="">Seleccionar</option>
-                      <option
-                        v-for="grade in grades"
-                        :key="grade.id"
-                        :value="grade.id"
-                      >
-                        {{ grade.name }}
-                      </option>
-                    </select>
-                  </div>
-                </div>
-                <div class="form-group">
-                  <label class="form-label">Nivel académico</label>
-                  <input
-                    v-model="newCourse.level"
-                    class="form-input"
-                    placeholder="Primaria, Secundaria..."
-                  />
-                </div>
-                <div class="modal-actions">
-                  <button
-                    type="button"
-                    class="btn btn-secondary"
-                    @click="showCreateModal = false"
-                  >
-                    Cancelar
-                  </button>
-                  <button
-                    type="submit"
-                    class="btn btn-primary"
-                    :disabled="creating"
-                  >
-                    <span v-if="creating" class="spinner"></span>
-                    Crear curso
-                  </button>
-                </div>
-              </form>
+              <button type="button" class="modal-close" aria-label="Cerrar" @click="showCreateModal = false">
+                <i class="pi pi-times"></i>
+              </button>
             </div>
+
+            <div v-if="grades.length === 0" class="setup-notice">
+              <i class="pi pi-info-circle"></i>
+              <span>
+                Antes de crear un curso necesitas tener grados configurados.
+                <router-link
+                  to="/teacher/admin/academic"
+                  @click="showCreateModal = false"
+                  class="setup-link"
+                >
+                  Volver a académico ->
+                </router-link>
+              </span>
+            </div>
+
+            <form @submit.prevent="createCourse">
+              <div class="form-group">
+                <label class="form-label">Título *</label>
+                <input
+                  v-model="newCourse.title"
+                  class="form-input"
+                  placeholder="Matemática - Primer grado"
+                  required
+                />
+              </div>
+              <div class="form-group">
+                <label class="form-label">Descripción</label>
+                <textarea
+                  v-model="newCourse.description"
+                  class="form-textarea"
+                  placeholder="Describe el curso..."
+                  rows="3"
+                ></textarea>
+              </div>
+              <div class="form-row">
+                <div class="form-group">
+                  <label class="form-label">Materia</label>
+                  <input
+                    :value="subject?.name || ''"
+                    class="form-input"
+                    disabled
+                  />
+                </div>
+                <div class="form-group">
+                  <label class="form-label">Grado</label>
+                  <select v-model="newCourse.grade_id" class="form-select">
+                    <option value="">Seleccionar</option>
+                    <option
+                      v-for="grade in grades"
+                      :key="grade.id"
+                      :value="grade.id"
+                    >
+                      {{ grade.name }}
+                    </option>
+                  </select>
+                </div>
+              </div>
+              <div class="form-group">
+                <label class="form-label">Nivel académico</label>
+                <input
+                  v-model="newCourse.level"
+                  class="form-input"
+                  placeholder="Primaria, Secundaria..."
+                />
+              </div>
+              <div class="modal-actions">
+                <button
+                  type="button"
+                  class="btn btn-secondary"
+                  @click="showCreateModal = false"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  class="btn btn-primary"
+                  :disabled="creating"
+                >
+                  <span v-if="creating" class="spinner"></span>
+                  Crear curso
+                </button>
+              </div>
+            </form>
           </div>
-        </Transition>
-      </Teleport>
+        </template>
+      </UiModal>
     </div>
   </TeacherLayout>
 </template>
@@ -348,17 +349,23 @@
   }
 
   .hero-card {
+    position: relative;
     display: flex;
     align-items: center;
     justify-content: space-between;
     gap: 24px;
-    padding: 24px 28px;
-    border-radius: 28px;
-    background: var(--gradient-card-accent);
+    padding: 22px 24px;
+    border-radius: var(--radius-2xl);
+    background: linear-gradient(115deg, var(--surface-elevated), var(--surface-card));
     border: 1px solid var(--surface-elevated-strong);
     box-shadow: var(--shadow-soft);
     backdrop-filter: blur(18px);
-    margin-bottom: 18px;
+    margin-bottom: 16px;
+    overflow: hidden;
+  }
+  .hero-card > * {
+    position: relative;
+    z-index: 1;
   }
 
   .hero-kicker {
@@ -444,11 +451,9 @@
   }
 
   .empty-state {
-    text-align: center;
     padding: 44px 24px;
-    background: var(--surface-glass);
-    border-radius: var(--radius-xl);
     border: 1px dashed var(--surface-border);
+    border-radius: var(--radius-xl);
   }
 
   .empty-icon {
@@ -482,6 +487,7 @@
   }
 
   .course-card {
+    position: relative;
     border-radius: var(--radius-2xl);
     background: var(--surface-elevated);
     border: 1px solid var(--surface-elevated-strong);
@@ -489,6 +495,30 @@
     overflow: hidden;
     cursor: pointer;
     transition: var(--transition);
+  }
+
+  .course-title__link {
+    color: inherit;
+    text-decoration: none;
+  }
+
+  .course-title__link::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+  }
+
+  .course-card:focus-within {
+    border-color: var(--practiq-violet-light);
+  }
+
+  .course-cta {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    color: var(--practiq-violet);
+    font-size: var(--text-sm);
+    font-weight: 700;
   }
 
   .course-card:hover {

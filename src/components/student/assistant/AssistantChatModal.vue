@@ -1,16 +1,21 @@
 <template>
   <Teleport to="body">
     <Transition name="acm-fade">
-      <div v-if="show" class="acm-overlay" @click.self="$emit('close')">
-        <div class="acm-modal" role="dialog" aria-label="Asistente de práctica">
+      <div
+        v-if="show"
+        class="acm-overlay"
+        :style="mobileViewportStyle"
+        @click.self="requestClose"
+      >
+        <div class="acm-modal" role="dialog" aria-label="Quanty, el asistente de práctica">
           <!-- ── Header ── -->
           <div class="acm-header">
             <div class="acm-header-info">
               <div class="acm-avatar" aria-hidden="true">
-                <img src="@/assets/robot.png" alt="" />
+                <img src="@/assets/quanty.png" alt="" />
               </div>
               <div>
-                <div class="acm-title">Mi Asistente</div>
+                <div class="acm-title">Quanty</div>
                 <div class="acm-status">
                   <span
                     class="acm-dot"
@@ -20,26 +25,145 @@
                 </div>
               </div>
             </div>
-            <button
-              class="acm-close"
-              @click="$emit('close')"
-              aria-label="Cerrar"
-            >
-              <i class="pi pi-times"></i>
-            </button>
+            <div class="acm-header-actions">
+              <button
+                class="acm-close"
+                :class="{ 'acm-voice-on': voiceReplies }"
+                :aria-pressed="voiceReplies"
+                :title="
+                  voiceReplies
+                    ? 'Respuestas con voz activadas'
+                    : 'Respuestas con voz desactivadas'
+                "
+                aria-label="Activar o desactivar respuestas con voz"
+                @click="toggleVoiceReplies"
+              >
+                <i
+                  :class="voiceReplies ? 'pi pi-volume-up' : 'pi pi-volume-off'"
+                ></i>
+              </button>
+              <button
+                class="acm-close"
+                @click="requestClose"
+                aria-label="Cerrar"
+              >
+                <i class="pi pi-times"></i>
+              </button>
+            </div>
           </div>
 
+          <div v-if="activeGuidedPractice && !needsPracticeSetup" class="acm-practice-context">
+            <i :class="mode === 'pizarron' ? 'pi pi-pencil' : 'pi pi-comments'" aria-hidden="true"></i>
+            <span>{{ activeGuidedPractice.course.title }}</span>
+            <i class="pi pi-angle-right" aria-hidden="true"></i>
+            <strong>{{ activeGuidedPractice.topic.title }}</strong>
+            <span class="acm-practice-context__mode">{{ modeLabel }}</span>
+          </div>
+
+          <!-- ── Guided practice setup ── -->
+          <template v-if="needsPracticeSetup">
+            <div class="acm-practice-picker">
+              <div class="acm-practice-picker__intro">
+                <span class="acm-practice-picker__eyebrow">Práctica guiada</span>
+                <h3>¿Qué querés practicar?</h3>
+                <p>Elegí un curso y un tema. Quanty preparará ejercicios solo sobre esa elección.</p>
+              </div>
+
+              <div class="acm-practice-picker__group">
+                <span class="acm-practice-picker__label">Curso</span>
+                <div class="acm-practice-picker__chips" role="listbox" aria-label="Elegí un curso">
+                  <button
+                    v-for="course in studentContext?.courses ?? []"
+                    :key="course.id"
+                    type="button"
+                    class="acm-practice-chip"
+                    :class="{ 'acm-practice-chip--selected': selectedCourseId === course.id }"
+                    :aria-selected="selectedCourseId === course.id"
+                    @click="selectCourse(course.id)"
+                  >
+                    {{ course.title }}
+                  </button>
+                </div>
+              </div>
+
+              <div v-if="selectedCourseId" class="acm-practice-picker__group">
+                <span class="acm-practice-picker__label">Tema</span>
+                <div v-if="topicsLoading" class="acm-practice-picker__loading">
+                  <i class="pi pi-spin pi-spinner" aria-hidden="true"></i> Cargando temas…
+                </div>
+                <div v-else-if="topics.length" class="acm-practice-picker__chips" role="listbox" aria-label="Elegí un tema">
+                  <button
+                    v-for="topic in topics"
+                    :key="topic.id"
+                    type="button"
+                    class="acm-practice-chip"
+                    :class="{ 'acm-practice-chip--selected': selectedTopicId === topic.id }"
+                    :aria-selected="selectedTopicId === topic.id"
+                    @click="selectedTopicId = topic.id"
+                  >
+                    {{ topic.title }}
+                  </button>
+                </div>
+                <p v-else class="acm-practice-picker__empty">Este curso todavía no tiene temas para practicar.</p>
+              </div>
+
+              <div v-if="selectedTopic" class="acm-practice-picker__group">
+                <span class="acm-practice-picker__label">Modalidad</span>
+                <div class="acm-practice-picker__modes" role="radiogroup" aria-label="Elegí una modalidad">
+                  <button
+                    v-for="item in modes"
+                    :key="item.value"
+                    type="button"
+                    class="acm-practice-mode"
+                    :class="{ 'acm-practice-mode--selected': selectedPracticeMode === item.value }"
+                    :aria-checked="selectedPracticeMode === item.value"
+                    role="radio"
+                    @click="selectedPracticeMode = item.value"
+                  >
+                    <i class="pi" :class="item.icon" aria-hidden="true"></i>
+                    <span><strong>{{ item.label }}</strong><small>{{ item.value === 'pizarron' ? 'Resolvé en lienzo' : 'Practicá conversando' }}</small></span>
+                  </button>
+                </div>
+              </div>
+
+              <button
+                type="button"
+                class="btn btn-primary acm-practice-picker__start"
+                :disabled="!selectedCourse || !selectedTopic || topicsLoading"
+                @click="startGuidedPractice"
+              >
+                <i class="pi pi-play"></i> Empezar práctica
+              </button>
+            </div>
+          </template>
+
           <!-- ── PIZARRÓN mode body ── -->
-          <template v-if="mode === 'pizarron'">
+          <template v-else-if="mode === 'pizarron'">
             <!-- Idle: intro card -->
             <div v-if="pizState === 'idle'" class="acm-piz-idle">
-              <div class="acm-piz-intro-icon">🖊️</div>
-              <h3 class="acm-piz-intro-title">Modo Pizarrón</h3>
-              <p class="acm-piz-intro-desc">
-                Escribe el tema que quieres practicar y te generaré un
-                ejercicio.<br />
-                Luego lo resuelves en tu lienzo y lo evalúo al instante.
-              </p>
+              <template v-if="activeGuidedPractice">
+                <div class="acm-piz-intro-icon">
+                  <i class="pi pi-pencil" aria-hidden="true"></i>
+                </div>
+                <h3 class="acm-piz-intro-title">Seguimos con {{ activeGuidedPractice.topic.title }}</h3>
+                <p class="acm-piz-intro-desc">
+                  Tu práctica sigue enfocada en este tema.
+                </p>
+                <button class="btn btn-primary acm-next-btn" @click="nextPizarronExercise">
+                  <i class="pi pi-refresh" aria-hidden="true"></i> Generar ejercicio
+                </button>
+              </template>
+              <template v-else>
+                <div class="acm-piz-intro-icon">
+                  <i class="pi pi-pencil" aria-hidden="true"></i>
+                </div>
+                <h3 class="acm-piz-intro-title">Modo Pizarrón</h3>
+                <p class="acm-piz-intro-desc">
+                  Escribe el tema que quieres practicar, o mantené presionado el
+                  micrófono para decirlo, y te generaré un ejercicio.<br />
+                  Luego lo resuelves en tu lienzo y lo evalúo al instante.
+                </p>
+              </template>
             </div>
 
             <!-- Generating spinner -->
@@ -62,6 +186,15 @@
                   class="acm-piz-exercise-content acm-bubble--md"
                   v-html="renderContent(exerciseHtml)"
                 ></div>
+                <audio
+                  v-if="exerciseAudio"
+                  :src="exerciseAudio"
+                  controls
+                  autoplay
+                  preload="metadata"
+                  @canplay="playIncomingAudio"
+                  class="acm-audio-player acm-audio-player--block"
+                ></audio>
               </div>
 
               <!-- Right: canvas -->
@@ -69,6 +202,12 @@
                 <div class="acm-piz-panel-label">
                   <i class="pi pi-pencil"></i> Tu respuesta
                   <div class="acm-canvas-tools">
+                    <ColorPalette
+                      :model-value="activeColor"
+                      compact
+                      @update:model-value="selectCanvasColor"
+                    />
+
                     <button
                       class="acm-tool-btn"
                       :class="{ 'acm-tool-btn--active': activeTool === 'pen' }"
@@ -137,30 +276,27 @@
                 class="acm-piz-feedback-content acm-bubble--md"
                 v-html="renderContent(feedbackHtml)"
               ></div>
+              <audio
+                v-if="feedbackAudio"
+                :src="feedbackAudio"
+                controls
+                autoplay
+                preload="metadata"
+                @canplay="playIncomingAudio"
+                class="acm-audio-player acm-audio-player--block"
+              ></audio>
               <button
                 class="btn btn-primary acm-next-btn"
-                @click="resetPizarron"
+                @click="nextPizarronExercise"
               >
                 <i class="pi pi-refresh"></i> Siguiente ejercicio
               </button>
             </div>
           </template>
 
-          <!-- ── ORAL / ESCRITA: message list ── -->
+          <!-- ── CONVERSAR: texto y voz en una misma conversación ── -->
           <template v-else>
             <div class="acm-messages" ref="messagesEl">
-              <!-- Oral mode empty-state hint -->
-              <div
-                v-if="mode === 'oral' && messages.length <= 1"
-                class="acm-oral-hint"
-              >
-                <div class="acm-oral-hint-icon">🎙️</div>
-                <p>
-                  Mantén presionado el botón de micrófono para grabar tu
-                  pregunta
-                </p>
-              </div>
-
               <div
                 v-for="msg in messages"
                 :key="msg.id"
@@ -169,24 +305,34 @@
                   msg.sender === 'user' ? 'acm-msg--user' : 'acm-msg--assistant'
                 "
               >
-                <div v-if="msg.isAudio" class="acm-bubble acm-bubble--audio">
-                  <i class="pi pi-microphone"></i>
-                  <audio
-                    :src="msg.audioSrc"
-                    controls
-                    class="acm-audio-player"
-                  ></audio>
-                </div>
                 <div
-                  v-else
                   class="acm-bubble"
-                  :class="{ 'acm-bubble--md': msg.sender === 'assistant' }"
-                  v-html="
-                    msg.sender === 'assistant'
-                      ? renderContent(msg.content)
-                      : escapeHtml(msg.content)
-                  "
-                ></div>
+                  :class="{
+                    'acm-bubble--md': msg.sender === 'assistant' && !!msg.content,
+                    'acm-bubble--audio': !msg.content,
+                  }"
+                >
+                  <div
+                    v-if="msg.content"
+                    v-html="
+                      msg.sender === 'assistant'
+                        ? renderContent(msg.content)
+                        : escapeHtml(msg.content)
+                    "
+                  ></div>
+                  <template v-if="msg.audioSrc">
+                    <i v-if="!msg.content" class="pi pi-microphone"></i>
+                    <audio
+                      :src="msg.audioSrc"
+                      controls
+                      :autoplay="msg.sender === 'assistant'"
+                      preload="metadata"
+                      @canplay="msg.sender === 'assistant' && playIncomingAudio($event)"
+                      class="acm-audio-player"
+                      :class="{ 'acm-audio-player--block': !!msg.content }"
+                    ></audio>
+                  </template>
+                </div>
               </div>
 
               <div v-if="responding" class="acm-msg acm-msg--assistant">
@@ -200,7 +346,7 @@
           <!-- ── Footer: mode strip + input ── -->
           <div
             class="acm-footer"
-            v-show="mode !== 'pizarron' || pizState === 'idle'"
+            v-show="!needsPracticeSetup && (mode !== 'pizarron' || (pizState === 'idle' && !activeGuidedPractice))"
           >
             <!-- Mode strip toggle -->
             <div class="acm-mode-toggle-row">
@@ -227,7 +373,9 @@
                   :class="{ 'acm-mode-btn--active': mode === m.value }"
                   @click="setMode(m.value)"
                 >
-                  <span class="acm-mode-icon">{{ m.icon }}</span>
+                  <span class="acm-mode-icon">
+                    <i class="pi" :class="m.icon" aria-hidden="true"></i>
+                  </span>
                   <span class="acm-mode-label">{{ m.label }}</span>
                 </button>
               </div>
@@ -235,48 +383,39 @@
 
             <!-- Input row -->
             <div class="acm-input-area">
-              <!-- ORAL: big mic button -->
-              <template v-if="mode === 'oral'">
-                <div class="acm-oral-input">
-                  <button
-                    class="acm-mic-big"
-                    :class="{ 'acm-mic-big--recording': isRecording }"
-                    :disabled="responding"
-                    @mousedown.prevent="startRecording"
-                    @mouseup.prevent="stopRecording"
-                    @touchstart.prevent="startRecording"
-                    @touchend.prevent="stopRecording"
-                    @mouseleave="isRecording ? stopRecording() : undefined"
-                  >
-                    <i
-                      :class="
-                        isRecording ? 'pi pi-stop-circle' : 'pi pi-microphone'
-                      "
-                    ></i>
-                  </button>
-                  <p class="acm-oral-tip">
-                    {{
-                      isRecording
-                        ? "🔴 Grabando… suelta para enviar"
-                        : "Mantén presionado para grabar"
-                    }}
-                  </p>
-                </div>
+              <textarea
+                ref="inputEl"
+                v-model="draft"
+                class="acm-textarea"
+                :placeholder="inputPlaceholder"
+                rows="1"
+                :disabled="responding"
+                @keydown.enter.exact.prevent="sendText"
+                @input="autoResize"
+              ></textarea>
+
+              <template v-if="!draft.trim()">
+                <button
+                  class="acm-send acm-send--mic"
+                  :class="{ 'acm-send--recording': isRecording }"
+                  :disabled="responding"
+                  title="Mantén presionado para grabar audio"
+                  aria-label="Grabar mensaje de audio"
+                  @mousedown.prevent="startRecording"
+                  @mouseup.prevent="stopRecording"
+                  @touchstart.prevent="startRecording"
+                  @touchend.prevent="stopRecording"
+                  @mouseleave="isRecording ? stopRecording() : undefined"
+                >
+                  <i
+                    :class="
+                      isRecording ? 'pi pi-stop-circle' : 'pi pi-microphone'
+                    "
+                  ></i>
+                </button>
               </template>
 
-              <!-- ESCRITA / PIZARRÓN-idle: textarea + buttons -->
               <template v-else>
-                <textarea
-                  ref="inputEl"
-                  v-model="draft"
-                  class="acm-textarea"
-                  :placeholder="inputPlaceholder"
-                  rows="1"
-                  :disabled="responding"
-                  @keydown.enter.exact.prevent="sendText"
-                  @input="autoResize"
-                ></textarea>
-
                 <button
                   class="acm-send"
                   :disabled="!draft.trim() || responding"
@@ -287,7 +426,11 @@
               </template>
             </div>
 
-            <!-- Recording bar (oral) -->
+            <div v-if="recordingError" class="acm-piz-error">
+              {{ recordingError }}
+            </div>
+
+            <!-- Recording bar -->
             <div v-if="isRecording" class="acm-recording-bar">
               <span class="acm-recording-dot"></span>
               Grabando… suelta para enviar
@@ -297,29 +440,58 @@
       </div>
     </Transition>
   </Teleport>
+
+  <ConfirmModal
+    v-bind="leaveConfirmState"
+    @confirm="onLeaveConfirm"
+    @cancel="onLeaveCancel"
+  />
+
+  <AiLoadingModal
+    :show="pizState === 'evaluating'"
+    badge-label="IA evaluando"
+    title="Revisando tu respuesta"
+    message="Estoy mirando tu lienzo y preparando una devolución para vos…"
+  />
 </template>
 
 <script setup lang="ts">
-  import { ref, computed, watch, nextTick, onBeforeUnmount } from "vue";
+  import { ref, computed, watch, nextTick, onMounted, onBeforeUnmount } from "vue";
   import { useAuthStore } from "@/stores/authStore";
   import { renderContent } from "@/composables/useContentRenderer";
+  import { parseAssistantReply, type AssistantReply } from "@/utils/assistantReply";
+  import ColorPalette from "@/components/ui/ColorPalette.vue";
+  import ConfirmModal from "@/components/ui/ConfirmModal.vue";
+  import { useLeaveWarning } from "@/composables/useLeaveWarning";
+  import { BASE_COLORS } from "@/utils/palette";
+  import AiLoadingModal from "@/components/student/ai/AiLoadingModal.vue";
+  import { getToken, refreshAssistantToken } from "@/api/request/server";
   import type {
     AssistantChatModalEmits,
     AssistantChatModalProps,
+    AssistantStudentCourseContext,
   } from "./AssistantChatModal.types";
-  import type { AssistantMode, AssistantMessage, PizarronState } from "@/types";
+  import type { AssistantMode, AssistantMessage, PizarronState, Topic } from "@/types";
+  import {
+    assistantVoiceEnabled,
+    setAssistantVoiceEnabled,
+  } from "@/utils/assistantPreferences";
 
   const props = defineProps<AssistantChatModalProps>();
-  defineEmits<AssistantChatModalEmits>();
+  const emit = defineEmits<AssistantChatModalEmits>();
 
   const authStore = useAuthStore();
   const API_BASE = `${import.meta.env.VITE_PRACTIQ_API_URL || "http://localhost:8083"}/api/assistant-proxy`;
+  const PRACTIQ_API_BASE = `${import.meta.env.VITE_PRACTIQ_API_URL || "http://localhost:8083"}/api`;
   const STORAGE_KEY = "ai-client-id";
 
   // State
 
   const mode = ref<AssistantMode>("escrita");
   const showModes = ref(false);
+  const isMobile = ref(false);
+  const mobileViewportHeight = ref(0);
+  const mobileViewportTop = ref(0);
 
   const messages = ref<AssistantMessage[]>([]);
   const draft = ref("");
@@ -330,15 +502,53 @@
   let conversationId: string | null = null;
   let msgCounter = 0;
 
+  type GuidedPractice = {
+    course: AssistantStudentCourseContext;
+    topic: Topic;
+  };
+
+  const selectedCourseId = ref("");
+  const selectedTopicId = ref("");
+  const topics = ref<Topic[]>([]);
+  const topicsLoading = ref(false);
+  const activeGuidedPractice = ref<GuidedPractice | null>(null);
+  const selectedPracticeMode = ref<AssistantMode>("pizarron");
+  let topicRequest = 0;
+
+  // Voice replies (Gillie TTS). Persisted so the student keeps their choice.
+  // No autoplay: the player appears and waits, which is the safe default in a
+  // classroom.
+  const voiceReplies = ref(assistantVoiceEnabled());
+
+  function toggleVoiceReplies() {
+    voiceReplies.value = !voiceReplies.value;
+    setAssistantVoiceEnabled(voiceReplies.value);
+  }
+
+  function playIncomingAudio(event: Event) {
+    const audio = event.currentTarget as HTMLAudioElement;
+    void audio.play().catch(() => {
+      // Browser autoplay policy may require one manual click; controls remain.
+    });
+  }
+
   // Pizarrón
   const pizState = ref<PizarronState>("idle");
   const exerciseHtml = ref("");
+  const exerciseAudio = ref("");
   const feedbackHtml = ref("");
+  const feedbackAudio = ref("");
   const pizarronTopic = ref("");
+  let exerciseGeneration = 0;
+  const recordingError = ref("");
+  // Ink on the canvas that has not been evaluated yet. Tracked with a flag
+  // instead of sampling pixels: a stroke sets it, clearing resets it.
+  const hasDrawing = ref(false);
 
   // Canvas
   const canvasEl = ref<HTMLCanvasElement | null>(null);
   const activeTool = ref<"pen" | "eraser">("pen");
+  const activeColor = ref(BASE_COLORS[0].value);
   let isDrawing = false;
   let lastX = 0;
   let lastY = 0;
@@ -353,9 +563,8 @@
   // Computed
 
   const modes = [
-    { value: "escrita" as AssistantMode, label: "Escrita", icon: "✍️" },
-    { value: "oral" as AssistantMode, label: "Oral", icon: "🎙️" },
-    { value: "pizarron" as AssistantMode, label: "Pizarrón", icon: "🖊️" },
+    { value: "escrita" as AssistantMode, label: "Conversar", icon: "pi-comments" },
+    { value: "pizarron" as AssistantMode, label: "Pizarrón", icon: "pi-pencil" },
   ];
 
   const modeLabel = computed(
@@ -370,6 +579,30 @@
       pizState.value === "evaluating",
   );
 
+  const mobileViewportStyle = computed(() =>
+    isMobile.value && mobileViewportHeight.value
+      ? {
+          height: `${mobileViewportHeight.value}px`,
+          top: `${mobileViewportTop.value}px`,
+          bottom: "auto",
+        }
+      : undefined,
+  );
+
+  const needsPracticeSetup = computed(
+    () => Boolean(props.requirePracticeContext && !activeGuidedPractice.value),
+  );
+
+  const selectedCourse = computed(() =>
+    (props.studentContext?.courses ?? []).find(
+      (course) => course.id === selectedCourseId.value,
+    ),
+  );
+
+  const selectedTopic = computed(() =>
+    topics.value.find((topic) => topic.id === selectedTopicId.value),
+  );
+
   const statusLabel = computed(() => {
     if (isRecording.value) return "Grabando…";
     if (pizState.value === "generating") return "Generando ejercicio…";
@@ -380,18 +613,56 @@
 
   const inputPlaceholder = computed(() =>
     mode.value === "pizarron"
-      ? "¿Qué tema quieres practicar? (ej: ecuaciones de segundo grado)"
-      : "Escribe tu pregunta… (Enter para enviar)",
+      ? isMobile.value
+        ? "Tema a practicar…"
+        : "¿Qué tema quieres practicar? (ej: ecuaciones de segundo grado)"
+      : isMobile.value
+        ? "Escribí o mantené el micrófono…"
+        : "Escribe o mantén el micrófono para hablar…",
   );
 
   // Helpers
 
+  const AI_TIMEOUT_MS = 300000;
+
   function authHeaders(contentType?: string): Record<string, string> {
     const h: Record<string, string> = {};
     if (contentType) h["Content-Type"] = contentType;
-    const token = authStore.token;
+    // Axios can refresh localStorage before Pinia receives the new token.
+    const token = getToken() || authStore.token;
     if (token) h["Authorization"] = `Bearer ${token}`;
     return h;
+  }
+
+  async function fetchWithTimeout(
+    url: string,
+    options: RequestInit,
+    timeoutMs = AI_TIMEOUT_MS,
+  ): Promise<Response> {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+    try {
+      return await fetch(url, { ...options, signal: controller.signal });
+    } finally {
+      clearTimeout(timeoutId);
+    }
+  }
+
+  async function fetchAssistant(
+    url: string,
+    options: RequestInit,
+  ): Promise<Response> {
+    const response = await fetchWithTimeout(url, {
+      ...options,
+      headers: options.headers ?? authHeaders(),
+    });
+    if (response.status !== 401) return response;
+
+    const token = await refreshAssistantToken();
+    if (!token) return response;
+    const headers = new Headers(options.headers);
+    headers.set("Authorization", `Bearer ${token}`);
+    return fetchWithTimeout(url, { ...options, headers });
   }
 
   function escapeHtml(s: string) {
@@ -427,6 +698,15 @@
       audioSrc: audio?.src,
     });
     nextTick(scrollBottom);
+  }
+
+  /** Pizarrón has no message list, so its warnings need somewhere else to go. */
+  function notify(message: string) {
+    if (mode.value === "pizarron") {
+      recordingError.value = message;
+      return;
+    }
+    addMsg("assistant", message);
   }
 
   function scrollBottom() {
@@ -522,6 +802,22 @@
     };
   }
 
+  /**
+   * The grade to tell the assistant the student is in. Taking `courses[0]`
+   * asserted the first course's grade for every question, which is wrong as
+   * soon as the student is enrolled across grades. When they disagree there is
+   * no right answer, so it says nothing rather than something false — the
+   * prompt just drops the grade line.
+   */
+  function getStudentGrade(): string {
+    const grades = new Set(
+      (props.studentContext?.courses ?? [])
+        .map((course) => course.grade)
+        .filter(Boolean),
+    );
+    return grades.size === 1 ? [...grades][0] : "";
+  }
+
   function buildContext(): string {
     const ctx = props.studentContext;
     const lines: string[] = [];
@@ -541,6 +837,14 @@
           `  - ${p.topic}: ${Math.round(p.mastery)}% dominio, Nivel ${p.level}`,
         ),
       );
+    }
+    if (activeGuidedPractice.value) {
+      const { course, topic } = activeGuidedPractice.value;
+      lines.push("Práctica guiada elegida (obligatoria):");
+      lines.push(`  - Curso: ${course.title} (id: ${course.id})`);
+      lines.push(`  - Tema: ${topic.title} (id: ${topic.id})`);
+      lines.push(`  - Nivel actual: ${course.currentLevel}`);
+      lines.push("Genera y explica contenido únicamente de este tema.");
     }
     const activityContext = getActivityContext();
     if (activityContext) {
@@ -588,11 +892,17 @@
     hasImageAttachment: boolean,
   ): string {
     const trimmedMessage = message.trim();
+    const grade = getStudentGrade();
+    const gradeInstruction = grade
+      ? `El estudiante es de ${grade}. Usa los contenidos de los documentos de ${grade} para responder.`
+      : "";
     return [
       "POLITICA OBLIGATORIA:",
       "No des respuestas finales ni resuelvas completamente ejercicios evaluables.",
       "Da solo pistas, explicaciones breves, preguntas guia o el siguiente paso.",
+      gradeInstruction,
       "Si existe contexto estructurado de Practiq, usalo para ubicar curso, hoja y numero de ejercicio.",
+      "El contexto puede traer 'exercise_list' con todos los ejercicios de la hoja y 'active_exercise' con el que el alumno tiene abierto ahora. Cuando el alumno pregunta de forma generica (\"este ejercicio\", \"el ejercicio actual\", sin numero), respondele solo sobre active_exercise. Usa exercise_list unicamente si el alumno pide explicitamente otro ejercicio por numero.",
       hasImageAttachment
         ? [
             "Hay una imagen adjunta de la actividad actual.",
@@ -614,7 +924,7 @@
   // API
 
   async function createConversation(title: string) {
-    const res = await fetch(`${API_BASE}/conversation/`, {
+    const res = await fetchAssistant(`${API_BASE}/conversation/`, {
       method: "POST",
       headers: authHeaders("application/json"),
       body: JSON.stringify({ title }),
@@ -626,16 +936,72 @@
     if (clientId) localStorage.setItem(STORAGE_KEY, clientId);
   }
 
+  async function selectCourse(courseId: string) {
+    selectedCourseId.value = courseId;
+    selectedTopicId.value = "";
+    topics.value = [];
+    topicsLoading.value = true;
+    const request = ++topicRequest;
+    try {
+      const res = await fetchAssistant(
+        `${PRACTIQ_API_BASE}/courses/${encodeURIComponent(courseId)}/topics`,
+        { headers: authHeaders() },
+      );
+      if (!res.ok) throw new Error(`list topics ${res.status}`);
+      const payload = await res.json();
+      if (request !== topicRequest) return;
+      topics.value = (payload?.data ?? []).sort(
+        (a: Topic, b: Topic) => a.order_index - b.order_index,
+      );
+    } catch {
+      if (request === topicRequest) topics.value = [];
+    } finally {
+      if (request === topicRequest) topicsLoading.value = false;
+    }
+  }
+
+  async function startGuidedPractice() {
+    if (!selectedCourse.value || !selectedTopic.value || topicsLoading.value) return;
+    activeGuidedPractice.value = {
+      course: selectedCourse.value,
+      topic: selectedTopic.value,
+    };
+    conversationId = null;
+    messages.value = [];
+    msgCounter = 0;
+    mode.value = selectedPracticeMode.value;
+    resetPizarron();
+    if (mode.value === "pizarron") {
+      await generateExercise(selectedTopic.value.title);
+      return;
+    }
+    addMsg(
+      "assistant",
+      `Perfecto. Vamos a practicar ${selectedTopic.value.title}. ¿Qué parte querés repasar primero?`,
+    );
+  }
+
+  function resetGuidedPractice() {
+    activeGuidedPractice.value = null;
+    selectedCourseId.value = "";
+    selectedTopicId.value = "";
+    selectedPracticeMode.value = "pizarron";
+    topics.value = [];
+    topicsLoading.value = false;
+    topicRequest++;
+  }
+
   async function postFormData(
     fd: FormData,
     imageProcessor = false,
-  ): Promise<string> {
+  ): Promise<AssistantReply> {
     if (!conversationId) {
       const text = (fd.get("content") as string) || "Nueva conversación";
       await createConversation(text.substring(0, 30));
     }
     const imgParam = imageProcessor ? "activate" : "deactivate";
-    const url = `${API_BASE}/conversation/${conversationId}/message?has_image_processor=${imgParam}&has_text_to_voice=deactivate`;
+    const voiceParam = voiceReplies.value ? "activate" : "deactivate";
+    const url = `${API_BASE}/conversation/${conversationId}/message?has_image_processor=${imgParam}&has_text_to_voice=${voiceParam}`;
     fd.set(
       "content",
       buildInstructionWrappedContent(
@@ -643,7 +1009,7 @@
         fd.has("image_content"),
       ),
     );
-    const res = await fetch(url, {
+    const res = await fetchAssistant(url, {
       method: "POST",
       headers: authHeaders(),
       body: fd,
@@ -654,14 +1020,17 @@
     const assistantMsg = [...msgs]
       .reverse()
       .find((m: any) => m.sender === "assistant");
-    return assistantMsg?.content || "";
+    return parseAssistantReply(
+      assistantMsg?.content || "",
+      assistantMsg?.audio_url,
+    );
   }
 
   async function loadHistory() {
     const storedClientId = localStorage.getItem(STORAGE_KEY);
     if (!storedClientId) return;
     try {
-      const res = await fetch(`${API_BASE}/conversation/user`, {
+      const res = await fetchAssistant(`${API_BASE}/conversation/user`, {
         headers: authHeaders(),
       });
       if (!res.ok) return;
@@ -670,21 +1039,33 @@
       const match = convs.find((c: any) => c.client_id === storedClientId);
       if (!match) return;
       conversationId = match.id;
-      const msgRes = await fetch(`${API_BASE}/conversation/${conversationId}`, {
+      const msgRes = await fetchAssistant(`${API_BASE}/conversation/${conversationId}`, {
         headers: authHeaders(),
       });
       if (!msgRes.ok) return;
       const msgData = await msgRes.json();
       const rawMsgs: any[] = msgData?.data || [];
-      rawMsgs.forEach((m: any) =>
-        addMsg(m.sender === "user" ? "user" : "assistant", m.content, true),
-      );
+      rawMsgs.forEach((m: any) => {
+        if (m.sender === "user") {
+          addMsg("user", m.content || "");
+          return;
+        }
+        const reply = parseAssistantReply(m.content || "", m.audio_url);
+        if (reply.text || reply.audioUrl) {
+          addMsg(
+            "assistant",
+            reply.text,
+            true,
+            reply.audioUrl ? { src: reply.audioUrl } : undefined,
+          );
+        }
+      });
     } catch {
       /* silent */
     }
   }
 
-  // Send: escrita
+  // Send: conversar
 
   async function sendText() {
     const text = draft.value.trim();
@@ -705,7 +1086,9 @@
       fd.append("context", buildContext());
       const hasImage = await attachActivityCapture(fd);
       const reply = await postFormData(fd, hasImage);
-      if (reply) addMsg("assistant", reply, true);
+      if (reply.text || reply.audioUrl) {
+        addMsg("assistant", reply.text, true, reply.audioUrl ? { src: reply.audioUrl } : undefined);
+      }
     } catch {
       addMsg("assistant", "Ocurrió un error. Por favor intenta de nuevo.");
     } finally {
@@ -714,19 +1097,17 @@
     }
   }
 
-  // Send: oral
+  // Send: voice in conversation mode
 
   async function startRecording() {
     if (responding.value || isRecording.value) return;
+    recordingError.value = "";
     try {
       if (
         !navigator.mediaDevices?.getUserMedia ||
         typeof MediaRecorder === "undefined"
       ) {
-        addMsg(
-          "assistant",
-          "Tu navegador no soporta grabación de audio desde este modal.",
-        );
+        notify("Tu navegador no soporta grabación de audio desde este modal.");
         return;
       }
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
@@ -739,10 +1120,7 @@
       mediaRecorder.start();
       isRecording.value = true;
     } catch {
-      addMsg(
-        "assistant",
-        "No se pudo acceder al micrófono. Revisa los permisos del navegador.",
-      );
+      notify("No se pudo acceder al micrófono. Revisa los permisos del navegador.");
     }
   }
 
@@ -759,12 +1137,14 @@
       const webmBlob = new Blob(audioChunks, { type: "audio/webm" });
       const wavBlob = await convertToWav(webmBlob);
       if (wavBlob.size <= 44) {
-        addMsg(
-          "assistant",
-          "No se detectó audio. Mantén presionado y vuelve a intentar.",
-        );
+        notify("No se detectó audio. Mantén presionado y vuelve a intentar.");
         return;
       }
+      if (mode.value === "pizarron") {
+        await generateExercise("", wavBlob);
+        return;
+      }
+
       const localUrl = URL.createObjectURL(wavBlob);
       addMsg("user", "", false, { src: localUrl });
       responding.value = true;
@@ -774,7 +1154,9 @@
       fd.append("context", buildContext());
       const hasImage = await attachActivityCapture(fd);
       const reply = await postFormData(fd, hasImage);
-      if (reply) addMsg("assistant", reply, true);
+      if (reply.text || reply.audioUrl) {
+        addMsg("assistant", reply.text, true, reply.audioUrl ? { src: reply.audioUrl } : undefined);
+      }
     } catch (error) {
       console.error("Error processing audio:", error);
       addMsg(
@@ -859,13 +1241,21 @@
 
   // Pizarrón
 
-  async function generateExercise(topic: string) {
+  async function generateExercise(topic: string, voice?: Blob) {
+    const generation = ++exerciseGeneration;
     pizarronTopic.value = topic;
     pizState.value = "generating";
+    const grade = getStudentGrade();
+    const gradeContext = grade
+      ? `El estudiante es de ${grade}. Usa los contenidos de los documentos de ${grade} para generar el ejercicio.`
+      : "";
     try {
       const prompt = [
         "MODO PIZARRÓN - GENERACIÓN DE EJERCICIO:",
-        `Genera un ejercicio claro, bien estructurado y resolvible manualmente sobre el tema: "${topic}".`,
+        gradeContext,
+        voice
+          ? "El alumno dijo el tema en el audio adjunto. Escuchalo y genera un ejercicio sobre ese tema."
+          : `Genera un ejercicio claro, bien estructurado y resolvible manualmente sobre el tema: "${topic}".`,
         "Requisitos:",
         "- Máximo 1 ejercicios numerados",
         "- Enunciado claro con todos los datos necesarios",
@@ -876,21 +1266,24 @@
         "- Adapta la dificultad al nivel del alumno según el contexto enviado",
         "- Usa lenguaje simple, adecuado para niños",
         "Responde solo con los ejercicios, sin introducciones.",
-      ].join("\n");
+      ].filter(Boolean).join("\n");
 
       const fd = new FormData();
       fd.append("content", prompt);
       fd.append("context", buildContext());
+      if (voice) fd.append("voice_content", voice, "audio.wav");
       const reply = await postFormData(fd);
-      if (reply) {
-        exerciseHtml.value = reply;
+      if (reply.text || reply.audioUrl) {
+        if (generation !== exerciseGeneration) return;
+        exerciseHtml.value = reply.text;
+        exerciseAudio.value = reply.audioUrl;
         pizState.value = "drawing";
         nextTick(scheduleCanvasInit);
       } else {
-        pizState.value = "idle";
+        if (generation === exerciseGeneration) pizState.value = "idle";
       }
     } catch {
-      pizState.value = "idle";
+      if (generation === exerciseGeneration) pizState.value = "idle";
     }
   }
 
@@ -907,8 +1300,13 @@
         blobSize: blob.size,
         blobType: blob.type,
       });
+      const grade = getStudentGrade();
+      const gradeContext = grade
+        ? `El estudiante es de ${grade}. Evalúa considerando los contenidos de los documentos de ${grade}.`
+        : "";
       const prompt = [
         "MODO PIZARRÓN - EVALUACIÓN DE RESPUESTA:",
+        gradeContext,
         "El alumno ha resuelto el ejercicio anterior en su lienzo. Analiza la imagen adjunta y:",
         "1. Identifica lo que escribió o dibujó",
         "2. Evalúa si la respuesta es correcta o no",
@@ -916,14 +1314,17 @@
         "4. Si está bien resuelto, felicítalo brevemente",
         "Responde en español con un tono amigable y educativo.",
         "IMPORTANTE: La retroalimentación es para un niño. Sé breve, claro y usa palabras simples y fáciles de entender.",
-      ].join("\n");
+      ].filter(Boolean).join("\n");
 
       const fd = new FormData();
       fd.append("content", prompt);
       fd.append("context", buildContext());
       fd.append("image_content", blob, "student_canvas.png");
-      const reply = await postFormData(fd, true);
-      if (reply) feedbackHtml.value = reply;
+      // Gillie reads image_content through Vision. Its image-processor flag is
+      // document-image search, which is unrelated and can make canvas review stall.
+      const reply = await postFormData(fd, false);
+      feedbackHtml.value = reply.text;
+      feedbackAudio.value = reply.audioUrl;
       pizState.value = "feedback";
     } catch {
       feedbackHtml.value =
@@ -933,9 +1334,13 @@
   }
 
   function resetPizarron() {
+    exerciseGeneration++;
     pizState.value = "idle";
+    hasDrawing.value = false;
     exerciseHtml.value = "";
+    exerciseAudio.value = "";
     feedbackHtml.value = "";
+    feedbackAudio.value = "";
     pizarronTopic.value = "";
     draft.value = "";
     if (canvasEl.value) {
@@ -943,6 +1348,15 @@
       if (ctx) ctx.clearRect(0, 0, canvasEl.value.width, canvasEl.value.height);
     }
     canvasInitialized = false;
+  }
+
+  /** Keep guided practice inside its selected course and topic between exercises. */
+  async function nextPizarronExercise() {
+    const guidedTopic = activeGuidedPractice.value?.topic.title;
+    resetPizarron();
+    if (guidedTopic) {
+      await generateExercise(guidedTopic);
+    }
   }
 
   function setMode(m: AssistantMode) {
@@ -1030,9 +1444,14 @@
       ctx.lineWidth = 24;
     } else {
       ctx.globalCompositeOperation = "source-over";
-      ctx.strokeStyle = cssVar("--acm-canvas-ink", "CanvasText");
+      ctx.strokeStyle = activeColor.value;
       ctx.lineWidth = 2.5;
     }
+  }
+
+  function selectCanvasColor(color: string) {
+    activeColor.value = color;
+    activeTool.value = "pen";
   }
 
   function onCanvasDown(e: MouseEvent) {
@@ -1052,11 +1471,36 @@
     ctx.moveTo(lastX, lastY);
     ctx.lineTo(x, y);
     ctx.stroke();
+    hasDrawing.value = true;
     [lastX, lastY] = [x, y];
   }
 
   function onCanvasUp() {
     isDrawing = false;
+  }
+
+  const hasPendingWork = computed(
+    () =>
+      (pizState.value === "drawing" && hasDrawing.value) ||
+      pizState.value === "generating" ||
+      pizState.value === "evaluating" ||
+      responding.value,
+  );
+
+  const {
+    leaveConfirmState,
+    onLeaveConfirm,
+    onLeaveCancel,
+    discard,
+  } =
+    useLeaveWarning(() => hasPendingWork.value);
+
+  /** Closing throws the drawing away, so it asks first. */
+  function requestClose() {
+    discard(() => {
+      resetPizarron();
+      emit("close");
+    });
   }
 
   function onTouchStart(e: TouchEvent) {
@@ -1076,6 +1520,7 @@
     ctx.moveTo(lastX, lastY);
     ctx.lineTo(x, y);
     ctx.stroke();
+    hasDrawing.value = true;
     [lastX, lastY] = [x, y];
   }
 
@@ -1084,6 +1529,7 @@
   }
 
   function clearCanvas() {
+    hasDrawing.value = false;
     const canvas = canvasEl.value;
     if (!canvas) return;
     const ctx = getCtx();
@@ -1102,6 +1548,23 @@
 
   let initialized = false;
 
+  function updateMobile() {
+    isMobile.value = window.matchMedia("(max-width: 640px)").matches;
+    // Android may pan the visual viewport to the focused textarea. Keep the
+    // modal in that viewport instead of leaving its header/messages above it.
+    mobileViewportTop.value = Math.round(window.visualViewport?.offsetTop ?? 0);
+    mobileViewportHeight.value = Math.round(
+      window.visualViewport?.height ?? window.innerHeight,
+    );
+  }
+
+  onMounted(() => {
+    updateMobile();
+    window.addEventListener("resize", updateMobile);
+    window.visualViewport?.addEventListener("resize", updateMobile);
+    window.visualViewport?.addEventListener("scroll", updateMobile);
+  });
+
   watch(
     () => authStore.token,
     async (token) => {
@@ -1111,7 +1574,7 @@
       conversationId = null;
       addMsg(
         "assistant",
-        "¡Hola! Soy tu asistente de práctica. ¿Qué hacemos hoy?",
+        "¡Hola! Soy Quanty. ¿Qué hacemos hoy?",
       );
       await loadHistory();
     },
@@ -1125,6 +1588,7 @@
         document.body.classList.add("assistant-modal-open");
       } else {
         document.body.classList.remove("assistant-modal-open");
+        resetGuidedPractice();
       }
     },
     { immediate: true },
@@ -1133,6 +1597,9 @@
   onBeforeUnmount(() => {
     document.body.classList.remove("assistant-modal-open");
     canvasResizeObserver?.disconnect();
+    window.removeEventListener("resize", updateMobile);
+    window.visualViewport?.removeEventListener("resize", updateMobile);
+    window.visualViewport?.removeEventListener("scroll", updateMobile);
   });
 </script>
 
@@ -1203,8 +1670,9 @@
     width: 44px;
     height: 44px;
     min-width: 44px;
-    border-radius: 0;
-    background: transparent;
+    overflow: hidden;
+    border-radius: 50%;
+    background: var(--fill-primary-soft);
     border: none;
     color: var(--color-on-primary);
     display: flex;
@@ -1217,9 +1685,11 @@
 
   .acm-avatar img {
     display: block;
-    width: 42px;
-    height: 42px;
-    object-fit: contain;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    object-position: 50% 22%;
+    transform: scale(1.65);
     filter: drop-shadow(0 3px 6px rgba(var(--text-primary-rgb), 0.16));
   }
 
@@ -1267,9 +1737,10 @@
     background: rgba(var(--surface-card-rgb), 0.3);
   }
 
-  /* Messages (escrita/oral) */
+  /* Messages (conversar) */
   .acm-messages {
     flex: 1;
+    min-height: 0;
     overflow-y: auto;
     padding: 24px 28px;
     display: flex;
@@ -1322,7 +1793,74 @@
   .acm-audio-player {
     height: 32px;
     max-width: 240px;
+  }
+
+  .acm-msg--user .acm-bubble--audio .acm-audio-player {
     filter: invert(1);
+  }
+
+  .acm-audio-player--block {
+    display: block;
+    width: 100%;
+    max-width: none;
+    margin-top: 10px;
+  }
+
+  .acm-header-actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .acm-practice-context {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    min-height: 38px;
+    padding: 8px 20px;
+    overflow-x: auto;
+    background: var(--fill-primary-faint);
+    border-bottom: 1px solid rgba(var(--practiq-violet-rgb), .1);
+    color: var(--text-secondary);
+    font-size: .8rem;
+    white-space: nowrap;
+  }
+
+  .acm-practice-context > :first-child {
+    color: var(--practiq-violet);
+  }
+
+  .acm-practice-context strong {
+    color: var(--text-primary);
+  }
+
+  .acm-practice-context__mode {
+    margin-left: auto;
+    padding: 3px 8px;
+    border-radius: var(--radius-pill);
+    background: var(--surface-card);
+    color: var(--practiq-violet-dark);
+    font-weight: 700;
+  }
+
+  .acm-voice-on {
+    background: rgba(var(--surface-card-rgb), 0.35);
+  }
+
+  .acm-send--mic {
+    background: var(--surface-elevated-strong);
+    color: var(--practiq-violet);
+  }
+
+  .acm-send--recording {
+    background: var(--color-error, #dc2626);
+    color: var(--color-on-primary);
+  }
+
+  .acm-piz-error {
+    margin-top: 8px;
+    color: var(--color-error-dark, #b91c1c);
+    font-size: var(--text-sm);
   }
 
   /* Typing */
@@ -1367,6 +1905,136 @@
     font-size: 48px;
   }
 
+  /* Guided practice setup */
+  .acm-practice-picker {
+    flex: 1;
+    overflow-y: auto;
+    padding: 32px;
+    display: flex;
+    flex-direction: column;
+    gap: 24px;
+  }
+
+  .acm-practice-picker__intro h3 {
+    margin: 4px 0 8px;
+    color: var(--text-primary);
+    font-size: 1.3rem;
+  }
+
+  .acm-practice-picker__intro p,
+  .acm-practice-picker__empty {
+    margin: 0;
+    color: var(--text-secondary);
+    line-height: 1.45;
+  }
+
+  .acm-practice-picker__eyebrow,
+  .acm-practice-picker__label {
+    display: block;
+    color: var(--practiq-violet);
+    font-size: .78rem;
+    font-weight: 800;
+    letter-spacing: .04em;
+    text-transform: uppercase;
+  }
+
+  .acm-practice-picker__group {
+    display: grid;
+    gap: 10px;
+  }
+
+  .acm-practice-picker__chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  .acm-practice-picker__modes {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+  }
+
+  .acm-practice-mode {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    min-height: 64px;
+    padding: 10px 12px;
+    border: 1.5px solid var(--surface-border);
+    border-radius: var(--radius-lg);
+    background: var(--surface-card);
+    color: var(--text-primary);
+    text-align: left;
+    cursor: pointer;
+    transition: var(--transition-fast);
+  }
+
+  .acm-practice-mode > i {
+    color: var(--practiq-violet);
+    font-size: 1.1rem;
+  }
+
+  .acm-practice-mode span {
+    display: grid;
+    gap: 2px;
+  }
+
+  .acm-practice-mode small {
+    color: var(--text-secondary);
+    font-size: .72rem;
+  }
+
+  .acm-practice-mode--selected {
+    border-color: var(--practiq-violet);
+    background: var(--fill-primary-subtle);
+    box-shadow: var(--shadow-violet);
+    color: var(--practiq-violet-dark);
+    transform: translateY(-1px);
+  }
+
+  .acm-practice-chip {
+    min-height: 40px;
+    padding: 8px 13px;
+    border: 0;
+    border-radius: var(--radius-pill);
+    background: var(--elevation-tint-bg);
+    box-shadow: var(--elevation-tint-shadow);
+    color: var(--text-primary);
+    font-family: var(--font-ui-family);
+    font-size: .9rem;
+    font-weight: 700;
+    cursor: pointer;
+    transition: var(--transition-fast);
+  }
+
+  .acm-practice-chip--selected {
+    background: var(--fill-primary-subtle);
+    color: var(--practiq-violet-dark);
+    box-shadow: var(--shadow-violet);
+    transform: translateY(-1px);
+  }
+  .acm-practice-chip:hover:not(.acm-practice-chip--selected),
+  .acm-practice-mode:hover:not(.acm-practice-mode--selected) {
+    color: var(--practiq-violet-dark);
+  }
+  .acm-practice-chip:focus-visible,
+  .acm-practice-mode:focus-visible {
+    outline: 3px solid rgba(var(--practiq-violet-rgb), 0.28);
+    outline-offset: 2px;
+  }
+
+  .acm-practice-picker__loading {
+    color: var(--text-secondary);
+    font-size: .9rem;
+  }
+
+  .acm-practice-picker__start {
+    align-self: flex-start;
+    min-height: 46px;
+    padding-inline: 20px;
+  }
+
   /* PIZARRÓN: idle */
   .acm-piz-idle {
     flex: 1;
@@ -1380,7 +2048,14 @@
   }
 
   .acm-piz-intro-icon {
-    font-size: 52px;
+    font-size: 46px;
+    line-height: 1;
+    color: var(--practiq-violet);
+  }
+  .acm-mode-icon {
+    display: inline-flex;
+    align-items: center;
+    font-size: 0.95em;
   }
 
   .acm-piz-intro-title {
@@ -1463,7 +2138,17 @@
     display: flex;
     gap: 4px;
     margin-left: auto;
+    align-items: center;
   }
+
+
+
+
+
+
+
+
+
 
   .acm-tool-btn {
     width: 30px;
@@ -1822,12 +2507,30 @@
   @media (max-width: 600px) {
     .acm-overlay {
       padding: 0;
-      align-items: flex-end;
+      align-items: stretch;
+      justify-content: stretch;
+      overflow: hidden;
     }
     .acm-modal {
       width: 100vw;
-      height: 100dvh;
+      height: 100%;
+      min-height: 0;
       border-radius: 0;
+    }
+    .acm-header {
+      padding: 10px 16px;
+    }
+    .acm-avatar,
+    .acm-avatar img {
+      width: 36px;
+      height: 36px;
+      min-width: 36px;
+    }
+    .acm-title {
+      font-size: .98rem;
+    }
+    .acm-status {
+      font-size: .72rem;
     }
     .acm-bubble {
       max-width: 85%;
@@ -1840,6 +2543,79 @@
       flex: 0 0 40%;
       border-right: none;
       border-bottom: 1px solid var(--surface-border);
+    }
+
+    .acm-practice-picker {
+      padding: 18px 16px;
+      gap: 14px;
+    }
+    .acm-practice-picker__intro h3 {
+      margin: 2px 0 5px;
+      font-size: 1.12rem;
+    }
+    .acm-practice-picker__intro p {
+      font-size: .9rem;
+      line-height: 1.35;
+    }
+    .acm-practice-picker__eyebrow,
+    .acm-practice-picker__label {
+      font-size: .7rem;
+    }
+    .acm-practice-picker__group {
+      gap: 7px;
+    }
+    .acm-practice-picker__chips {
+      flex-wrap: nowrap;
+      gap: 7px;
+      overflow-x: auto;
+      padding-bottom: 2px;
+      scrollbar-width: none;
+    }
+    .acm-practice-picker__chips::-webkit-scrollbar {
+      display: none;
+    }
+    .acm-practice-context {
+      padding-inline: 14px;
+    }
+    .acm-practice-picker__modes {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 8px;
+    }
+    .acm-practice-chip {
+      flex: 0 0 auto;
+      min-height: 40px;
+      padding: 6px 11px;
+      font-size: .82rem;
+    }
+    .acm-practice-mode {
+      min-height: 58px;
+      gap: 7px;
+      padding: 8px;
+    }
+    .acm-practice-mode > i {
+      font-size: .95rem;
+    }
+    .acm-practice-mode strong {
+      font-size: .84rem;
+    }
+    .acm-practice-mode small {
+      font-size: .64rem;
+      line-height: 1.15;
+    }
+    .acm-practice-picker__start {
+      min-height: 44px;
+      font-size: .9rem;
+    }
+    .acm-practice-picker__start {
+      width: 100%;
+      justify-content: center;
+    }
+
+    /* Tap targets >= 44px en mobile */
+    .acm-close,
+    .acm-tool-btn {
+      width: 44px;
+      height: 44px;
     }
   }
 

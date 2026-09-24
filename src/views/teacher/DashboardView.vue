@@ -1,16 +1,20 @@
 <script setup lang="ts">
-  import { ref, reactive, computed, onMounted } from "vue";
+  import { ref, reactive, computed, onMounted, watch } from "vue";
   import { useRouter } from "vue-router";
   import { useAuthStore } from "@/stores/authStore";
   import TeacherLayout from "@/layouts/TeacherLayout.vue";
   import Skeleton from "@/components/ui/Skeleton.vue";
+  import UiModal from "@/components/ui/UiModal.vue";
+  import InviteStudentsModal from "@/components/teacher/students/InviteStudentsModal.vue";
   import { useCourse } from "@/composables/useCourse";
   import { useAssignment } from "@/composables/useAssignment";
   import { useGrade } from "@/composables/useGrade";
   import { useProfile } from "@/composables/useProfile";
   import { useSubject } from "@/composables/useSubject";
-  import { formatDate, formatShortDate } from "@/utils/formatters";
-  import type { AssignedUser, Grade, Subject } from "@/types";
+  import { usePendingReviews } from "@/composables/usePendingReviews";
+  import { formatDate } from "@/utils/formatters";
+  import type { AssignedUser, Grade } from "@/types";
+  import { useSchools } from "@/composables/useSchools";
 
   const router = useRouter();
   const authStore = useAuthStore();
@@ -20,15 +24,28 @@
     loadCourses,
     createCourse: createCourseService,
   } = useCourse();
-  const { grades, loadGrades, loadUserGrades } = useGrade();
+  const { grades, loadGrades, loadGradesByUsers } = useGrade();
   const { subjects, loadSubjects } = useSubject();
   const { loadProfile } = useProfile();
   const { loadMyStudents } = useAssignment();
+  const { count: pendingReviews, hasMore: pendingHasMore, load: loadPending } =
+    usePendingReviews();
   const assignedStudents = ref<AssignedUser[]>([]);
   const studentGrades = ref<Record<string, Grade[]>>({});
   const loading = ref(true);
   const showCreateModal = ref(false);
+  const showInviteModal = ref(false);
   const creating = ref(false);
+  const courseView = ref<"grid" | "list">(
+    localStorage.getItem("practiq-teacher-course-view") === "list"
+      ? "list"
+      : "grid",
+  );
+  const currentStudentPage = ref(1);
+  const studentsPerPage = 20;
+  const studentQuery = ref("");
+  const gradeFilter = ref("all");
+  const { activeId } = useSchools();
 
   const newCourse = reactive({
     title: "",
@@ -43,26 +60,19 @@
     return name.split(" ")[0] || "Docente";
   });
 
-  const isAdmin = computed(() => {
+  const isSuperAdmin = computed(() => {
     const roles = authStore.authUser?.roles || [];
-    return roles.some(
-      (role) => role.name === "admin" || role.name === "superadmin",
-    );
+    return roles.some((role) => role.name === "superadmin");
   });
+  const dashboardKicker = computed(() =>
+    isSuperAdmin.value ? "Administración de plataforma" : "Panel del docente",
+  );
 
   const subjectCount = computed(() => {
     const set = new Set(courses.value.map((c) => c.subject || "general"));
     return set.size;
   });
-
-  const latestCourseDate = computed(() => {
-    if (!courses.value.length) return "-";
-    const sorted = [...courses.value].sort(
-      (a, b) =>
-        new Date(b.created_at).getTime() - new Date(a.created_at).getTime(),
-    );
-    return formatShortDate(sorted[0].created_at);
-  });
+  const pendingShown = computed(() => (pendingHasMore.value ? "99+" : pendingReviews.value));
 
   const assignedStudentsByGrade = computed(() => {
     const buckets = new Map<
@@ -94,6 +104,37 @@
     return Array.from(buckets.values());
   });
 
+  // Search and grade chip narrow the same roster; paging runs over the result.
+  const filteredStudents = computed(() => {
+    const query = studentQuery.value.trim().toLowerCase();
+    const inGrade =
+      gradeFilter.value === "all"
+        ? null
+        : assignedStudentsByGrade.value.find((g) => g.gradeKey === gradeFilter.value);
+    const allowed = inGrade ? new Set(inGrade.students.map((s) => s.id)) : null;
+    return assignedStudents.value.filter((student) => {
+      if (allowed && !allowed.has(student.id)) return false;
+      if (!query) return true;
+      return (
+        student.name.toLowerCase().includes(query) ||
+        student.email.toLowerCase().includes(query)
+      );
+    });
+  });
+
+  const paginatedStudents = computed(() => {
+    const start = (currentStudentPage.value - 1) * studentsPerPage;
+    return filteredStudents.value.slice(start, start + studentsPerPage);
+  });
+
+  const totalStudentPages = computed(() =>
+    Math.max(1, Math.ceil(filteredStudents.value.length / studentsPerPage)),
+  );
+
+  watch([studentQuery, gradeFilter], () => {
+    currentStudentPage.value = 1;
+  });
+
   onMounted(async () => {
     if (!authStore.profile) {
       try {
@@ -104,6 +145,16 @@
     await loadCoursesData();
     await loadCatalogs();
     await loadAssignedStudents();
+    await loadPending();
+  });
+  watch(activeId, async () => {
+    gradeFilter.value = "all";
+    await Promise.all([
+      loadCoursesData(),
+      loadCatalogs(),
+      loadAssignedStudents(),
+      loadPending(),
+    ]);
   });
 
   async function loadCoursesData() {
@@ -144,24 +195,30 @@
     }
   }
 
-  function goToCourse(id: string) {
-    router.push(`/teacher/courses/${id}`);
+  function setCourseView(view: "grid" | "list") {
+    courseView.value = view;
+    localStorage.setItem("practiq-teacher-course-view", view);
   }
-  function goToAdminUsers() {
-    router.push("/teacher/admin/users");
-  }
-  function goToAcademicAdmin() {
-    router.push("/teacher/admin/academic");
-  }
-
-  function goToStudentProgress(student: AssignedUser) {
-    router.push({
+  function studentProgressRoute(student: AssignedUser) {
+    return {
       path: `/teacher/students/${student.id}/progress`,
       query: {
         name: encodeURIComponent(student.name),
         email: encodeURIComponent(student.email),
       },
-    });
+    };
+  }
+
+  function nextStudentPage() {
+    if (currentStudentPage.value < totalStudentPages.value) {
+      currentStudentPage.value++;
+    }
+  }
+
+  function prevStudentPage() {
+    if (currentStudentPage.value > 1) {
+      currentStudentPage.value--;
+    }
   }
 
   async function loadCatalogs() {
@@ -175,17 +232,19 @@
   async function loadAssignedStudents() {
     try {
       assignedStudents.value = await loadMyStudents();
-      const gradeEntries = await Promise.all(
-        assignedStudents.value.map(async (student) => {
-          try {
-            const grades = await loadUserGrades(student.id);
-            return [student.id, grades || []] as const;
-          } catch {
-            return [student.id, []] as const;
-          }
-        }),
-      );
-      studentGrades.value = Object.fromEntries(gradeEntries);
+      // One request for every assigned student's grade, not one per student:
+      // with a full class list this used to be dozens of round trips queued
+      // behind the browser's per-host connection limit.
+      try {
+        studentGrades.value = await loadGradesByUsers(
+          assignedStudents.value.map((student) => student.id),
+        );
+      } catch (err) {
+        // Grades enrich roster; they must not erase successfully loaded
+        // students when auxiliary batch request fails.
+        console.error(err);
+        studentGrades.value = {};
+      }
     } catch (err) {
       console.error(err);
       assignedStudents.value = [];
@@ -193,1098 +252,543 @@
     }
   }
 
-  function stripeClass(subject?: string) {
-    const s = (subject || "").toLowerCase();
-    if (s.includes("matem")) return "stripe--violet";
-    if (s.includes("lectura") || s.includes("lengu")) return "stripe--blue";
-    if (s.includes("ingl")) return "stripe--green";
-    if (s.includes("ciencia")) return "stripe--orange";
-    if (s.includes("histor") || s.includes("social")) return "stripe--red";
-    return "stripe--slate";
+  function goToPendingReviews() {
+    router.push("/teacher/attempt-reviews?reviewed=unreviewed");
   }
+
+  // Dot colour of each subject (design system: Materia).
+  function subjectColor(subject?: string) {
+    const s = (subject || "").toLowerCase();
+    if (s.includes("matem")) return "var(--brand-500)";
+    if (s.includes("lectura") || s.includes("lengu")) return "var(--info-solid)";
+    if (s.includes("ingl")) return "var(--success-solid)";
+    if (s.includes("ciencia")) return "var(--warning-solid)";
+    if (s.includes("histor") || s.includes("social")) return "var(--danger-solid)";
+    return "var(--ink-muted)";
+  }
+
+  const statusLabel: Record<string, string> = {
+    draft: "Borrador",
+    archived: "Archivado",
+  };
 </script>
 
 <template>
   <TeacherLayout>
     <div class="dashboard">
       <!-- Header -->
-      <div class="page-header">
+      <header class="page-header">
         <div class="page-header__left">
-          <div class="page-kicker">Panel del docente</div>
-          <h1 class="page-title">Hola, {{ teacherName }}.</h1>
+          <div class="page-kicker">{{ dashboardKicker }}</div>
+          <div class="page-heading-row">
+            <h1 class="page-title">Hola, {{ teacherName }}</h1>
+            <span class="badge badge-brand">
+              {{ isSuperAdmin ? "Administrador" : "Docente" }}
+            </span>
+          </div>
+          <p class="page-intro">Organizá tus cursos, alumnos y contenidos desde un solo lugar.</p>
         </div>
         <div class="page-header__right">
-          <span
-            class="role-chip"
-            :class="isAdmin ? 'role-chip--admin' : 'role-chip--teacher'"
-          >
-            <i :class="isAdmin ? 'pi pi-shield' : 'pi pi-user'"></i>
-            {{ isAdmin ? "Admin" : "Docente" }}
-          </span>
-          <button
-            class="btn btn-ghost"
-            @click="goToAcademicAdmin"
-            title="Académico"
-          >
-            <i class="pi pi-sitemap"></i>
-            Académico
+          <button class="btn btn-secondary" type="button" @click="showInviteModal = true">
+            <i class="pi pi-user-plus"></i>
+            Invitar alumnos
           </button>
-          <button
-            v-if="isAdmin"
-            class="btn btn-ghost"
-            @click="goToAdminUsers"
-            title="Usuarios"
-          >
-            <i class="pi pi-users"></i>
-            Usuarios
-          </button>
-          <button class="btn btn-primary" @click="showCreateModal = true">
+          <button class="btn btn-primary" type="button" @click="showCreateModal = true">
             <i class="pi pi-plus"></i>
             Nuevo curso
           </button>
         </div>
+      </header>
+
+      <!-- What needs attention comes before the numbers. -->
+      <div v-if="!loading && pendingReviews > 0" class="notice notice--warning" role="status">
+        <i class="pi pi-info-circle" aria-hidden="true"></i>
+        <span class="notice__text">
+          {{ pendingHasMore ? "Más de 99" : pendingReviews }}
+          {{ pendingReviews === 1 && !pendingHasMore ? "prueba de nivel espera" : "pruebas de nivel esperan" }}
+          tu revisión.
+        </span>
+        <button class="btn btn-secondary btn-sm" type="button" @click="goToPendingReviews">
+          Revisar
+        </button>
       </div>
 
-      <!-- Stats strip skeleton -->
-      <div v-if="loading" class="stats-strip stats-strip--skeleton">
-        <div class="stat-item" v-for="i in 4" :key="i">
-          <Skeleton variant="circle" size="34px" />
-          <div>
+      <!-- Stats skeleton -->
+      <div v-if="loading" class="stats-grid" aria-hidden="true">
+        <div class="stat-tile" v-for="i in 4" :key="i">
+          <Skeleton variant="circle" size="40px" />
+          <div class="skeleton-stack">
             <Skeleton width="40px" height="20px" />
-            <Skeleton width="60px" height="12px" />
+            <Skeleton width="80px" height="12px" />
           </div>
         </div>
       </div>
 
-      <!-- Stats strip -->
-      <div class="stats-strip" v-else>
-        <div class="stat-item">
-          <i class="pi pi-book stat-item__icon stat-item__icon--violet"></i>
-          <span class="stat-item__val">{{ courses.length }}</span>
-          <span class="stat-item__lbl">{{
-            courses.length === 1 ? "Curso" : "Cursos"
-          }}</span>
+      <!-- Stats -->
+      <div class="stats-grid" v-else>
+        <div class="stat-tile">
+          <span class="stat-tile__icon"><i class="pi pi-book"></i></span>
+          <span class="stat-tile__body">
+            <span class="stat-tile__value">{{ courses.length }}</span>
+            <span class="stat-tile__label">{{ courses.length === 1 ? "Curso" : "Cursos" }}</span>
+          </span>
         </div>
-        <div class="stat-divider"></div>
-        <div class="stat-item">
-          <i
-            class="pi pi-graduation-cap stat-item__icon stat-item__icon--blue"
-          ></i>
-          <span class="stat-item__val">{{ assignedStudents.length }}</span>
-          <span class="stat-item__lbl">{{
-            assignedStudents.length === 1 ? "Alumno" : "Alumnos"
-          }}</span>
+        <div class="stat-tile">
+          <span class="stat-tile__icon stat-tile__icon--info"><i class="pi pi-graduation-cap"></i></span>
+          <span class="stat-tile__body">
+            <span class="stat-tile__value">{{ assignedStudents.length }}</span>
+            <span class="stat-tile__label">{{
+              assignedStudents.length === 1 ? "Alumno asignado" : "Alumnos asignados"
+            }}</span>
+          </span>
         </div>
-        <div class="stat-divider"></div>
-        <div class="stat-item">
-          <i class="pi pi-tag stat-item__icon stat-item__icon--green"></i>
-          <span class="stat-item__val">{{ subjectCount }}</span>
-          <span class="stat-item__lbl">{{
-            subjectCount === 1 ? "Materia" : "Materias"
-          }}</span>
+        <div class="stat-tile">
+          <span class="stat-tile__icon stat-tile__icon--success"><i class="pi pi-tag"></i></span>
+          <span class="stat-tile__body">
+            <span class="stat-tile__value">{{ subjectCount }}</span>
+            <span class="stat-tile__label">{{ subjectCount === 1 ? "Materia" : "Materias" }}</span>
+          </span>
         </div>
-        <div class="stat-divider" v-if="courses.length > 0"></div>
-        <div class="stat-item" v-if="courses.length > 0">
-          <i class="pi pi-calendar stat-item__icon stat-item__icon--orange"></i>
-          <span class="stat-item__val">{{ latestCourseDate }}</span>
-          <span class="stat-item__lbl">Último creado</span>
-        </div>
+        <button class="stat-tile" type="button" @click="goToPendingReviews">
+          <span class="stat-tile__icon stat-tile__icon--warning"><i class="pi pi-check-square"></i></span>
+          <span class="stat-tile__body">
+            <span class="stat-tile__value">{{ pendingShown }}</span>
+            <span class="stat-tile__label">Pendientes</span>
+          </span>
+          <i class="pi pi-angle-right stat-tile__go" aria-hidden="true"></i>
+        </button>
       </div>
 
       <!-- Loading skeletons -->
       <template v-if="loading">
-        <section class="content-section">
+        <p class="sr-only" role="status" aria-live="polite">Cargando tu panel…</p>
+        <section class="content-section" aria-hidden="true">
           <div class="section-header">
-            <div>
-              <Skeleton width="120px" height="24px" />
-              <Skeleton width="280px" height="14px" />
-            </div>
+            <Skeleton width="140px" height="24px" />
           </div>
-          <div class="courses-grid">
-            <div
-              v-for="i in 3"
-              :key="i"
-              class="course-card course-card--skeleton"
-            >
-              <div
-                class="course-card__stripe course-card__stripe--skeleton"
-              ></div>
-              <div class="course-card__body">
-                <Skeleton variant="badge" width="70px" />
-                <Skeleton width="85%" height="18px" style="margin-top: 14px" />
-                <Skeleton width="65%" height="14px" style="margin-top: 8px" />
-                <div class="course-card__footer">
-                  <Skeleton width="100px" height="12px" />
-                </div>
-              </div>
-            </div>
-          </div>
-        </section>
-
-        <section class="content-section">
-          <div class="section-header">
-            <div>
-              <Skeleton width="180px" height="24px" />
-              <Skeleton width="260px" height="14px" />
-            </div>
-          </div>
-          <div class="student-grid">
-            <div
-              v-for="i in 4"
-              :key="i"
-              class="student-card student-card--skeleton"
-              style="display: flex; gap: 14px; align-items: center"
-            >
-              <Skeleton variant="avatar" size="48px" />
-              <div
-                class="student-card__info"
-                style="display: flex; flex-direction: column; gap: 6px; flex: 1"
-              >
-                <Skeleton width="75%" height="16px" />
-                <Skeleton width="90%" height="12px" />
-                <Skeleton variant="badge" width="55px" />
-              </div>
+          <div class="grid-cards">
+            <div v-for="i in 3" :key="i" class="course-card">
+              <Skeleton variant="badge" width="90px" />
+              <Skeleton width="80%" height="18px" />
+              <Skeleton width="95%" height="14px" />
+              <Skeleton width="100px" height="12px" style="margin-top: 12px" />
             </div>
           </div>
         </section>
       </template>
 
       <template v-else>
-        <!-- Courses section -->
+        <!-- Courses -->
         <section class="content-section">
           <div class="section-header">
             <div>
-              <h2 class="section-title">Mis cursos</h2>
-              <p class="section-subtitle">
-                Accedé a los contenidos y ejercicios de cada curso.
-              </p>
+              <div class="section-title-row">
+                <h2 class="section-title">Mis cursos</h2>
+                <span class="section-count">{{ courses.length }}</span>
+              </div>
+              <p class="section-subtitle">Accedé a los contenidos y ejercicios de cada curso.</p>
             </div>
-            <button
-              class="btn btn-outline btn-sm"
-              @click="showCreateModal = true"
-            >
-              <i class="pi pi-plus"></i> Nuevo
-            </button>
+            <div class="toolbar">
+              <div class="segmented" role="group" aria-label="Vista de cursos">
+                <button
+                  type="button"
+                  :class="{ 'is-active': courseView === 'grid' }"
+                  :aria-pressed="courseView === 'grid'"
+                  aria-label="Vista de tarjetas"
+                  @click="setCourseView('grid')"
+                ><i class="pi pi-th-large"></i></button>
+                <button
+                  type="button"
+                  :class="{ 'is-active': courseView === 'list' }"
+                  :aria-pressed="courseView === 'list'"
+                  aria-label="Vista de lista"
+                  @click="setCourseView('list')"
+                ><i class="pi pi-list"></i></button>
+              </div>
+            </div>
           </div>
 
           <div v-if="courses.length === 0" class="empty-state">
-            <div class="empty-state__icon">
-              <i class="pi pi-book"></i>
-            </div>
+            <div class="empty-state__icon"><i class="pi pi-book"></i></div>
             <h3>Sin cursos aún</h3>
-            <p>
-              Creá tu primer curso para agregar temas, ejercicios y cuadernos.
-            </p>
-            <button class="btn btn-primary" @click="showCreateModal = true">
+            <p>Creá tu primer curso para agregar temas, ejercicios y cuadernos.</p>
+            <button class="btn btn-primary" type="button" @click="showCreateModal = true">
               <i class="pi pi-plus"></i> Crear primer curso
             </button>
           </div>
 
-          <div v-else class="courses-grid">
-            <div
+          <div v-else-if="courseView === 'grid'" class="grid-cards">
+            <RouterLink
               v-for="course in courses"
               :key="course.id"
               class="course-card"
-              @click="goToCourse(course.id)"
+              :to="`/teacher/courses/${course.id}`"
             >
-              <div
-                class="course-card__stripe"
-                :class="stripeClass(course.subject)"
-              ></div>
-              <div class="course-card__body">
-                <div class="course-card__top">
-                  <span
-                    class="subject-badge"
-                    :class="stripeClass(course.subject)"
-                  >
+              <div class="course-card__top">
+                <span class="badge subject-badge" :style="{ '--subject': subjectColor(course.subject) }">
+                  {{ course.subject || "General" }}
+                </span>
+                <span v-if="course.grade_name" class="badge">{{ course.grade_name }}</span>
+                <span v-if="course.level" class="badge">{{ course.level }}</span>
+                <span v-if="statusLabel[course.status]" class="badge badge-warning">
+                  {{ statusLabel[course.status] }}
+                </span>
+              </div>
+              <h3 class="course-title">{{ course.title }}</h3>
+              <p class="course-desc">{{ course.description || "Sin descripción" }}</p>
+              <div class="course-card__footer">
+                <span class="course-date">
+                  <i class="pi pi-calendar"></i>
+                  {{ formatDate(course.created_at) }}
+                </span>
+                <span class="course-cta">Ver curso <i class="pi pi-arrow-right"></i></span>
+              </div>
+            </RouterLink>
+          </div>
+
+          <div v-else class="row-list">
+            <RouterLink
+              v-for="course in courses"
+              :key="course.id"
+              class="row-item course-row"
+              :to="`/teacher/courses/${course.id}`"
+            >
+              <span class="course-row__main">
+                <span class="row-item__name">{{ course.title }}</span>
+                <span class="course-row__badges">
+                  <span class="badge subject-badge" :style="{ '--subject': subjectColor(course.subject) }">
                     {{ course.subject || "General" }}
                   </span>
-                  <span v-if="course.level" class="level-badge">{{
-                    course.level
-                  }}</span>
-                </div>
-                <h3 class="course-title">{{ course.title }}</h3>
-                <p class="course-desc">
-                  {{ course.description || "Sin descripción" }}
-                </p>
-                <div class="course-card__footer">
-                  <span class="course-date">
-                    <i class="pi pi-calendar"></i>
-                    {{ formatDate(course.created_at) }}
+                  <span v-if="course.grade_name" class="badge">{{ course.grade_name }}</span>
+                  <span v-if="course.level" class="badge">{{ course.level }}</span>
+                  <span v-if="statusLabel[course.status]" class="badge badge-warning">
+                    {{ statusLabel[course.status] }}
                   </span>
-                  <span class="course-cta"
-                    >Ver curso <i class="pi pi-arrow-right"></i
-                  ></span>
-                </div>
-              </div>
-            </div>
+                </span>
+              </span>
+              <span class="row-item__meta course-row__desc">
+                {{ course.description || "Sin descripción" }}
+              </span>
+              <span class="row-item__meta course-row__date">{{ formatDate(course.created_at) }}</span>
+              <span class="row-item__go"><i class="pi pi-angle-right"></i></span>
+            </RouterLink>
           </div>
         </section>
 
-        <!-- Students section -->
+        <!-- Students -->
         <section v-if="assignedStudents.length" class="content-section">
           <div class="section-header">
             <div>
-              <h2 class="section-title">Estudiantes asignados</h2>
-              <p class="section-subtitle">
-                Hacé click en un alumno para ver su progreso.
-              </p>
+              <div class="section-title-row">
+                <h2 class="section-title">Estudiantes asignados</h2>
+                <span class="section-count">{{ assignedStudents.length }}</span>
+              </div>
+              <p class="section-subtitle">Hacé click en un alumno para ver su progreso.</p>
             </div>
-            <div class="grade-pills">
-              <span
-                v-for="group in assignedStudentsByGrade"
-                :key="group.gradeKey"
-                class="grade-pill"
-              >
-                {{ group.gradeName }} · {{ group.students.length }}
-              </span>
-            </div>
+            <label class="search">
+              <span class="sr-only">Buscar alumno</span>
+              <i class="pi pi-search" aria-hidden="true"></i>
+              <input
+                v-model="studentQuery"
+                class="input"
+                type="search"
+                placeholder="Buscar alumno"
+              />
+            </label>
           </div>
 
-          <div class="student-grid">
-            <article
-              v-for="student in assignedStudents"
+          <div v-if="assignedStudentsByGrade.length > 1" class="chips" role="group" aria-label="Filtrar por grado">
+            <button
+              type="button"
+              class="chip"
+              :class="{ 'is-active': gradeFilter === 'all' }"
+              :aria-pressed="gradeFilter === 'all'"
+              @click="gradeFilter = 'all'"
+            >Todos <span>{{ assignedStudents.length }}</span></button>
+            <button
+              v-for="group in assignedStudentsByGrade"
+              :key="group.gradeKey"
+              type="button"
+              class="chip"
+              :class="{ 'is-active': gradeFilter === group.gradeKey }"
+              :aria-pressed="gradeFilter === group.gradeKey"
+              @click="gradeFilter = group.gradeKey"
+            >{{ group.gradeName }} <span>{{ group.students.length }}</span></button>
+          </div>
+
+          <div v-if="filteredStudents.length" class="row-list">
+            <div class="row-list__head" aria-hidden="true">
+              <span></span><span>Alumno</span><span>Correo</span><span>Grado</span><span></span>
+            </div>
+            <RouterLink
+              v-for="student in paginatedStudents"
               :key="student.id"
-              class="student-card"
-              @click="goToStudentProgress(student)"
+              class="row-item"
+              :to="studentProgressRoute(student)"
             >
-              <div class="student-card__avatar">
-                {{ student.name.charAt(0).toUpperCase() }}
-              </div>
-              <div class="student-card__info">
-                <div class="student-name">{{ student.name }}</div>
-                <div class="student-email">{{ student.email }}</div>
-                <div class="student-grades">
-                  <span
-                    v-for="grade in studentGrades[student.id] || []"
-                    :key="grade.id"
-                    class="student-grade-tag"
-                  >
-                    {{ grade.name }}
-                  </span>
-                  <span
-                    v-if="!(studentGrades[student.id] || []).length"
-                    class="student-grade-tag student-grade-tag--empty"
-                  >
-                    Sin grado
-                  </span>
-                </div>
-              </div>
-              <i class="pi pi-angle-right student-card__arrow"></i>
-            </article>
+              <span class="avatar">{{ student.name.charAt(0).toUpperCase() }}</span>
+              <span class="row-item__name">{{ student.name }}</span>
+              <span class="row-item__meta">{{ student.email }}</span>
+              <span class="row-item__tags">
+                <span
+                  v-for="grade in studentGrades[student.id] || []"
+                  :key="grade.id"
+                  class="badge badge-info"
+                >{{ grade.name }}</span>
+                <span v-if="!(studentGrades[student.id] || []).length" class="badge">Sin grado</span>
+              </span>
+              <span class="row-item__go"><i class="pi pi-angle-right"></i></span>
+            </RouterLink>
+          </div>
+          <div v-else class="empty-state">
+            <div class="empty-state__icon"><i class="pi pi-search"></i></div>
+            <h3>Ningún alumno coincide</h3>
+            <p>Probá con otro nombre o quitá el filtro de grado.</p>
+            <button
+              class="btn btn-secondary"
+              type="button"
+              @click="studentQuery = ''; gradeFilter = 'all'"
+            >Quitar filtros</button>
+          </div>
+
+          <!-- Pagination -->
+          <div v-if="filteredStudents.length > studentsPerPage" class="pagination">
+            <button
+              class="btn btn-secondary btn-sm"
+              type="button"
+              :disabled="currentStudentPage === 1"
+              @click="prevStudentPage"
+            >
+              <i class="pi pi-chevron-left"></i>
+              Anterior
+            </button>
+            <span class="pagination__info" role="status" aria-live="polite">
+              Página {{ currentStudentPage }} de {{ totalStudentPages }} · {{ filteredStudents.length }} estudiantes
+            </span>
+            <button
+              class="btn btn-secondary btn-sm"
+              type="button"
+              :disabled="currentStudentPage === totalStudentPages"
+              @click="nextStudentPage"
+            >
+              Siguiente
+              <i class="pi pi-chevron-right"></i>
+            </button>
+          </div>
+        </section>
+
+        <!-- Sin alumnos: el hueco apunta directo a la salida, que es el
+             código de invitación. -->
+        <section v-else class="content-section">
+          <div class="empty-state">
+            <div class="empty-state__icon"><i class="pi pi-users"></i></div>
+            <h3>Todavía no tenés alumnos</h3>
+            <p>
+              Generá tu código de invitación y compartilo con la clase: cada
+              alumno que lo ingrese queda vinculado con vos.
+            </p>
+            <button class="btn btn-primary" type="button" @click="showInviteModal = true">
+              <i class="pi pi-user-plus"></i>
+              Invitar alumnos
+            </button>
           </div>
         </section>
       </template>
     </div>
 
     <!-- Create Course Modal -->
-    <Teleport to="body">
-      <Transition name="fade">
-        <div
-          v-if="showCreateModal"
-          class="modal-overlay"
-          @click.self="showCreateModal = false"
-        >
-          <div class="modal-box">
-            <div class="modal-head">
-              <h3 class="modal-title">Nuevo curso</h3>
-              <button class="icon-btn" @click="showCreateModal = false">
-                <i class="pi pi-times"></i>
-              </button>
-            </div>
-
-            <div
-              v-if="grades.length === 0 || subjects.length === 0"
-              class="setup-notice"
-            >
-              <i class="pi pi-info-circle"></i>
-              <span>
-                Antes de crear un curso necesitás tener
-                <template v-if="grades.length === 0 && subjects.length === 0"
-                  >grados y materias</template
-                >
-                <template v-else-if="grades.length === 0">grados</template>
-                <template v-else>materias</template>
-                configurados.
-                <router-link
-                  to="/teacher/admin/academic"
-                  @click="showCreateModal = false"
-                  class="setup-link"
-                >
-                  Ir a académico →
-                </router-link>
-              </span>
-            </div>
-
-            <form @submit.prevent="createCourse">
-              <div class="form-group">
-                <label class="form-label">Título *</label>
-                <input
-                  v-model="newCourse.title"
-                  class="form-input"
-                  placeholder="Matemáticas 7mo Grado"
-                  required
-                />
-              </div>
-              <div class="form-group">
-                <label class="form-label">Descripción</label>
-                <textarea
-                  v-model="newCourse.description"
-                  class="form-textarea"
-                  placeholder="Describe el curso..."
-                  rows="3"
-                ></textarea>
-              </div>
-              <div class="form-row">
-                <div class="form-group">
-                  <label class="form-label">Materia</label>
-                  <select v-model="newCourse.subject" class="form-select">
-                    <option value="">Seleccionar</option>
-                    <option
-                      v-for="subject in subjects"
-                      :key="subject.id"
-                      :value="subject.id"
-                    >
-                      {{ subject.name }}
-                    </option>
-                  </select>
-                </div>
-                <div class="form-group">
-                  <label class="form-label">Grado</label>
-                  <select v-model="newCourse.grade_id" class="form-select">
-                    <option value="">Seleccionar</option>
-                    <option
-                      v-for="grade in grades"
-                      :key="grade.id"
-                      :value="grade.id"
-                    >
-                      {{ grade.name }}
-                    </option>
-                  </select>
-                </div>
-              </div>
-              <div class="form-group">
-                <label class="form-label">Nivel académico</label>
-                <input
-                  v-model="newCourse.level"
-                  class="form-input"
-                  placeholder="Primaria, Secundaria..."
-                />
-              </div>
-              <div class="modal-actions">
-                <button
-                  type="button"
-                  class="btn btn-secondary"
-                  @click="showCreateModal = false"
-                >
-                  Cancelar
-                </button>
-                <button
-                  type="submit"
-                  class="btn btn-primary"
-                  :disabled="creating"
-                >
-                  <span v-if="creating" class="spinner spinner-sm"></span>
-                  <template v-else><i class="pi pi-check"></i></template>
-                  Crear curso
-                </button>
-              </div>
-            </form>
-          </div>
+    <UiModal
+      :visible="showCreateModal"
+      label="Nuevo curso"
+      @close="showCreateModal = false"
+    >
+      <div class="modal-box">
+        <div class="modal-head">
+          <h3 class="modal-title">Nuevo curso</h3>
+          <button class="icon-btn" type="button" aria-label="Cerrar" @click="showCreateModal = false">
+            <i class="pi pi-times"></i>
+          </button>
         </div>
-      </Transition>
-    </Teleport>
+
+        <div
+          v-if="grades.length === 0 || subjects.length === 0"
+          class="notice notice--warning"
+        >
+          <i class="pi pi-info-circle"></i>
+          <span class="notice__text">
+            Antes de crear un curso necesitás tener
+            <template v-if="grades.length === 0 && subjects.length === 0">grados y materias</template>
+            <template v-else-if="grades.length === 0">grados</template>
+            <template v-else>materias</template>
+            configurados.
+            <router-link
+              to="/teacher/admin/academic"
+              @click="showCreateModal = false"
+              class="setup-link"
+            >
+              Ir a académico →
+            </router-link>
+          </span>
+        </div>
+
+        <form @submit.prevent="createCourse">
+          <div class="form-group">
+            <label class="form-label">Título *</label>
+            <input
+              v-model="newCourse.title"
+              class="form-input"
+              placeholder="Matemática 7.º grado"
+              required
+            />
+          </div>
+          <div class="form-group">
+            <label class="form-label">Descripción</label>
+            <textarea
+              v-model="newCourse.description"
+              class="form-textarea"
+              placeholder="Describí el curso…"
+              rows="3"
+            ></textarea>
+          </div>
+          <div class="form-row">
+            <div class="form-group">
+              <label class="form-label">Materia</label>
+              <select v-model="newCourse.subject" class="form-select">
+                <option value="">Seleccionar</option>
+                <option v-for="subject in subjects" :key="subject.id" :value="subject.id">
+                  {{ subject.name }}
+                </option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Grado</label>
+              <select v-model="newCourse.grade_id" class="form-select">
+                <option value="">Seleccionar</option>
+                <option v-for="grade in grades" :key="grade.id" :value="grade.id">
+                  {{ grade.name }}
+                </option>
+              </select>
+            </div>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Nivel académico</label>
+            <input
+              v-model="newCourse.level"
+              class="form-input"
+              placeholder="Primaria, Secundaria…"
+            />
+          </div>
+          <div class="modal-actions">
+            <button type="button" class="btn btn-secondary" @click="showCreateModal = false">
+              Cancelar
+            </button>
+            <button type="submit" class="btn btn-primary" :disabled="creating">
+              <span v-if="creating" class="spinner spinner-sm"></span>
+              <template v-else><i class="pi pi-check"></i></template>
+              Crear curso
+            </button>
+          </div>
+        </form>
+      </div>
+    </UiModal>
+
+    <InviteStudentsModal
+      v-if="showInviteModal"
+      @close="showInviteModal = false"
+    />
   </TeacherLayout>
 </template>
 
 <style scoped>
-  .dashboard {
-    padding: 24px 28px 40px;
-    max-width: 1180px;
-  }
-
-  /* Page header */
-  .page-header {
-    position: relative;
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 24px;
-    margin-bottom: 16px;
-    padding: 24px 28px;
-    border-radius: 28px;
-    background: var(--gradient-card-accent);
-    border: 1px solid var(--surface-elevated-strong);
-    box-shadow: var(--shadow-soft);
-    backdrop-filter: blur(18px);
-    flex-wrap: wrap;
-    overflow: hidden;
-  }
-
-  .page-header::after {
-    content: "";
-    position: absolute;
-    right: 28px;
-    bottom: -44px;
-    width: 160px;
-    height: 160px;
-    border-radius: 50%;
-    background: var(--gradient-brand-soft);
-    pointer-events: none;
-  }
-
-  .page-header__left,
-  .page-header__right {
-    position: relative;
-    z-index: 1;
-  }
-
-  .page-kicker {
-    font-size: var(--text-xs);
-    text-transform: uppercase;
-    letter-spacing: 0.16em;
-    font-weight: 700;
-    color: var(--practiq-violet);
-    margin-bottom: 2px;
-  }
-
-  .page-title {
-    font-size: var(--font-hero);
-    font-weight: 800;
-    color: var(--text-primary);
-    margin: 0;
-    line-height: 1.15;
-  }
-
-  .page-header__right {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    flex-wrap: wrap;
-  }
-
-  .role-chip {
-    display: inline-flex;
-    align-items: center;
-    gap: 5px;
-    padding: 6px 12px;
-    border-radius: var(--radius-pill);
-    font-size: var(--text-sm);
-    font-weight: 700;
-  }
-  .role-chip--admin {
-    background: rgba(var(--color-success-rgb), 0.12);
-    color: var(--color-success-dark);
-  }
-  .role-chip--teacher {
-    background: rgba(var(--color-warning-rgb), 0.12);
-    color: var(--color-warning-dark);
-  }
-
-  .btn-ghost {
-    display: inline-flex;
-    align-items: center;
-    gap: 6px;
-    padding: 7px 12px;
-    border-radius: var(--radius-md);
-    border: 1px solid rgba(var(--surface-border-rgb), 0.25);
-    background: transparent;
-    font-size: var(--text-base);
-    font-weight: 600;
-    color: var(--text-secondary);
-    cursor: pointer;
-    transition: var(--transition-fast);
-  }
-  .btn-ghost:hover {
-    background: var(--surface-hover);
-    color: var(--text-primary);
-  }
-
-  /* Stats strip */
-  .stats-strip {
-    display: grid;
-    grid-template-columns: repeat(4, minmax(0, 1fr));
-    gap: 12px;
-    margin-bottom: 22px;
-  }
-
-  .stat-item {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    padding: 14px 16px;
-    border-radius: var(--radius-xl);
-    background: var(--surface-elevated);
-    border: 1px solid var(--surface-elevated-strong);
-    box-shadow: var(--shadow-card);
-  }
-
-  .stat-item__icon {
-    width: 36px;
-    height: 36px;
-    display: grid;
-    place-items: center;
-    border-radius: var(--radius-md);
-    font-size: 16px;
-  }
-  .stat-item__icon--violet {
-    background: var(--fill-primary-soft);
-    color: var(--practiq-violet);
-  }
-  .stat-item__icon--blue {
-    background: var(--color-info-bg);
-    color: var(--color-info-dark);
-  }
-  .stat-item__icon--green {
-    background: var(--color-success-bg);
-    color: var(--color-success-dark);
-  }
-  .stat-item__icon--orange {
-    background: var(--color-warning-bg);
-    color: var(--color-warning-strong);
-  }
-
-  .stat-item__val {
-    font-size: var(--text-lg);
-    font-weight: 800;
-    color: var(--text-primary);
-    line-height: 1;
-  }
-
-  .stat-item__lbl {
-    font-size: var(--text-xs);
-    color: var(--text-secondary);
-  }
-
-  .stat-divider {
-    display: none;
-  }
-
-  /* Content sections */
-  .content-section {
-    margin-bottom: 26px;
-  }
-
-  .section-header {
-    display: flex;
-    align-items: flex-start;
-    justify-content: space-between;
-    gap: 16px;
-    margin-bottom: 14px;
-  }
-
-  .section-title {
-    font-size: 1rem;
-    font-weight: 800;
-    color: var(--text-primary);
-    margin: 0 0 4px;
-  }
-
-  .section-subtitle {
-    font-size: var(--text-sm);
-    color: var(--text-secondary);
-    margin: 0;
-  }
-
-  .btn-outline {
-    display: inline-flex;
-    align-items: center;
-    gap: 6px;
-    padding: 6px 12px;
-    border-radius: var(--radius-md);
-    border: 1px solid rgba(var(--practiq-violet-rgb), 0.25);
-    background: transparent;
-    font-size: var(--text-sm);
-    font-weight: 600;
-    color: var(--practiq-violet);
-    cursor: pointer;
-    transition: var(--transition-fast);
-    white-space: nowrap;
-  }
-  .btn-outline:hover {
-    background: var(--fill-primary-faint);
-  }
-
-  /* Courses grid */
-  .courses-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
-    gap: 16px;
-  }
-
-  .course-card {
-    position: relative;
-    border-radius: var(--radius-2xl);
-    background: var(--surface-elevated);
-    border: 1px solid var(--surface-elevated-strong);
-    box-shadow: var(--shadow-card);
-    overflow: hidden;
-    cursor: pointer;
-    transition: var(--transition);
-  }
-  .course-card:hover {
-    transform: translateY(-3px);
-    box-shadow: var(--shadow-card-lg);
-    border-color: rgba(var(--practiq-violet-rgb), 0.18);
-  }
-
-  .course-card__stripe {
-    height: 3px;
-  }
-  .stripe--violet {
-    background: linear-gradient(
-      90deg,
-      var(--practiq-violet),
-      var(--practiq-violet-light)
-    );
-  }
-  .stripe--blue {
-    background: linear-gradient(
-      90deg,
-      var(--color-info-dark),
-      var(--color-info)
-    );
-  }
-  .stripe--green {
-    background: linear-gradient(
-      90deg,
-      var(--color-success-dark),
-      var(--color-success)
-    );
-  }
-  .stripe--orange {
-    background: linear-gradient(
-      90deg,
-      var(--color-warning-strong),
-      var(--color-warning)
-    );
-  }
-  .stripe--red {
-    background: linear-gradient(
-      90deg,
-      var(--color-error-dark),
-      var(--color-error)
-    );
-  }
-  .stripe--slate {
-    background: linear-gradient(
-      90deg,
-      var(--text-secondary),
-      var(--text-muted)
-    );
-  }
-
-  .course-card__body {
-    padding: 16px 18px 14px;
+  .skeleton-stack {
     display: flex;
     flex-direction: column;
     gap: 6px;
   }
 
-  .course-card__top {
+  /* Grade filter chips: one row that scrolls sideways on a phone. */
+  .chips {
     display: flex;
-    align-items: center;
-    gap: 8px;
-    flex-wrap: wrap;
+    gap: var(--space-2);
+    margin-bottom: var(--space-3);
+    overflow-x: auto;
+    padding-bottom: 2px;
+    scrollbar-width: none;
   }
-
-  .subject-badge {
+  .chips::-webkit-scrollbar { display: none; }
+  .chip {
     display: inline-flex;
-    padding: 3px 10px;
+    align-items: center;
+    gap: var(--space-2);
+    flex: 0 0 auto;
+    min-height: 32px;
+    padding: 0 var(--space-3);
+    border: 1px solid var(--line-control);
     border-radius: var(--radius-pill);
-    font-size: var(--text-xs);
-    font-weight: 700;
-    text-transform: capitalize;
-  }
-  .subject-badge.stripe--violet {
-    background: var(--fill-primary-soft);
-    color: var(--practiq-violet);
-  }
-  .subject-badge.stripe--blue {
-    background: var(--color-info-bg);
-    color: var(--color-info-dark);
-  }
-  .subject-badge.stripe--green {
-    background: var(--color-success-bg);
-    color: var(--color-success-dark);
-  }
-  .subject-badge.stripe--orange {
-    background: var(--color-warning-bg);
-    color: var(--color-warning-strong);
-  }
-  .subject-badge.stripe--red {
-    background: var(--color-error-bg);
-    color: var(--color-error-dark);
-  }
-  .subject-badge.stripe--slate {
-    background: rgba(var(--surface-border-rgb), 0.14);
-    color: var(--text-secondary);
-  }
-
-  .level-badge {
-    display: inline-flex;
-    padding: 3px 10px;
-    background: var(--surface-hover);
-    color: var(--text-secondary);
-    border-radius: var(--radius-pill);
-    font-size: var(--text-xs);
-    font-weight: 600;
-  }
-
-  .course-title {
-    font-size: var(--text-lg);
-    font-weight: 700;
-    color: var(--text-primary);
-    line-height: 1.3;
-    margin: 0;
-  }
-
-  .course-desc {
-    font-size: var(--text-sm);
-    color: var(--text-secondary);
-    line-height: 1.5;
-    display: -webkit-box;
-    -webkit-line-clamp: 2;
-    -webkit-box-orient: vertical;
-    overflow: hidden;
-    margin: 0;
-  }
-
-  .course-card__footer {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    padding-top: 8px;
-    border-top: 1px solid rgba(var(--surface-border-rgb), 0.1);
-    margin-top: 4px;
-  }
-
-  .course-date {
-    display: flex;
-    align-items: center;
-    gap: 5px;
-    font-size: var(--text-sm);
-    color: var(--text-muted);
-  }
-
-  .course-cta {
-    display: inline-flex;
-    align-items: center;
-    gap: 4px;
-    font-size: var(--text-sm);
-    font-weight: 700;
-    color: var(--practiq-violet);
-  }
-
-  /* Students */
-  .grade-pills {
-    display: flex;
-    gap: 8px;
-    flex-wrap: wrap;
-  }
-
-  .grade-pill {
-    display: inline-flex;
-    padding: 5px 12px;
-    border-radius: var(--radius-pill);
-    background: var(--color-info-bg);
-    color: var(--color-info-dark);
-    font-size: var(--text-sm);
-    font-weight: 700;
-  }
-
-  .student-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
-    gap: 12px;
-  }
-
-  .student-card {
-    display: flex;
-    align-items: center;
-    gap: 14px;
-    padding: 10px 12px;
-    border-radius: var(--radius-xl);
-    background: var(--surface-elevated);
-    border: 1px solid var(--surface-elevated-strong);
-    box-shadow: var(--shadow-card);
+    background: var(--surface);
+    color: var(--ink-soft);
+    font: 700 13px/1 var(--font-ui);
     cursor: pointer;
-    transition: var(--transition-fast);
   }
-  .student-card:hover {
-    transform: translateY(-2px);
-    box-shadow: var(--shadow-card-lg);
-    border-color: rgba(var(--practiq-violet-rgb), 0.2);
+  .chip span { color: var(--ink-muted); font-weight: 800; }
+  .chip:hover { background: var(--surface-sunken); }
+  .chip.is-active {
+    background: var(--brand-50);
+    border-color: var(--brand-600);
+    color: var(--brand-800);
   }
+  .chip.is-active span { color: var(--brand-800); }
 
-  .student-card__avatar {
-    width: 34px;
-    height: 34px;
-    border-radius: 9px;
-    background: var(--gradient-brand);
-    color: var(--color-on-primary);
-    font-size: var(--text-md);
-    font-weight: 800;
-    display: grid;
-    place-items: center;
-    flex-shrink: 0;
+  /* Course list view */
+  .course-row {
+    grid-template-columns: minmax(0, 1.3fr) minmax(0, 1.6fr) 110px 20px;
   }
-
-  .student-card__info {
-    flex: 1;
+  .course-row__main {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-1);
     min-width: 0;
   }
-
-  .student-name {
-    font-size: var(--text-base);
-    font-weight: 700;
-    color: var(--text-primary);
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-  }
-
-  .student-email {
-    font-size: var(--text-xs);
-    color: var(--text-secondary);
-    margin-top: 2px;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-  }
-
-  .student-grades {
+  .course-row__badges {
     display: flex;
     flex-wrap: wrap;
-    gap: 6px;
-    margin-top: 8px;
+    gap: var(--space-1);
   }
 
-  .student-grade-tag {
-    display: inline-flex;
-    padding: 3px 8px;
-    border-radius: var(--radius-pill);
-    background: var(--color-success-bg);
-    color: var(--color-success-dark);
-    font-size: var(--text-xs);
-    font-weight: 700;
-  }
-  .student-grade-tag--empty {
-    background: rgba(var(--surface-border-rgb), 0.12);
-    color: var(--text-secondary);
-  }
-
-  .student-card__arrow {
-    color: var(--text-muted);
-    font-size: var(--text-md);
-    flex-shrink: 0;
-  }
-
-  /* Empty & loading */
-  .loading-state {
-    display: flex;
-    justify-content: center;
-    padding: 80px;
-  }
-
-  .empty-state {
-    text-align: center;
-    padding: 40px 24px;
-    background: var(--surface-glass);
-    border-radius: var(--radius-2xl);
-    border: 1px dashed rgba(var(--surface-border-rgb), 0.3);
-  }
-  .empty-state__icon {
-    width: 48px;
-    height: 48px;
-    border-radius: var(--radius-lg);
-    background: var(--fill-primary-subtle);
-    display: grid;
-    place-items: center;
-    margin: 0 auto 16px;
-    font-size: 22px;
-    color: var(--practiq-violet);
-  }
-  .empty-state h3 {
-    font-size: 18px;
-    font-weight: 700;
-    color: var(--text-primary);
-    margin-bottom: 8px;
-  }
-  .empty-state p {
-    font-size: var(--text-md);
-    color: var(--text-secondary);
-    margin-bottom: 24px;
-    max-width: 360px;
-    margin-left: auto;
-    margin-right: auto;
-  }
-
-  /* Modal */
-  .modal-head {
+  .pagination {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    margin-bottom: 20px;
+    gap: var(--space-4);
+    margin-top: var(--space-4);
   }
-
-  .icon-btn {
-    width: 32px;
-    height: 32px;
-    border-radius: var(--radius-sm);
-    border: 1px solid rgba(var(--surface-border-rgb), 0.25);
-    background: transparent;
-    display: grid;
-    place-items: center;
-    cursor: pointer;
-    color: var(--text-secondary);
-    transition: var(--transition-fast);
-  }
-  .icon-btn:hover {
-    background: var(--surface-hover);
-    color: var(--text-primary);
-  }
-
-  .form-row {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 14px;
-  }
-
-  .setup-notice {
-    display: flex;
-    align-items: flex-start;
-    gap: 10px;
-    padding: 12px 14px;
-    background: var(--fill-warning-subtle);
-    border: 1px solid rgba(var(--color-warning-rgb), 0.2);
-    border-radius: var(--radius-md);
-    font-size: var(--text-base);
-    color: var(--color-warning-dark);
-    margin-bottom: 16px;
-  }
-  .setup-notice .pi {
-    color: var(--color-warning);
-    flex-shrink: 0;
-    margin-top: 1px;
+  .pagination__info {
+    color: var(--ink-soft);
+    font: 400 13px/20px var(--font-body);
+    text-align: center;
   }
   .setup-link {
-    color: var(--practiq-violet);
-    font-weight: 600;
-    text-decoration: none;
-  }
-  .setup-link:hover {
+    color: var(--brand-600);
+    font-weight: 700;
     text-decoration: underline;
   }
 
-  .modal-actions {
-    display: flex;
-    gap: 12px;
-    justify-content: flex-end;
-    margin-top: 24px;
-  }
-
-  /* Responsive */
-
-  /* Tablet landscape */
-  @media (max-width: 1024px) {
-    .dashboard {
-      padding: 20px 20px 40px;
+  @media (max-width: 1023px) {
+    .course-row {
+      grid-template-columns: minmax(0, 1fr) 20px;
     }
-    .courses-grid {
-      grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
-    }
-    .student-grid {
-      grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
-    }
-    .stats-strip {
-      grid-template-columns: repeat(2, minmax(0, 1fr));
-    }
-  }
-
-  /* Tablet portrait */
-  @media (max-width: 768px) {
-    .dashboard {
-      padding: 16px 14px 32px;
-    }
-    .page-header {
-      padding: 22px 18px;
-      border-radius: 22px;
-    }
-    .page-header {
-      flex-direction: column;
-      align-items: flex-start;
-      gap: 10px;
-    }
-    .page-header__right {
-      width: 100%;
-    }
-    .stats-strip {
-      grid-template-columns: 1fr;
-    }
-    .stat-item {
-      padding: 12px 14px;
-    }
-    .stat-divider {
+    .course-row__desc,
+    .course-row__date {
       display: none;
     }
-    .courses-grid {
-      grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    .course-row .row-item__go {
+      grid-column: 2;
+      grid-row: 1;
     }
-    .student-grid {
-      grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
-    }
-    .form-row {
-      grid-template-columns: 1fr;
-    }
-    .section-header {
+    .pagination {
       flex-direction: column;
-      align-items: flex-start;
+      align-items: stretch;
     }
-  }
-
-  /* Mobile */
-  @media (max-width: 600px) {
-    .courses-grid {
-      grid-template-columns: 1fr;
-    }
-    .student-grid {
-      grid-template-columns: 1fr;
-    }
-  }
-
-  /* Skeleton states */
-  .stats-strip--skeleton .stat-item {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-  }
-
-  .course-card--skeleton {
-    pointer-events: none;
-  }
-
-  .course-card__stripe--skeleton {
-    background: linear-gradient(
-      90deg,
-      rgba(var(--surface-border-rgb), 0.15) 0%,
-      rgba(var(--surface-border-rgb), 0.25) 50%,
-      rgba(var(--surface-border-rgb), 0.15) 100%
-    );
-    background-size: 200% 100%;
-    animation: skeleton-shimmer 1.5s ease-in-out infinite;
-  }
-
-  .student-card--skeleton {
-    pointer-events: none;
-  }
-
-  @keyframes skeleton-shimmer {
-    0% {
-      background-position: 200% 0;
-    }
-    100% {
-      background-position: -200% 0;
-    }
+    .pagination .btn { width: 100%; }
   }
 </style>

@@ -1,0 +1,584 @@
+<script setup lang="ts">
+  import { computed, onMounted, ref } from "vue";
+  import { useRouter } from "vue-router";
+  import StudentLayout from "@/layouts/StudentLayout.vue";
+  import Skeleton from "@/components/ui/Skeleton.vue";
+  import { useDashboard } from "@/composables/useDashboard";
+  import { useCountUp } from "@/composables/useCountUp";
+  import { formatRelativeTime } from "@/utils/formatters";
+  import { needsReview } from "@/utils/mastery";
+  import type { CourseSummary } from "@/services/dashboard/dashboardService";
+  import type { TopicProgress } from "@/types";
+
+  const router = useRouter();
+  // Cached read: the home already fetched this, so arriving from its "Ver todo"
+  // costs nothing. A direct visit falls back to reading once.
+  const { loadDashboard } = useDashboard();
+
+  const progress = ref<TopicProgress[]>([]);
+  const courses = ref<CourseSummary[]>([]);
+  const loading = ref(true);
+  const loadError = ref(false);
+
+  type SortKey = "practice" | "mastery" | "recent";
+  const sortKey = ref<SortKey>("practice");
+
+  const sortOptions: Array<{ key: SortKey; label: string }> = [
+    { key: "practice", label: "Para practicar" },
+    { key: "mastery", label: "Mejor dominio" },
+    { key: "recent", label: "Más reciente" },
+  ];
+
+  // Same dedupe the home does: one topic can appear once per course.
+  const groupedProgress = computed(() => {
+    const map = new Map<string, TopicProgress>();
+    for (const p of progress.value) {
+      const existing = map.get(p.topic_id);
+      if (!existing) {
+        map.set(p.topic_id, { ...p });
+        continue;
+      }
+      existing.mastery_score = Math.max(existing.mastery_score, p.mastery_score);
+      existing.current_level = Math.max(existing.current_level, p.current_level);
+      existing.total_attempts += p.total_attempts;
+      existing.correct_attempts += p.correct_attempts;
+      existing.streak_days = Math.max(existing.streak_days, p.streak_days);
+    }
+    return Array.from(map.values());
+  });
+
+  const sortedProgress = computed(() => {
+    const items = [...groupedProgress.value];
+    if (sortKey.value === "mastery") {
+      return items.sort((a, b) => b.mastery_score - a.mastery_score);
+    }
+    if (sortKey.value === "recent") {
+      return items.sort(
+        (a, b) =>
+          new Date(b.last_practiced_at || 0).getTime() -
+          new Date(a.last_practiced_at || 0).getTime(),
+      );
+    }
+    // Weakest first: this page exists so the student can find what to work on.
+    return items.sort((a, b) => a.mastery_score - b.mastery_score);
+  });
+
+  /**
+   * One section per course. A topic listed by two courses is rendered under
+   * both — it genuinely belongs to each — while the counters above stay on
+   * unique topics so the totals still add up.
+   */
+  const courseGroups = computed(() => {
+    const groups = courses.value.map((course) => {
+      const ids = new Set(course.topic_ids || []);
+      const topics = sortedProgress.value.filter((p) => ids.has(p.topic_id));
+      return {
+        id: course.course_id,
+        title: course.title,
+        topics,
+        // Only a count: the dashboard sends topic ids without titles, so an
+        // untouched topic cannot be named here, only tallied.
+        notStarted: Math.max(ids.size - topics.length, 0),
+      };
+    });
+
+    const claimed = new Set(courses.value.flatMap((c) => c.topic_ids || []));
+    const orphans = sortedProgress.value.filter((p) => !claimed.has(p.topic_id));
+    if (orphans.length) {
+      groups.push({
+        id: "__ungrouped__",
+        title: "Otros temas",
+        topics: orphans,
+        notStarted: 0,
+      });
+    }
+
+    // The sections have to follow the chosen order too, not the order the API
+    // happened to list the courses in. Sorting them by their best-ranked topic
+    // reuses whichever comparator is active instead of re-deriving one per key,
+    // and it is the difference between the control visibly working and looking
+    // dead when a course holds a single topic. Courses with nothing started
+    // have no rank, so they settle at the end.
+    const rank = new Map(sortedProgress.value.map((p, i) => [p.topic_id, i]));
+    const groupRank = (topics: TopicProgress[]) =>
+      topics.length
+        ? Math.min(...topics.map((t) => rank.get(t.topic_id) ?? Infinity))
+        : Infinity;
+
+    return groups
+      .filter((g) => g.topics.length > 0 || g.notStarted > 0)
+      .sort((a, b) => groupRank(a.topics) - groupRank(b.topics));
+  });
+
+  /** Counts on unique topics, so they still add up when a shared topic is
+   *  drawn under two courses below. */
+  const averageMastery = computed(() => {
+    if (!groupedProgress.value.length) return 0;
+    const total = groupedProgress.value.reduce(
+      (acc, item) => acc + item.mastery_score,
+      0,
+    );
+    return Math.round(total / groupedProgress.value.length);
+  });
+
+  // Match the home metrics: these values arrive after the view renders, so
+  // counting them in makes the progress summary feel responsive without
+  // changing the mastery calculation itself.
+  const averageMasteryShown = useCountUp(averageMastery);
+
+  onMounted(async () => {
+    try {
+      const data = await loadDashboard();
+      progress.value = data.progress || [];
+      courses.value = data.courses || [];
+    } catch {
+      loadError.value = true;
+    } finally {
+      loading.value = false;
+    }
+  });
+
+  /**
+   * One row per topic per course. A topic shared by two courses still shows
+   * twice, as it did under two headings, but the course now rides on the card
+   * instead of costing a section header of its own — with one topic per course
+   * there were as many headings as cards.
+   */
+  const topicRows = computed(() =>
+    courseGroups.value.flatMap((group) =>
+      group.topics.map((topic) => ({
+        key: `${group.id}:${topic.topic_id}`,
+        courseId: group.id,
+        courseTitle: group.title,
+        topic,
+      })),
+    ),
+  );
+
+  /** Kept as one closing line rather than a count on every heading. */
+  const notStartedTotal = computed(() =>
+    courseGroups.value.reduce((acc, group) => acc + group.notStarted, 0),
+  );
+
+  function openTopic(courseId: string) {
+    // The levels path is where the practices for a course live; there is no
+    // per-topic route to deep link into yet.
+    if (courseId === "__ungrouped__") return;
+    router.push(`/student/courses/${courseId}/levels`);
+  }
+</script>
+
+<template>
+  <StudentLayout>
+    <div class="progress-shell">
+      <header class="progress-header">
+        <button
+          class="btn-back"
+          type="button"
+          aria-label="Volver"
+          @click="router.back()"
+        >
+          <i class="pi pi-arrow-left"></i>
+        </button>
+        <div class="header-info">
+          <div class="header-kicker">Todos tus temas</div>
+          <h1 class="header-title">Mi progreso</h1>
+        </div>
+        <div v-if="loading" class="header-badge-skeleton">
+          <Skeleton width="60px" height="10px" />
+          <Skeleton width="40px" height="32px" class="mt-4" />
+        </div>
+        <div v-else-if="groupedProgress.length" class="header-badge">
+          <span class="hb-label">Dominio</span>
+          <span class="hb-value">{{ averageMasteryShown }}%</span>
+        </div>
+      </header>
+
+      <template v-if="loading">
+        <div class="mastery-grid">
+          <div v-for="n in 6" :key="n" class="mastery-card">
+            <Skeleton width="60%" height="16px" />
+            <Skeleton width="100%" height="8px" class="mt-12" />
+            <Skeleton width="45%" height="12px" class="mt-12" />
+          </div>
+        </div>
+      </template>
+
+      <div v-else-if="loadError" class="progress-empty">
+        <i class="pi pi-exclamation-circle"></i>
+        No pudimos cargar tu progreso. Probá de nuevo en un momento.
+      </div>
+
+      <div v-else-if="!groupedProgress.length" class="progress-empty">
+        <i class="pi pi-chart-line"></i>
+        Todavía no hay progreso para mostrar. Empezá una práctica y volvé acá.
+      </div>
+
+      <template v-else>
+        <div class="sort-row" role="group" aria-label="Ordenar temas">
+          <button
+            v-for="option in sortOptions"
+            :key="option.key"
+            type="button"
+            class="sort-chip"
+            :class="{ 'sort-chip--active': sortKey === option.key }"
+            :aria-pressed="sortKey === option.key"
+            @click="sortKey = option.key"
+          >
+            {{ option.label }}
+          </button>
+        </div>
+
+        <div class="mastery-grid">
+          <button
+            v-for="row in topicRows"
+            :key="row.key"
+            type="button"
+            class="mastery-card"
+            :aria-label="`Ver ${row.courseTitle}: ${row.topic.topic_title}`"
+            @click="openTopic(row.courseId)"
+          >
+            <div class="mastery-card__top">
+              <div class="mastery-topic">{{ row.topic.topic_title }}</div>
+              <div class="mastery-level">Nivel {{ row.topic.current_level }}</div>
+            </div>
+            <div class="mastery-course">
+              <span>{{ row.courseTitle }}</span>
+              <i class="pi pi-arrow-right" aria-hidden="true"></i>
+            </div>
+            <!-- The bar is the mastery score; printing it again as a percentage
+                 was the only reason the page had to explain why two numbers on
+                 one card disagreed. -->
+            <div class="progress-bar">
+              <div
+                class="progress-fill"
+                :style="{ width: row.topic.mastery_score + '%' }"
+              ></div>
+            </div>
+            <div class="mastery-meta">
+              <span
+                >{{ row.topic.correct_attempts }}/{{ row.topic.total_attempts }}
+                aciertos</span
+              >
+            </div>
+            <div class="mastery-foot">
+              <span v-if="row.topic.last_practiced_at" class="mastery-last">
+                <i class="pi pi-clock"></i>
+                {{ formatRelativeTime(row.topic.last_practiced_at) }}
+              </span>
+              <span v-if="needsReview(row.topic)" class="review-tag">
+                <i class="pi pi-refresh"></i>
+                Para repasar
+              </span>
+            </div>
+          </button>
+        </div>
+
+        <p v-if="notStartedTotal" class="not-started-note">
+          Te quedan {{ notStartedTotal }}
+          {{ notStartedTotal === 1 ? "tema sin empezar" : "temas sin empezar" }}
+          en tus cursos.
+        </p>
+
+      </template>
+    </div>
+  </StudentLayout>
+</template>
+
+<style scoped>
+  .progress-shell {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 24px 20px 60px;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+  }
+
+  .progress-header {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    padding: 20px 24px;
+    background: var(--elevation-tint-bg);
+    border-radius: var(--radius-2xl);
+    border: 1.5px solid rgba(var(--practiq-violet-rgb), 0.12);
+    box-shadow: var(--shadow-card);
+  }
+
+  .btn-back {
+    width: 38px;
+    height: 38px;
+    border-radius: 50%;
+    border: 1.5px solid rgba(var(--practiq-violet-rgb), 0.2);
+    background: var(--surface-elevated-strong);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    transition: background 0.15s;
+  }
+  .btn-back:hover {
+    background: var(--fill-primary-faint);
+  }
+
+  .header-info {
+    flex: 1;
+    min-width: 0;
+  }
+  .header-kicker {
+    font-size: var(--text-xs);
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: var(--practiq-violet);
+    margin-bottom: 4px;
+  }
+  .header-title {
+    font-size: 1.3rem;
+    font-weight: 800;
+    color: var(--text-primary);
+    margin: 0;
+  }
+
+  .header-badge {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 10px 20px;
+    background: var(--gradient-brand);
+    border-radius: var(--radius-xl);
+    color: var(--color-on-primary);
+    flex-shrink: 0;
+  }
+  .hb-label {
+    font-size: 10px;
+    font-weight: 600;
+    opacity: 0.85;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+  }
+  .hb-value {
+    font-size: 1.8rem;
+    font-weight: 800;
+    line-height: 1;
+  }
+  .header-badge-skeleton {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 10px 20px;
+    background: rgba(var(--practiq-violet-light-rgb), 0.1);
+    border-radius: var(--radius-xl);
+    flex-shrink: 0;
+  }
+
+  /* Summary */
+  /* Identity rides the swatch, never the digits: a light status hue is hard to
+     read as text, and the number stays in ink at full contrast. */
+
+
+
+  .sort-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+  .sort-chip {
+    padding: 8px 14px;
+    min-height: 38px;
+    border: none;
+    border-radius: var(--radius-pill);
+    background: var(--elevation-tint-bg);
+    box-shadow: var(--elevation-tint-shadow);
+    color: var(--text-secondary);
+    font-size: var(--text-sm);
+    font-weight: 700;
+    cursor: pointer;
+    transition: var(--transition-fast);
+  }
+  .sort-chip:hover {
+    color: var(--practiq-violet-dark);
+  }
+  .sort-chip--active {
+    background: var(--fill-primary-soft);
+    color: var(--practiq-violet-dark);
+  }
+
+  /* Course grouping */
+
+  .mastery-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+    gap: 14px;
+  }
+
+  /* A button now: the card is the way into the topic's practices, so it needs
+     the reset a button brings and a left-aligned text flow back. */
+  .mastery-card {
+    width: 100%;
+    display: block;
+    text-align: left;
+    border: 0;
+    font: inherit;
+    cursor: pointer;
+    padding: 18px 20px;
+    border-radius: var(--radius-2xl);
+    background: var(--elevation-tint-bg);
+    box-shadow: var(--elevation-tint-shadow);
+    transition: var(--transition);
+  }
+  .mastery-course {
+    margin-top: 2px;
+    color: var(--text-muted);
+    font-size: var(--text-xs);
+    font-weight: 700;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .mastery-course i { color: var(--practiq-violet); font-size: .68rem; }
+  .not-started-note {
+    margin: 0;
+    color: var(--text-muted);
+    font-size: var(--text-sm);
+  }
+  .mastery-card:hover {
+    transform: translateY(-2px);
+    box-shadow: var(--shadow-card-lg);
+  }
+
+  .mastery-card__top {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    margin-bottom: 12px;
+  }
+  .mastery-topic {
+    font-size: var(--text-lg);
+    font-weight: 700;
+    color: var(--text-primary);
+  }
+  .mastery-level {
+    padding: 4px 10px;
+    border-radius: var(--radius-pill);
+    background: var(--fill-primary-subtle);
+    color: var(--practiq-violet-dark);
+    font-size: var(--text-xs);
+    font-weight: 700;
+    flex-shrink: 0;
+  }
+
+  .progress-bar {
+    height: 8px;
+    border-radius: var(--radius-pill);
+    background: var(--fill-border-muted);
+    overflow: hidden;
+  }
+  /* One brand colour keeps the percentage and bar as the only progress signal. */
+  .progress-fill {
+    height: 100%;
+    border-radius: var(--radius-pill);
+    background: var(--gradient-brand);
+    transition: width 0.3s ease;
+  }
+
+  .mastery-meta {
+    display: flex;
+    justify-content: space-between;
+    gap: 8px;
+    font-size: var(--text-sm);
+    color: var(--text-secondary);
+    margin-top: 8px;
+  }
+  .mastery-foot {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: 6px;
+  }
+  .mastery-last {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: var(--text-xs);
+    color: var(--text-muted);
+  }
+  .review-tag {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 3px 9px;
+    border-radius: var(--radius-pill);
+    background: rgba(var(--color-warning-rgb), 0.14);
+    color: var(--color-warning-dark);
+    font-size: var(--text-xs);
+    font-weight: 700;
+  }
+
+  .progress-empty {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 28px 24px;
+    border-radius: var(--radius-2xl);
+    background: var(--elevation-tint-bg);
+    box-shadow: var(--elevation-tint-shadow);
+    color: var(--text-secondary);
+  }
+
+  .mt-4 {
+    margin-top: 4px;
+  }
+  .mt-12 {
+    margin-top: 12px;
+  }
+
+  @media (max-width: 768px) {
+    .progress-shell {
+      padding: 16px 12px 40px;
+      gap: 14px;
+    }
+    .progress-header {
+      padding: 14px 16px;
+      gap: 12px;
+      flex-wrap: wrap;
+    }
+    .header-title {
+      font-size: 1.1rem;
+    }
+    .header-badge {
+      padding: 8px 14px;
+    }
+    .hb-value {
+      font-size: 1.5rem;
+    }
+  }
+
+  @media (max-width: 600px) {
+    .mastery-grid {
+      grid-template-columns: 1fr;
+    }
+    .btn-back {
+      width: 44px;
+      height: 44px;
+    }
+    /* Three equal columns instead of wrapping: as a flex row the third chip
+       dropped to its own line, which read as an unrelated control. */
+    .sort-row {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 6px;
+    }
+    .sort-chip {
+      min-height: 44px;
+      padding: 8px 4px;
+      text-align: center;
+      font-size: var(--text-xs);
+    }
+  }
+</style>

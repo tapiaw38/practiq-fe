@@ -89,6 +89,12 @@ export const useCourse = () => {
     }
   };
 
+  // No toast: the header reports the lifecycle where the teacher is looking,
+  // and a success toast for a control that already shows its own new value is
+  // one notification too many.
+  const setCourseStatus = async (id: string, status: Course["status"]) =>
+    store.setCourseStatus(id, status);
+
   const deleteCourse = async (id: string) => {
     try {
       await store.deleteCourse(id);
@@ -155,6 +161,7 @@ export const useCourse = () => {
     loadCourse,
     createCourse,
     updateCourse,
+    setCourseStatus,
     deleteCourse,
     enrollCourse,
     loadStudents,

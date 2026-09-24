@@ -1,13 +1,38 @@
 <script setup lang="ts">
-  import { computed, onMounted, ref } from "vue";
+  import UiModal from "@/components/ui/UiModal.vue";
+  import { computed, onBeforeUnmount, onMounted, ref } from "vue";
   import TeacherLayout from "@/layouts/TeacherLayout.vue";
   import Skeleton from "@/components/ui/Skeleton.vue";
+  import ConfirmModal from "@/components/ui/ConfirmModal.vue";
   import { useAssignment } from "@/composables/useAssignment";
+  import { useConfirm } from "@/composables/useConfirm";
   import { useAuthAdmin } from "@/composables/useAuthAdmin";
   import { useGrade } from "@/composables/useGrade";
   import { useProfile } from "@/composables/useProfile";
   import { useAuthStore } from "@/stores/authStore";
   import type { AssignedUser, AuthApiUser, Grade, UserProfile } from "@/types";
+
+  const VIEW_KEY = "admin-users-view";
+  const viewMode = ref<"list" | "cards">(
+    localStorage.getItem(VIEW_KEY) === "cards" ? "cards" : "list",
+  );
+
+  function setViewMode(mode: "list" | "cards") {
+    viewMode.value = mode;
+    localStorage.setItem(VIEW_KEY, mode);
+  }
+
+  // Below this width the table cannot fit, so cards are forced whatever the
+  // toggle says. Tracked here rather than duplicated in CSS so the card layout
+  // has a single definition.
+  const narrowQuery = window.matchMedia("(max-width: 720px)");
+  const isNarrow = ref(narrowQuery.matches);
+  const onNarrowChange = (event: MediaQueryListEvent) =>
+    (isNarrow.value = event.matches);
+  narrowQuery.addEventListener("change", onNarrowChange);
+  onBeforeUnmount(() => narrowQuery.removeEventListener("change", onNarrowChange));
+
+  const showCards = computed(() => isNarrow.value || viewMode.value === "cards");
 
   type UserRow = {
     user: AuthApiUser;
@@ -15,6 +40,7 @@
   };
 
   const authStore = useAuthStore();
+  const { confirmState, showConfirm, onConfirm, onCancel } = useConfirm();
   const { loadUsers, updateUser } = useAuthAdmin();
   const {
     loadTeacherStudents,
@@ -22,12 +48,13 @@
     assignTeacher: assignTeacherService,
     unassignTeacher: unassignTeacherService,
   } = useAssignment();
-  const { loadGrades, loadUserGrades, addGradeMember, removeGradeMember } =
+  const { loadGrades, loadGradesByUsers, addGradeMember, removeGradeMember } =
     useGrade();
   const {
     loadProfileById,
-    updateAssistantConfigById,
+    updateUIThemeById,
     updateAcademicStatusById,
+    updateProfileTypeById,
   } = useProfile();
   const loading = ref(false);
   const errorMessage = ref("");
@@ -38,11 +65,11 @@
   const userGrades = ref<Record<string, Grade[]>>({});
   const teacherSelection = ref<Record<string, string>>({});
   const gradeSelection = ref<Record<string, string>>({});
-  const assistantForms = ref<
-    Record<string, { assistant_base_url: string; assistant_api_key: string }>
+  const themeForms = ref<
+    Record<string, { ui_theme: "primary" | "secondary" }>
   >({});
-  const savingAssistant = ref(false);
-  const assistantSaveSuccess = ref(false);
+  const savingTheme = ref(false);
+  const themeSaveSuccess = ref(false);
   const searchTerm = ref("");
   const statusFilter = ref<"all" | "active" | "blocked" | "pending">("all");
   const editingStudent = ref<UserRow | null>(null);
@@ -56,9 +83,7 @@
 
   const isSuperAdmin = computed(() => {
     const roles = authStore.authUser?.roles || [];
-    return roles.some(
-      (role) => role.name === "superadmin" || role.name === "admin",
-    );
+    return roles.some((role) => role.name === "superadmin");
   });
 
   function practiqUserId(user: AuthApiUser) {
@@ -178,20 +203,23 @@
       }),
     );
 
+    // Grades for every student in one request: this table can list the whole
+    // platform, and firing a request per row here made "cargando" the row's
+    // steady state.
+    const studentIds = students.value.map((student) => practiqUserId(student.user));
+    const gradesByStudent: Record<string, Grade[]> = await loadGradesByUsers(
+      studentIds,
+    ).catch(() => ({}));
+
     await Promise.all(
       students.value.map(async (student) => {
+        const studentId = practiqUserId(student.user);
         try {
-          const studentId = practiqUserId(student.user);
-          const [teachersData, gradesData] = await Promise.all([
-            loadStudentTeachers(studentId),
-            loadUserGrades(studentId),
-          ]);
-          studentMap[studentId] = teachersData || [];
-          gradeMap[studentId] = gradesData || [];
+          studentMap[studentId] = (await loadStudentTeachers(studentId)) || [];
         } catch {
-          studentMap[practiqUserId(student.user)] = [];
-          gradeMap[practiqUserId(student.user)] = [];
+          studentMap[studentId] = [];
         }
+        gradeMap[studentId] = gradesByStudent[studentId] || [];
       }),
     );
 
@@ -209,18 +237,26 @@
   function syncAssistantForms() {
     const next: Record<
       string,
-      { assistant_base_url: string; assistant_api_key: string }
+      { ui_theme: "primary" | "secondary" }
     > = {};
     for (const item of rows.value) {
       next[practiqUserId(item.user)] = {
-        assistant_base_url: item.profile?.assistant_base_url || "",
-        assistant_api_key: item.profile?.assistant_api_key || "",
+        ui_theme: item.profile?.ui_theme || "primary",
       };
     }
-    assistantForms.value = next;
+    themeForms.value = next;
   }
 
   function openStudentEditor(item: UserRow) {
+    const userId = practiqUserId(item.user);
+    // The editor can be opened before an async profile refresh completes.
+    // Always create its form first so v-model never dereferences undefined.
+    if (!themeForms.value[userId]) {
+      themeForms.value = {
+        ...themeForms.value,
+        [userId]: { ui_theme: item.profile?.ui_theme || "primary" },
+      };
+    }
     editingStudent.value = item;
   }
 
@@ -228,13 +264,13 @@
     editingStudent.value = null;
   }
 
-  async function saveAssistantConfig(userId: string) {
-    if (savingAssistant.value) return;
-    savingAssistant.value = true;
-    assistantSaveSuccess.value = false;
+  async function saveUITheme(userId: string) {
+    if (savingTheme.value) return;
+    savingTheme.value = true;
+    themeSaveSuccess.value = false;
     try {
-      const form = assistantForms.value[userId];
-      const profile = await updateAssistantConfigById(userId, form);
+      const form = themeForms.value[userId];
+      const profile = await updateUIThemeById(userId, form);
       rows.value = rows.value.map((item) =>
         practiqUserId(item.user) === userId ? { ...item, profile } : item,
       );
@@ -244,15 +280,15 @@
       ) {
         editingStudent.value = { ...editingStudent.value, profile };
       }
-      assistantSaveSuccess.value = true;
+      themeSaveSuccess.value = true;
       setTimeout(() => {
-        assistantSaveSuccess.value = false;
+        themeSaveSuccess.value = false;
       }, 3000);
     } catch (error) {
       console.error(error);
-      errorMessage.value = "No se pudo guardar la configuración del asistente.";
+      errorMessage.value = "No se pudo guardar el tema visual.";
     } finally {
-      savingAssistant.value = false;
+      savingTheme.value = false;
     }
   }
 
@@ -329,6 +365,47 @@
       errorMessage.value = "No se pudo cambiar el estado del alumno.";
     }
   }
+
+  function isSelf(user: AuthApiUser) {
+    return authStore.authUser?.id === user.id;
+  }
+
+  const changingRole = ref<string | null>(null);
+
+  async function setProfileType(item: UserRow, makeTeacher: boolean) {
+    if (!item.profile) {
+      errorMessage.value = "El usuario debe iniciar sesión para crear su perfil Practiq.";
+      return;
+    }
+    const name = fullName(item.user);
+    const ok = await showConfirm(
+      makeTeacher
+        ? `¿Convertir a ${name} en docente?`
+        : `¿Convertir a ${name} en alumno?`,
+      {
+        description: makeTeacher
+          ? "Va a poder crear cursos y ver a los alumnos que tenga asignados. Su sesión actual se cierra y el cambio aplica cuando vuelva a entrar."
+          : "Vuelve a ser alumno y pierde acceso a funciones docentes.",
+        confirmLabel: makeTeacher ? "Convertir en docente" : "Convertir en alumno",
+        danger: !makeTeacher,
+      },
+    );
+    if (!ok) return;
+
+    changingRole.value = item.user.id;
+    try {
+      const updated = await updateProfileTypeById(practiqUserId(item.user), {
+        profile_type: makeTeacher ? "teacher" : "student",
+      });
+      rows.value = rows.value.map((row) =>
+        row.user.id === item.user.id ? { ...row, profile: updated } : row,
+      );
+    } catch {
+      errorMessage.value = "No se pudo cambiar el tipo de perfil.";
+    } finally {
+      changingRole.value = null;
+    }
+  }
 </script>
 
 <template>
@@ -357,10 +434,7 @@
       <div v-if="!isSuperAdmin" class="locked-card">
         <div class="locked-icon"><i class="pi pi-lock"></i></div>
         <h2>Acceso restringido</h2>
-        <p>
-          Esta vista está pensada para superadmin o admin con funciones
-          directivas.
-        </p>
+        <p>La administración de usuarios es exclusiva del administrador.</p>
       </div>
 
       <template v-else>
@@ -389,12 +463,36 @@
         </div>
 
         <section class="toolbar-card">
+          <div class="view-toggle" role="group" aria-label="Cambiar vista">
+            <button
+              type="button"
+              class="view-btn"
+              :class="{ 'view-btn--active': viewMode === 'list' }"
+              :aria-pressed="viewMode === 'list'"
+              title="Vista de lista"
+              aria-label="Vista de lista"
+              @click="setViewMode('list')"
+            >
+              <i class="pi pi-list"></i>
+            </button>
+            <button
+              type="button"
+              class="view-btn"
+              :class="{ 'view-btn--active': viewMode === 'cards' }"
+              :aria-pressed="viewMode === 'cards'"
+              title="Vista de tarjetas"
+              aria-label="Vista de tarjetas"
+              @click="setViewMode('cards')"
+            >
+              <i class="pi pi-th-large"></i>
+            </button>
+          </div>
           <div class="search-box">
             <i class="pi pi-search"></i>
             <input
               v-model.trim="searchTerm"
               class="search-input"
-              placeholder="Buscar por nombre, correo o username"
+              placeholder="Buscar por nombre o correo"
             />
           </div>
           <div class="filter-row">
@@ -414,7 +512,7 @@
         <div v-if="loading" class="skeleton-tables">
           <div class="panel-card">
             <div class="panel-head">
-              <div>
+              <div style="display: flex; flex-direction: column; gap: 8px">
                 <Skeleton width="80px" height="12px" />
                 <Skeleton width="140px" height="24px" />
               </div>
@@ -431,7 +529,7 @@
           </div>
           <div class="panel-card">
             <div class="panel-head">
-              <div>
+              <div style="display: flex; flex-direction: column; gap: 8px">
                 <Skeleton width="70px" height="12px" />
                 <Skeleton width="160px" height="24px" />
               </div>
@@ -460,7 +558,7 @@
             </div>
           </div>
 
-          <table class="data-table">
+          <table class="data-table" :class="{ 'data-table--cards': showCards }">
             <thead>
               <tr>
                 <th>Nombre</th>
@@ -468,6 +566,7 @@
                 <th>Roles</th>
                 <th>Asignados</th>
                 <th>Estado</th>
+                <th></th>
               </tr>
             </thead>
             <tbody>
@@ -507,6 +606,17 @@
                     }}
                   </span>
                 </td>
+                <td data-label="Acciones" class="cell-actions">
+                  <button
+                    v-if="!isSelf(teacher.user)"
+                    class="btn btn-secondary btn-sm"
+                    type="button"
+                    :disabled="changingRole === teacher.user.id"
+                    @click="setProfileType(teacher, false)"
+                  >
+                    Quitar rol docente
+                  </button>
+                </td>
               </tr>
             </tbody>
           </table>
@@ -524,13 +634,14 @@
             </div>
           </div>
 
-          <table class="data-table">
+          <table class="data-table" :class="{ 'data-table--cards': showCards }">
             <thead>
               <tr>
                 <th>Nombre</th>
                 <th>Email</th>
                 <th>Roles</th>
                 <th>ID</th>
+                <th></th>
               </tr>
             </thead>
             <tbody>
@@ -558,6 +669,9 @@
                     practiqUserId(item.user)
                   }}</span>
                 </td>
+                <td data-label="Acciones" class="cell-actions">
+                  <span class="detail-empty">Debe iniciar sesión</span>
+                </td>
               </tr>
             </tbody>
           </table>
@@ -575,7 +689,7 @@
             </div>
           </div>
 
-          <table class="data-table">
+          <table class="data-table" :class="{ 'data-table--cards': showCards }">
             <thead>
               <tr>
                 <th>Nombre</th>
@@ -644,6 +758,16 @@
                 </td>
                 <td data-label="Acciones" class="cell-actions">
                   <button
+                    v-if="!isSelf(item.user)"
+                    class="btn btn-secondary btn-sm"
+                    type="button"
+                    :disabled="changingRole === item.user.id"
+                    @click="setProfileType(item, true)"
+                  >
+                    <i class="pi pi-graduation-cap"></i>
+                    Hacer docente
+                  </button>
+                  <button
                     class="btn btn-secondary btn-sm"
                     type="button"
                     @click="openStudentEditor(item)"
@@ -660,12 +784,13 @@
           </div>
         </section>
 
-        <div
-          v-if="editingStudent"
-          class="modal-backdrop"
-          @click.self="closeStudentEditor"
+        <UiModal
+          :visible="Boolean(editingStudent)"
+          label="Editar alumno"
+          @close="closeStudentEditor"
         >
-          <div class="modal-card">
+          <template v-if="editingStudent">
+            <div class="modal-card">
             <div class="modal-head">
               <div>
                 <div class="panel-kicker">Alumno</div>
@@ -776,6 +901,31 @@
                 </div>
               </div>
 
+              <div class="detail-card theme-config-card">
+                <span class="detail-label">Tema visual</span>
+                <p class="detail-copy">
+                  Se aplica a dashboard, prácticas y cuadernos del alumno.
+                </p>
+                <div class="action-row">
+                  <select
+                    id="student-ui-theme"
+                    v-model="themeForms[currentEditingStudentId].ui_theme"
+                    class="form-select"
+                  >
+                    <option value="primary">Primaria</option>
+                    <option value="secondary">Secundaria</option>
+                  </select>
+                  <button
+                    class="btn btn-secondary btn-sm"
+                    type="button"
+                    :disabled="savingTheme"
+                    @click="saveUITheme(currentEditingStudentId)"
+                  >
+                    Guardar tema
+                  </button>
+                </div>
+              </div>
+
               <div class="action-row action-row--split">
                 <button
                   class="btn"
@@ -797,46 +947,19 @@
                 </button>
               </div>
 
-              <div class="assistant-box">
-                <div class="assistant-title">Asistente del alumno</div>
-                <input
-                  v-model="
-                    assistantForms[currentEditingStudentId].assistant_base_url
-                  "
-                  class="form-input"
-                  placeholder="Assistant Base URL"
-                />
-                <input
-                  v-model="
-                    assistantForms[currentEditingStudentId].assistant_api_key
-                  "
-                  class="form-input"
-                  placeholder="Assistant API Key"
-                />
-                <button
-                  class="btn btn-sm modal-save"
-                  :class="assistantSaveSuccess ? 'btn-success' : 'btn-primary'"
-                  type="button"
-                  :disabled="savingAssistant"
-                  @click="saveAssistantConfig(currentEditingStudentId)"
-                >
-                  <i v-if="savingAssistant" class="pi pi-spin pi-spinner"></i>
-                  <i v-else-if="assistantSaveSuccess" class="pi pi-check"></i>
-                  {{
-                    savingAssistant
-                      ? "Guardando..."
-                      : assistantSaveSuccess
-                        ? "Guardado"
-                        : "Guardar asistente"
-                  }}
-                </button>
-              </div>
             </div>
-          </div>
-        </div>
+            </div>
+          </template>
+        </UiModal>
       </template>
     </div>
   </TeacherLayout>
+
+  <ConfirmModal
+    v-bind="confirmState"
+    @confirm="onConfirm"
+    @cancel="onCancel"
+  />
 </template>
 
 <style scoped>
@@ -887,27 +1010,21 @@
   }
   .hero-card {
     position: relative;
-    padding: 24px 28px;
-    background: var(--gradient-card-accent);
-    box-shadow: var(--shadow-soft);
+    padding: 22px 24px;
+    background: linear-gradient(115deg, var(--surface-elevated), var(--surface-card));
+    box-shadow: var(--shadow-card);
     backdrop-filter: blur(18px);
     overflow: hidden;
-    border-radius: 28px;
-  }
-  .hero-card::after {
-    content: "";
-    position: absolute;
-    right: 28px;
-    bottom: -48px;
-    width: 170px;
-    height: 170px;
-    border-radius: 50%;
-    background: var(--gradient-brand-soft);
-    pointer-events: none;
+    border-radius: var(--radius-2xl);
   }
   .hero-card > * {
     position: relative;
     z-index: 1;
+  }
+  .hero-card > div:first-child {
+    flex: 1;
+    min-width: 0;
+    text-align: left;
   }
   .hero-card > .btn {
     align-self: flex-start;
@@ -927,6 +1044,7 @@
     font-size: var(--font-hero);
     font-weight: 800;
     color: var(--text-heading);
+    text-align: left;
   }
   .hero-copy {
     margin: 0;
@@ -1198,6 +1316,10 @@
     display: grid;
     gap: 8px;
     margin-top: 12px;
+    padding: 16px;
+    border: 1px solid var(--surface-border);
+    border-radius: var(--radius-md);
+    background: var(--surface-bg-soft);
   }
   .assistant-title {
     font-size: var(--text-sm);
@@ -1205,6 +1327,12 @@
     text-transform: uppercase;
     letter-spacing: 0.08em;
     color: var(--text-secondary);
+  }
+  .assistant-copy,
+  .detail-copy {
+    margin: 4px 0 0;
+    color: var(--text-secondary);
+    font-size: var(--text-sm);
   }
   .form-input,
   .form-select {
@@ -1263,18 +1391,12 @@
     place-items: center;
     margin: 0 auto 16px;
   }
-  .modal-backdrop {
-    position: fixed;
-    inset: 0;
-    background: var(--surface-scrim);
-    display: grid;
-    place-items: center;
-    padding: 24px;
-    z-index: 50;
-  }
   .modal-card {
-    width: min(760px, 100%);
-    max-height: calc(100vh - 48px);
+    width: 720px;
+    max-width: 100%;
+    /* dvh: vh is the viewport with the URL bar retracted, so a tall card
+       could push its own buttons under the browser chrome. */
+    max-height: calc(100dvh - 48px);
     overflow: auto;
     padding: 16px;
     border-radius: var(--radius-xl);
@@ -1347,7 +1469,28 @@
       width: auto;
     }
     .stats-row {
-      flex-direction: column;
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 8px;
+    }
+    .stat-card {
+      min-width: 0;
+      padding: 12px 8px 12px 46px;
+    }
+    .stat-icon {
+      left: 10px;
+      top: 12px;
+      width: 28px;
+      height: 28px;
+      font-size: 13px;
+    }
+    .stat-value {
+      font-size: 1.25rem;
+    }
+    .stat-label {
+      font-size: var(--text-xs);
+      line-height: 1.2;
+      overflow-wrap: anywhere;
     }
     .modal-head {
       flex-direction: column;
@@ -1357,6 +1500,103 @@
       display: block;
       overflow-x: auto;
       -webkit-overflow-scrolling: touch;
+    }
+  }
+
+  /* Card layout, shared by the manual toggle and the narrow-screen fallback.
+     Extracted from the media query below so both entry points stay identical
+     instead of drifting apart. */
+  .data-table--cards {
+    overflow: visible;
+  }
+  .data-table--cards thead {
+    display: none;
+  }
+  .data-table--cards,
+  .data-table--cards tbody,
+  .data-table--cards tr,
+  .data-table--cards td {
+    display: block;
+    width: 100%;
+  }
+  .data-table--cards tbody {
+    display: grid;
+    gap: 10px;
+  }
+  .data-table--cards tbody tr {
+    padding: 12px;
+    border: 1px solid rgba(var(--surface-border-rgb), 0.16);
+    border-radius: var(--radius-xl);
+    background: var(--surface-card);
+    box-shadow: var(--shadow-sm);
+  }
+  .data-table--cards td {
+    display: grid;
+    grid-template-columns: minmax(92px, 34%) 1fr;
+    gap: 10px;
+    align-items: start;
+    padding: 8px 0;
+    border-bottom: 1px solid rgba(var(--surface-border-rgb), 0.1);
+  }
+  .data-table--cards td:last-child {
+    border-bottom: none;
+  }
+  .data-table--cards td::before {
+    content: attr(data-label);
+    color: var(--text-secondary);
+    font-size: var(--text-xs);
+    font-weight: 800;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+  }
+  .data-table--cards .cell-center,
+  .data-table--cards .cell-actions {
+    text-align: left;
+  }
+  .data-table--cards .cell-actions .btn {
+    width: 100%;
+    justify-content: center;
+  }
+
+  .view-toggle {
+    display: flex;
+    gap: 4px;
+    padding: 4px;
+    border-radius: var(--radius-lg);
+    background: var(--surface-elevated);
+    border: 1px solid var(--surface-elevated-strong);
+    flex-shrink: 0;
+  }
+
+  .view-btn {
+    display: grid;
+    place-items: center;
+    width: 34px;
+    height: 34px;
+    border: none;
+    border-radius: var(--radius-md, 8px);
+    background: transparent;
+    color: var(--text-secondary);
+    cursor: pointer;
+    transition: var(--transition-fast);
+  }
+
+  .view-btn:hover {
+    color: var(--practiq-violet);
+  }
+
+  .view-btn--active {
+    background: var(--fill-primary-soft);
+    color: var(--practiq-violet);
+  }
+
+  @media (max-width: 820px) {
+    .modal-card {
+      width: 100%;
+      max-height: 95dvh;
+      overflow-y: auto;
+      -webkit-overflow-scrolling: touch;
+      border-radius: var(--radius-2xl) var(--radius-2xl) 0 0;
     }
   }
 
@@ -1370,68 +1610,33 @@
     .filter-chip {
       flex: 1 1 calc(50% - 6px);
     }
-    .data-table {
-      overflow: visible;
-    }
-    .data-table thead {
+    /* Below this width the table cannot fit whatever the toggle says, so the
+       card layout is forced. The rules live in .data-table--cards above. */
+    .view-toggle {
       display: none;
-    }
-    .data-table,
-    .data-table tbody,
-    .data-table tr,
-    .data-table td {
-      display: block;
-      width: 100%;
-    }
-    .data-table tbody {
-      display: grid;
-      gap: 10px;
-    }
-    .data-table tbody tr {
-      padding: 12px;
-      border: 1px solid rgba(var(--surface-border-rgb), 0.16);
-      border-radius: var(--radius-xl);
-      background: var(--surface-card);
-      box-shadow: var(--shadow-sm);
-    }
-    .data-table td {
-      display: grid;
-      grid-template-columns: minmax(92px, 34%) 1fr;
-      gap: 10px;
-      align-items: start;
-      padding: 8px 0;
-      border-bottom: 1px solid rgba(var(--surface-border-rgb), 0.1);
-    }
-    .data-table td:last-child {
-      border-bottom: none;
-    }
-    .data-table td::before {
-      content: attr(data-label);
-      color: var(--text-secondary);
-      font-size: var(--text-xs);
-      font-weight: 800;
-      letter-spacing: 0.04em;
-      text-transform: uppercase;
-    }
-    .cell-center,
-    .cell-actions {
-      text-align: left;
-    }
-    .cell-actions .btn {
-      width: 100%;
-      justify-content: center;
-    }
-    .modal-backdrop {
-      padding: 10px;
-      align-items: end;
-    }
-    .modal-card {
-      max-height: 92vh;
-      border-radius: var(--radius-2xl) var(--radius-2xl) 0 0;
     }
     .action-row {
       flex-direction: column;
       align-items: stretch;
+    }
+    /* Stacked, these become full-width primary actions, but .btn-sm sets only
+       padding: a 13px label in 6px of padding left them about 31px tall and
+       reading as separators rather than buttons. Same fix SchoolUsersView
+       already carries for its own assign rows. */
+    .action-row .btn,
+    .action-row .form-select {
+      width: 100%;
+      min-height: 48px;
+      font-size: var(--text-md);
+    }
+    .action-row .btn {
+      padding: 0 1rem;
+    }
+
+    /* Tap targets >= 44px en mobile */
+    .modal-close {
+      width: 44px;
+      height: 44px;
     }
   }
 

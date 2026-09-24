@@ -1,4 +1,5 @@
 <script setup lang="ts">
+  import UiModal from "@/components/ui/UiModal.vue";
   import { ref, reactive, computed, onMounted } from "vue";
   import TeacherLayout from "@/layouts/TeacherLayout.vue";
   import Skeleton from "@/components/ui/Skeleton.vue";
@@ -40,11 +41,11 @@
     description: "",
   });
 
-  const isAdmin = computed(() => {
+  // El CRUD de estrategias es del administrador; el profesor solo las asigna
+  // a sus cursos.
+  const isSuperAdmin = computed(() => {
     const roles = authStore.authUser?.roles || [];
-    return roles.some(
-      (role) => role.name === "admin" || role.name === "superadmin",
-    );
+    return roles.some((role) => role.name === "superadmin");
   });
 
   onMounted(async () => {
@@ -174,7 +175,7 @@
         </div>
         <div class="page-header__right">
           <button
-            v-if="isAdmin"
+            v-if="isSuperAdmin"
             class="btn btn-primary"
             @click="openCreateModal"
           >
@@ -188,7 +189,7 @@
       <template v-if="loading">
         <section class="content-section">
           <div class="section-header">
-            <div>
+            <div style="display: flex; flex-direction: column; gap: 8px">
               <Skeleton width="180px" height="24px" />
               <Skeleton width="320px" height="14px" />
             </div>
@@ -220,7 +221,7 @@
       <template v-else>
         <StrategyCatalog
           :strategies="strategies"
-          :is-admin="isAdmin"
+          :is-super-admin="isSuperAdmin"
           @create="openCreateModal"
           @edit="editStrategy"
           @delete="confirmDeleteStrategy"
@@ -241,115 +242,109 @@
       </template>
 
       <!-- Create/Edit Strategy Modal -->
-      <Teleport to="body">
-        <Transition name="fade">
-          <div
-            v-if="showStrategyModal"
-            class="modal-overlay"
-            @click.self="closeStrategyModal"
-          >
-            <div class="modal-box">
-              <div class="modal-head">
-                <h3 class="modal-title">
-                  {{
-                    editingStrategy ? "Editar estrategia" : "Nueva estrategia"
-                  }}
-                </h3>
-                <button class="icon-btn" @click="closeStrategyModal">
-                  <i class="pi pi-times"></i>
-                </button>
-              </div>
-
-              <form @submit.prevent="saveStrategy">
-                <div class="form-group">
-                  <label class="form-label">Nombre *</label>
-                  <input
-                    v-model="strategyForm.name"
-                    class="form-input"
-                    placeholder="Ej: Aprendizaje adaptativo"
-                    required
-                  />
-                </div>
-                <div class="form-group">
-                  <label class="form-label">Código *</label>
-                  <input
-                    v-model="strategyForm.code"
-                    class="form-input"
-                    placeholder="Ej: adaptive_practice"
-                    required
-                  />
-                </div>
-                <div class="form-group">
-                  <label class="form-label">Descripcion</label>
-                  <textarea
-                    v-model="strategyForm.description"
-                    class="form-textarea"
-                    placeholder="Describe como funciona esta estrategia..."
-                    rows="3"
-                  ></textarea>
-                </div>
-                <div class="modal-actions">
-                  <button
-                    type="button"
-                    class="btn btn-secondary"
-                    @click="closeStrategyModal"
-                  >
-                    Cancelar
-                  </button>
-                  <button
-                    type="submit"
-                    class="btn btn-primary"
-                    :disabled="saving"
-                  >
-                    <span v-if="saving" class="spinner spinner-sm"></span>
-                    <i v-else class="pi pi-check"></i>
-                    {{
-                      editingStrategy ? "Guardar cambios" : "Crear estrategia"
-                    }}
-                  </button>
-                </div>
-              </form>
+      <UiModal
+        :visible="Boolean(showStrategyModal)"
+        @close="closeStrategyModal"
+      >
+        <template v-if="showStrategyModal">
+          <div class="modal-box">
+            <div class="modal-head">
+              <h3 class="modal-title">
+                {{
+                  editingStrategy ? "Editar estrategia" : "Nueva estrategia"
+                }}
+              </h3>
+              <button class="icon-btn" @click="closeStrategyModal">
+                <i class="pi pi-times"></i>
+              </button>
             </div>
-          </div>
-        </Transition>
-      </Teleport>
 
-      <!-- Delete Confirmation Modal -->
-      <Teleport to="body">
-        <Transition name="fade">
-          <div
-            v-if="deletingStrategy"
-            class="modal-overlay"
-            @click.self="deletingStrategy = null"
-          >
-            <div class="modal-box">
-              <h3 class="modal-title">Eliminar estrategia</h3>
-              <p class="submit-copy">
-                ¿Estas seguro de eliminar la estrategia
-                <strong>{{ deletingStrategy.name }}</strong
-                >? Esta accion no se puede deshacer.
-              </p>
+            <form @submit.prevent="saveStrategy">
+              <div class="form-group">
+                <label class="form-label">Nombre *</label>
+                <input
+                  v-model="strategyForm.name"
+                  class="form-input"
+                  placeholder="Ej: Aprendizaje adaptativo"
+                  required
+                />
+              </div>
+              <div class="form-group">
+                <label class="form-label">Código *</label>
+                <input
+                  v-model="strategyForm.code"
+                  class="form-input"
+                  placeholder="Ej: adaptive_practice"
+                  required
+                />
+              </div>
+              <div class="form-group">
+                <label class="form-label">Descripcion</label>
+                <textarea
+                  v-model="strategyForm.description"
+                  class="form-textarea"
+                  placeholder="Describe como funciona esta estrategia..."
+                  rows="3"
+                ></textarea>
+              </div>
               <div class="modal-actions">
                 <button
+                  type="button"
                   class="btn btn-secondary"
-                  @click="deletingStrategy = null"
+                  @click="closeStrategyModal"
                 >
                   Cancelar
                 </button>
                 <button
-                  class="btn btn-danger"
-                  :disabled="deleting"
-                  @click="deleteStrategy"
+                  type="submit"
+                  class="btn btn-primary"
+                  :disabled="saving"
                 >
-                  <span v-if="deleting" class="spinner spinner-sm"></span>
-                  <i v-else class="pi pi-trash"></i>
-                  Eliminar
+                  <span v-if="saving" class="spinner spinner-sm"></span>
+                  <i v-else class="pi pi-check"></i>
+                  {{
+                    editingStrategy ? "Guardar cambios" : "Crear estrategia"
+                  }}
                 </button>
               </div>
+            </form>
+          </div>
+        </template>
+      </UiModal>
+
+      <!-- Delete Confirmation Modal -->
+      <UiModal
+        :visible="Boolean(deletingStrategy)"
+        @close="deletingStrategy = null"
+      >
+        <template v-if="deletingStrategy">
+          <div class="modal-box">
+            <h3 class="modal-title">Eliminar estrategia</h3>
+            <p class="submit-copy">
+              ¿Estas seguro de eliminar la estrategia
+              <strong>{{ deletingStrategy.name }}</strong
+              >? Esta accion no se puede deshacer.
+            </p>
+            <div class="modal-actions">
+              <button
+                class="btn btn-secondary"
+                @click="deletingStrategy = null"
+              >
+                Cancelar
+              </button>
+              <button
+                class="btn btn-danger"
+                :disabled="deleting"
+                @click="deleteStrategy"
+              >
+                <span v-if="deleting" class="spinner spinner-sm"></span>
+                <i v-else class="pi pi-trash"></i>
+                Eliminar
+              </button>
             </div>
           </div>
-        </Transition>
-      </Teleport>
+        </template>
+      </UiModal>
     </div>
   </TeacherLayout>
 </template>
@@ -361,48 +356,11 @@
   }
 
   /* Header */
-  .page-header {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 24px;
-    margin-bottom: 24px;
-    padding: 24px 28px;
-    border-radius: 28px;
-    background: var(--gradient-card-accent);
-    border: 1px solid var(--surface-elevated-strong);
-    box-shadow: var(--shadow-soft);
-  }
-
-  .page-kicker {
-    font-size: var(--text-xs);
-    text-transform: uppercase;
-    letter-spacing: 0.16em;
-    font-weight: 700;
-    color: var(--practiq-violet);
-    margin-bottom: 2px;
-  }
-
-  .page-title {
-    font-size: var(--font-hero);
-    font-weight: 800;
-    color: var(--text-primary);
-    margin: 0;
-  }
-
   /* Loading & Empty */
   .loading-state {
     display: flex;
     justify-content: center;
     padding: 80px;
-  }
-
-  .empty-state {
-    text-align: center;
-    padding: 48px 24px;
-    background: var(--surface-glass);
-    border-radius: var(--radius-2xl);
-    border: 1px dashed rgba(var(--surface-border-rgb), 0.3);
   }
 
   .empty-icon {
@@ -433,14 +391,6 @@
   /* Sections */
   .content-section {
     margin-bottom: 32px;
-  }
-
-  .section-header {
-    display: flex;
-    align-items: flex-start;
-    justify-content: space-between;
-    gap: 16px;
-    margin-bottom: 16px;
   }
 
   /* Strategies Grid */
@@ -539,6 +489,12 @@
       align-items: flex-start;
       gap: 16px;
       padding: 20px;
+    }
+
+    /* Tap targets >= 44px en mobile */
+    .icon-btn {
+      width: 44px;
+      height: 44px;
     }
   }
 </style>

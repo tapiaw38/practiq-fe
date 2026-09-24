@@ -13,6 +13,9 @@ export interface IAIService {
     help_type?: "hint" | "explanation" | "similar_example";
     conversation_id?: string;
   }): Promise<{ data: { id: string; response: string; help_type: string } }>;
+  getCuriosities(courseId: string): Promise<{
+    data: { course_id: string; curiosities: string[] };
+  }>;
 }
 
 export class AIService implements IAIService {
@@ -40,6 +43,15 @@ export class AIService implements IAIService {
     conversation_id?: string;
   }): Promise<{ data: { id: string; response: string; help_type: string } }> {
     const { data } = await this.api.post("/ai/help", params);
+    return data;
+  }
+
+  async getCuriosities(courseId: string): Promise<{
+    data: { course_id: string; curiosities: string[] };
+  }> {
+    const { data } = await this.api.post("/ai/curiosities", {
+      course_id: courseId,
+    });
     return data;
   }
 }

@@ -20,7 +20,12 @@
       No hay cuadernos aún.
     </div>
     <div class="items-list">
-      <div v-for="notebook in notebooks" :key="notebook.id" class="list-item">
+      <div
+        v-for="notebook in notebooks"
+        :key="notebook.id"
+        class="list-item"
+        @click="emit('open', notebook.id)"
+      >
         <div class="item-info">
           <i class="pi pi-book item-leading-icon"></i>
           <div>
@@ -33,19 +38,28 @@
         </div>
         <div class="item-actions" @click.stop>
           <button
+            type="button"
             class="btn btn-ghost btn-sm"
+            aria-label="Editar páginas"
             @click="emit('open', notebook.id)"
           >
-            <i class="pi pi-pencil"></i>
-          </button>
-          <button class="btn btn-ghost btn-sm" @click="emit('edit', notebook)">
-            <i class="pi pi-cog"></i>
+            <i class="pi pi-pencil"></i><span>Editar</span>
           </button>
           <button
+            type="button"
             class="btn btn-ghost btn-sm"
+            aria-label="Ajustes del cuaderno"
+            @click="emit('edit', notebook)"
+          >
+            <i class="pi pi-cog"></i><span>Ajustes</span>
+          </button>
+          <button
+            type="button"
+            class="btn btn-ghost btn-sm"
+            aria-label="Eliminar cuaderno"
             @click="emit('delete', notebook.id)"
           >
-            <i class="pi pi-trash"></i>
+            <i class="pi pi-trash"></i><span>Eliminar</span>
           </button>
         </div>
       </div>
@@ -130,14 +144,42 @@
     gap: 8px;
     flex: 0 0 auto;
   }
+  .item-actions span {
+    display: none;
+  }
   @media (max-width: 760px) {
-    .section-header,
-    .list-item {
+    .section-header {
       flex-direction: column;
       align-items: stretch;
     }
+    .list-item {
+      align-items: center;
+      gap: 10px;
+      padding: 12px;
+    }
+    .item-info { flex: 1; }
+    .item-info > div { min-width: 0; }
+    .item-title,
+    .item-subtitle {
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
     .item-actions {
       justify-content: flex-end;
+      display: flex;
+      gap: 2px;
+    }
+    .item-actions .btn {
+      width: 36px;
+      min-width: 36px;
+      min-height: 36px;
+      height: 36px;
+      padding: 0;
+      justify-content: center;
+    }
+    .item-actions span {
+      display: none;
     }
   }
 </style>

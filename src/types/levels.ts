@@ -6,16 +6,31 @@ import type {
 export interface LevelSheetSummary {
   id: string;
   title: string;
+  topic_id?: string;
+  topic_title?: string;
+  /** Internal zero-based topic ordering, used to keep groups stable. */
+  topic_order?: number;
   level: number;
   sheet_type: PracticeSheetType;
   test_style: PracticeSheetTestStyle;
+  /** UTC ISO string. Absent when the sheet has no scheduled date. */
+  scheduled_at?: string;
+  /** UTC ISO string. Absent means the sheet stays open once it opens. */
+  available_until?: string;
   exercises: number;
+  submitted?: boolean;
+  pending_review?: boolean;
+  score?: number;
+  passed?: boolean;
 }
 
 export interface LevelNotebookSummary {
   id: string;
   title: string;
   description: string;
+  topic_id?: string;
+  topic_title?: string;
+  topic_order?: number;
   level: number;
   pages: number;
 }

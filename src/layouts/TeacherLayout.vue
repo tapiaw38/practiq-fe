@@ -1,25 +1,124 @@
 <script setup lang="ts">
-  import { computed, ref, watch } from "vue";
+  import { computed, ref, watch, onMounted, onBeforeUnmount } from "vue";
   import { useRoute, useRouter } from "vue-router";
   import { useAuthStore } from "@/stores/authStore";
+  import { useSchools } from "@/composables/useSchools";
+  import { usePendingReviews } from "@/composables/usePendingReviews";
+  import ChangePasswordModal from "@/components/auth/ChangePasswordModal.vue";
+  import SetPasswordModal from "@/components/auth/SetPasswordModal.vue";
 
+  // Shell of every teacher screen. Markup and class names follow the
+  // "Practiq Docente" design system (AppShell / AppShellMobile); the styles
+  // live in assets/teacher.css.
   const route = useRoute();
   const router = useRouter();
   const authStore = useAuthStore();
+  const {
+    schools,
+    activeId,
+    hasChoice,
+    active,
+    loadSchools,
+    setActive,
+    resetSchools,
+    service,
+  } = useSchools();
+  const { count: pendingCount, hasMore: pendingHasMore, load: loadPending } =
+    usePendingReviews();
   const profile = computed(() => authStore.profile);
+
+  // The school's name is the teacher's to set: the migration could only leave
+  // a placeholder, and sign-up guesses from their name.
+  async function renameActive(name: string) {
+    const school = active.value;
+    const trimmed = name.trim();
+    if (!school || !trimmed || trimmed === school.name) return;
+    try {
+      await service.update(school.id, { name: trimmed });
+      await loadSchools(true, isSuperAdmin.value);
+    } catch {
+      // Left as it was; the field shows the stored name again on reload.
+    }
+  }
   const userInitial = computed(
     () => profile.value?.name?.[0]?.toUpperCase() || "D",
   );
   const navOpen = ref(false);
-  const isAdmin = computed(() => {
+  const showChangePassword = ref(false);
+  const showSetPassword = ref(false);
+  const isGoogleUser = computed(() => authStore.authMethod === "google");
+  // admin es el rol del profesor; superadmin, el del administrador.
+  const isSuperAdmin = computed(() => {
     const roles = authStore.authUser?.roles || [];
-    return roles.some(
-      (role) => role.name === "admin" || role.name === "superadmin",
-    );
+    return roles.some((role) => role.name === "superadmin");
   });
   const roleLabel = computed(() =>
-    isAdmin.value ? "Profesor Admin" : "Profesor",
+    isSuperAdmin.value ? "Administrador" : "Profesor",
   );
+  const administersActive = computed(
+    () => isSuperAdmin.value || active.value?.role === "admin",
+  );
+  const canRenameActiveSchool = computed(
+    () => isSuperAdmin.value || active.value?.role === "admin",
+  );
+  const canManageSubscription = computed(
+    () =>
+      !isSuperAdmin.value &&
+      active.value?.kind === "personal" &&
+      active.value.role === "admin",
+  );
+
+  const pendingLabel = computed(() =>
+    pendingCount.value <= 0
+      ? ""
+      : pendingHasMore.value
+        ? "99+"
+        : String(pendingCount.value),
+  );
+
+  // The four things a teacher opens every day live in the bottom bar on a
+  // phone; everything else waits behind "Más" (the drawer).
+  interface Tab {
+    to: string;
+    icon: string;
+    label: string;
+    badge?: string;
+  }
+  const tabs = computed<Tab[]>(() => {
+    const list: Tab[] = [
+      { to: "/teacher/dashboard", icon: "pi-home", label: "Inicio" },
+      { to: "/teacher/notebook-reviews", icon: "pi-book", label: "Cuadernos" },
+      {
+        to: "/teacher/attempt-reviews",
+        icon: "pi-paperclip",
+        label: "Pruebas",
+        badge: pendingLabel.value,
+      },
+    ];
+    if (isSuperAdmin.value) {
+      list.push({ to: "/teacher/admin/schools", icon: "pi-building", label: "Escuelas" });
+    } else if (administersActive.value && active.value) {
+      list.push({ to: "/teacher/admin/academic", icon: "pi-sitemap", label: "Académico" });
+    } else if (canManageSubscription.value) {
+      list.push({ to: "/teacher/subscription", icon: "pi-credit-card", label: "Suscripción" });
+    }
+    return list;
+  });
+
+  function isActive(to: string) {
+    return route.path === to || route.path.startsWith(`${to}/`);
+  }
+
+  onMounted(() => {
+    loadSchools(false, isSuperAdmin.value);
+    loadPending();
+    window.addEventListener("keydown", onKey);
+  });
+  onBeforeUnmount(() => window.removeEventListener("keydown", onKey));
+
+  function onKey(event: KeyboardEvent) {
+    if (event.key === "Escape") navOpen.value = false;
+  }
 
   watch(
     () => route.fullPath,
@@ -27,10 +126,12 @@
       navOpen.value = false;
     },
   );
+  watch(activeId, () => loadPending());
 
   function logout() {
     authStore.clearAuth();
     localStorage.removeItem("practiq_profile");
+    resetSchools();
     router.push("/login");
   }
 </script>
@@ -38,396 +139,251 @@
 <template>
   <div class="app-shell">
     <header class="mobile-topbar">
-      <button class="topbar-btn" type="button" @click="navOpen = true">
+      <button
+        class="topbar-btn"
+        type="button"
+        aria-label="Abrir menú"
+        @click="navOpen = true"
+      >
         <i class="pi pi-bars"></i>
       </button>
 
       <div class="topbar-brand">
         <img src="@/assets/logo.png" class="topbar-logo" alt="Practiq" />
+        <span v-if="active" class="topbar-school" :title="active.name">{{ active.name }}</span>
       </div>
 
-      <div class="topbar-avatar">{{ userInitial }}</div>
+      <button
+        class="avatar topbar-avatar"
+        type="button"
+        aria-label="Abrir menú de la cuenta"
+        @click="navOpen = true"
+      >{{ userInitial }}</button>
     </header>
 
-    <div v-if="navOpen" class="drawer-backdrop" @click="navOpen = false"></div>
+    <div
+      class="drawer-backdrop"
+      :class="{ 'is-open': navOpen }"
+      @click="navOpen = false"
+    ></div>
 
-    <aside class="sidebar" :class="{ 'sidebar--open': navOpen }">
+    <aside
+      class="sidebar"
+      :class="{ 'sidebar--open': navOpen }"
+      aria-label="Menú del espacio docente"
+    >
       <div class="sidebar-brand">
         <img src="@/assets/logo.png" class="sidebar-logo" alt="Practiq" />
-        <button class="close-btn" type="button" @click="navOpen = false">
+        <button
+          class="icon-btn close-btn"
+          type="button"
+          aria-label="Cerrar menú"
+          @click="navOpen = false"
+        >
           <i class="pi pi-times"></i>
         </button>
       </div>
 
+      <section v-if="active" class="school-context" aria-label="Escuela activa">
+        <span class="school-context__label">Escuela</span>
+        <strong class="school-context__name" :title="active.name">{{ active.name }}</strong>
+        <select
+          v-if="hasChoice"
+          class="school-context__select"
+          :value="activeId"
+          aria-label="Cambiar escuela activa"
+          @change="setActive(($event.target as HTMLSelectElement).value)"
+        >
+          <option v-for="school in schools" :key="school.id" :value="school.id">
+            {{ school.name }}
+          </option>
+        </select>
+        <details v-if="canRenameActiveSchool" class="school-context__settings">
+          <summary>Editar nombre</summary>
+          <input
+            :value="active.name"
+            aria-label="Nombre de la escuela"
+            @change="renameActive(($event.target as HTMLInputElement).value)"
+          />
+        </details>
+      </section>
+
       <nav class="sidebar-nav">
-        <div class="nav-section-label">Docente</div>
+        <div class="nav-section-label">Espacio docente</div>
         <RouterLink
           to="/teacher/dashboard"
           class="nav-item"
           active-class="nav-item-active"
-          @click="navOpen = false"
         >
-          <span class="nav-icon"><i class="pi pi-home"></i></span>
+          <i class="pi pi-home"></i>
           <span>Inicio</span>
         </RouterLink>
-        <RouterLink
-          to="/teacher/admin/users"
-          class="nav-item"
-          active-class="nav-item-active"
-          @click="navOpen = false"
-        >
-          <span class="nav-icon"><i class="pi pi-users"></i></span>
-          <span>Usuarios</span>
-        </RouterLink>
-        <RouterLink
-          to="/teacher/admin/academic"
-          class="nav-item"
-          active-class="nav-item-active"
-          @click="navOpen = false"
-        >
-          <span class="nav-icon"><i class="pi pi-sitemap"></i></span>
-          <span>Académico</span>
-        </RouterLink>
+
+        <div class="nav-section-label">Revisar</div>
         <RouterLink
           to="/teacher/notebook-reviews"
           class="nav-item"
           active-class="nav-item-active"
-          @click="navOpen = false"
         >
-          <span class="nav-icon"><i class="pi pi-book"></i></span>
+          <i class="pi pi-book"></i>
           <span>Cuadernos</span>
         </RouterLink>
         <RouterLink
-          to="/teacher/strategies"
+          to="/teacher/attempt-reviews"
           class="nav-item"
           active-class="nav-item-active"
-          @click="navOpen = false"
         >
-          <span class="nav-icon"><i class="pi pi-cog"></i></span>
-          <span>Estrategias</span>
+          <i class="pi pi-paperclip"></i>
+          <span>Pruebas de nivel</span>
+          <span
+            v-if="pendingLabel"
+            class="nav-badge"
+            :aria-label="`${pendingLabel} pendientes`"
+          >{{ pendingLabel }}</span>
         </RouterLink>
+
+        <template v-if="administersActive && active">
+          <div class="nav-section-label">Gestión de escuela</div>
+          <RouterLink
+            to="/teacher/admin/school-users"
+            class="nav-item"
+            active-class="nav-item-active"
+          >
+            <i class="pi pi-users"></i>
+            <span>Usuarios</span>
+          </RouterLink>
+          <RouterLink
+            to="/teacher/admin/academic"
+            class="nav-item"
+            active-class="nav-item-active"
+          >
+            <i class="pi pi-sitemap"></i>
+            <span>Académico</span>
+          </RouterLink>
+        </template>
+
+        <template v-if="isSuperAdmin">
+          <div class="nav-section-label">Plataforma</div>
+          <RouterLink
+            to="/teacher/admin/schools"
+            class="nav-item"
+            active-class="nav-item-active"
+          >
+            <i class="pi pi-building"></i>
+            <span>Escuelas</span>
+          </RouterLink>
+          <RouterLink
+            to="/teacher/admin/plans"
+            class="nav-item"
+            active-class="nav-item-active"
+          >
+            <i class="pi pi-tags"></i>
+            <span>Planes</span>
+          </RouterLink>
+          <RouterLink
+            to="/teacher/admin/site-contact"
+            class="nav-item"
+            active-class="nav-item-active"
+          >
+            <i class="pi pi-phone"></i>
+            <span>Contacto landing</span>
+          </RouterLink>
+          <RouterLink
+            to="/teacher/admin/assistant"
+            class="nav-item"
+            active-class="nav-item-active"
+          >
+            <i class="pi pi-sparkles"></i>
+            <span>Asistente IA</span>
+          </RouterLink>
+        </template>
+
+        <template v-if="isSuperAdmin || canManageSubscription">
+          <div class="nav-section-label">Herramientas</div>
+          <RouterLink
+            v-if="isSuperAdmin"
+            to="/teacher/strategies"
+            class="nav-item"
+            active-class="nav-item-active"
+          >
+            <i class="pi pi-cog"></i>
+            <span>Estrategias</span>
+          </RouterLink>
+          <RouterLink
+            v-if="canManageSubscription"
+            to="/teacher/subscription"
+            class="nav-item"
+            active-class="nav-item-active"
+          >
+            <i class="pi pi-credit-card"></i>
+            <span>Suscripción</span>
+          </RouterLink>
+        </template>
       </nav>
 
       <div class="sidebar-footer">
         <div class="user-info">
-          <div class="user-avatar">{{ userInitial }}</div>
+          <span class="avatar">{{ userInitial }}</span>
           <div class="user-details">
             <div class="user-name">{{ profile?.name || "Docente" }}</div>
             <div class="user-role">{{ roleLabel }}</div>
           </div>
         </div>
-        <button class="logout-btn" type="button" @click="logout">
-          <i class="pi pi-sign-out"></i>
-        </button>
+        <div class="footer-actions">
+          <button
+            class="btn btn-ghost btn-sm"
+            type="button"
+            :title="isGoogleUser ? 'Establecer contraseña' : 'Cambiar contraseña'"
+            @click="
+              isGoogleUser
+                ? (showSetPassword = true)
+                : (showChangePassword = true)
+            "
+          >
+            <i class="pi pi-lock"></i>
+            Contraseña
+          </button>
+          <button class="btn btn-ghost btn-sm" type="button" @click="logout">
+            <i class="pi pi-sign-out"></i>
+            Salir
+          </button>
+        </div>
       </div>
     </aside>
 
     <main class="main-content">
-      <slot />
+      <div class="app-content">
+        <slot />
+      </div>
     </main>
+
+    <nav
+      class="app-tabbar"
+      :style="{ '--tabs': tabs.length + 1 }"
+      aria-label="Navegación principal"
+    >
+      <RouterLink
+        v-for="tab in tabs"
+        :key="tab.to"
+        :to="tab.to"
+        class="tab-item"
+        :class="{ 'tab-item-active': isActive(tab.to) }"
+      >
+        <span class="tab-item__icon">
+          <i class="pi" :class="tab.icon"></i>
+          <span v-if="tab.badge" class="tab-item__dot">{{ tab.badge }}</span>
+        </span>
+        <span>{{ tab.label }}</span>
+      </RouterLink>
+      <button class="tab-item" type="button" @click="navOpen = true">
+        <span class="tab-item__icon"><i class="pi pi-ellipsis-h"></i></span>
+        <span>Más</span>
+      </button>
+    </nav>
   </div>
+
+  <Teleport to="body">
+    <ChangePasswordModal v-model:visible="showChangePassword" />
+    <SetPasswordModal v-model:visible="showSetPassword" />
+  </Teleport>
 </template>
-
-<style scoped>
-  .app-shell {
-    min-height: 100vh;
-    display: flex;
-    background: var(--gradient-app-bg);
-  }
-
-  .mobile-topbar {
-    display: none;
-  }
-
-  .sidebar {
-    width: 280px;
-    flex-shrink: 0;
-    margin: 18px 0 18px 18px;
-    border-radius: 32px;
-    background: var(--surface-glass);
-    border: 1px solid var(--surface-glass-border);
-    box-shadow: var(--shadow-panel);
-    backdrop-filter: blur(18px);
-    display: flex;
-    flex-direction: column;
-    padding: 18px 14px 14px;
-    position: sticky;
-    top: 18px;
-    height: calc(100vh - 36px);
-    z-index: 25;
-  }
-
-  .sidebar-brand,
-  .user-info,
-  .topbar-brand,
-  .nav-item,
-  .sidebar-footer {
-    display: flex;
-    align-items: center;
-  }
-
-  .sidebar-brand {
-    justify-content: space-between;
-    align-items: center;
-    gap: 12px;
-    padding: 4px 8px 14px;
-    border-bottom: 1px solid rgba(var(--surface-border-rgb), 0.12);
-  }
-
-  .topbar-brand,
-  .user-info,
-  .nav-item {
-    gap: 12px;
-  }
-
-  .sidebar-logo {
-    width: 120px;
-    display: block;
-  }
-
-  .topbar-logo {
-    width: 100px;
-    display: block;
-  }
-
-  .close-btn,
-  .topbar-btn,
-  .logout-btn {
-    width: 42px;
-    height: 42px;
-    border: none;
-    border-radius: var(--radius-lg);
-    background: var(--surface-subtle);
-    color: var(--text-secondary);
-    display: grid;
-    place-items: center;
-    cursor: pointer;
-    transition: var(--transition);
-  }
-
-  .close-btn:hover,
-  .topbar-btn:hover,
-  .logout-btn:hover {
-    background: var(--surface-card);
-    color: var(--text-primary);
-  }
-
-  .sidebar-nav {
-    flex: 1;
-    display: flex;
-    flex-direction: column;
-    gap: 6px;
-    margin-top: 16px;
-    overflow-y: auto;
-    overflow-x: hidden;
-    padding: 0 4px 8px;
-    scrollbar-width: thin;
-  }
-
-  .nav-section-label {
-    padding: 4px 10px 6px;
-    font-size: var(--text-xs);
-    font-weight: 800;
-    letter-spacing: 0.12em;
-    text-transform: uppercase;
-    color: var(--text-muted);
-  }
-
-  .nav-item {
-    position: relative;
-    padding: 10px 12px;
-    border-radius: var(--radius-xl);
-    color: var(--text-secondary);
-    font-size: var(--text-md);
-    font-weight: 700;
-    text-decoration: none;
-    transition: var(--transition);
-    min-height: 46px;
-  }
-
-  .nav-item:hover {
-    background: var(--surface-elevated-strong);
-    color: var(--text-heading);
-    transform: translateX(2px);
-  }
-
-  .nav-item-active {
-    background: var(--surface-card);
-    color: var(--practiq-violet-dark);
-    box-shadow: var(--shadow-card);
-  }
-
-  .nav-item-active::before {
-    content: "";
-    position: absolute;
-    left: -4px;
-    top: 12px;
-    bottom: 12px;
-    width: 3px;
-    border-radius: var(--radius-pill);
-    background: var(--practiq-violet);
-  }
-
-  .nav-icon {
-    width: 30px;
-    height: 30px;
-    border-radius: var(--radius-md);
-    display: grid;
-    place-items: center;
-    background: rgba(var(--surface-border-rgb), 0.12);
-    color: var(--text-secondary);
-    flex-shrink: 0;
-  }
-
-  .nav-item:hover .nav-icon,
-  .nav-item-active .nav-icon {
-    background: var(--gradient-brand);
-    color: var(--color-on-primary);
-  }
-
-  .sidebar-footer {
-    justify-content: space-between;
-    gap: 12px;
-    padding: 14px 8px 0;
-    border-top: 1px solid rgba(var(--surface-border-rgb), 0.14);
-  }
-
-  .user-info {
-    min-width: 0;
-    flex: 1;
-    gap: 12px;
-  }
-
-  .user-avatar {
-    width: 42px;
-    height: 42px;
-    border-radius: var(--radius-xl);
-    background: var(--gradient-brand-avatar);
-    color: var(--practiq-violet-dark);
-    display: grid;
-    place-items: center;
-    font-size: var(--text-lg);
-    font-weight: 800;
-    flex-shrink: 0;
-  }
-
-  .user-details {
-    min-width: 0;
-  }
-
-  .user-name {
-    font-size: var(--text-md);
-    font-weight: 700;
-    color: var(--text-heading);
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-  }
-
-  .user-role {
-    font-size: var(--text-sm);
-    color: var(--text-secondary);
-  }
-
-  .logout-btn:hover {
-    color: var(--color-error);
-    background: var(--color-error-bg);
-  }
-
-  .main-content {
-    flex: 1;
-    min-width: 0;
-  }
-
-  .topbar-avatar {
-    width: 42px;
-    height: 42px;
-    border-radius: var(--radius-lg);
-    background: var(--fill-primary-soft);
-    color: var(--practiq-violet-dark);
-    display: grid;
-    place-items: center;
-    font-size: var(--text-lg);
-    font-weight: 800;
-  }
-
-  .drawer-backdrop {
-    display: none;
-  }
-
-  @media (max-width: 1100px) {
-    .sidebar {
-      width: 250px;
-      margin: 16px 0 16px 16px;
-      height: calc(100vh - 32px);
-    }
-  }
-
-  /* Tablet landscape */
-  @media (max-width: 1024px) {
-    .sidebar {
-      width: 220px;
-      margin: 12px 0 12px 12px;
-      height: calc(100vh - 24px);
-    }
-
-    .main-content {
-      padding: 16px;
-    }
-  }
-
-  /* Tablet portrait */
-  @media (max-width: 768px) {
-    .main-content {
-      padding: 12px;
-    }
-  }
-
-  @media (max-width: 920px) {
-    .app-shell {
-      display: block;
-    }
-
-    .mobile-topbar {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      padding: 14px 16px 0;
-      position: sticky;
-      top: 0;
-      z-index: 30;
-      background: var(--gradient-mobile-topbar);
-      backdrop-filter: blur(16px);
-    }
-
-    .drawer-backdrop {
-      display: block;
-      position: fixed;
-      inset: 0;
-      background: var(--surface-scrim);
-      z-index: 34;
-    }
-
-    .sidebar {
-      position: fixed;
-      top: 12px;
-      left: 12px;
-      margin: 0;
-      width: min(320px, calc(100vw - 24px));
-      height: calc(100vh - 24px);
-      transform: translateX(-110%);
-      transition: transform 0.24s ease;
-      z-index: 40;
-    }
-
-    .sidebar--open {
-      transform: translateX(0);
-    }
-  }
-
-  @media (min-width: 921px) {
-    .close-btn {
-      display: none;
-    }
-  }
-</style>

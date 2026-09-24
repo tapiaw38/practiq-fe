@@ -1,4 +1,5 @@
 <script setup lang="ts">
+  import { ref } from "vue";
   import type {
     CourseLevelsPanelEmits,
     CourseLevelsPanelProps,
@@ -6,6 +7,15 @@
 
   defineProps<CourseLevelsPanelProps>();
   const emit = defineEmits<CourseLevelsPanelEmits>();
+  const expandedLevels = ref(new Set<number>([1]));
+
+  function toggleLevel(level: number) {
+    const next = new Set(expandedLevels.value);
+    next.has(level) ? next.delete(level) : next.add(level);
+    expandedLevels.value = next;
+  }
+
+  const isLevelExpanded = (level: number) => expandedLevels.value.has(level);
 
   const countExercises = (value: unknown) =>
     Array.isArray(value) ? value.length : Number(value || 0);
@@ -29,15 +39,30 @@
     </div>
 
     <div class="levels-grid">
-      <article v-for="lv in levels" :key="lv.level" class="teacher-level-card">
+      <article
+        v-for="lv in levels"
+        :key="lv.level"
+        class="teacher-level-card"
+        :class="{ 'teacher-level-card--collapsed': !isLevelExpanded(lv.level) }"
+      >
         <div class="teacher-level-card__top">
-          <div>
+          <div class="teacher-level-summary">
             <div class="teacher-level-label">Nivel {{ lv.level }}</div>
             <div class="teacher-level-meta">
               {{ lv.practices.length }} prácticas ·
               {{ lv.levelTest ? "1 prueba" : "0 pruebas" }} ·
               {{ lv.notebooks.length }} cuadernos
             </div>
+            <button
+              type="button"
+              class="level-collapse-toggle"
+              :aria-expanded="isLevelExpanded(lv.level)"
+              :aria-label="isLevelExpanded(lv.level) ? `Cerrar nivel ${lv.level}` : `Abrir nivel ${lv.level}`"
+              @click="toggleLevel(lv.level)"
+            >
+              <span>{{ isLevelExpanded(lv.level) ? "Ocultar" : "Ver contenido" }}</span>
+              <i :class="isLevelExpanded(lv.level) ? 'pi pi-chevron-up' : 'pi pi-chevron-down'"></i>
+            </button>
           </div>
           <div class="teacher-level-actions">
             <button
@@ -48,9 +73,14 @@
             </button>
             <button
               class="btn btn-secondary btn-sm"
-              @click="emit('createLevelTest', lv.level)"
+              @click="
+                lv.levelTest
+                  ? emit('openSheet', lv.levelTest.id)
+                  : emit('createLevelTest', lv.level)
+              "
             >
-              <i class="pi pi-star"></i> Prueba
+              <i :class="lv.levelTest ? 'pi pi-pencil' : 'pi pi-star'"></i>
+              {{ lv.levelTest ? "Editar prueba" : "Prueba" }}
             </button>
             <button
               class="btn btn-secondary btn-sm"
@@ -148,13 +178,13 @@
   }
   .levels-grid {
     display: grid;
-    gap: 16px;
+    gap: 10px;
   }
   .teacher-level-card {
     background: var(--surface-card);
     border: 1px solid var(--surface-border);
     border-radius: var(--radius-xl);
-    padding: 16px;
+    padding: 12px;
     transition: var(--transition-fast);
   }
   .teacher-level-card:hover {
@@ -168,11 +198,11 @@
   }
   .teacher-level-card__top {
     justify-content: space-between;
-    gap: 16px;
-    align-items: flex-start;
+    gap: 12px;
+    align-items: center;
   }
   .teacher-level-actions {
-    gap: 8px;
+    gap: 6px;
     flex-wrap: wrap;
     justify-content: flex-end;
   }
@@ -185,9 +215,28 @@
     font-size: var(--text-sm);
     margin-top: 4px;
   }
+  .level-collapse-toggle {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    min-height: 28px;
+    margin-top: 7px;
+    padding: 0;
+    border: 0;
+    background: transparent;
+    color: var(--practiq-violet);
+    font: inherit;
+    font-size: var(--text-sm);
+    font-weight: 800;
+    cursor: pointer;
+  }
+  .teacher-level-card--collapsed .teacher-level-actions,
+  .teacher-level-card--collapsed .teacher-level-sections {
+    display: none;
+  }
   .teacher-level-sections {
-    margin-top: 14px;
-    gap: 12px;
+    margin-top: 10px;
+    gap: 8px;
     align-items: stretch;
   }
   .teacher-level-block {
@@ -196,25 +245,25 @@
     background: var(--surface-hover);
     border: 1px solid var(--surface-border);
     border-radius: var(--radius-lg);
-    padding: 12px;
+    padding: 9px 10px;
   }
   .teacher-level-block__title {
     font-size: var(--text-xs);
     font-weight: 800;
     text-transform: uppercase;
     color: var(--text-secondary);
-    margin-bottom: 8px;
+    margin-bottom: 6px;
   }
   .mini-list {
     display: grid;
-    gap: 8px;
+    gap: 5px;
   }
   .mini-item {
     width: 100%;
     border: 1px solid var(--surface-border);
     border-radius: var(--radius-md);
     background: var(--surface-elevated);
-    padding: 9px 10px;
+    padding: 7px 8px;
     text-align: left;
     display: grid;
     gap: 2px;
@@ -248,6 +297,28 @@
     }
     .teacher-level-sections {
       flex-direction: column;
+    }
+    .teacher-level-card {
+      padding: 0;
+      overflow: hidden;
+    }
+    .teacher-level-card__top {
+      padding: 16px;
+      gap: 12px;
+    }
+    .teacher-level-summary {
+      width: 100%;
+    }
+    .level-collapse-toggle {
+      min-height: 32px;
+      margin-top: 8px;
+    }
+    .teacher-level-actions {
+      width: 100%;
+    }
+    .teacher-level-sections {
+      margin: 0;
+      padding: 0 16px 16px;
     }
   }
 </style>
