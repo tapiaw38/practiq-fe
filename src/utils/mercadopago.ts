@@ -28,7 +28,17 @@ export interface CardDetails {
 
 type MercadoPagoSdk = {
   createCardToken(details: CardDetails): Promise<{ id: string }>;
+  getPaymentMethods(options: { bin: string }): Promise<{
+    results?: Array<{ id?: string }>;
+  }>;
 };
+
+/** A token says how to charge; Mercado Pago also wants to be told what it is. */
+export interface CardToken {
+  id: string;
+  /** "visa", "master" and the like. Required for a one-off charge. */
+  paymentMethodId: string;
+}
 
 declare global {
   interface Window {
@@ -60,7 +70,7 @@ function loadSdk(): Promise<void> {
 export async function createCardToken(
   publicKey: string,
   card: CardDetails,
-): Promise<string> {
+): Promise<CardToken> {
   if (!publicKey) {
     throw new Error("falta la clave pública de pagos");
   }
@@ -94,5 +104,16 @@ export async function createCardToken(
   if (!token?.id) {
     throw new Error("la tarjeta no pudo validarse");
   }
-  return token.id;
+
+  // Only a one-off charge needs the method, and a subscription never does, so
+  // a lookup that fails must not cost somebody their subscription.
+  let paymentMethodId = "";
+  try {
+    const bin = card.cardNumber.replace(/\D/g, "").slice(0, 8);
+    const methods = await sdk.getPaymentMethods({ bin });
+    paymentMethodId = methods?.results?.[0]?.id ?? "";
+  } catch {
+    paymentMethodId = "";
+  }
+  return { id: token.id, paymentMethodId };
 }

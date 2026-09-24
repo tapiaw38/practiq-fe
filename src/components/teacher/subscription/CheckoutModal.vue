@@ -1,7 +1,7 @@
 <script setup lang="ts">
   import { reactive, ref, watch } from "vue";
   import UiModal from "@/components/ui/UiModal.vue";
-  import { createCardToken } from "@/utils/mercadopago";
+  import { createCardToken, type CardToken } from "@/utils/mercadopago";
   import type { CatalogPlan } from "@/services/subscription/subscriptionService";
 
   const props = defineProps<{
@@ -16,7 +16,7 @@
 
   const emit = defineEmits<{
     /** Carries the card token, never the card. */
-    (e: "confirm", cardTokenId: string): void;
+    (e: "confirm", token: CardToken): void;
     /** Pay at Mercado Pago instead, where the account balance is an option. */
     (e: "hosted", payerEmail: string): void;
     (e: "cancel"): void;
@@ -63,8 +63,8 @@
     try {
       // The card goes from this form to the gateway and no further. What comes
       // back is a token, and the token is all that leaves this component.
-      const tokenId = await createCardToken(props.publicKey, { ...card });
-      emit("confirm", tokenId);
+      const token = await createCardToken(props.publicKey, { ...card });
+      emit("confirm", token);
     } catch (err) {
       error.value =
         err instanceof Error

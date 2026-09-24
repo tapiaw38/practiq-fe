@@ -76,6 +76,7 @@ export interface ISubscriptionService {
   checkoutConfig(): Promise<{ data: CheckoutConfig }>;
   subscribe(planId: number, cardTokenId: string): Promise<void>;
   startHostedCheckout(planId: number, payerEmail: string): Promise<string>;
+  changePlan(planId: number, cardTokenId: string, paymentMethodId: string): Promise<number>;
   downgradePreview(): Promise<{ data: DowngradeState }>;
   applyDowngrade(keep: string[]): Promise<{ data: DowngradeState }>;
   reactivateStudent(studentId: string): Promise<void>;
@@ -140,6 +141,26 @@ export class SubscriptionService implements ISubscriptionService {
       payer_email: payerEmail,
     });
     return data?.data?.init_point ?? "";
+  }
+
+  /**
+   * Moves an existing subscription to another plan.
+   *
+   * Not the same as subscribing again: the agreement is restated at the
+   * gateway, so only the difference for the rest of the current period is
+   * charged instead of a whole new month. Returns what was charged.
+   */
+  async changePlan(
+    planId: number,
+    cardTokenId: string,
+    paymentMethodId: string,
+  ): Promise<number> {
+    const { data } = await this.api.post("/teachers/me/subscription/change-plan", {
+      plan_id: planId,
+      card_token_id: cardTokenId,
+      payment_method_id: paymentMethodId,
+    });
+    return data?.data?.charged ?? 0;
   }
 
   /** Who would lose access if the current plan were enforced right now. */

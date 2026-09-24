@@ -6,6 +6,7 @@
   import Skeleton from "@/components/ui/Skeleton.vue";
   import CheckoutModal from "@/components/teacher/subscription/CheckoutModal.vue";
   import { authService } from "@/services/auth/authService";
+  import type { CardToken } from "@/utils/mercadopago";
   import {
     SubscriptionService,
     type CatalogPlan,
@@ -112,13 +113,35 @@
     checkoutPlan.value = plan;
   }
 
-  async function confirmCheckout(cardTokenId: string) {
+  async function confirmCheckout(token: CardToken) {
     const plan = checkoutPlan.value;
     if (!plan) return;
     checkoutError.value = "";
     working.value = true;
     try {
-      await service.subscribe(plan.plan_id, cardTokenId);
+      // Already paying means moving plan, not subscribing again. Subscribing
+      // again opens a second agreement and charges a whole new month on top of
+      // the one already bought.
+      if (subscription.value?.active) {
+        const charged = await service.changePlan(
+          plan.plan_id,
+          token.id,
+          token.paymentMethodId,
+        );
+        checkoutPlan.value = null;
+        await reload();
+        toast.add({
+          severity: "success",
+          summary: "Plan actualizado",
+          detail:
+            charged > 0
+              ? `Cobramos ${formatMoney(charged, plan.currency || "ARS")} por lo que queda del mes.`
+              : "El nuevo precio empieza en la próxima renovación.",
+          life: 4000,
+        });
+        return;
+      }
+      await service.subscribe(plan.plan_id, token.id);
       checkoutPlan.value = null;
       await reload();
       toast.add({ severity: "success", summary: "Suscripción activada", life: 2500 });
@@ -253,12 +276,16 @@
   const resume = () => run(() => service.resume(), "Suscripción reanudada");
   const cancel = () => run(() => service.cancel(), "Suscripción cancelada");
 
-  function formatAmount(plan: CatalogPlan) {
+  function formatMoney(amount: number, currency = "ARS") {
     return new Intl.NumberFormat("es-AR", {
       style: "currency",
-      currency: plan.currency || "ARS",
+      currency,
       maximumFractionDigits: 0,
-    }).format(plan.amount);
+    }).format(amount);
+  }
+
+  function formatAmount(plan: CatalogPlan) {
+    return formatMoney(plan.amount, plan.currency || "ARS");
   }
 
   /** Best effort: a missing prefill costs a teacher some typing, nothing more. */
