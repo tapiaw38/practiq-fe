@@ -18,6 +18,8 @@
   const board = ref<CourseLeaderboard | null>(null);
   const boardLoading = ref(false);
   const boardError = ref(false);
+  const boardDirection = ref<"next" | "previous">("next");
+  let swipeStartX: number | null = null;
 
   const selectedCourse = computed(
     () => courses.value.find((course) => course.course_id === selectedCourseID.value) || courses.value[0],
@@ -71,6 +73,29 @@
     } finally {
       boardLoading.value = false;
     }
+  }
+
+  function selectCourse(courseID: string, direction: "next" | "previous" = "next") {
+    if (!courseID || courseID === selectedCourseID.value) return;
+    boardDirection.value = direction;
+    selectedCourseID.value = courseID;
+  }
+
+  function onBoardTouchStart(event: TouchEvent) {
+    swipeStartX = event.changedTouches[0]?.clientX ?? null;
+  }
+
+  function onBoardTouchEnd(event: TouchEvent) {
+    const startX = swipeStartX;
+    swipeStartX = null;
+    const endX = event.changedTouches[0]?.clientX;
+    if (startX === null || endX === undefined || Math.abs(endX - startX) < 56) return;
+
+    const currentIndex = courses.value.findIndex((course) => course.course_id === selectedCourseID.value);
+    if (currentIndex < 0) return;
+    const nextIndex = endX < startX ? currentIndex + 1 : currentIndex - 1;
+    const nextCourse = courses.value[nextIndex];
+    if (nextCourse) selectCourse(nextCourse.course_id, nextIndex > currentIndex ? "next" : "previous");
   }
 
   watch(courses, (items) => {
@@ -137,7 +162,7 @@
             type="button"
             role="tab"
             :aria-selected="selectedCourseID === course.course_id"
-            @click="selectedCourseID = course.course_id"
+            @click="selectCourse(course.course_id, courses.findIndex((item) => item.course_id === course.course_id) > courses.findIndex((item) => item.course_id === selectedCourseID) ? 'next' : 'previous')"
           >
             <span class="course-tab__icon"><i class="pi pi-book"></i></span>
             <span class="course-tab__copy">
@@ -147,7 +172,14 @@
           </button>
         </div>
 
-        <section class="league-card league-board anim-rise" aria-labelledby="league-board-title">
+        <section
+          :key="selectedCourseID"
+          class="league-card league-board anim-rise"
+          :class="`league-board--slide-${boardDirection}`"
+          aria-labelledby="league-board-title"
+          @touchstart.passive="onBoardTouchStart"
+          @touchend.passive="onBoardTouchEnd"
+        >
           <h2 id="league-board-title"><i class="pi pi-trophy"></i> Tabla de posiciones</h2>
 
           <div v-if="boardLoading" class="board-rows">
@@ -223,10 +255,14 @@
   h1, h2, p { margin:0; } h1 { color:var(--text-heading); font-size:var(--font-hero); line-height:1.1; } h2 { color:var(--text-heading); font-size:17px; display:flex; align-items:center; gap:8px; } h2 i { color:var(--practiq-violet); } .league-header p:not(.league-kicker), .league-card p { margin-top:7px; color:var(--text-secondary); line-height:1.5; }
   .league-xp { min-width:120px; padding:10px 18px; border-radius:var(--radius-xl); background:var(--gradient-brand); color:var(--color-on-primary); text-align:center; }
   .league-xp span { display:block; font-size:10px; font-weight:800; letter-spacing:.08em; text-transform:uppercase; opacity:.85; }.league-xp strong { font-size:1.8rem; line-height:1; }
-  .course-tabs { display:flex; gap:10px; overflow-x:auto; padding:3px 1px 8px; scrollbar-width:none; scroll-snap-type:x mandatory; }.course-tabs::-webkit-scrollbar { display:none; }
-  .course-tab { flex:0 0 176px; min-height:76px; display:flex; align-items:center; gap:10px; padding:12px; border:1px solid var(--surface-glass-border); border-radius:var(--radius-xl); background:var(--elevation-tint-bg); color:var(--text-secondary); text-align:left; cursor:pointer; scroll-snap-align:start; font:inherit; transition:var(--transition-fast); }.course-tab:hover { border-color:rgba(var(--practiq-violet-rgb),.28); }.course-tab--active { background:var(--fill-primary-soft); border-color:var(--practiq-violet); color:var(--practiq-violet-dark); box-shadow:0 8px 22px rgba(var(--practiq-violet-rgb),.14); }.course-tab__icon { width:38px;height:38px;display:grid;place-items:center;border-radius:var(--radius-md);background:var(--surface-card);flex:none; }.course-tab--active .course-tab__icon { background:var(--gradient-brand); color:var(--color-on-primary); }.course-tab__copy { min-width:0; display:grid; gap:3px; }.course-tab strong { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-size:var(--text-sm); }.course-tab small { font-size:var(--text-xs); color:var(--text-muted); }
+  .course-tabs { display:flex; gap:10px; overflow-x:auto; padding:4px 2px 12px; scrollbar-width:none; scroll-snap-type:x mandatory; isolation:isolate; }.course-tabs::-webkit-scrollbar { display:none; }
+  .course-tab { flex:0 0 176px; min-height:76px; display:flex; align-items:center; gap:10px; padding:12px; border:1px solid var(--surface-glass-border); border-radius:var(--radius-xl); background:var(--elevation-tint-bg); color:var(--text-secondary); text-align:left; cursor:pointer; scroll-snap-align:start; font:inherit; transition:var(--transition-fast); }.course-tab:hover { border-color:rgba(var(--practiq-violet-rgb),.28); }.course-tab--active { background:var(--fill-primary-soft); border-color:var(--practiq-violet); color:var(--practiq-violet-dark); box-shadow:inset 0 0 0 1px rgba(var(--practiq-violet-rgb),.08), 0 5px 14px rgba(var(--practiq-violet-rgb),.10); }.course-tab__icon { width:38px;height:38px;display:grid;place-items:center;border-radius:var(--radius-md);background:var(--surface-card);flex:none; }.course-tab--active .course-tab__icon { background:var(--gradient-brand); color:var(--color-on-primary); }.course-tab__copy { min-width:0; display:grid; gap:3px; }.course-tab strong { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-size:var(--text-sm); }.course-tab small { font-size:var(--text-xs); color:var(--text-muted); }
   .league-card { max-width:650px; padding:24px; border-radius:var(--radius-2xl); background:var(--elevation-tint-bg); border:1px solid var(--surface-glass-border); box-shadow:var(--shadow-card); }.league-empty { min-height:190px; display:grid;place-items:center;align-content:center;gap:10px;padding:24px;text-align:center;border-radius:var(--radius-2xl);background:var(--elevation-tint-bg);color:var(--text-secondary);box-shadow:var(--elevation-tint-shadow); }.league-empty i { color:var(--practiq-violet);font-size:1.5rem; }.league-card--skeleton { display:grid; justify-items:start; }.mt-16 { margin-top:16px; }.mt-12 { margin-top:12px; }
   .league-board { width:100%; max-width:none; display:grid; gap:14px; }
+  .league-board--slide-next { animation: league-board-in-next .2s ease-out both; }
+  .league-board--slide-previous { animation: league-board-in-previous .2s ease-out both; }
+  @keyframes league-board-in-next { from { opacity:.35; transform:translateX(18px); } to { opacity:1; transform:translateX(0); } }
+  @keyframes league-board-in-previous { from { opacity:.35; transform:translateX(-18px); } to { opacity:1; transform:translateX(0); } }
 
   /* Podium: three columns, 1st in the middle and taller, so the eye lands on
      rank before it reads a single name. Elevation carries the hierarchy
