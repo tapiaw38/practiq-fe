@@ -38,6 +38,7 @@
   const showChangePassword = ref(false);
   const showSetPassword = ref(false);
   const lastPracticedSheetId = ref("");
+  let drawerSwipeStart: { x: number; y: number; wasOpen: boolean } | null = null;
   const isGoogleUser = computed(() => authStore.authMethod === "google");
   const showMobileBottomNav = computed(() => ![
     "student-practice",
@@ -145,6 +146,32 @@
     lastPracticedSheetId.value = id;
   }
 
+  function canUseDrawerSwipe() {
+    return window.innerWidth <= 920 && showMobileBottomNav.value;
+  }
+
+  function onDrawerTouchStart(event: TouchEvent) {
+    if (!canUseDrawerSwipe() || event.touches.length !== 1) return;
+    const touch = event.touches[0];
+    if (!touch) return;
+    drawerSwipeStart = { x: touch.clientX, y: touch.clientY, wasOpen: navOpen.value };
+  }
+
+  function onDrawerTouchEnd(event: TouchEvent) {
+    const start = drawerSwipeStart;
+    drawerSwipeStart = null;
+    const touch = event.changedTouches[0];
+    if (!start || !touch || !canUseDrawerSwipe()) return;
+
+    const deltaX = touch.clientX - start.x;
+    const deltaY = touch.clientY - start.y;
+    // Horizontal intent only. This preserves regular vertical page/sidebar
+    // scrolling and reserves opening for a deliberate left-edge gesture.
+    if (Math.abs(deltaX) < 64 || Math.abs(deltaX) <= Math.abs(deltaY) * 1.35) return;
+    if (!start.wasOpen && start.x <= 32 && deltaX > 0) navOpen.value = true;
+    if (start.wasOpen && deltaX < 0) navOpen.value = false;
+  }
+
   watch(
     () => route.fullPath,
     () => {
@@ -165,6 +192,8 @@
     window.visualViewport?.addEventListener("resize", syncDrawerViewport);
     window.visualViewport?.addEventListener("scroll", syncDrawerViewport);
     window.addEventListener("practiq:last-practice-changed", syncLastPractice);
+    window.addEventListener("touchstart", onDrawerTouchStart, { passive: true });
+    window.addEventListener("touchend", onDrawerTouchEnd, { passive: true });
     // Sidebar can open before Inicio. Read server-owned resume state once;
     // browser storage would leak stale sheets across devices and accounts.
     void loadDashboard()
@@ -179,6 +208,8 @@
     window.visualViewport?.removeEventListener("resize", syncDrawerViewport);
     window.visualViewport?.removeEventListener("scroll", syncDrawerViewport);
     window.removeEventListener("practiq:last-practice-changed", syncLastPractice);
+    window.removeEventListener("touchstart", onDrawerTouchStart);
+    window.removeEventListener("touchend", onDrawerTouchEnd);
   });
 
   function logout() {
