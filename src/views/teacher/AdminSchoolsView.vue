@@ -287,6 +287,22 @@
           <li v-for="school in personals" :key="school.id" class="school-row school-row--muted">
             <div class="school-main">
               <span class="school-name">{{ school.name }}</span>
+              <span v-if="school.owner" class="school-owner">
+                {{ school.owner.name }}
+                <a :href="`mailto:${school.owner.email}`" class="school-email">
+                  {{ school.owner.email }}
+                </a>
+              </span>
+              <span v-if="school.plan" class="school-meta">
+                <span
+                  class="plan-pill"
+                  :class="{ 'plan-pill--paid': school.plan.active }"
+                >
+                  {{ school.plan.name }}
+                </span>
+                hasta {{ school.plan.max_students }}
+                {{ school.plan.max_students === 1 ? "alumno" : "alumnos" }}
+              </span>
             </div>
             <div class="row-actions">
               <button class="btn-quiet" type="button" @click="openSchool(school)">Administrar</button>
@@ -510,6 +526,38 @@
     flex-direction: column;
     gap: 0.15rem;
     min-width: 0;
+  }
+
+  .school-owner {
+    margin-top: 0.15rem;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 0.35rem;
+    font-size: 0.8rem;
+    color: var(--text-secondary);
+  }
+
+  .school-email {
+    color: var(--practiq-violet);
+    text-decoration: none;
+    overflow-wrap: anywhere;
+  }
+
+  .plan-pill {
+    display: inline-flex;
+    align-items: center;
+    padding: 0.1rem 0.5rem;
+    border-radius: var(--radius-pill);
+    background: var(--surface-sunken);
+    font-size: 0.72rem;
+    font-weight: 700;
+    color: var(--text-secondary);
+  }
+
+  .plan-pill--paid {
+    background: var(--color-success-bg);
+    color: var(--color-success-dark);
   }
 
   .school-name,

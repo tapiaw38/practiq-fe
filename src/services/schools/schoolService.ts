@@ -14,6 +14,21 @@ export interface School {
   status: SchoolStatus;
   /** The asking user's role in it. Absent when listing as a superadmin. */
   role?: SchoolRole;
+  /** Personal schools only: an institution is invoiced by contract. */
+  owner?: SchoolOwner;
+  plan?: SchoolPlan;
+}
+
+export interface SchoolOwner {
+  id: string;
+  name: string;
+  email: string;
+}
+
+export interface SchoolPlan {
+  name: string;
+  max_students: number;
+  active: boolean;
 }
 
 export interface SchoolMember {
