@@ -76,7 +76,7 @@ export interface ISubscriptionService {
   checkoutConfig(): Promise<{ data: CheckoutConfig }>;
   subscribe(planId: number, cardTokenId: string): Promise<void>;
   startHostedCheckout(planId: number, payerEmail: string): Promise<string>;
-  changePlan(planId: number, cardTokenId: string, paymentMethodId: string): Promise<number>;
+  changePlan(planId: number, cardTokenId?: string, paymentMethodId?: string): Promise<number>;
   downgradePreview(): Promise<{ data: DowngradeState }>;
   applyDowngrade(keep: string[]): Promise<{ data: DowngradeState }>;
   reactivateStudent(studentId: string): Promise<void>;
@@ -152,8 +152,8 @@ export class SubscriptionService implements ISubscriptionService {
    */
   async changePlan(
     planId: number,
-    cardTokenId: string,
-    paymentMethodId: string,
+    cardTokenId?: string,
+    paymentMethodId?: string,
   ): Promise<number> {
     const { data } = await this.api.post("/teachers/me/subscription/change-plan", {
       plan_id: planId,

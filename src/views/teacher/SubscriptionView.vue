@@ -166,6 +166,23 @@
     checkoutError.value = "";
     working.value = true;
     try {
+      // Already paying means moving plan, and the agreement at Mercado Pago
+      // already knows how to charge them — there is nothing to authorise and
+      // nowhere to send them. Without a card the difference is not taken; the
+      // new price starts at the next renewal.
+      if (subscription.value?.active) {
+        await service.changePlan(plan.plan_id);
+        checkoutPlan.value = null;
+        await reload();
+        toast.add({
+          severity: "success",
+          summary: "Plan actualizado",
+          detail: "El nuevo precio se cobra en la próxima renovación.",
+          life: 4000,
+        });
+        return;
+      }
+
       const initPoint = await service.startHostedCheckout(plan.plan_id, payerEmail);
       if (!initPoint) {
         checkoutError.value = "No pudimos abrir el pago en Mercado Pago. Probá de nuevo.";
@@ -442,7 +459,7 @@
           </button>
           <button
             v-else
-            class="btn-secondary"
+            class="btn-danger"
             type="button"
             :disabled="working"
             @click="pause"
@@ -451,7 +468,7 @@
             Pausar
           </button>
           <button
-            class="btn-quiet"
+            class="btn-secondary"
             type="button"
             :disabled="working"
             @click="showLeaveModal = true"
@@ -525,6 +542,7 @@
         :public-key="publicKey"
         :server-error="checkoutError"
         :account-email="accountEmail"
+        :changing="Boolean(subscription?.active)"
         @confirm="confirmCheckout"
         @hosted="payWithWallet"
         @cancel="checkoutPlan = null; checkoutError = ''"
@@ -801,6 +819,7 @@
 
   .btn-primary,
   .btn-secondary,
+  .btn-danger,
   .btn-quiet {
     display: inline-flex;
     align-items: center;
@@ -836,8 +855,15 @@
     color: var(--color-error-dark, #b91c1c);
   }
 
+  .btn-danger {
+    background: var(--color-error-dark, #b91c1c);
+    border-color: var(--color-error-dark, #b91c1c);
+    color: #fff;
+  }
+
   .btn-primary:disabled,
   .btn-secondary:disabled,
+  .btn-danger:disabled,
   .btn-quiet:disabled {
     opacity: 0.6;
     cursor: not-allowed;
@@ -1119,17 +1145,21 @@
     .plan-renews,
     .usage-warn { font-size: 0.82rem; line-height: 1.4; }
 
-    .plan-actions,
+    .plan-actions {
+      display: grid;
+      grid-template-columns: 1fr;
+      align-items: stretch;
+    }
+
     .leave-actions {
       display: grid;
       grid-template-columns: 1fr 1fr;
       align-items: stretch;
     }
 
-    .plan-actions .btn-quiet { grid-column: 1 / -1; }
-
     .btn-primary,
     .btn-secondary,
+    .btn-danger,
     .btn-quiet {
       justify-content: center;
       min-height: 44px;

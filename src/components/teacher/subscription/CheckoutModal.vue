@@ -1,5 +1,5 @@
 <script setup lang="ts">
-  import { reactive, ref, watch } from "vue";
+  import { computed, reactive, ref, watch } from "vue";
   import UiModal from "@/components/ui/UiModal.vue";
   import { createCardToken, type CardToken } from "@/utils/mercadopago";
   import type { CatalogPlan } from "@/services/subscription/subscriptionService";
@@ -12,6 +12,8 @@
     /** Prefill for the Mercado Pago address, from the account. Editable:
      * a teacher's Mercado Pago account is often on a different address. */
     accountEmail?: string;
+    /** Already paying: this is a plan change, not a new subscription. */
+    changing?: boolean;
   }>();
 
   const emit = defineEmits<{
@@ -37,6 +39,24 @@
       if (!walletEmailTouched.value && email) walletEmail.value = email;
     },
   );
+
+  // Changing plan needs no address: the agreement already knows who pays.
+  const walletLabel = computed(() => {
+    if (props.changing) return "Cambiar con mi saldo de Mercado Pago";
+    return walletOpen.value ? "Ir a Mercado Pago" : "Pagar con mi saldo de Mercado Pago";
+  });
+
+  function onWallet() {
+    if (props.changing) {
+      emit("hosted", "");
+      return;
+    }
+    if (!walletOpen.value) {
+      walletOpen.value = true;
+      return;
+    }
+    emit("hosted", walletEmail.value.trim());
+  }
 
   const card = reactive({
     cardNumber: "",
@@ -208,7 +228,7 @@
         <div class="checkout-alt">
           <span class="checkout-alt-line">o</span>
 
-          <label v-if="walletOpen" class="field field--wide">
+          <label v-if="walletOpen && !changing" class="field field--wide">
             <span>Email de tu cuenta de Mercado Pago</span>
             <input
               v-model="walletEmail"
@@ -226,15 +246,21 @@
           <button
             class="btn-wallet"
             type="button"
-            :disabled="working || (walletOpen && !walletEmail.trim())"
-            @click="walletOpen ? emit('hosted', walletEmail.trim()) : (walletOpen = true)"
+            :disabled="working || (walletOpen && !changing && !walletEmail.trim())"
+            @click="onWallet"
           >
             <i class="pi pi-wallet" aria-hidden="true"></i>
-            {{ walletOpen ? "Ir a Mercado Pago" : "Pagar con mi saldo de Mercado Pago" }}
+            {{ walletLabel }}
           </button>
-          <small v-if="!walletOpen" class="checkout-alt-note">
-            Te llevamos a Mercado Pago para que autorices el pago mensual desde
-            tu cuenta. Sirve si no tenés tarjeta de crédito o débito.
+          <small v-if="changing || !walletOpen" class="checkout-alt-note">
+            <template v-if="changing">
+              Sin tarjeta no cobramos nada ahora: el nuevo precio se cobra en tu
+              próxima renovación, y la capacidad sube ya mismo.
+            </template>
+            <template v-else>
+              Te llevamos a Mercado Pago para que autorices el pago mensual desde
+              tu cuenta. Sirve si no tenés tarjeta de crédito o débito.
+            </template>
           </small>
         </div>
       </form>
