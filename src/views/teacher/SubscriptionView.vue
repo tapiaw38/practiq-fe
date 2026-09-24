@@ -1,7 +1,7 @@
 <script setup lang="ts">
   import { computed, onMounted, ref } from "vue";
   import { useToast } from "primevue/usetoast";
-  import { practiqApi } from "@/api/request/server";
+  import { ensureFreshAccessToken, practiqApi } from "@/api/request/server";
   import TeacherLayout from "@/layouts/TeacherLayout.vue";
   import Skeleton from "@/components/ui/Skeleton.vue";
   import CheckoutModal from "@/components/teacher/subscription/CheckoutModal.vue";
@@ -146,6 +146,14 @@
     loading.value = true;
     loadError.value = false;
     try {
+      // This screen starts three protected calls together. Renew an expiring
+      // session first so all three start with the same valid bearer token.
+      // Without it, mobile deep links briefly get three 401s and the view can
+      // appear blank until a manual reload wins the refresh race.
+      if (!await ensureFreshAccessToken()) {
+        window.location.assign("/login");
+        return;
+      }
       await reload();
     } catch {
       loadError.value = true;

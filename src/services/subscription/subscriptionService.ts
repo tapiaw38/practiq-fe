@@ -90,6 +90,13 @@ export interface ISubscriptionService {
 export class SubscriptionService implements ISubscriptionService {
   constructor(private readonly api: AxiosInstance) {}
 
+  /** Backend versions before the empty-array contract encoded `[]` as null.
+   * Normalize at the boundary so an empty downgrade preview can never crash a
+   * payment screen while an older API instance is draining during deploy. */
+  private normalizeDowngrade(data: DowngradeState): DowngradeState {
+    return { ...data, deactivated: Array.isArray(data?.deactivated) ? data.deactivated : [] };
+  }
+
   /**
    * The asking teacher's plan, what it allows and how much is used.
    *
@@ -122,13 +129,13 @@ export class SubscriptionService implements ISubscriptionService {
   /** Who would lose access if the current plan were enforced right now. */
   async downgradePreview(): Promise<{ data: DowngradeState }> {
     const { data } = await this.api.get("/teachers/me/subscription/downgrade");
-    return data;
+    return { ...data, data: this.normalizeDowngrade(data.data) };
   }
 
   /** `keep` is the teacher's choice; empty takes the automatic order. */
   async applyDowngrade(keep: string[]): Promise<{ data: DowngradeState }> {
     const { data } = await this.api.post("/teachers/me/subscription/downgrade", { keep });
-    return data;
+    return { ...data, data: this.normalizeDowngrade(data.data) };
   }
 
   async reactivateStudent(studentId: string): Promise<void> {

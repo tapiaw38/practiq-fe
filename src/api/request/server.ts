@@ -66,6 +66,34 @@ export function refreshAssistantToken(): Promise<string | null> {
   return refreshOnce()
 }
 
+/**
+ * Refreshes an access token before a protected view starts its own requests.
+ *
+ * Leaving this to the response interceptor makes a deep link briefly fire
+ * every request with an expired JWT. A page that loads several resources at
+ * once then races the refresh and can look empty while retries settle. The
+ * interceptor remains the fallback for a token revoked server-side.
+ */
+export async function ensureFreshAccessToken(): Promise<string | null> {
+  const token = getToken()
+  if (!token) return null
+
+  try {
+    const payload = token.split('.')[1]
+    if (!payload) return token
+    const decoded = JSON.parse(atob(payload.replace(/-/g, '+').replace(/_/g, '/')))
+    const expiresAt = Number(decoded.exp ?? 0)
+    // Refresh one minute early: enough room for a slow mobile connection,
+    // while normal navigation keeps its existing access token.
+    if (expiresAt > Date.now() / 1000 + 60) return token
+    return refreshOnce()
+  } catch {
+    // A non-JWT token stays compatible with older auth deployments; the
+    // existing 401 interceptor will still refresh it if necessary.
+    return token
+  }
+}
+
 function createAxiosInstance(baseURL: string) {
   const instance = axios.create({
     baseURL,
