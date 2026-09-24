@@ -1,5 +1,6 @@
 <script setup lang="ts">
   import { reactive, ref } from "vue";
+  import UiModal from "@/components/ui/UiModal.vue";
   import { createCardToken } from "@/utils/mercadopago";
   import type { CatalogPlan } from "@/services/subscription/subscriptionService";
 
@@ -58,157 +59,140 @@
 </script>
 
 <template>
-  <Teleport to="body">
-    <div class="checkout-backdrop" @click.self="emit('cancel')">
-      <div
-        class="checkout-card"
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="checkout-title"
-      >
-        <div class="checkout-head">
-          <div class="checkout-icon"><i class="pi pi-credit-card" aria-hidden="true"></i></div>
-          <div>
-            <span class="checkout-kicker">Pago mensual</span>
-            <h3 id="checkout-title" class="checkout-title">
-              Suscribirte a {{ plan.name }}
-            </h3>
-            <p class="checkout-sub">
-              {{ formatAmount(plan) }} por mes · hasta {{ plan.max_students }}
-              {{ plan.max_students === 1 ? "alumno" : "alumnos" }}
-            </p>
-          </div>
-          <button class="checkout-close" type="button" aria-label="Cerrar" @click="emit('cancel')">
-            <i class="pi pi-times" aria-hidden="true"></i>
+  <UiModal label="Suscripción" @close="emit('cancel')">
+    <div class="checkout-card" aria-labelledby="checkout-title">
+      <div class="checkout-head">
+        <div class="checkout-icon"><i class="pi pi-credit-card" aria-hidden="true"></i></div>
+        <div>
+          <span class="checkout-kicker">Pago mensual</span>
+          <h3 id="checkout-title" class="checkout-title">
+            Suscribirte a {{ plan.name }}
+          </h3>
+          <p class="checkout-sub">
+            {{ formatAmount(plan) }} por mes · hasta {{ plan.max_students }}
+            {{ plan.max_students === 1 ? "alumno" : "alumnos" }}
+          </p>
+        </div>
+        <button class="checkout-close" type="button" aria-label="Cerrar" @click="emit('cancel')">
+          <i class="pi pi-times" aria-hidden="true"></i>
+        </button>
+      </div>
+
+      <form class="checkout-form" @submit.prevent="submit">
+        <label class="field field--wide">
+          <span>Número de tarjeta</span>
+          <input
+            v-model="card.cardNumber"
+            type="text"
+            inputmode="numeric"
+            autocomplete="cc-number"
+            placeholder="4509 9535 6623 3704"
+            required
+          />
+        </label>
+
+        <label class="field field--wide">
+          <span>Nombre como figura en la tarjeta</span>
+          <input
+            v-model="card.cardholderName"
+            type="text"
+            autocomplete="cc-name"
+            required
+          />
+        </label>
+
+        <label class="field field--half">
+          <span>Mes</span>
+          <input
+            v-model="card.cardExpirationMonth"
+            type="text"
+            inputmode="numeric"
+            autocomplete="cc-exp-month"
+            placeholder="MM"
+            maxlength="2"
+            required
+          />
+        </label>
+
+        <label class="field field--half">
+          <span>Año</span>
+          <input
+            v-model="card.cardExpirationYear"
+            type="text"
+            inputmode="numeric"
+            autocomplete="cc-exp-year"
+            placeholder="AAAA"
+            minlength="4"
+            maxlength="4"
+            required
+          />
+        </label>
+
+        <label class="field field--wide">
+          <span>Código de seguridad</span>
+          <input
+            v-model="card.securityCode"
+            type="text"
+            inputmode="numeric"
+            autocomplete="cc-csc"
+            placeholder="123"
+            maxlength="4"
+            required
+          />
+        </label>
+
+        <label class="field field--half">
+          <span>Tipo de documento</span>
+          <select v-model="card.identificationType">
+            <option value="DNI">DNI</option>
+            <option value="CUIT">CUIT</option>
+            <option value="CUIL">CUIL</option>
+          </select>
+        </label>
+
+        <label class="field field--wide">
+          <span>Número de documento</span>
+          <input
+            v-model="card.identificationNumber"
+            type="text"
+            inputmode="numeric"
+            required
+          />
+        </label>
+
+        <p v-if="error || serverError" class="checkout-error" role="alert">
+          {{ error || serverError }}
+        </p>
+
+        <p class="checkout-note">
+          <i class="pi pi-shield" aria-hidden="true"></i>
+          Tus datos viajan directo a Mercado Pago. Practiq no los recibe ni los guarda.
+        </p>
+
+        <div class="checkout-actions">
+          <button class="btn-primary" type="submit" :disabled="working">
+            {{ working ? "Validando…" : "Suscribirme" }}
+          </button>
+          <button
+            class="btn-quiet"
+            type="button"
+            :disabled="working"
+            @click="emit('cancel')"
+          >
+            Cancelar
           </button>
         </div>
-
-        <form class="checkout-form" @submit.prevent="submit">
-          <label class="field field--wide">
-            <span>Número de tarjeta</span>
-            <input
-              v-model="card.cardNumber"
-              type="text"
-              inputmode="numeric"
-              autocomplete="cc-number"
-              placeholder="4509 9535 6623 3704"
-              required
-            />
-          </label>
-
-          <label class="field field--wide">
-            <span>Nombre como figura en la tarjeta</span>
-            <input
-              v-model="card.cardholderName"
-              type="text"
-              autocomplete="cc-name"
-              required
-            />
-          </label>
-
-          <label class="field field--half">
-            <span>Mes</span>
-            <input
-              v-model="card.cardExpirationMonth"
-              type="text"
-              inputmode="numeric"
-              autocomplete="cc-exp-month"
-              placeholder="MM"
-              maxlength="2"
-              required
-            />
-          </label>
-
-          <label class="field field--half">
-            <span>Año</span>
-            <input
-              v-model="card.cardExpirationYear"
-              type="text"
-              inputmode="numeric"
-              autocomplete="cc-exp-year"
-              placeholder="AAAA"
-              minlength="4"
-              maxlength="4"
-              required
-            />
-          </label>
-
-          <label class="field field--wide">
-            <span>Código de seguridad</span>
-            <input
-              v-model="card.securityCode"
-              type="text"
-              inputmode="numeric"
-              autocomplete="cc-csc"
-              placeholder="123"
-              maxlength="4"
-              required
-            />
-          </label>
-
-          <label class="field field--half">
-            <span>Tipo de documento</span>
-            <select v-model="card.identificationType">
-              <option value="DNI">DNI</option>
-              <option value="CUIT">CUIT</option>
-              <option value="CUIL">CUIL</option>
-            </select>
-          </label>
-
-          <label class="field field--wide">
-            <span>Número de documento</span>
-            <input
-              v-model="card.identificationNumber"
-              type="text"
-              inputmode="numeric"
-              required
-            />
-          </label>
-
-          <p v-if="error || serverError" class="checkout-error" role="alert">
-            {{ error || serverError }}
-          </p>
-
-          <p class="checkout-note">
-            <i class="pi pi-shield" aria-hidden="true"></i>
-            Tus datos viajan directo a Mercado Pago. Practiq no los recibe ni los guarda.
-          </p>
-
-          <div class="checkout-actions">
-            <button class="btn-primary" type="submit" :disabled="working">
-              {{ working ? "Validando…" : "Suscribirme" }}
-            </button>
-            <button
-              class="btn-quiet"
-              type="button"
-              :disabled="working"
-              @click="emit('cancel')"
-            >
-              Cancelar
-            </button>
-          </div>
-        </form>
-      </div>
+      </form>
     </div>
-  </Teleport>
+  </UiModal>
 </template>
 
 <style scoped>
-  .checkout-backdrop {
-    position: fixed;
-    inset: 0;
-    background: rgba(15, 23, 42, 0.45);
-    display: grid;
-    place-items: center;
-    padding: 1rem;
-    z-index: 1000;
-    overflow-y: auto;
-  }
-
   .checkout-card {
-    width: min(520px, 100%);
+    width: min(520px, calc(100vw - 32px));
     background: var(--surface-card);
-    border-radius: var(--radius-xl);
+    border-radius: var(--radius-2xl);
+    box-shadow: var(--shadow-lg);
     padding: 1.5rem;
   }
 
@@ -365,13 +349,9 @@
   }
 
   @media (max-width: 560px) {
-    .checkout-backdrop { place-items: end center; padding: 0; }
-
     .checkout-card {
       width: 100%;
-      max-height: calc(100dvh - 0.5rem);
-      overflow-y: auto;
-      border-radius: var(--radius-xl) var(--radius-xl) 0 0;
+      border-radius: var(--radius-2xl) var(--radius-2xl) 0 0;
       padding: 1rem 1rem calc(0.75rem + env(safe-area-inset-bottom));
     }
 
