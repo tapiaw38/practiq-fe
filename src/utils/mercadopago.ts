@@ -69,10 +69,27 @@ export async function createCardToken(
     throw new Error("no se pudo cargar el SDK de pagos");
   }
 
+  // Mercado Pago expects MM and YYYY. The old form let a mobile numeric
+  // keyboard submit `2` for February; normalize that harmless shorthand, but
+  // reject an ambiguous two-digit year before spending a single-use token.
+  const monthDigits = card.cardExpirationMonth.replace(/\D/g, "");
+  const yearDigits = card.cardExpirationYear.replace(/\D/g, "");
+  const month = monthDigits.padStart(2, "0");
+  if (!/^(0[1-9]|1[0-2])$/.test(month)) {
+    throw new Error("Ingresá un mes de vencimiento válido (01 a 12).");
+  }
+  if (!/^\d{4}$/.test(yearDigits)) {
+    throw new Error("Ingresá el año de vencimiento completo, por ejemplo 2031.");
+  }
+
   const sdk = new window.MercadoPago(publicKey, { locale: "es-AR" });
   const token = await sdk.createCardToken({
     ...card,
-    cardNumber: card.cardNumber.replace(/\s+/g, ""),
+    cardNumber: card.cardNumber.replace(/\D/g, ""),
+    cardExpirationMonth: month,
+    cardExpirationYear: yearDigits,
+    securityCode: card.securityCode.replace(/\D/g, ""),
+    identificationNumber: card.identificationNumber.replace(/\D/g, ""),
   });
   if (!token?.id) {
     throw new Error("la tarjeta no pudo validarse");

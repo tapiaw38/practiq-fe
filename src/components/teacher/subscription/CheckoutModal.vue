@@ -113,7 +113,7 @@
               type="text"
               inputmode="numeric"
               autocomplete="cc-exp-month"
-              placeholder="11"
+              placeholder="MM"
               maxlength="2"
               required
             />
@@ -126,7 +126,8 @@
               type="text"
               inputmode="numeric"
               autocomplete="cc-exp-year"
-              placeholder="2030"
+              placeholder="AAAA"
+              minlength="4"
               maxlength="4"
               required
             />
