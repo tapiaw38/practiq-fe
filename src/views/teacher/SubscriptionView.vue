@@ -441,10 +441,11 @@
             {{ subscription.students_used }}.
           </p>
           <p class="over-limit-text">
-            Cuando lo apliques, dejan de tener acceso los
+            Cuando lo apliques, los
             {{ downgrade?.deactivated.length }} que hace más tiempo que no
-            practican. Conservan su cuenta y su historial, y podés reactivarlos
-            cuando amplíes el plan.
+            practican pasan a solo lectura: siguen viendo sus cuadernos, sus
+            notas y todo lo que hicieron, pero no pueden entregar ni practicar.
+            Podés reactivarlos cuando amplíes el plan.
           </p>
           <button
             class="btn-secondary"
