@@ -1,5 +1,5 @@
 <script setup lang="ts">
-  import { computed, onMounted, ref, watch } from "vue";
+  import { computed, nextTick, onMounted, ref, watch } from "vue";
   import StudentLayout from "@/layouts/StudentLayout.vue";
   import Skeleton from "@/components/ui/Skeleton.vue";
   import UserAvatar from "@/components/ui/UserAvatar.vue";
@@ -20,6 +20,7 @@
   const boardError = ref(false);
   const boardDirection = ref<"next" | "previous">("next");
   let swipeStartX: number | null = null;
+  const courseTabElements = new Map<string, HTMLButtonElement>();
 
   const selectedCourse = computed(
     () => courses.value.find((course) => course.course_id === selectedCourseID.value) || courses.value[0],
@@ -75,10 +76,24 @@
     }
   }
 
-  function selectCourse(courseID: string, direction: "next" | "previous" = "next") {
+  async function selectCourse(courseID: string, direction: "next" | "previous" = "next") {
     if (!courseID || courseID === selectedCourseID.value) return;
     boardDirection.value = direction;
     selectedCourseID.value = courseID;
+    // The ranking swipe changes the selected course too. Keep the horizontal
+    // course picker centered on that same course, otherwise both areas tell
+    // different visual stories on a narrow screen.
+    await nextTick();
+    courseTabElements.get(courseID)?.scrollIntoView({
+      behavior: "smooth",
+      block: "nearest",
+      inline: "center",
+    });
+  }
+
+  function setCourseTabRef(courseID: string, element: unknown) {
+    if (element instanceof HTMLButtonElement) courseTabElements.set(courseID, element);
+    else courseTabElements.delete(courseID);
   }
 
   function onBoardTouchStart(event: TouchEvent) {
@@ -157,6 +172,7 @@
           <button
             v-for="course in courses"
             :key="course.course_id"
+            :ref="(element) => setCourseTabRef(course.course_id, element)"
             class="course-tab"
             :class="{ 'course-tab--active': selectedCourseID === course.course_id }"
             type="button"
