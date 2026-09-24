@@ -64,13 +64,19 @@
         aria-modal="true"
         aria-labelledby="checkout-title"
       >
-        <h3 id="checkout-title" class="checkout-title">
-          Suscribirte a {{ plan.name }}
-        </h3>
-        <p class="checkout-sub">
-          {{ formatAmount(plan) }} por mes · hasta {{ plan.max_students }}
-          {{ plan.max_students === 1 ? "alumno" : "alumnos" }}
-        </p>
+        <div class="checkout-head">
+          <div class="checkout-icon"><i class="pi pi-credit-card" aria-hidden="true"></i></div>
+          <div>
+            <span class="checkout-kicker">Pago mensual</span>
+            <h3 id="checkout-title" class="checkout-title">
+              Suscribirte a {{ plan.name }}
+            </h3>
+            <p class="checkout-sub">
+              {{ formatAmount(plan) }} por mes · hasta {{ plan.max_students }}
+              {{ plan.max_students === 1 ? "alumno" : "alumnos" }}
+            </p>
+          </div>
+        </div>
 
         <form class="checkout-form" @submit.prevent="submit">
           <label class="field field--wide">
@@ -156,8 +162,8 @@
           <p v-if="error" class="checkout-error">{{ error }}</p>
 
           <p class="checkout-note">
-            Los datos de tu tarjeta viajan directo a Mercado Pago. Practiq no
-            los recibe ni los guarda.
+            <i class="pi pi-shield" aria-hidden="true"></i>
+            Tus datos viajan directo a Mercado Pago. Practiq no los recibe ni los guarda.
           </p>
 
           <div class="checkout-actions">
@@ -198,6 +204,33 @@
     padding: 1.5rem;
   }
 
+  .checkout-head {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.75rem;
+    margin-bottom: 1.1rem;
+  }
+
+  .checkout-icon {
+    display: grid;
+    place-items: center;
+    flex: 0 0 auto;
+    width: 2.4rem;
+    height: 2.4rem;
+    border-radius: var(--radius-md);
+    background: rgba(var(--practiq-violet-rgb), 0.1);
+    color: var(--practiq-violet);
+  }
+
+  .checkout-kicker {
+    display: block;
+    color: var(--practiq-violet);
+    font-size: 0.7rem;
+    font-weight: 800;
+    letter-spacing: 0.07em;
+    text-transform: uppercase;
+  }
+
   .checkout-title {
     margin: 0;
     font-size: 1.15rem;
@@ -205,7 +238,7 @@
   }
 
   .checkout-sub {
-    margin: 0.25rem 0 1rem;
+    margin: 0.2rem 0 0;
     font-size: 0.88rem;
     color: var(--text-secondary);
   }
@@ -252,10 +285,18 @@
 
   .checkout-note {
     margin: 0;
+    display: flex;
+    align-items: flex-start;
+    gap: 0.45rem;
+    padding: 0.65rem 0.75rem;
+    border-radius: var(--radius-md);
+    background: rgba(var(--practiq-violet-rgb), 0.055);
     font-size: 0.78rem;
     line-height: 1.5;
     color: var(--text-secondary);
   }
+
+  .checkout-note i { margin-top: 0.12rem; color: var(--practiq-violet); }
 
   .checkout-actions {
     display: flex;
@@ -294,6 +335,16 @@
   }
 
   @media (max-width: 560px) {
+    .checkout-backdrop { place-items: end center; padding: 0; }
+
+    .checkout-card {
+      width: 100%;
+      max-height: calc(100dvh - 0.5rem);
+      overflow-y: auto;
+      border-radius: var(--radius-xl) var(--radius-xl) 0 0;
+      padding: 1.15rem 1rem calc(1rem + env(safe-area-inset-bottom));
+    }
+
     .checkout-form {
       grid-template-columns: repeat(2, 1fr);
     }

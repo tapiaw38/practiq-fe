@@ -18,6 +18,7 @@
   const subscription = ref<TeacherSubscription | null>(null);
   const plans = ref<CatalogPlan[]>([]);
   const loading = ref(true);
+  const loadError = ref(false);
   const working = ref(false);
   /**
    * Cancelling is offered through here, never directly.
@@ -52,6 +53,20 @@
   /** The plan being subscribed to, or null when the checkout is closed. */
   const checkoutPlan = ref<CatalogPlan | null>(null);
   const publicKey = ref("");
+
+  /**
+   * Payments may still be warming up immediately after a deploy. Retrying
+   * once keeps a transient first request from turning this route into an
+   * empty screen, without masking a persistent configuration error.
+   */
+  async function onceMore<T>(request: () => Promise<T>): Promise<T> {
+    try {
+      return await request();
+    } catch {
+      await new Promise((resolve) => window.setTimeout(resolve, 350));
+      return request();
+    }
+  }
 
   async function openCheckout(plan: CatalogPlan) {
     if (!publicKey.value) {
@@ -109,16 +124,40 @@
 
   async function reload() {
     const [mine, catalog, excess] = await Promise.allSettled([
-      service.getMine(),
-      service.listPlans(),
-      service.downgradePreview(),
+      onceMore(() => service.getMine()),
+      onceMore(() => service.listPlans()),
+      onceMore(() => service.downgradePreview()),
     ]);
-    if (mine.status === "fulfilled") subscription.value = mine.value.data;
+    if (mine.status === "fulfilled" && mine.value.data?.plan) {
+      subscription.value = mine.value.data;
+    }
     if (excess.status === "fulfilled") downgrade.value = excess.value.data;
     // The catalogue is secondary: failing to list plans must not hide the
     // teacher's own subscription.
     if (catalog.status === "fulfilled") plans.value = catalog.value.data;
-    if (mine.status === "rejected") throw mine.reason;
+    if (mine.status === "rejected" || !subscription.value) {
+      throw mine.status === "rejected"
+        ? mine.reason
+        : new Error("subscription response is missing plan");
+    }
+  }
+
+  async function loadSubscription() {
+    loading.value = true;
+    loadError.value = false;
+    try {
+      await reload();
+    } catch {
+      loadError.value = true;
+      toast.add({
+        severity: "error",
+        summary: "No se pudo cargar tu suscripción",
+        detail: "Revisá tu conexión y probá de nuevo.",
+        life: 3500,
+      });
+    } finally {
+      loading.value = false;
+    }
   }
 
   async function run(action: () => Promise<void>, done: string) {
@@ -153,20 +192,7 @@
     }).format(plan.amount);
   }
 
-  onMounted(async () => {
-    try {
-      await reload();
-    } catch {
-      toast.add({
-        severity: "error",
-        summary: "Error",
-        detail: "No se pudo cargar tu suscripción",
-        life: 3000,
-      });
-    } finally {
-      loading.value = false;
-    }
-  });
+  onMounted(loadSubscription);
 </script>
 
 <template>
@@ -174,9 +200,9 @@
     <div class="subscription-shell">
       <header class="page-header">
         <div>
-          <div class="page-kicker">Mi escuela</div>
-          <h1>Suscripción</h1>
-          <p class="page-sub">Tu plan y cuántos alumnos tenés activos.</p>
+          <div class="page-kicker">Facturación</div>
+          <h1>Tu suscripción</h1>
+          <p class="page-sub">Administrá tu plan, tus alumnos y la renovación mensual.</p>
         </div>
       </header>
 
@@ -187,10 +213,10 @@
       </div>
 
       <div v-else-if="subscription" class="plan-card">
-        <div class="plan-head">
-          <div>
-            <span class="plan-label">Plan actual</span>
-            <h2 class="plan-name">{{ subscription.plan.name }}</h2>
+          <div class="plan-head">
+            <div>
+              <span class="plan-label">Plan actual</span>
+              <h2 class="plan-name">{{ subscription.plan.name }}</h2>
           </div>
           <span
             class="plan-state"
@@ -207,6 +233,19 @@
           >
             {{ planStateLabel }}
           </span>
+        </div>
+
+        <div v-if="!subscription.uncapped" class="plan-summary">
+          <div class="plan-summary__item">
+            <i class="pi pi-users" aria-hidden="true"></i>
+            <span>Capacidad</span>
+            <strong>Hasta {{ subscription.plan.max_students }} alumnos</strong>
+          </div>
+          <div class="plan-summary__item">
+            <i class="pi pi-credit-card" aria-hidden="true"></i>
+            <span>Cobro</span>
+            <strong>Tarjeta · mensual</strong>
+          </div>
         </div>
 
         <p v-if="subscription.uncapped" class="plan-renews">
@@ -305,8 +344,25 @@
         </div>
       </div>
 
+      <div v-else-if="loadError" class="plan-card load-error" role="alert">
+        <i class="pi pi-refresh load-error__icon" aria-hidden="true"></i>
+        <div>
+          <h2>No pudimos cargar tu suscripción</h2>
+          <p>Tu plan no cambió. Intentá cargar esta pantalla otra vez.</p>
+        </div>
+        <button class="btn-primary" type="button" @click="loadSubscription">
+          Reintentar
+        </button>
+      </div>
+
       <section v-if="plans.length" class="plans">
-        <h2 class="plans-title">Planes</h2>
+        <div class="plans-heading">
+          <div>
+            <span class="plans-eyebrow">Elegí según tu escuela</span>
+            <h2 class="plans-title">Planes disponibles</h2>
+          </div>
+          <span class="plans-payment"><i class="pi pi-shield"></i> Pago seguro</span>
+        </div>
         <ul class="plan-list">
           <li
             v-for="plan in plans"
@@ -322,7 +378,7 @@
               </span>
             </div>
             <div class="plan-item-side">
-              <span class="plan-item-price">{{ formatAmount(plan) }}</span>
+              <span class="plan-item-price">{{ formatAmount(plan) }}<small>/mes</small></span>
               <span
                 v-if="plan.plan_id === subscription?.plan.plan_id"
                 class="plan-item-current"
@@ -342,7 +398,7 @@
           </li>
         </ul>
         <p class="plans-note">
-          Al cambiar de plan se cobra el nuevo desde el próximo período.
+          Pagás con tarjeta de forma segura a través de Mercado Pago. Podés pausar o cancelar cuando quieras.
         </p>
       </section>
 
@@ -409,6 +465,7 @@
 
 <style scoped>
   .subscription-shell {
+    width: 100%;
     display: flex;
     flex-direction: column;
     gap: 1.25rem;
@@ -437,6 +494,76 @@
     border: 1px solid var(--surface-border);
     border-radius: var(--radius-xl);
     box-shadow: var(--shadow-card);
+  }
+
+  .plan-summary {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.6rem;
+    padding: 0.7rem;
+    border-radius: var(--radius-lg);
+    background: rgba(var(--practiq-violet-rgb), 0.045);
+  }
+
+  .plan-summary__item {
+    display: grid;
+    grid-template-columns: 1.75rem minmax(0, 1fr);
+    column-gap: 0.45rem;
+    align-items: center;
+    min-width: 0;
+  }
+
+  .plan-summary__item i {
+    grid-row: span 2;
+    display: grid;
+    place-items: center;
+    width: 1.75rem;
+    height: 1.75rem;
+    border-radius: var(--radius-md);
+    background: var(--surface-card);
+    color: var(--practiq-violet);
+    font-size: 0.78rem;
+  }
+
+  .plan-summary__item span {
+    overflow: hidden;
+    color: var(--text-secondary);
+    font-size: 0.7rem;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .plan-summary__item strong {
+    overflow: hidden;
+    color: var(--text-primary);
+    font-size: 0.8rem;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .load-error {
+    align-items: flex-start;
+  }
+
+  .load-error__icon {
+    color: var(--practiq-violet);
+    font-size: 1.15rem;
+  }
+
+  .load-error h2,
+  .load-error p {
+    margin: 0;
+  }
+
+  .load-error h2 {
+    color: var(--text-heading);
+    font-size: 1.05rem;
+  }
+
+  .load-error p {
+    color: var(--text-secondary);
+    font-size: 0.88rem;
+    margin-top: 0.25rem;
   }
 
   .plan-head {
@@ -579,11 +706,39 @@
     gap: 0.6rem;
   }
 
+  .plans-heading {
+    display: flex;
+    align-items: end;
+    justify-content: space-between;
+    gap: 1rem;
+  }
+
+  .plans-eyebrow {
+    display: block;
+    margin-bottom: 0.18rem;
+    color: var(--practiq-violet);
+    font-size: 0.7rem;
+    font-weight: 800;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+  }
+
   .plans-title {
     margin: 0;
     font-size: 1.05rem;
     color: var(--text-heading);
   }
+
+  .plans-payment {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    flex: 0 0 auto;
+    color: var(--text-secondary);
+    font-size: 0.76rem;
+  }
+
+  .plans-payment i { color: var(--color-success-dark); }
 
   .plan-list {
     list-style: none;
@@ -599,7 +754,7 @@
     align-items: center;
     justify-content: space-between;
     gap: 1rem;
-    padding: 0.8rem 1rem;
+    padding: 0.9rem 1rem;
     background: var(--surface-card);
     border: 1px solid var(--surface-border);
     border-radius: var(--radius-lg);
@@ -613,6 +768,7 @@
 
   .plan-item--current {
     border-color: var(--practiq-violet);
+    background: rgba(var(--practiq-violet-rgb), 0.035);
   }
 
   .plan-item-main {
@@ -641,6 +797,13 @@
   .plan-item-price {
     font-weight: 600;
     color: var(--text-primary);
+  }
+
+  .plan-item-price small {
+    margin-left: 0.12rem;
+    color: var(--text-secondary);
+    font-size: 0.72em;
+    font-weight: 500;
   }
 
   .plan-item-current {
@@ -770,19 +933,57 @@
 
   @media (max-width: 640px) {
     .subscription-shell {
-      padding: 0.9rem;
+      gap: 0.9rem;
     }
 
-    .plan-head {
-      flex-direction: column;
-      gap: 0.5rem;
+    .page-header {
+      padding: 0.2rem 0;
     }
+
+    .page-kicker {
+      font-size: 0.7rem;
+      letter-spacing: 0.08em;
+    }
+
+    .page-header h1 {
+      font-size: 1.65rem;
+      line-height: 1.12;
+    }
+
+    .page-sub {
+      max-width: 30ch;
+      font-size: 0.88rem;
+      line-height: 1.4;
+    }
+
+    .plan-card {
+      gap: 0.9rem;
+      padding: 1rem;
+      border-radius: var(--radius-lg);
+    }
+
+    .plan-summary { grid-template-columns: 1fr; gap: 0.45rem; }
+
+    .plan-head {
+      align-items: center;
+      gap: 0.75rem;
+    }
+
+    .plan-name { font-size: 1.15rem; }
+    .plan-state { padding: 0.24rem 0.55rem; font-size: 0.72rem; }
+
+    .usage-head { font-size: 0.84rem; }
+    .plan-renews,
+    .usage-warn { font-size: 0.82rem; line-height: 1.4; }
 
     .plan-actions,
     .leave-actions {
-      flex-direction: column;
+      display: grid;
+      grid-template-columns: 1fr 1fr;
       align-items: stretch;
     }
+
+    .plan-actions .btn-quiet { grid-column: 1 / -1; }
 
     .btn-primary,
     .btn-secondary,
@@ -792,14 +993,26 @@
     }
 
     .plan-item {
-      flex-direction: column;
-      align-items: flex-start;
-      gap: 0.4rem;
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      align-items: center;
+      gap: 0.75rem;
+      padding: 0.9rem;
     }
 
+    .plans-heading { align-items: flex-start; }
+    .plans-payment { margin-top: 0.15rem; font-size: 0.7rem; }
+
     .plan-item-side {
-      align-items: flex-start;
+      align-items: flex-end;
+      text-align: right;
     }
+
+    .plan-item-price { font-size: 0.92rem; }
+    .btn-plan { min-height: 36px; padding: 0.4rem 0.65rem; }
+    .plans-note { font-size: 0.78rem; line-height: 1.4; }
+
+    .load-error { align-items: stretch; }
   }
 
   @media (prefers-reduced-motion: reduce) {
