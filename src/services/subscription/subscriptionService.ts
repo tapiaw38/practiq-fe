@@ -75,6 +75,7 @@ export interface ISubscriptionService {
   getMine(): Promise<{ data: TeacherSubscription }>;
   checkoutConfig(): Promise<{ data: CheckoutConfig }>;
   subscribe(planId: number, cardTokenId: string): Promise<void>;
+  startHostedCheckout(planId: number): Promise<string>;
   downgradePreview(): Promise<{ data: DowngradeState }>;
   applyDowngrade(keep: string[]): Promise<{ data: DowngradeState }>;
   reactivateStudent(studentId: string): Promise<void>;
@@ -124,6 +125,20 @@ export class SubscriptionService implements ISubscriptionService {
       plan_id: planId,
       card_token_id: cardTokenId,
     });
+  }
+
+  /**
+   * Starts a subscription the teacher authorises at Mercado Pago.
+   *
+   * For whoever has no card to give us: Mercado Pago's own checkout accepts
+   * the balance in their account, which a card form cannot. Returns the
+   * address to send the browser to; nothing is charged before they get there.
+   */
+  async startHostedCheckout(planId: number): Promise<string> {
+    const { data } = await this.api.post("/teachers/me/subscription/hosted-checkout", {
+      plan_id: planId,
+    });
+    return data?.data?.init_point ?? "";
   }
 
   /** Who would lose access if the current plan were enforced right now. */

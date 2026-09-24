@@ -31,6 +31,8 @@
   const showLeaveModal = ref(false);
 
   const isPaused = computed(() => subscription.value?.status === "paused");
+  /** Authorised at the gateway, not confirmed here yet: the webhook decides. */
+  const isPending = computed(() => subscription.value?.status === "pending");
 
   /**
    * Who would lose access if the plan were enforced right now.
@@ -124,6 +126,33 @@
     }
   }
 
+  /**
+   * Hands the teacher over to Mercado Pago to authorise the charge there.
+   *
+   * A full page redirect, not a popup: the gateway asks them to log in, and
+   * they come back through back_url. The subscription is left pending until
+   * the webhook says it was authorised, so the screen is not reloaded here —
+   * there is nothing new to show yet.
+   */
+  async function payWithWallet() {
+    const plan = checkoutPlan.value;
+    if (!plan) return;
+    checkoutError.value = "";
+    working.value = true;
+    try {
+      const initPoint = await service.startHostedCheckout(plan.plan_id);
+      if (!initPoint) {
+        checkoutError.value = "No pudimos abrir el pago en Mercado Pago. Probá de nuevo.";
+        return;
+      }
+      window.location.assign(initPoint);
+    } catch (error: unknown) {
+      checkoutError.value = paymentErrorMessage(error);
+    } finally {
+      working.value = false;
+    }
+  }
+
   const usedPct = computed(() => {
     const s = subscription.value;
     if (!s || s.plan.max_students <= 0) return 0;
@@ -136,6 +165,7 @@
     if (s.uncapped) return "Sin límite";
     if (s.active) return "Activo";
     if (isPaused.value) return "Pausado";
+    if (isPending.value) return "Confirmando pago";
     if (s.trial_expired) return "Prueba terminada";
     return "Gratis";
   });
@@ -259,10 +289,12 @@
             :class="{
               'plan-state--paid': subscription.active || subscription.uncapped,
               'plan-state--paused': isPaused,
+              'plan-state--pending': isPending,
               'plan-state--expired': subscription.trial_expired,
               'plan-state--free':
                 !subscription.active &&
                 !isPaused &&
+                !isPending &&
                 !subscription.uncapped &&
                 !subscription.trial_expired,
             }"
@@ -270,6 +302,12 @@
             {{ planStateLabel }}
           </span>
         </div>
+
+        <p v-if="isPending" class="plan-pending">
+          <i class="pi pi-clock" aria-hidden="true"></i>
+          Autorizaste el pago en Mercado Pago y estamos esperando la
+          confirmación. Puede tardar unos minutos; no hace falta pagar de nuevo.
+        </p>
 
         <div v-if="!subscription.uncapped" class="plan-summary">
           <div class="plan-summary__item">
@@ -444,6 +482,7 @@
         :public-key="publicKey"
         :server-error="checkoutError"
         @confirm="confirmCheckout"
+        @hosted="payWithWallet"
         @cancel="checkoutPlan = null; checkoutError = ''"
       />
 
@@ -639,6 +678,29 @@
   .plan-state--free {
     background: rgba(var(--practiq-violet-rgb), 0.1);
     color: var(--practiq-violet-dark);
+  }
+
+  .plan-pending {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.5rem;
+    margin: 0 0 1rem;
+    padding: 0.7rem 0.85rem;
+    border-radius: var(--radius-md);
+    background: rgba(var(--practiq-violet-rgb), 0.07);
+    font-size: 0.85rem;
+    line-height: 1.5;
+    color: var(--text-secondary);
+  }
+
+  .plan-pending i {
+    margin-top: 0.15rem;
+    color: var(--practiq-violet);
+  }
+
+  .plan-state--pending {
+    background: rgba(var(--practiq-violet-rgb), 0.12);
+    color: var(--practiq-violet);
   }
 
   .plan-state--paused {

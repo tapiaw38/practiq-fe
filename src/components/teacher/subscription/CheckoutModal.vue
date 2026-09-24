@@ -14,6 +14,8 @@
   const emit = defineEmits<{
     /** Carries the card token, never the card. */
     (e: "confirm", cardTokenId: string): void;
+    /** Pay at Mercado Pago instead, where the account balance is an option. */
+    (e: "hosted"): void;
     (e: "cancel"): void;
   }>();
 
@@ -186,6 +188,23 @@
             Cancelar
           </button>
         </div>
+
+        <div class="checkout-alt">
+          <span class="checkout-alt-line">o</span>
+          <button
+            class="btn-wallet"
+            type="button"
+            :disabled="working"
+            @click="emit('hosted')"
+          >
+            <i class="pi pi-wallet" aria-hidden="true"></i>
+            Pagar con mi saldo de Mercado Pago
+          </button>
+          <small class="checkout-alt-note">
+            Te llevamos a Mercado Pago para que autorices el pago mensual desde
+            tu cuenta. Sirve si no tenés tarjeta de crédito o débito.
+          </small>
+        </div>
       </form>
     </div>
   </UiModal>
@@ -298,8 +317,55 @@
 
   .checkout-error,
   .checkout-note,
-  .checkout-actions {
+  .checkout-actions,
+  .checkout-alt {
     grid-column: 1 / -1;
+  }
+
+  .checkout-alt {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    margin-top: 0.35rem;
+    padding-top: 0.85rem;
+    border-top: 1px solid var(--surface-border);
+  }
+
+  .checkout-alt-line {
+    align-self: center;
+    font-size: 0.72rem;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--text-secondary);
+    opacity: 0.7;
+  }
+
+  .btn-wallet {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.45rem;
+    min-height: 2.6rem;
+    padding: 0.55rem 1rem;
+    border-radius: var(--radius-md);
+    border: 1px solid var(--practiq-violet);
+    background: transparent;
+    color: var(--practiq-violet);
+    font-size: 0.88rem;
+    font-weight: 600;
+    cursor: pointer;
+  }
+
+  .btn-wallet:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+  }
+
+  .checkout-alt-note {
+    font-size: 0.72rem;
+    line-height: 1.4;
+    color: var(--text-secondary);
   }
 
   .checkout-error {
