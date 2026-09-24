@@ -6,6 +6,8 @@
   const props = defineProps<{
     plan: CatalogPlan;
     publicKey: string;
+    /** Safe message returned by Practiq after the gateway rejects a token. */
+    serverError?: string;
   }>();
 
   const emit = defineEmits<{
@@ -76,6 +78,9 @@
               {{ plan.max_students === 1 ? "alumno" : "alumnos" }}
             </p>
           </div>
+          <button class="checkout-close" type="button" aria-label="Cerrar" @click="emit('cancel')">
+            <i class="pi pi-times" aria-hidden="true"></i>
+          </button>
         </div>
 
         <form class="checkout-form" @submit.prevent="submit">
@@ -101,7 +106,7 @@
             />
           </label>
 
-          <label class="field">
+          <label class="field field--half">
             <span>Mes</span>
             <input
               v-model="card.cardExpirationMonth"
@@ -114,7 +119,7 @@
             />
           </label>
 
-          <label class="field">
+          <label class="field field--half">
             <span>Año</span>
             <input
               v-model="card.cardExpirationYear"
@@ -127,8 +132,8 @@
             />
           </label>
 
-          <label class="field">
-            <span>Código</span>
+          <label class="field field--wide">
+            <span>Código de seguridad</span>
             <input
               v-model="card.securityCode"
               type="text"
@@ -140,7 +145,7 @@
             />
           </label>
 
-          <label class="field">
+          <label class="field field--half">
             <span>Tipo de documento</span>
             <select v-model="card.identificationType">
               <option value="DNI">DNI</option>
@@ -149,7 +154,7 @@
             </select>
           </label>
 
-          <label class="field">
+          <label class="field field--wide">
             <span>Número de documento</span>
             <input
               v-model="card.identificationNumber"
@@ -159,7 +164,9 @@
             />
           </label>
 
-          <p v-if="error" class="checkout-error">{{ error }}</p>
+          <p v-if="error || serverError" class="checkout-error" role="alert">
+            {{ error || serverError }}
+          </p>
 
           <p class="checkout-note">
             <i class="pi pi-shield" aria-hidden="true"></i>
@@ -211,6 +218,23 @@
     margin-bottom: 1.1rem;
   }
 
+  .checkout-head > div:nth-child(2) { min-width: 0; }
+
+  .checkout-close {
+    display: grid;
+    place-items: center;
+    flex: 0 0 auto;
+    width: 2.25rem;
+    height: 2.25rem;
+    margin-left: auto;
+    padding: 0;
+    border: 0;
+    border-radius: var(--radius-pill);
+    background: rgba(var(--practiq-violet-rgb), 0.08);
+    color: var(--text-secondary);
+    cursor: pointer;
+  }
+
   .checkout-icon {
     display: grid;
     place-items: center;
@@ -245,7 +269,7 @@
 
   .checkout-form {
     display: grid;
-    grid-template-columns: repeat(3, 1fr);
+    grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 0.7rem;
   }
 
@@ -261,8 +285,13 @@
     grid-column: 1 / -1;
   }
 
+  .field--half { grid-column: span 1; }
+
   .field input,
   .field select {
+    width: 100%;
+    box-sizing: border-box;
+    min-height: 2.75rem;
     padding: 0.55rem 0.7rem;
     border-radius: var(--radius-md);
     border: 1px solid var(--surface-border);
@@ -342,20 +371,38 @@
       max-height: calc(100dvh - 0.5rem);
       overflow-y: auto;
       border-radius: var(--radius-xl) var(--radius-xl) 0 0;
-      padding: 1.15rem 1rem calc(1rem + env(safe-area-inset-bottom));
+      padding: 1rem 1rem calc(0.75rem + env(safe-area-inset-bottom));
     }
 
-    .checkout-form {
-      grid-template-columns: repeat(2, 1fr);
-    }
+    .checkout-head { gap: 0.6rem; margin-bottom: 0.85rem; }
+    .checkout-icon { width: 2.1rem; height: 2.1rem; }
+    .checkout-title { font-size: 1.05rem; line-height: 1.2; }
+    .checkout-sub { font-size: 0.8rem; line-height: 1.35; }
+    .checkout-kicker { font-size: 0.64rem; }
+    .checkout-close { width: 2rem; height: 2rem; }
+
+    .checkout-form { gap: 0.65rem; }
+    .field { gap: 0.25rem; font-size: 0.74rem; }
+    .field input, .field select { min-height: 2.65rem; font-size: 16px; }
+    .checkout-note { padding: 0.55rem 0.6rem; font-size: 0.72rem; line-height: 1.35; }
 
     .checkout-actions {
-      flex-direction: column;
+      position: sticky;
+      bottom: -0.1rem;
+      z-index: 1;
+      display: grid;
+      grid-template-columns: 1fr auto;
+      margin: 0 -0.15rem -0.75rem;
+      padding: 0.75rem 0.15rem calc(0.75rem + env(safe-area-inset-bottom));
+      background: var(--surface-card);
+      box-shadow: 0 -8px 18px rgba(15, 23, 42, 0.06);
     }
 
     .btn-primary,
     .btn-quiet {
       min-height: 44px;
     }
+
+    .btn-quiet { padding-inline: 0.8rem; }
   }
 </style>

@@ -53,6 +53,7 @@
   /** The plan being subscribed to, or null when the checkout is closed. */
   const checkoutPlan = ref<CatalogPlan | null>(null);
   const publicKey = ref("");
+  const checkoutError = ref("");
 
   /**
    * Payments may still be warming up immediately after a deploy. Retrying
@@ -69,6 +70,7 @@
   }
 
   async function openCheckout(plan: CatalogPlan) {
+    checkoutError.value = "";
     if (!publicKey.value) {
       try {
         const { data } = await service.checkoutConfig();
@@ -92,8 +94,20 @@
   async function confirmCheckout(cardTokenId: string) {
     const plan = checkoutPlan.value;
     if (!plan) return;
-    checkoutPlan.value = null;
-    await run(() => service.subscribe(plan.plan_id, cardTokenId), "Suscripción activada");
+    checkoutError.value = "";
+    working.value = true;
+    try {
+      await service.subscribe(plan.plan_id, cardTokenId);
+      checkoutPlan.value = null;
+      await reload();
+      toast.add({ severity: "success", summary: "Suscripción activada", life: 2500 });
+    } catch (error: unknown) {
+      const responseMessage = (error as { response?: { data?: { message?: string } } })
+        ?.response?.data?.message;
+      checkoutError.value = responseMessage || "No se pudo autorizar la tarjeta. Probá de nuevo.";
+    } finally {
+      working.value = false;
+    }
   }
 
   const usedPct = computed(() => {
@@ -414,8 +428,9 @@
         v-if="checkoutPlan"
         :plan="checkoutPlan"
         :public-key="publicKey"
+        :server-error="checkoutError"
         @confirm="confirmCheckout"
-        @cancel="checkoutPlan = null"
+        @cancel="checkoutPlan = null; checkoutError = ''"
       />
 
       <Teleport to="body">
