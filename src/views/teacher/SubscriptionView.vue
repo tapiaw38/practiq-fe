@@ -206,9 +206,13 @@
     const s = subscription.value;
     if (!s) return "";
     if (s.uncapped) return "Sin límite";
-    if (s.active) return "Activo";
+    // Before `active`, not after: keeping the month already paid for means a
+    // paused subscription is now entitled, so "active" no longer means "being
+    // charged" and answering "Activo" would tell somebody who just paused that
+    // nothing happened.
     if (isPaused.value) return "Pausado";
     if (isPending.value) return "Confirmando pago";
+    if (s.active) return "Activo";
     if (s.trial_expired) return "Prueba terminada";
     return "Gratis";
   });
@@ -347,7 +351,9 @@
           <span
             class="plan-state"
             :class="{
-              'plan-state--paid': subscription.active || subscription.uncapped,
+              'plan-state--paid':
+                (subscription.active && !isPaused && !isPending) ||
+                subscription.uncapped,
               'plan-state--paused': isPaused,
               'plan-state--pending': isPending,
               'plan-state--expired': subscription.trial_expired,
@@ -416,8 +422,12 @@
         </div>
 
         <p v-if="isPaused" class="plan-renews">
-          Mientras esté pausada no se te cobra, y tus alumnos quedan con el
-          plan gratis. Podés reanudarla cuando quieras.
+          Pausada: no se te cobra nada.
+          <template v-if="renewsLabel">
+            Conservás este plan y tus alumnos hasta el {{ renewsLabel }}, porque
+            ese mes ya está pago.
+          </template>
+          Podés reanudarla cuando quieras.
         </p>
         <p v-else-if="renewsLabel" class="plan-renews">
           {{ subscription.active ? "Se renueva el" : "Tu prueba termina el" }}
