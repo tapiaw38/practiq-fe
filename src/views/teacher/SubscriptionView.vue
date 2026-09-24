@@ -4,6 +4,7 @@
   import { ensureFreshAccessToken, practiqApi } from "@/api/request/server";
   import TeacherLayout from "@/layouts/TeacherLayout.vue";
   import Skeleton from "@/components/ui/Skeleton.vue";
+  import UiModal from "@/components/ui/UiModal.vue";
   import CheckoutModal from "@/components/teacher/subscription/CheckoutModal.vue";
   import { authService } from "@/services/auth/authService";
   import type { CardToken } from "@/utils/mercadopago";
@@ -32,6 +33,7 @@
    * and keeps cancelling available rather than hiding it.
    */
   const showLeaveModal = ref(false);
+  const showPauseModal = ref(false);
 
   const isPaused = computed(() => subscription.value?.status === "paused");
   /** Authorised at the gateway, not confirmed here yet: the webhook decides. */
@@ -337,7 +339,11 @@
     }
   }
 
-  const pause = () => run(() => service.pause(), "Suscripción pausada");
+  const pause = () =>
+    run(() => service.pause(), "Suscripción pausada").finally(() => {
+      showPauseModal.value = false;
+      showLeaveModal.value = false;
+    });
   const resume = () => run(() => service.resume(), "Suscripción reanudada");
   const cancel = () => run(() => service.cancel(), "Suscripción cancelada");
 
@@ -545,7 +551,7 @@
             class="btn-danger"
             type="button"
             :disabled="working"
-            @click="pause"
+            @click="showPauseModal = true"
           >
             <i class="pi pi-pause"></i>
             Pausar
@@ -631,55 +637,86 @@
         @cancel="checkoutPlan = null; checkoutError = ''"
       />
 
-      <Teleport to="body">
-        <div
-          v-if="showLeaveModal"
-          class="leave-backdrop"
-          @click.self="showLeaveModal = false"
-        >
-          <div
-            class="leave-card"
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="leave-title"
-          >
-            <h3 id="leave-title" class="leave-title">
-              ¿Preferís pausarla en vez de cancelar?
-            </h3>
-            <p class="leave-text">
-              Si la pausás dejamos de cobrarte y la reactivás con un clic cuando
-              quieras. Si la cancelás tenés que volver a cargar los datos de tu
-              tarjeta para retomar.
-            </p>
-            <div class="leave-actions">
-              <button
-                class="btn-primary"
-                type="button"
-                :disabled="working"
-                @click="pause"
-              >
-                Pausar
-              </button>
-              <button
-                class="btn-quiet btn-quiet--danger"
-                type="button"
-                :disabled="working"
-                @click="cancel"
-              >
-                Cancelar igual
-              </button>
-              <button
-                class="btn-quiet"
-                type="button"
-                :disabled="working"
-                @click="showLeaveModal = false"
-              >
-                Volver
-              </button>
-            </div>
+      <UiModal
+        v-if="showPauseModal"
+        label="Pausar suscripción"
+        @close="showPauseModal = false"
+      >
+        <div class="leave-card">
+          <h3 class="leave-title">¿Pausar tu suscripción?</h3>
+          <p class="leave-text">
+            Dejamos de cobrarte desde el próximo vencimiento. Conservás tu plan
+            <strong>{{ subscription?.plan.name }}</strong> y tus alumnos hasta el
+            <strong>{{ renewsLabel || "final del período que ya pagaste" }}</strong>,
+            porque ese mes ya está pago. La reactivás con un clic cuando quieras.
+          </p>
+          <div class="leave-actions">
+            <button
+              class="btn-primary"
+              type="button"
+              :disabled="working"
+              @click="pause"
+            >
+              Pausar
+            </button>
+            <button
+              class="btn-secondary"
+              type="button"
+              :disabled="working"
+              @click="showPauseModal = false"
+            >
+              Volver
+            </button>
           </div>
         </div>
-      </Teleport>
+      </UiModal>
+
+      <UiModal
+        v-if="showLeaveModal"
+        label="Cancelar suscripción"
+        @close="showLeaveModal = false"
+      >
+        <div class="leave-card">
+          <h3 class="leave-title">¿Preferís pausarla en vez de cancelar?</h3>
+          <p class="leave-text">
+            Si la pausás dejamos de cobrarte y la reactivás con un clic cuando
+            quieras, conservando tu plan y tu precio.
+          </p>
+          <p class="leave-warn">
+            <i class="pi pi-info-circle" aria-hidden="true"></i>
+            Si cancelás perdés este plan y este precio. Quien ya está suscripto
+            conserva su plan aunque dejemos de ofrecerlo, pero al volver te
+            suscribís al plan y al precio que estén vigentes en ese momento, y
+            tenés que cargar los datos de tu tarjeta otra vez.
+          </p>
+          <div class="leave-actions">
+            <button
+              class="btn-primary"
+              type="button"
+              :disabled="working"
+              @click="pause"
+            >
+              Pausar y conservar mi plan
+            </button>
+            <button
+              class="btn-quiet btn-quiet--danger"
+              type="button"
+              :disabled="working"
+              @click="cancel"
+            >
+              Cancelar igual
+            </button>
+            <button
+              class="btn-quiet"
+              type="button"
+              :disabled="working"
+              @click="showLeaveModal = false"
+            >
+              Volver
+            </button>
+          </div>
+        </div>
+      </UiModal>
     </div>
   </TeacherLayout>
 </template>
@@ -1167,24 +1204,33 @@
     color: var(--text-secondary);
   }
 
-  .leave-backdrop {
-    position: fixed;
-    inset: 0;
-    background: rgba(15, 23, 42, 0.45);
-    display: grid;
-    place-items: center;
-    padding: 1rem;
-    z-index: 1000;
-  }
 
   .leave-card {
-    width: min(440px, 100%);
+    width: min(440px, calc(100vw - 32px));
     background: var(--surface-card);
     border-radius: var(--radius-xl);
     padding: 1.5rem;
     display: flex;
     flex-direction: column;
     gap: 0.75rem;
+  }
+
+  .leave-warn {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.5rem;
+    margin: 0 0 1rem;
+    padding: 0.7rem 0.85rem;
+    border-radius: var(--radius-md);
+    background: var(--fill-warning-subtle);
+    font-size: 0.85rem;
+    line-height: 1.5;
+    color: var(--text-secondary);
+  }
+
+  .leave-warn i {
+    margin-top: 0.15rem;
+    color: var(--color-warning-dark);
   }
 
   .leave-title {
