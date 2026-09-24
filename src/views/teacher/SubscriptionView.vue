@@ -55,6 +55,22 @@
   const publicKey = ref("");
   const checkoutError = ref("");
 
+  function paymentErrorMessage(error: unknown) {
+    const data = (error as {
+      response?: { data?: { message?: string; detail?: string | { message?: string } } };
+      message?: string;
+    })?.response?.data;
+    if (typeof data?.message === "string" && data.message) return data.message;
+    if (typeof data?.detail === "string" && data.detail) return data.detail;
+    if (
+      data?.detail &&
+      typeof data.detail !== "string" &&
+      typeof data.detail.message === "string" &&
+      data.detail.message
+    ) return data.detail.message;
+    return "No se pudo autorizar la tarjeta. Revisá los datos o probá otra tarjeta.";
+  }
+
   /**
    * Payments may still be warming up immediately after a deploy. Retrying
    * once keeps a transient first request from turning this route into an
@@ -102,9 +118,7 @@
       await reload();
       toast.add({ severity: "success", summary: "Suscripción activada", life: 2500 });
     } catch (error: unknown) {
-      const responseMessage = (error as { response?: { data?: { message?: string } } })
-        ?.response?.data?.message;
-      checkoutError.value = responseMessage || "No se pudo autorizar la tarjeta. Probá de nuevo.";
+      checkoutError.value = paymentErrorMessage(error);
     } finally {
       working.value = false;
     }
@@ -189,11 +203,11 @@
       await action();
       await reload();
       toast.add({ severity: "success", summary: done, life: 2500 });
-    } catch {
+    } catch (error) {
       toast.add({
         severity: "error",
         summary: "Error",
-        detail: "No se pudo completar la acción. Probá de nuevo.",
+        detail: paymentErrorMessage(error),
         life: 3000,
       });
     } finally {
