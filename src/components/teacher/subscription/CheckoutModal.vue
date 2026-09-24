@@ -15,12 +15,17 @@
     /** Carries the card token, never the card. */
     (e: "confirm", cardTokenId: string): void;
     /** Pay at Mercado Pago instead, where the account balance is an option. */
-    (e: "hosted"): void;
+    (e: "hosted", payerEmail: string): void;
     (e: "cancel"): void;
   }>();
 
   const working = ref(false);
   const error = ref("");
+
+  // Asked for only once the teacher chooses this way of paying: most use a
+  // card, and Mercado Pago's address is rarely the one they signed up with.
+  const walletOpen = ref(false);
+  const walletEmail = ref("");
 
   const card = reactive({
     cardNumber: "",
@@ -191,16 +196,31 @@
 
         <div class="checkout-alt">
           <span class="checkout-alt-line">o</span>
+
+          <label v-if="walletOpen" class="field field--wide">
+            <span>Email de tu cuenta de Mercado Pago</span>
+            <input
+              v-model="walletEmail"
+              type="email"
+              autocomplete="email"
+              placeholder="tucuenta@email.com"
+            />
+            <small class="field-hint">
+              Tiene que ser el de la cuenta con la que vas a iniciar sesión en
+              Mercado Pago. Si no coincide, no te deja autorizar el pago.
+            </small>
+          </label>
+
           <button
             class="btn-wallet"
             type="button"
-            :disabled="working"
-            @click="emit('hosted')"
+            :disabled="working || (walletOpen && !walletEmail.trim())"
+            @click="walletOpen ? emit('hosted', walletEmail.trim()) : (walletOpen = true)"
           >
             <i class="pi pi-wallet" aria-hidden="true"></i>
-            Pagar con mi saldo de Mercado Pago
+            {{ walletOpen ? "Ir a Mercado Pago" : "Pagar con mi saldo de Mercado Pago" }}
           </button>
-          <small class="checkout-alt-note">
+          <small v-if="!walletOpen" class="checkout-alt-note">
             Te llevamos a Mercado Pago para que autorices el pago mensual desde
             tu cuenta. Sirve si no tenés tarjeta de crédito o débito.
           </small>

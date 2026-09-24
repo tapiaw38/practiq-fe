@@ -134,13 +134,13 @@
    * the webhook says it was authorised, so the screen is not reloaded here —
    * there is nothing new to show yet.
    */
-  async function payWithWallet() {
+  async function payWithWallet(payerEmail: string) {
     const plan = checkoutPlan.value;
     if (!plan) return;
     checkoutError.value = "";
     working.value = true;
     try {
-      const initPoint = await service.startHostedCheckout(plan.plan_id);
+      const initPoint = await service.startHostedCheckout(plan.plan_id, payerEmail);
       if (!initPoint) {
         checkoutError.value = "No pudimos abrir el pago en Mercado Pago. Probá de nuevo.";
         return;

@@ -75,7 +75,7 @@ export interface ISubscriptionService {
   getMine(): Promise<{ data: TeacherSubscription }>;
   checkoutConfig(): Promise<{ data: CheckoutConfig }>;
   subscribe(planId: number, cardTokenId: string): Promise<void>;
-  startHostedCheckout(planId: number): Promise<string>;
+  startHostedCheckout(planId: number, payerEmail: string): Promise<string>;
   downgradePreview(): Promise<{ data: DowngradeState }>;
   applyDowngrade(keep: string[]): Promise<{ data: DowngradeState }>;
   reactivateStudent(studentId: string): Promise<void>;
@@ -134,9 +134,10 @@ export class SubscriptionService implements ISubscriptionService {
    * the balance in their account, which a card form cannot. Returns the
    * address to send the browser to; nothing is charged before they get there.
    */
-  async startHostedCheckout(planId: number): Promise<string> {
+  async startHostedCheckout(planId: number, payerEmail: string): Promise<string> {
     const { data } = await this.api.post("/teachers/me/subscription/hosted-checkout", {
       plan_id: planId,
+      payer_email: payerEmail,
     });
     return data?.data?.init_point ?? "";
   }
