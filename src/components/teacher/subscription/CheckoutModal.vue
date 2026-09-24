@@ -86,9 +86,13 @@
             type="text"
             inputmode="numeric"
             autocomplete="cc-number"
-            placeholder="4509 9535 6623 3704"
+            placeholder="1234 5678 9012 3456"
             required
           />
+          <small class="field-hint">
+            Crédito o débito. Mercado Pago no admite tarjetas prepagas para
+            pagos mensuales: si cargás una, el cobro se rechaza.
+          </small>
         </label>
 
         <label class="field field--wide">
@@ -268,6 +272,13 @@
 
   .field--wide {
     grid-column: 1 / -1;
+  }
+
+  .field-hint {
+    font-size: 0.72rem;
+    line-height: 1.4;
+    color: var(--text-secondary);
+    opacity: 0.85;
   }
 
   .field--half { grid-column: span 1; }
