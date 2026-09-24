@@ -235,13 +235,17 @@
             :key="row.key"
             type="button"
             class="mastery-card"
+            :aria-label="`Ver ${row.courseTitle}: ${row.topic.topic_title}`"
             @click="openTopic(row.courseId)"
           >
             <div class="mastery-card__top">
               <div class="mastery-topic">{{ row.topic.topic_title }}</div>
               <div class="mastery-level">Nivel {{ row.topic.current_level }}</div>
             </div>
-            <div class="mastery-course">{{ row.courseTitle }}</div>
+            <div class="mastery-course">
+              <span>{{ row.courseTitle }}</span>
+              <i class="pi pi-arrow-right" aria-hidden="true"></i>
+            </div>
             <!-- The bar is the mastery score; printing it again as a percentage
                  was the only reason the page had to explain why two numbers on
                  one card disagreed. -->
@@ -430,7 +434,11 @@
     color: var(--text-muted);
     font-size: var(--text-xs);
     font-weight: 700;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
   }
+  .mastery-course i { color: var(--practiq-violet); font-size: .68rem; }
   .not-started-note {
     margin: 0;
     color: var(--text-muted);

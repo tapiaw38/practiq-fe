@@ -98,7 +98,15 @@
   const TOP_TOPICS = 6;
   const topProgress = computed(() =>
     [...groupedProgress.value]
-      .sort((a, b) => a.mastery_score - b.mastery_score)
+      .sort((a, b) => {
+        // Home is a next-step list: topics never started first, then weakest,
+        // then the one left unattended for longer. Never depend on API order.
+        const aUnstarted = a.total_attempts === 0 ? 0 : 1;
+        const bUnstarted = b.total_attempts === 0 ? 0 : 1;
+        if (aUnstarted !== bUnstarted) return aUnstarted - bUnstarted;
+        if (a.mastery_score !== b.mastery_score) return a.mastery_score - b.mastery_score;
+        return new Date(a.last_practiced_at || 0).getTime() - new Date(b.last_practiced_at || 0).getTime();
+      })
       .slice(0, TOP_TOPICS),
   );
 
@@ -627,14 +635,6 @@
               <div class="section-kicker">Empezá por estos temas</div>
               <h2 class="section-title">Tu progreso por tema</h2>
             </div>
-            <RouterLink
-              v-if="groupedProgress.length > TOP_TOPICS"
-              to="/student/progress"
-              class="section-link"
-            >
-              Ver todo ({{ groupedProgress.length }})
-              <i class="pi pi-arrow-right"></i>
-            </RouterLink>
           </div>
 
           <div
@@ -672,6 +672,14 @@
               </div>
             </button>
           </div>
+          <RouterLink
+            v-if="groupedProgress.length > TOP_TOPICS"
+            to="/student/progress"
+            class="section-link mastery-section__all"
+          >
+            Ver todo mi progreso ({{ groupedProgress.length }})
+            <i class="pi pi-arrow-right"></i>
+          </RouterLink>
         </section>
 
         <JoinTeacherCard @joined="reloadDashboard" />
@@ -1080,6 +1088,11 @@
   }
   .section-link:hover {
     background: rgba(var(--practiq-violet-rgb), 0.16);
+  }
+  .mastery-section__all {
+    display: flex;
+    width: fit-content;
+    margin: 14px auto 0;
   }
 
   .section-title {
