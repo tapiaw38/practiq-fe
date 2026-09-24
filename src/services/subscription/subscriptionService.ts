@@ -68,10 +68,22 @@ export interface CheckoutConfig {
   public_key: string;
 }
 
+/** One candidate, named and dated: a list of ids is not a choice. */
+export interface DowngradeStudent {
+  id: string;
+  name: string;
+  /** Empty for somebody who never practised — why they are first in line. */
+  last_practiced_at?: string;
+  /** What the automatic order would do, so the form starts from it. */
+  keeps: boolean;
+}
+
 export interface DowngradeState {
   max_students: number;
   /** Who loses access, or would if applied now. */
   deactivated: string[];
+  /** Everyone the cap applies to, in the order it applies them. */
+  students?: DowngradeStudent[];
 }
 
 export interface ISubscriptionService {

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-  import { computed, onMounted, ref } from "vue";
+  import { computed, onMounted, ref, watch } from "vue";
   import { useToast } from "primevue/usetoast";
   import { ensureFreshAccessToken, practiqApi } from "@/api/request/server";
   import TeacherLayout from "@/layouts/TeacherLayout.vue";
@@ -11,6 +11,7 @@
     SubscriptionService,
     type CatalogPlan,
     type DowngradeState,
+    type DowngradeStudent,
     type TeacherSubscription,
   } from "@/services/subscription/subscriptionService";
 
@@ -57,9 +58,40 @@
   const downgrade = ref<DowngradeState | null>(null);
   const overLimit = computed(() => (downgrade.value?.deactivated.length ?? 0) > 0);
 
+  /** Who the teacher wants to keep. Starts from the automatic order. */
+  const keep = ref<string[]>([]);
+
+  watch(downgrade, (state) => {
+    keep.value = (state?.students ?? []).filter((s) => s.keeps).map((s) => s.id);
+  });
+
+  const keepIsFull = computed(
+    () => keep.value.length >= (downgrade.value?.max_students ?? 0),
+  );
+
+  function toggleKeep(id: string) {
+    const at = keep.value.indexOf(id);
+    if (at >= 0) {
+      keep.value.splice(at, 1);
+      return;
+    }
+    // Choosing more than the plan allows is not a choice the gateway can
+    // honour, so the form does not let them make it.
+    if (!keepIsFull.value) keep.value.push(id);
+  }
+
+  function lastPracticedLabel(student: DowngradeStudent) {
+    if (!student.last_practiced_at) return "Nunca practicó";
+    return `Última práctica: ${new Date(student.last_practiced_at).toLocaleDateString("es-AR", {
+      day: "numeric",
+      month: "short",
+      year: "numeric",
+    })}`;
+  }
+
   async function applyDowngrade() {
     await run(async () => {
-      await service.applyDowngrade([]);
+      await service.applyDowngrade(keep.value);
       const { data } = await service.downgradePreview();
       downgrade.value = data;
     }, "Plan ajustado");
@@ -466,6 +498,27 @@
             notas y todo lo que hicieron, pero no pueden entregar ni practicar.
             Podés reactivarlos cuando amplíes el plan.
           </p>
+          <ul v-if="downgrade?.students?.length" class="keep-list">
+            <li v-for="student in downgrade.students" :key="student.id">
+              <label
+                class="keep-item"
+                :class="{ 'keep-item--out': !keep.includes(student.id) }"
+              >
+                <input
+                  type="checkbox"
+                  :checked="keep.includes(student.id)"
+                  :disabled="working || (keepIsFull && !keep.includes(student.id))"
+                  @change="toggleKeep(student.id)"
+                />
+                <span class="keep-name">{{ student.name }}</span>
+                <span class="keep-activity">{{ lastPracticedLabel(student) }}</span>
+              </label>
+            </li>
+          </ul>
+          <p v-if="downgrade?.students?.length" class="keep-count">
+            {{ keep.length }} de {{ downgrade.max_students }} elegidos.
+            Los demás pasan a solo lectura.
+          </p>
           <button
             class="btn-secondary"
             type="button"
@@ -788,6 +841,62 @@
   .plan-pending i {
     margin-top: 0.15rem;
     color: var(--practiq-violet);
+  }
+
+  .keep-list {
+    list-style: none;
+    margin: 0.75rem 0 0.5rem;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
+    max-height: 16rem;
+    overflow-y: auto;
+  }
+
+  .keep-item {
+    display: grid;
+    grid-template-columns: auto 1fr auto;
+    align-items: center;
+    gap: 0.6rem;
+    padding: 0.5rem 0.65rem;
+    border: 1px solid var(--surface-border);
+    border-radius: var(--radius-md);
+    cursor: pointer;
+  }
+
+  .keep-item--out {
+    opacity: 0.6;
+  }
+
+  .keep-name {
+    font-size: 0.88rem;
+    color: var(--text-primary);
+    min-width: 0;
+    overflow-wrap: anywhere;
+  }
+
+  .keep-activity {
+    font-size: 0.74rem;
+    color: var(--text-secondary);
+    text-align: right;
+  }
+
+  .keep-count {
+    margin: 0 0 0.6rem;
+    font-size: 0.8rem;
+    color: var(--text-secondary);
+  }
+
+  @media (max-width: 560px) {
+    .keep-item {
+      grid-template-columns: auto 1fr;
+    }
+
+    .keep-activity {
+      grid-column: 2;
+      text-align: left;
+    }
   }
 
   .plan-warn {
