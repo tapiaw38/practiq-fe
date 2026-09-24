@@ -1356,8 +1356,28 @@
 
     .leave-actions {
       display: grid;
-      grid-template-columns: 1fr 1fr;
+      grid-template-columns: 1fr;
       align-items: stretch;
+      gap: 0.45rem;
+    }
+
+    .leave-card {
+      width: 100%;
+      max-height: calc(100dvh - 1rem);
+      overflow-y: auto;
+      border-radius: var(--radius-xl) var(--radius-xl) 0 0;
+      padding: 1.1rem 1rem calc(1rem + env(safe-area-inset-bottom));
+    }
+
+    .leave-title {
+      font-size: 1.05rem;
+      line-height: 1.25;
+    }
+
+    .leave-text,
+    .leave-warn {
+      font-size: 0.85rem;
+      line-height: 1.45;
     }
 
     .btn-primary,
