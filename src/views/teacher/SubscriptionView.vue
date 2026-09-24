@@ -5,6 +5,7 @@
   import TeacherLayout from "@/layouts/TeacherLayout.vue";
   import Skeleton from "@/components/ui/Skeleton.vue";
   import CheckoutModal from "@/components/teacher/subscription/CheckoutModal.vue";
+  import { authService } from "@/services/auth/authService";
   import {
     SubscriptionService,
     type CatalogPlan,
@@ -55,6 +56,8 @@
   /** The plan being subscribed to, or null when the checkout is closed. */
   const checkoutPlan = ref<CatalogPlan | null>(null);
   const publicKey = ref("");
+  /** Prefilled into the Mercado Pago field; they can correct it there. */
+  const accountEmail = ref("");
   const checkoutError = ref("");
 
   function paymentErrorMessage(error: unknown) {
@@ -258,7 +261,20 @@
     }).format(plan.amount);
   }
 
-  onMounted(loadSubscription);
+  /** Best effort: a missing prefill costs a teacher some typing, nothing more. */
+  async function loadAccountEmail() {
+    try {
+      const { data } = await authService.meUser();
+      accountEmail.value = data?.email ?? "";
+    } catch {
+      accountEmail.value = "";
+    }
+  }
+
+  onMounted(() => {
+    loadSubscription();
+    loadAccountEmail();
+  });
 </script>
 
 <template>
@@ -481,6 +497,7 @@
         :plan="checkoutPlan"
         :public-key="publicKey"
         :server-error="checkoutError"
+        :account-email="accountEmail"
         @confirm="confirmCheckout"
         @hosted="payWithWallet"
         @cancel="checkoutPlan = null; checkoutError = ''"

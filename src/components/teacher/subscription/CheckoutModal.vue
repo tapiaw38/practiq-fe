@@ -1,5 +1,5 @@
 <script setup lang="ts">
-  import { reactive, ref } from "vue";
+  import { reactive, ref, watch } from "vue";
   import UiModal from "@/components/ui/UiModal.vue";
   import { createCardToken } from "@/utils/mercadopago";
   import type { CatalogPlan } from "@/services/subscription/subscriptionService";
@@ -9,6 +9,9 @@
     publicKey: string;
     /** Safe message returned by Practiq after the gateway rejects a token. */
     serverError?: string;
+    /** Prefill for the Mercado Pago address, from the account. Editable:
+     * a teacher's Mercado Pago account is often on a different address. */
+    accountEmail?: string;
   }>();
 
   const emit = defineEmits<{
@@ -25,7 +28,15 @@
   // Asked for only once the teacher chooses this way of paying: most use a
   // card, and Mercado Pago's address is rarely the one they signed up with.
   const walletOpen = ref(false);
-  const walletEmail = ref("");
+  const walletEmail = ref(props.accountEmail ?? "");
+
+  const walletEmailTouched = ref(false);
+  watch(
+    () => props.accountEmail,
+    (email) => {
+      if (!walletEmailTouched.value && email) walletEmail.value = email;
+    },
+  );
 
   const card = reactive({
     cardNumber: "",
@@ -202,6 +213,7 @@
             <input
               v-model="walletEmail"
               type="email"
+              @input="walletEmailTouched = true"
               autocomplete="email"
               placeholder="tucuenta@email.com"
             />
