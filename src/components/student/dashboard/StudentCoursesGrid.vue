@@ -475,17 +475,9 @@
   }
 
   @media (max-width: 640px) {
-    /* El texto del botón ya lo dice el contexto: queda solo el ícono, con
-       44px de área de toque. */
-    .courses-grid--list .btn-levels__label {
-      display: none;
-    }
-
-    .courses-grid--list .btn-levels {
-      min-width: 44px;
-      min-height: 44px;
-      display: grid;
-      place-items: center;
+    /* Sin el botón, la segunda columna que lo alojaba deja un hueco. */
+    .courses-grid--list .course-card {
+      grid-template-columns: minmax(0, 1fr);
     }
 
     /* "Progreso del curso" repetido en cada fila es ruido; el % alcanza. */
@@ -643,7 +635,7 @@
       grid-template-columns: 1fr;
     }
     .btn-levels {
-      min-height: 48px;
+      display: none;
     }
   }
 </style>
