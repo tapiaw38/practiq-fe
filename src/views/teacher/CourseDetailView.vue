@@ -3654,5 +3654,40 @@
   .picker-row-text { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13px; }
   .picker-row-tag { flex: 0 0 auto; color: var(--text-secondary); font-size: 11px; text-transform: uppercase; }
   .label-optional { color: var(--text-muted); font-weight: 500; }
-  @media (max-width: 600px) { .form-grid { grid-template-columns: 1fr; } .ai-drafts-modal { max-height: 92vh; } }
+  @media (max-width: 600px) {
+    .form-grid { grid-template-columns: 1fr; }
+    .ai-drafts-modal { max-height: 92dvh; }
+
+    .ai-draft-card { padding: 10px; margin: 8px 0; gap: 8px; }
+    .ai-draft-head { align-items: flex-start; gap: 8px; }
+
+    .ai-draft-summary {
+      display: grid;
+      grid-template-columns: auto 1fr auto;
+      align-items: start;
+      gap: 6px 8px;
+      min-height: 44px;
+    }
+
+    .ai-draft-summary-text { grid-column: 2; }
+    .ai-draft-summary > .pi { grid-column: 3; align-self: center; }
+
+    .ai-draft-question { white-space: normal; display: -webkit-box; -webkit-line-clamp: 2; line-clamp: 2; -webkit-box-orient: vertical; }
+
+    .ai-draft-chip {
+      grid-column: 2 / -1;
+      justify-self: start;
+      white-space: normal;
+      text-align: left;
+      line-height: 1.35;
+    }
+
+    .ai-draft-footer { flex-direction: column; align-items: stretch; gap: 10px; padding-bottom: 8px; }
+    .ai-drafts-modal .modal-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+    .ai-drafts-modal .modal-actions .btn { width: 100%; min-height: 44px; }
+
+    .ai-draft-handwriting, .ai-draft-canvas-wrap { max-width: 100%; }
+    .ai-draft-canvas { width: 100%; }
+    .teacher-canvas-toolbar { flex-wrap: wrap; gap: 6px; }
+  }
 </style>
