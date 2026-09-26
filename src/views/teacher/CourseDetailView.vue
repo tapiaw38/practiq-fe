@@ -418,6 +418,20 @@
     excludedDrafts.value = next;
   }
 
+  async function discardAllDrafts() {
+    const total = aiDrafts.value.length;
+    if (total) {
+      const ok = await showConfirm(
+        total === 1 ? "¿Descartar el borrador?" : `¿Descartar los ${total} borradores?`,
+        { description: "Se pierde lo que editaste. Para volver más tarde, cerrá con la ✕.", confirmLabel: "Descartar" },
+      );
+      if (!ok) return;
+    }
+    aiDrafts.value = [];
+    openDrafts.value = new Set();
+    excludedDrafts.value = new Set();
+  }
+
   function goToFirstIncomplete() {
     const target = includedDrafts.value.find((d) => !draftIsComplete(d));
     if (!target) return;
@@ -2138,6 +2152,7 @@
 
     <UiModal
       :visible="Boolean(showAIDraftsModal)"
+      :dismissable="!aiDrafts.length"
       @close="showAIDraftsModal = false"
     >
       <template v-if="showAIDraftsModal">
@@ -2157,7 +2172,7 @@
             <div class="modal-actions"><button class="btn btn-secondary" @click="showAIDraftsModal = false">Cancelar</button><button class="btn btn-primary" :disabled="!canGenerateDrafts || aiGenerating" @click="generateExerciseDrafts"><i class="pi" :class="aiGenerating ? 'pi-spin pi-spinner' : 'pi-sparkles'"></i> {{ aiGenerating ? "Generando…" : "Generar borradores" }}</button></div>
           </template>
           <template v-else>
-            <p class="field-hint">Editá o quitá los que no quieras. Nada se guarda hasta confirmar.</p>
+            <p class="field-hint">Editá o descartá los que no quieras. Nada se guarda hasta confirmar. Si cerrás con la ✕ los borradores te esperan acá.</p>
             <div
               v-for="(draft, index) in aiDrafts"
               :id="`ai-draft-${draft.draft_id}`"
@@ -2252,7 +2267,7 @@
                 <template v-if="excludedDrafts.size">· {{ excludedDrafts.size }} descartados</template>
               </p>
               <div class="modal-actions">
-                <button class="btn btn-secondary" @click="aiDrafts = []">Volver</button>
+                <button class="btn btn-secondary" @click="discardAllDrafts">Descartar todo</button>
                 <button class="btn btn-primary" :disabled="!includedDrafts.length || aiSaving || incompleteDrafts > 0" @click="saveAIDrafts">
                   {{ aiSaving ? "Guardando…" : `Guardar ${includedDrafts.length} ${includedDrafts.length === 1 ? "ejercicio" : "ejercicios"}` }}
                 </button>
