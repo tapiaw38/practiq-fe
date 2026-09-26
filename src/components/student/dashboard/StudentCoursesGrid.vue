@@ -94,6 +94,12 @@
         v-for="course in pagedCourses"
         :key="course.course_id"
         class="course-card"
+        role="button"
+        tabindex="0"
+        :aria-label="`Ver niveles de ${course.title}`"
+        @click="emit('openLevels', course.course_id)"
+        @keydown.enter.prevent="emit('openLevels', course.course_id)"
+        @keydown.space.prevent="emit('openLevels', course.course_id)"
       >
         <div class="course-card__eyebrow">
           <span class="course-subject">{{ course.subject || "General" }}</span>
@@ -136,7 +142,7 @@
               type="button"
               class="review-dismiss"
               aria-label="Ocultar temas para repasar"
-              @click="emit('dismissReview', course.course_id)"
+              @click.stop="emit('dismissReview', course.course_id)"
             >
               <i class="pi pi-times"></i>
             </button>
@@ -170,7 +176,12 @@
             <span class="course-stat__label">Cuadernos</span>
           </div>
         </div>
-        <button class="btn-levels" @click="emit('openLevels', course.course_id)">
+        <button
+          class="btn-levels"
+          type="button"
+          tabindex="-1"
+          @click.stop="emit('openLevels', course.course_id)"
+        >
           <i class="pi pi-list"></i>
           <span class="btn-levels__label">Ver niveles</span>
         </button>
@@ -330,10 +341,19 @@
     border-radius: var(--radius-2xl);
     box-shadow: var(--elevation-tint-shadow);
     transition: var(--transition);
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
   }
   .course-card:hover {
     transform: translateY(-2px);
     box-shadow: var(--shadow-card-lg);
+  }
+  .course-card:focus-visible {
+    outline: 2px solid var(--practiq-violet);
+    outline-offset: 2px;
+  }
+  .course-card:active {
+    transform: scale(0.995);
   }
 
   /* Vista lista: cada curso ocupa una fila y el contenido se acomoda en
