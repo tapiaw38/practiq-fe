@@ -385,7 +385,63 @@
     return draftProblem(draft) === "";
   }
 
-  const incompleteDrafts = computed(() => aiDrafts.value.filter((d) => !draftIsComplete(d)).length);
+  const openDrafts = ref<Set<string>>(new Set());
+  const excludedDrafts = ref<Set<string>>(new Set());
+
+  const includedDrafts = computed(() => aiDrafts.value.filter((d) => !excludedDrafts.value.has(d.draft_id)));
+  const incompleteDrafts = computed(() => includedDrafts.value.filter((d) => !draftIsComplete(d)).length);
+
+  function isOpen(draft: AIDraft) {
+    return openDrafts.value.has(draft.draft_id);
+  }
+
+  function toggleDraft(draft: AIDraft) {
+    const next = new Set(openDrafts.value);
+    if (next.has(draft.draft_id)) next.delete(draft.draft_id);
+    else next.add(draft.draft_id);
+    openDrafts.value = next;
+  }
+
+  function isExcluded(draft: AIDraft) {
+    return excludedDrafts.value.has(draft.draft_id);
+  }
+
+  function toggleExcluded(draft: AIDraft) {
+    const next = new Set(excludedDrafts.value);
+    if (next.has(draft.draft_id)) next.delete(draft.draft_id);
+    else {
+      next.add(draft.draft_id);
+      const open = new Set(openDrafts.value);
+      open.delete(draft.draft_id);
+      openDrafts.value = open;
+    }
+    excludedDrafts.value = next;
+  }
+
+  function goToFirstIncomplete() {
+    const target = includedDrafts.value.find((d) => !draftIsComplete(d));
+    if (!target) return;
+    openDrafts.value = new Set(openDrafts.value).add(target.draft_id);
+    requestAnimationFrame(() => {
+      document.getElementById(`ai-draft-${target.draft_id}`)?.scrollIntoView({ behavior: "smooth", block: "center" });
+    });
+  }
+
+  const DRAFT_TYPE_LABELS: Record<AIDraft["type"], string> = {
+    open_text: "Texto abierto",
+    multiple_choice: "Opción múltiple",
+    equation: "Ecuación",
+    canvas: "Canvas/Dibujo",
+    attachment: "Entrega de archivo",
+    fill_blanks: "Completar huecos",
+    handwritten: "Manuscrito",
+  };
+
+  function draftSummary(draft: AIDraft) {
+    const text = draft.question.replace(/\s+/g, " ").trim();
+    if (!text) return "Sin consigna";
+    return text.length > 80 ? `${text.slice(0, 80)}…` : text;
+  }
 
   function apiMessage(error: unknown, fallback: string) {
     const response = (error as { response?: { data?: { message?: string } } })?.response;
@@ -404,6 +460,8 @@
       form.append("exercise_type", aiType.value);
       const { data } = await practiqApi.post(`/topics/${selectedTopicId.value}/exercise-drafts/ai`, form, { headers: { "Content-Type": "multipart/form-data" } });
       aiDrafts.value = (data.data || []).map(normalizeDraft);
+      excludedDrafts.value = new Set();
+      openDrafts.value = new Set(aiDrafts.value.filter((d) => !draftIsComplete(d)).map((d) => d.draft_id));
     } catch (error) {
       // The API distinguishes a file that is too big, an unsupported format,
       // a topic the teacher cannot write to and an assistant that answered
@@ -423,7 +481,7 @@
     let saved = 0;
     let failure: unknown = null;
     try {
-      for (const draft of aiDrafts.value) {
+      for (const draft of includedDrafts.value) {
         if (failure) {
           pending.push(draft);
           continue;
@@ -2100,8 +2158,36 @@
           </template>
           <template v-else>
             <p class="field-hint">Editá o quitá los que no quieras. Nada se guarda hasta confirmar.</p>
-            <div v-for="(draft, index) in aiDrafts" :key="index" class="ai-draft-card" :class="{ 'ai-draft-card--incomplete': !draftIsComplete(draft) }">
-              <button class="btn btn-ghost btn-sm ai-draft-remove" @click="aiDrafts.splice(index, 1)"><i class="pi pi-times"></i></button>
+            <div
+              v-for="(draft, index) in aiDrafts"
+              :id="`ai-draft-${draft.draft_id}`"
+              :key="draft.draft_id"
+              class="ai-draft-card"
+              :class="{
+                'ai-draft-card--incomplete': !isExcluded(draft) && !draftIsComplete(draft),
+                'ai-draft-card--excluded': isExcluded(draft),
+              }"
+            >
+              <div class="ai-draft-head">
+                <label class="ai-draft-include" :title="isExcluded(draft) ? 'Incluir' : 'No guardar este'">
+                  <input type="checkbox" :checked="!isExcluded(draft)" @change="toggleExcluded(draft)" />
+                </label>
+                <button type="button" class="ai-draft-summary" @click="toggleDraft(draft)">
+                  <span class="ai-draft-index">{{ index + 1 }}</span>
+                  <span class="ai-draft-summary-text">
+                    <span class="ai-draft-type">{{ DRAFT_TYPE_LABELS[draft.type] }}</span>
+                    <span class="ai-draft-question">{{ draftSummary(draft) }}</span>
+                  </span>
+                  <span
+                    class="ai-draft-chip"
+                    :class="isExcluded(draft) ? 'ai-draft-chip--off' : draftIsComplete(draft) ? 'ai-draft-chip--ok' : 'ai-draft-chip--todo'"
+                  >
+                    {{ isExcluded(draft) ? "Descartado" : draftIsComplete(draft) ? "Listo" : draftProblem(draft) }}
+                  </span>
+                  <i class="pi" :class="isOpen(draft) ? 'pi-chevron-up' : 'pi-chevron-down'"></i>
+                </button>
+              </div>
+              <template v-if="isOpen(draft) && !isExcluded(draft)">
               <select v-model="draft.type" class="form-select" @change="draft.type === 'handwritten' && enableAIDraftHandwriting(draft)"><option value="open_text">Texto abierto</option><option value="multiple_choice">Opción múltiple</option><option value="equation">Ecuación</option><option value="canvas">Canvas/Dibujo</option><option value="attachment">📎 Entrega de archivo</option><option value="fill_blanks">🧩 Completar huecos</option><option value="handwritten">✍ Manuscrito</option></select>
               <button v-if="draft.type !== 'handwritten'" type="button" class="btn btn-ghost btn-sm ai-draft-handwriting" @click="enableAIDraftHandwriting(draft)"><i class="pi pi-pencil"></i> Convertir a manuscrito</button>
               <textarea v-model="draft.question" class="form-textarea" rows="2" :placeholder="draft.type === 'fill_blanks' ? 'Enunciado con huecos: El agua hierve a {{1}} grados.' : 'Consigna'" />
@@ -2152,11 +2238,26 @@
               <input v-else v-model="draft.correct_answer" class="form-input" placeholder="Respuesta correcta" />
               <textarea v-model="draft.explanation" class="form-textarea" rows="2" placeholder="Explicación" />
               <p v-if="draftProblem(draft)" class="ai-draft-problem">{{ draftProblem(draft) }}</p>
+              </template>
             </div>
-            <p v-if="incompleteDrafts" class="ai-draft-warning">
-              {{ incompleteDrafts === 1 ? "Hay un borrador incompleto." : `Hay ${incompleteDrafts} borradores incompletos.` }} Cada uno dice qué le falta.
-            </p>
-            <div class="modal-actions"><button class="btn btn-secondary" @click="aiDrafts = []">Volver</button><button class="btn btn-primary" :disabled="!aiDrafts.length || aiSaving || incompleteDrafts > 0" @click="saveAIDrafts">{{ aiSaving ? "Guardando…" : `Guardar ${aiDrafts.length} ${aiDrafts.length === 1 ? "ejercicio" : "ejercicios"}` }}</button></div>
+            <div class="ai-draft-footer">
+              <p class="ai-draft-tally">
+                {{ includedDrafts.length - incompleteDrafts }} listos
+                <template v-if="incompleteDrafts">
+                  ·
+                  <button type="button" class="ai-draft-jump" @click="goToFirstIncomplete">
+                    {{ incompleteDrafts }} {{ incompleteDrafts === 1 ? "incompleto" : "incompletos" }}
+                  </button>
+                </template>
+                <template v-if="excludedDrafts.size">· {{ excludedDrafts.size }} descartados</template>
+              </p>
+              <div class="modal-actions">
+                <button class="btn btn-secondary" @click="aiDrafts = []">Volver</button>
+                <button class="btn btn-primary" :disabled="!includedDrafts.length || aiSaving || incompleteDrafts > 0" @click="saveAIDrafts">
+                  {{ aiSaving ? "Guardando…" : `Guardar ${includedDrafts.length} ${includedDrafts.length === 1 ? "ejercicio" : "ejercicios"}` }}
+                </button>
+              </div>
+            </div>
           </template>
         </div>
       </template>
@@ -3510,7 +3611,21 @@
   .ai-drafts-modal { max-width: 760px; max-height: min(88vh, 820px); overflow: auto; }
   .form-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
   .ai-draft-card { position: relative; display: grid; gap: 10px; padding: 14px; margin: 12px 0; border: 1px solid var(--surface-border); border-radius: var(--radius-lg); background: var(--surface-base); }
-  .ai-draft-remove { position: absolute; top: 6px; right: 6px; }
+  .ai-draft-head { display: flex; align-items: center; gap: 10px; }
+  .ai-draft-include { display: grid; place-items: center; flex: 0 0 auto; min-width: 24px; min-height: 24px; cursor: pointer; }
+  .ai-draft-summary { flex: 1; min-width: 0; display: flex; align-items: center; gap: 10px; padding: 0; border: 0; background: none; text-align: left; cursor: pointer; color: inherit; }
+  .ai-draft-index { flex: 0 0 auto; display: grid; place-items: center; width: 22px; height: 22px; border-radius: var(--radius-pill); background: var(--surface-sunken); font-size: 12px; font-weight: 700; color: var(--text-secondary); }
+  .ai-draft-summary-text { display: flex; flex-direction: column; gap: 2px; min-width: 0; flex: 1; }
+  .ai-draft-type { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; color: var(--text-secondary); }
+  .ai-draft-question { font-size: 13px; color: var(--text-primary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .ai-draft-chip { flex: 0 0 auto; padding: 2px 8px; border-radius: var(--radius-pill); font-size: 11px; font-weight: 700; }
+  .ai-draft-chip--ok { background: var(--color-success-bg); color: var(--color-success-dark); }
+  .ai-draft-chip--todo { background: var(--fill-warning-subtle); color: var(--color-warning-dark); }
+  .ai-draft-chip--off { background: var(--surface-sunken); color: var(--text-secondary); }
+  .ai-draft-card--excluded { opacity: 0.55; }
+  .ai-draft-footer { position: sticky; bottom: 0; display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; margin-top: 12px; padding: 10px 0 0; background: var(--surface-card); border-top: 1px solid var(--surface-border); }
+  .ai-draft-tally { margin: 0; font-size: 13px; color: var(--text-secondary); }
+  .ai-draft-jump { padding: 0; border: 0; background: none; color: var(--color-warning-dark); font: inherit; font-weight: 700; text-decoration: underline; cursor: pointer; }
   .ai-draft-card .form-select { padding-right: 42px; }
   .ai-draft-card--incomplete { border-color: var(--color-warning); }
   .ai-draft-label { color: var(--text-secondary); font-size: 12px; font-weight: 700; }
