@@ -1,5 +1,5 @@
 import { storeToRefs } from "pinia";
-import { useToast } from "primevue/usetoast";
+import { useToast } from "@/composables/useToast";
 import { NotebookService } from "@/services/notebooks/notebookService";
 import { useNotebookStore } from "@/stores/notebookStore";
 import { practiqApi } from "@/api/request/server";

@@ -1,6 +1,6 @@
 <script setup lang="ts">
   import { computed, ref } from "vue";
-  import { useToast } from "primevue/usetoast";
+  import { useToast } from "@/composables/useToast";
   import { useInvitation } from "@/composables/useInvitation";
 
   const emit = defineEmits<{ (e: "joined"): void }>();

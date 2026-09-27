@@ -1,6 +1,6 @@
 <script setup lang="ts">
   import { computed, onMounted, ref, watch } from "vue";
-  import { useToast } from "primevue/usetoast";
+  import { useToast } from "@/composables/useToast";
   import { ensureFreshAccessToken, practiqApi } from "@/api/request/server";
   import TeacherLayout from "@/layouts/TeacherLayout.vue";
   import Skeleton from "@/components/ui/Skeleton.vue";

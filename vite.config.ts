@@ -17,9 +17,6 @@ export default defineConfig({
       output: {
         manualChunks(id) {
           if (!id.includes('node_modules')) return undefined
-          if (id.includes('primevue') || id.includes('@primevue') || id.includes('@primeuix') || id.includes('primeicons')) {
-            return 'vendor-primevue'
-          }
           if (id.includes('vue') || id.includes('pinia')) return 'vendor-vue'
           if (id.includes('katex')) return 'vendor-katex'
           // Only the avatar draws with it. Left in the shared vendor chunk it

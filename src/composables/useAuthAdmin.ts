@@ -1,5 +1,5 @@
 import { storeToRefs } from "pinia";
-import { useToast } from "primevue/usetoast";
+import { useToast } from "@/composables/useToast";
 import { authApi } from "@/api/request/server";
 import { AuthAdminService } from "@/services/auth/authAdminService";
 import { useAuthAdminStore } from "@/stores/authAdminStore";

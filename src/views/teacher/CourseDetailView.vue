@@ -10,7 +10,7 @@
     defineAsyncComponent,
   } from "vue";
   import { useRoute, useRouter } from "vue-router";
-  import { useToast } from "primevue/usetoast";
+  import { useToast } from "@/composables/useToast";
   import TeacherLayout from "@/layouts/TeacherLayout.vue";
   import ConfirmModal from "@/components/ui/ConfirmModal.vue";
   import FileUploadField from "@/components/ui/FileUploadField.vue";

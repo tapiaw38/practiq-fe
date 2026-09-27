@@ -1,6 +1,6 @@
 <script setup lang="ts">
   import { computed, onMounted, reactive, ref, watch } from "vue";
-  import { useToast } from "primevue/usetoast";
+  import { useToast } from "@/composables/useToast";
   import TeacherLayout from "@/layouts/TeacherLayout.vue";
   import FileViewer from "@/components/ui/FileViewer.vue";
   import ExerciseMedia from "@/components/ui/ExerciseMedia.vue";

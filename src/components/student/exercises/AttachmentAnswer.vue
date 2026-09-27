@@ -1,6 +1,6 @@
 <script setup lang="ts">
   import { computed, onUnmounted, ref, watch } from "vue";
-  import { useToast } from "primevue/usetoast";
+  import { useToast } from "@/composables/useToast";
   import { practiqApi } from "@/api/request/server";
   import { UploadService } from "@/services/uploads/uploadService";
   import type { UploadedFile } from "@/services/uploads/uploadService";

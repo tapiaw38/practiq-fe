@@ -1,5 +1,5 @@
 <template>
-  <Toast />
+  <ToastHost />
   <AssistantWidget v-if="showAssistant" />
   <RouterView :key="viewKey" />
 </template>
@@ -7,6 +7,7 @@
 <script setup lang="ts">
   import { computed, defineAsyncComponent, onMounted, watch } from 'vue'
   import { setUiTheme } from '@/composables/useUiTheme'
+  import ToastHost from '@/components/ui/ToastHost.vue'
   import { RouterView, useRoute } from 'vue-router'
   import { useAuthStore } from '@/stores/authStore'
   import { practiqApi } from '@/api/request/server'

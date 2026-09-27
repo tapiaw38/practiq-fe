@@ -1,6 +1,6 @@
 <script setup lang="ts">
   import { onMounted, ref } from "vue";
-  import { useToast } from "primevue/usetoast";
+  import { useToast } from "@/composables/useToast";
   import Skeleton from "@/components/ui/Skeleton.vue";
   import UiModal from "@/components/ui/UiModal.vue";
   import { useInvitation } from "@/composables/useInvitation";

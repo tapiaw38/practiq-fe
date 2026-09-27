@@ -1,7 +1,7 @@
 <script setup lang="ts">
   import { computed, onMounted, reactive, ref } from "vue";
   import { useRouter } from "vue-router";
-  import { useToast } from "primevue/usetoast";
+  import { useToast } from "@/composables/useToast";
   import { practiqApi } from "@/api/request/server";
   import { authApi } from "@/api/request/server";
   import TeacherLayout from "@/layouts/TeacherLayout.vue";

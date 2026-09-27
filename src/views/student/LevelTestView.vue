@@ -3,7 +3,7 @@
   import { statementImageDataURL } from "@/utils/statementImage";
   import ExerciseStepper from "@/components/student/exercises/ExerciseStepper.vue";
   import { useRoute, useRouter } from "vue-router";
-  import { useToast } from "primevue/usetoast";
+  import { useToast } from "@/composables/useToast";
   import StudentLayout from "@/layouts/StudentLayout.vue";
   import Skeleton from "@/components/ui/Skeleton.vue";
   import ConfirmModal from "@/components/ui/ConfirmModal.vue";

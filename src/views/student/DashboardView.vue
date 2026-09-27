@@ -2,7 +2,7 @@
   import { ref, computed, onMounted, onUnmounted } from "vue";
   import { useRouter } from "vue-router";
   import { useAuthStore } from "@/stores/authStore";
-  import { useToast } from "primevue/usetoast";
+  import { useToast } from "@/composables/useToast";
   import type { CourseSummary } from "@/services/dashboard/dashboardService";
   import { useCountUp } from "@/composables/useCountUp";
   import StudentLayout from "@/layouts/StudentLayout.vue";

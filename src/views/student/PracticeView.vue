@@ -2,7 +2,7 @@
   import { ref, computed, watch, onMounted, onUnmounted, defineAsyncComponent } from "vue";
   import { useRoute, useRouter } from "vue-router";
   import PractiCoach from "@/components/student/practice/PractiCoach.vue";
-  import { useToast } from "primevue/usetoast";
+  import { useToast } from "@/composables/useToast";
   import { useAuthStore } from "@/stores/authStore";
   import StudentLayout from "@/layouts/StudentLayout.vue";
   import Skeleton from "@/components/ui/Skeleton.vue";

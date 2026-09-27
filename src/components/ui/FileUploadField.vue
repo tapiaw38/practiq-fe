@@ -1,6 +1,6 @@
 <script setup lang="ts">
   import { ref } from "vue";
-  import { useToast } from "primevue/usetoast";
+  import { useToast } from "@/composables/useToast";
   import { practiqApi } from "@/api/request/server";
   import { UploadService } from "@/services/uploads/uploadService";
   import FileViewer from "@/components/ui/FileViewer.vue";
