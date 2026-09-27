@@ -113,13 +113,23 @@
     if (nextCourse) selectCourse(nextCourse.course_id, nextIndex > currentIndex ? "next" : "previous");
   }
 
+  const LAST_COURSE_KEY = "league:last-course";
+
   watch(courses, (items) => {
-    if (!selectedCourseID.value && items.length) selectedCourseID.value = items[0].course_id;
+    if (!items.length) return;
+    const known = items.some((item) => item.course_id === selectedCourseID.value);
+    if (!known) selectedCourseID.value = items[0].course_id;
   });
 
-  watch(selectedCourseID, (courseID) => loadBoard(courseID));
+  watch(selectedCourseID, (courseID) => {
+    if (!courseID) return;
+    localStorage.setItem(LAST_COURSE_KEY, courseID);
+    loadBoard(courseID);
+  });
 
   onMounted(async () => {
+    const remembered = localStorage.getItem(LAST_COURSE_KEY) || "";
+    if (remembered) selectedCourseID.value = remembered;
     try {
       const dashboard = await loadDashboard();
       courses.value = dashboard.courses || [];
