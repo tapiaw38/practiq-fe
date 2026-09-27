@@ -1,57 +1,55 @@
-import type { AxiosInstance } from "axios";
-import type { AIConversation, AIMessage } from "@/types";
+import type { AxiosInstance } from 'axios';
+import type { AIConversation, AIMessage } from '@/types';
 
 export interface IAIService {
-  createConversation(params: {
-    course_id?: string;
-    practice_sheet_id?: string;
-  }): Promise<{ data: AIConversation }>;
-  getMessages(conversationId: string): Promise<{ data: AIMessage[] }>;
-  getHelp(params: {
-    exercise_id?: string;
-    question: string;
-    help_type?: "hint" | "explanation" | "similar_example";
-    conversation_id?: string;
-  }): Promise<{ data: { id: string; response: string; help_type: string } }>;
-  getCuriosities(courseId: string): Promise<{
-    data: { course_id: string; curiosities: string[] };
-  }>;
+    createConversation(params: {
+        course_id?: string;
+        practice_sheet_id?: string;
+    }): Promise<{ data: AIConversation }>;
+    getMessages(conversationId: string): Promise<{ data: AIMessage[] }>;
+    getHelp(params: {
+        exercise_id?: string;
+        question: string;
+        help_type?: 'hint' | 'explanation' | 'similar_example';
+        conversation_id?: string;
+    }): Promise<{ data: { id: string; response: string; help_type: string } }>;
+    getCuriosities(courseId: string): Promise<{
+        data: { course_id: string; curiosities: string[] };
+    }>;
 }
 
 export class AIService implements IAIService {
-  constructor(private readonly api: AxiosInstance) {}
+    constructor(private readonly api: AxiosInstance) {}
 
-  async createConversation(params: {
-    course_id?: string;
-    practice_sheet_id?: string;
-  }): Promise<{ data: AIConversation }> {
-    const { data } = await this.api.post("/ai/conversations", params);
-    return data;
-  }
+    async createConversation(params: {
+        course_id?: string;
+        practice_sheet_id?: string;
+    }): Promise<{ data: AIConversation }> {
+        const { data } = await this.api.post('/ai/conversations', params);
+        return data;
+    }
 
-  async getMessages(conversationId: string): Promise<{ data: AIMessage[] }> {
-    const { data } = await this.api.get(
-      `/ai/conversations/${conversationId}/messages`,
-    );
-    return data;
-  }
+    async getMessages(conversationId: string): Promise<{ data: AIMessage[] }> {
+        const { data } = await this.api.get(`/ai/conversations/${conversationId}/messages`);
+        return data;
+    }
 
-  async getHelp(params: {
-    exercise_id?: string;
-    question: string;
-    help_type?: "hint" | "explanation" | "similar_example";
-    conversation_id?: string;
-  }): Promise<{ data: { id: string; response: string; help_type: string } }> {
-    const { data } = await this.api.post("/ai/help", params);
-    return data;
-  }
+    async getHelp(params: {
+        exercise_id?: string;
+        question: string;
+        help_type?: 'hint' | 'explanation' | 'similar_example';
+        conversation_id?: string;
+    }): Promise<{ data: { id: string; response: string; help_type: string } }> {
+        const { data } = await this.api.post('/ai/help', params);
+        return data;
+    }
 
-  async getCuriosities(courseId: string): Promise<{
-    data: { course_id: string; curiosities: string[] };
-  }> {
-    const { data } = await this.api.post("/ai/curiosities", {
-      course_id: courseId,
-    });
-    return data;
-  }
+    async getCuriosities(courseId: string): Promise<{
+        data: { course_id: string; curiosities: string[] };
+    }> {
+        const { data } = await this.api.post('/ai/curiosities', {
+            course_id: courseId,
+        });
+        return data;
+    }
 }

@@ -5,11 +5,11 @@ export default defineConfig({
     plugins: [vue()],
     resolve: {
         alias: {
-            '@': fileURLToPath(new URL('./src', import.meta.url))
-        }
+            '@': fileURLToPath(new URL('./src', import.meta.url)),
+        },
     },
     server: {
-        port: 5174
+        port: 5174,
     },
     build: {
         rollupOptions: {
@@ -28,8 +28,8 @@ export default defineConfig({
                     if (id.includes('mathlive'))
                         return 'vendor-mathlive';
                     return 'vendor';
-                }
-            }
-        }
-    }
+                },
+            },
+        },
+    },
 });

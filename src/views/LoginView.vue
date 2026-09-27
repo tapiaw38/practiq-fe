@@ -1,1228 +1,1171 @@
 <script setup lang="ts">
-  import { computed, reactive, ref } from "vue";
-  import { useRoute, useRouter } from "vue-router";
-  import GoogleButton from "@/components/auth/GoogleButton.vue";
-  import { authService } from "@/services/auth/authService";
-  import { useProfile } from "@/composables/useProfile";
-  import { useAuthStore } from "@/stores/authStore";
-  import type { LoginResponse, UserProfile, ProfileType } from "@/types";
+    import { computed, reactive, ref } from 'vue';
+    import { useRoute, useRouter } from 'vue-router';
+    import GoogleButton from '@/components/auth/GoogleButton.vue';
+    import { authService } from '@/services/auth/authService';
+    import { useProfile } from '@/composables/useProfile';
+    import { useAuthStore } from '@/stores/authStore';
+    import type { LoginResponse, UserProfile, ProfileType } from '@/types';
 
-  type ViewMode = "login" | "register" | "forgot" | "complete";
+    type ViewMode = 'login' | 'register' | 'forgot' | 'complete';
 
-  const router = useRouter();
-  const route = useRoute();
-  const authStore = useAuthStore();
-  const { loadProfile, syncProfile } = useProfile();
+    const router = useRouter();
+    const route = useRoute();
+    const authStore = useAuthStore();
+    const { loadProfile, syncProfile } = useProfile();
 
-  const currentView = ref<ViewMode>("login");
-  const loading = ref(false);
-  const errorMsg = ref("");
-  const forgotSent = ref(false);
+    const currentView = ref<ViewMode>('login');
+    const loading = ref(false);
+    const errorMsg = ref('');
+    const forgotSent = ref(false);
 
-  const email = ref("");
-  const password = ref("");
-  const firstName = ref("");
-  const lastName = ref("");
-  const confirmPassword = ref("");
-  const forgotEmail = ref("");
-  const profileType = ref<ProfileType>("student");
+    const email = ref('');
+    const password = ref('');
+    const firstName = ref('');
+    const lastName = ref('');
+    const confirmPassword = ref('');
+    const forgotEmail = ref('');
+    const profileType = ref<ProfileType>('student');
 
-  const pendingProfile = reactive({
-    token: "",
-    name: "",
-    email: "",
-    profile_type: "student" as ProfileType,
-  });
+    const pendingProfile = reactive({
+        token: '',
+        name: '',
+        email: '',
+        profile_type: 'student' as ProfileType,
+    });
 
-  const redirectUrl = computed(() => (route.query.redirect as string) || "");
-  const pendingFullName = computed(() => pendingProfile.name || "Usuario");
-  const pendingInitial = computed(
-    () => pendingFullName.value.charAt(0).toUpperCase() || "U",
-  );
+    const redirectUrl = computed(() => (route.query.redirect as string) || '');
+    const pendingFullName = computed(() => pendingProfile.name || 'Usuario');
+    const pendingInitial = computed(() => pendingFullName.value.charAt(0).toUpperCase() || 'U');
 
-  const emailError = computed(() => {
-    if (!email.value) return "";
-    return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.value)
-      ? ""
-      : "Ingresa un email válido.";
-  });
+    const emailError = computed(() => {
+        if (!email.value) return '';
+        return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.value) ? '' : 'Ingresa un email válido.';
+    });
 
-  const passwordError = computed(() => {
-    if (!password.value) return "";
-    return password.value.length >= 6
-      ? ""
-      : "La contraseña debe tener al menos 6 caracteres.";
-  });
+    const passwordError = computed(() => {
+        if (!password.value) return '';
+        return password.value.length >= 6 ? '' : 'La contraseña debe tener al menos 6 caracteres.';
+    });
 
-  const registerPasswordError = computed(() => {
-    const p = password.value;
-    if (!p) return "";
-    if (p.length < 8) return "La contraseña debe tener al menos 8 caracteres.";
-    if (!/[A-Z]/.test(p)) return "Debe contener una mayúscula.";
-    if (!/[a-z]/.test(p)) return "Debe contener una minúscula.";
-    if (!/[0-9]/.test(p)) return "Debe contener un número.";
-    if (!/[!@#$%^&*()_+\-=[\]{}|;:,.<>?]/.test(p))
-      return "Debe contener un carácter especial.";
-    return "";
-  });
+    const registerPasswordError = computed(() => {
+        const p = password.value;
+        if (!p) return '';
+        if (p.length < 8) return 'La contraseña debe tener al menos 8 caracteres.';
+        if (!/[A-Z]/.test(p)) return 'Debe contener una mayúscula.';
+        if (!/[a-z]/.test(p)) return 'Debe contener una minúscula.';
+        if (!/[0-9]/.test(p)) return 'Debe contener un número.';
+        if (!/[!@#$%^&*()_+\-=[\]{}|;:,.<>?]/.test(p)) return 'Debe contener un carácter especial.';
+        return '';
+    });
 
-  const confirmPasswordError = computed(() => {
-    if (!confirmPassword.value) return "";
-    return confirmPassword.value === password.value
-      ? ""
-      : "Las contraseñas no coinciden.";
-  });
+    const confirmPasswordError = computed(() => {
+        if (!confirmPassword.value) return '';
+        return confirmPassword.value === password.value ? '' : 'Las contraseñas no coinciden.';
+    });
 
-  const isLoginValid = computed(
-    () =>
-      !!email.value &&
-      !!password.value &&
-      !emailError.value &&
-      !passwordError.value,
-  );
-
-  const isRegisterValid = computed(
-    () =>
-      !!firstName.value &&
-      !!lastName.value &&
-      !!email.value &&
-      !!password.value &&
-      !!confirmPassword.value &&
-      !emailError.value &&
-      !registerPasswordError.value &&
-      !confirmPasswordError.value,
-  );
-
-  function resetMessages() {
-    errorMsg.value = "";
-    forgotSent.value = false;
-  }
-
-  function goLogin() {
-    currentView.value = "login";
-    resetMessages();
-  }
-
-  function goRegister() {
-    currentView.value = "register";
-    resetMessages();
-  }
-
-  function goForgot() {
-    currentView.value = "forgot";
-    resetMessages();
-  }
-
-  function routeAfterProfile(profile: UserProfile) {
-    if (redirectUrl.value) {
-      router.push(redirectUrl.value);
-      return;
-    }
-    router.push(
-      profile.profile_type === "teacher"
-        ? "/teacher/dashboard"
-        : "/student/dashboard",
+    const isLoginValid = computed(
+        () => !!email.value && !!password.value && !emailError.value && !passwordError.value,
     );
-  }
 
-  async function finalizeSession(
-    response: LoginResponse,
-    fallbackProfileType?: ProfileType,
-  ) {
-    authService.setToken(response.token);
-    authStore.storeToken(response.token);
-    if (response.data) authStore.setAuthUser(response.data);
+    const isRegisterValid = computed(
+        () =>
+            !!firstName.value &&
+            !!lastName.value &&
+            !!email.value &&
+            !!password.value &&
+            !!confirmPassword.value &&
+            !emailError.value &&
+            !registerPasswordError.value &&
+            !confirmPasswordError.value,
+    );
 
-    try {
-      const profile = await loadProfile();
-      authStore.setProfile(profile);
-      routeAfterProfile(profile);
-    } catch (err: any) {
-      if (err.response?.status !== 404) throw err;
-
-      pendingProfile.token = response.token;
-      pendingProfile.name =
-        `${response.data.first_name} ${response.data.last_name}`.trim();
-      pendingProfile.email = response.data.email;
-      pendingProfile.profile_type = fallbackProfileType || "student";
-      currentView.value = "complete";
+    function resetMessages() {
+        errorMsg.value = '';
+        forgotSent.value = false;
     }
-  }
 
-  async function handleLogin() {
-    if (!isLoginValid.value) return;
-    resetMessages();
-    loading.value = true;
-    try {
-      const response = await authService.login({
-        email: email.value,
-        password: password.value,
-      });
-      await finalizeSession(response);
-    } catch (err: any) {
-      errorMsg.value =
-        err.response?.data?.message || "No se pudo iniciar sesión.";
-    } finally {
-      loading.value = false;
+    function goLogin() {
+        currentView.value = 'login';
+        resetMessages();
     }
-  }
 
-  async function handleRegister() {
-    if (!isRegisterValid.value) return;
-    resetMessages();
-    loading.value = true;
-    try {
-      await authService.register({
-        first_name: firstName.value,
-        last_name: lastName.value,
-        email: email.value,
-        password: password.value,
-        profile_type: profileType.value,
-      });
-      const loginRes = await authService.login({
-        email: email.value,
-        password: password.value,
-      });
-      authService.setToken(loginRes.token);
-      authStore.storeToken(loginRes.token);
-      const profile = await syncProfile({
-        name: `${firstName.value} ${lastName.value}`.trim(),
-        email: email.value,
-        profile_type: profileType.value,
-      });
-      authStore.setProfile(profile);
-      routeAfterProfile(profile);
-    } catch (err: any) {
-      errorMsg.value =
-        err.response?.data?.message || "No se pudo crear la cuenta.";
-    } finally {
-      loading.value = false;
+    function goRegister() {
+        currentView.value = 'register';
+        resetMessages();
     }
-  }
 
-  async function handleForgotPassword() {
-    if (!forgotEmail.value) return;
-    resetMessages();
-    loading.value = true;
-    try {
-      await authService.requestResetPassword(forgotEmail.value);
-      forgotSent.value = true;
-    } catch (err: any) {
-      errorMsg.value =
-        err.response?.data?.message ||
-        "No se pudo enviar el enlace de recuperación.";
-    } finally {
-      loading.value = false;
+    function goForgot() {
+        currentView.value = 'forgot';
+        resetMessages();
     }
-  }
 
-  async function handleGoogleLogin(code: string) {
-    resetMessages();
-    loading.value = true;
-    try {
-      const response = await authService.login({
-        ssoType: "google",
-        ssoCode: code,
-      });
-      await finalizeSession(response, profileType.value);
-    } catch (err: any) {
-      errorMsg.value =
-        err.response?.data?.message || "No se pudo iniciar con Google.";
-    } finally {
-      loading.value = false;
+    function routeAfterProfile(profile: UserProfile) {
+        if (redirectUrl.value) {
+            router.push(redirectUrl.value);
+            return;
+        }
+        router.push(
+            profile.profile_type === 'teacher' ? '/teacher/dashboard' : '/student/dashboard',
+        );
     }
-  }
 
-  async function completePendingProfile() {
-    resetMessages();
-    loading.value = true;
-    try {
-      authService.setToken(pendingProfile.token);
-      authStore.storeToken(pendingProfile.token);
-      const profile = await syncProfile({
-        name: pendingProfile.name,
-        email: pendingProfile.email,
-        profile_type: pendingProfile.profile_type,
-      });
-      authStore.setProfile(profile);
-      routeAfterProfile(profile);
-    } catch (err: any) {
-      errorMsg.value =
-        err.response?.data?.message || "No se pudo completar el perfil.";
-    } finally {
-      loading.value = false;
+    async function finalizeSession(response: LoginResponse, fallbackProfileType?: ProfileType) {
+        authService.setToken(response.token);
+        authStore.storeToken(response.token);
+        if (response.data) authStore.setAuthUser(response.data);
+
+        try {
+            const profile = await loadProfile();
+            authStore.setProfile(profile);
+            routeAfterProfile(profile);
+        } catch (err: any) {
+            if (err.response?.status !== 404) throw err;
+
+            pendingProfile.token = response.token;
+            pendingProfile.name = `${response.data.first_name} ${response.data.last_name}`.trim();
+            pendingProfile.email = response.data.email;
+            pendingProfile.profile_type = fallbackProfileType || 'student';
+            currentView.value = 'complete';
+        }
     }
-  }
+
+    async function handleLogin() {
+        if (!isLoginValid.value) return;
+        resetMessages();
+        loading.value = true;
+        try {
+            const response = await authService.login({
+                email: email.value,
+                password: password.value,
+            });
+            await finalizeSession(response);
+        } catch (err: any) {
+            errorMsg.value = err.response?.data?.message || 'No se pudo iniciar sesión.';
+        } finally {
+            loading.value = false;
+        }
+    }
+
+    async function handleRegister() {
+        if (!isRegisterValid.value) return;
+        resetMessages();
+        loading.value = true;
+        try {
+            await authService.register({
+                first_name: firstName.value,
+                last_name: lastName.value,
+                email: email.value,
+                password: password.value,
+                profile_type: profileType.value,
+            });
+            const loginRes = await authService.login({
+                email: email.value,
+                password: password.value,
+            });
+            authService.setToken(loginRes.token);
+            authStore.storeToken(loginRes.token);
+            const profile = await syncProfile({
+                name: `${firstName.value} ${lastName.value}`.trim(),
+                email: email.value,
+                profile_type: profileType.value,
+            });
+            authStore.setProfile(profile);
+            routeAfterProfile(profile);
+        } catch (err: any) {
+            errorMsg.value = err.response?.data?.message || 'No se pudo crear la cuenta.';
+        } finally {
+            loading.value = false;
+        }
+    }
+
+    async function handleForgotPassword() {
+        if (!forgotEmail.value) return;
+        resetMessages();
+        loading.value = true;
+        try {
+            await authService.requestResetPassword(forgotEmail.value);
+            forgotSent.value = true;
+        } catch (err: any) {
+            errorMsg.value =
+                err.response?.data?.message || 'No se pudo enviar el enlace de recuperación.';
+        } finally {
+            loading.value = false;
+        }
+    }
+
+    async function handleGoogleLogin(code: string) {
+        resetMessages();
+        loading.value = true;
+        try {
+            const response = await authService.login({
+                ssoType: 'google',
+                ssoCode: code,
+            });
+            await finalizeSession(response, profileType.value);
+        } catch (err: any) {
+            errorMsg.value = err.response?.data?.message || 'No se pudo iniciar con Google.';
+        } finally {
+            loading.value = false;
+        }
+    }
+
+    async function completePendingProfile() {
+        resetMessages();
+        loading.value = true;
+        try {
+            authService.setToken(pendingProfile.token);
+            authStore.storeToken(pendingProfile.token);
+            const profile = await syncProfile({
+                name: pendingProfile.name,
+                email: pendingProfile.email,
+                profile_type: pendingProfile.profile_type,
+            });
+            authStore.setProfile(profile);
+            routeAfterProfile(profile);
+        } catch (err: any) {
+            errorMsg.value = err.response?.data?.message || 'No se pudo completar el perfil.';
+        } finally {
+            loading.value = false;
+        }
+    }
 </script>
 
 <template>
-  <div class="auth-page">
-    <!-- ─── LEFT PANEL ─── -->
-    <section class="auth-left" aria-hidden="true">
-      <div class="glow glow--top"></div>
-      <div class="glow glow--bottom"></div>
+    <div class="auth-page">
+        <section class="auth-left" aria-hidden="true">
+            <div class="glow glow--top"></div>
+            <div class="glow glow--bottom"></div>
 
-      <div class="left-brand">
-        <img src="@/assets/logo.png" class="brand-logo" alt="Practiq" />
-      </div>
-
-      <div class="left-copy">
-        <div class="eyebrow">Plataforma educativa</div>
-        <h1>
-          Practica a tu ritmo,<br />
-          <span>avanza con confianza.</span>
-        </h1>
-        <p>
-          Ejercicios paso a paso, retroalimentación al instante y Quanty, el
-          asistente que te acompaña en cada tema.
-        </p>
-      </div>
-
-      <div class="feature-list">
-        <div class="feature-pill">
-          <i class="pi pi-check-circle"></i>
-          <span>Hojas de práctica por nivel</span>
-        </div>
-        <div class="feature-pill">
-          <i class="pi pi-check-circle"></i>
-          <span>Quanty, con pistas y ejemplos</span>
-        </div>
-        <div class="feature-pill">
-          <i class="pi pi-check-circle"></i>
-          <span>Progreso visible para docente y estudiante</span>
-        </div>
-      </div>
-
-      <div class="left-preview">
-        <img
-          src="@/assets/quanty.png"
-          class="preview-robot"
-          alt="Quanty, el asistente de Practiq"
-        />
-      </div>
-    </section>
-
-    <!-- ─── RIGHT PANEL ─── -->
-    <section class="auth-right">
-      <div class="auth-mobile-brand">
-        <img
-          src="@/assets/logo.png"
-          class="brand-logo brand-logo--mobile"
-          alt="Practiq"
-        />
-      </div>
-
-      <div class="auth-card" :class="`auth-card--${currentView}`">
-        <!-- ── HEADER ── -->
-        <div class="card-header">
-          <h2 class="card-title">
-            {{
-              currentView === "login"
-                ? "Iniciar sesión"
-                : currentView === "register"
-                  ? "Crear cuenta"
-                  : currentView === "forgot"
-                    ? "Recuperar contraseña"
-                    : "Completar perfil"
-            }}
-          </h2>
-          <p class="card-subtitle">
-            {{
-              currentView === "login"
-                ? "Entra para continuar con tus prácticas."
-                : currentView === "register"
-                  ? "Crea tu cuenta y empezá a practicar."
-                  : currentView === "forgot"
-                    ? "Te enviaremos un enlace para recuperar el acceso."
-                    : "Confirmá tus datos para terminar de entrar."
-            }}
-          </p>
-          <div
-            v-if="currentView === 'login' || currentView === 'register'"
-            class="auth-switch"
-            aria-label="Cambiar modo de acceso"
-          >
-            <button
-              type="button"
-              class="auth-switch__btn"
-              :class="{ 'auth-switch__btn--active': currentView === 'login' }"
-              :aria-pressed="currentView === 'login'"
-              @click="goLogin"
-            >
-              Ingresar
-            </button>
-            <button
-              type="button"
-              class="auth-switch__btn"
-              :class="{
-                'auth-switch__btn--active': currentView === 'register',
-              }"
-              :aria-pressed="currentView === 'register'"
-              @click="goRegister"
-            >
-              Crear cuenta
-            </button>
-          </div>
-        </div>
-
-        <!-- ── LOGIN FORM ── -->
-        <form
-          v-if="currentView === 'login'"
-          class="auth-form"
-          @submit.prevent="handleLogin"
-        >
-          <div class="form-group">
-            <label class="form-label" for="login-email">Email</label>
-            <input
-              id="login-email"
-              v-model="email"
-              type="email"
-              class="form-input"
-              :class="{ 'form-input--error': emailError }"
-              placeholder="tu@email.com"
-              autocomplete="email"
-              required
-            />
-            <small v-if="emailError" class="form-error">{{ emailError }}</small>
-          </div>
-
-          <div class="form-group">
-            <div class="label-row">
-              <label class="form-label" for="login-password">Contraseña</label>
-              <button type="button" class="text-link" @click="goForgot">
-                ¿La olvidaste?
-              </button>
+            <div class="left-brand">
+                <img src="@/assets/logo.png" class="brand-logo" alt="Practiq" />
             </div>
-            <input
-              id="login-password"
-              v-model="password"
-              type="password"
-              class="form-input"
-              :class="{ 'form-input--error': passwordError }"
-              placeholder="Tu contraseña"
-              autocomplete="current-password"
-              required
-            />
-            <small v-if="passwordError" class="form-error">{{
-              passwordError
-            }}</small>
-          </div>
 
-          <div v-if="errorMsg" class="alert alert--error">
-            <i class="pi pi-exclamation-circle"></i>
-            <span>{{ errorMsg }}</span>
-          </div>
-
-          <button
-            type="submit"
-            class="submit-btn"
-            :disabled="loading || !isLoginValid"
-          >
-            <span v-if="loading" class="spinner"></span>
-            <span>{{ loading ? "Ingresando..." : "Entrar" }}</span>
-          </button>
-        </form>
-
-        <!-- ── REGISTER FORM ── -->
-        <form
-          v-else-if="currentView === 'register'"
-          class="auth-form"
-          @submit.prevent="handleRegister"
-        >
-          <div class="two-col">
-            <div class="form-group">
-              <label class="form-label" for="first-name">Nombre</label>
-              <input
-                id="first-name"
-                v-model="firstName"
-                type="text"
-                class="form-input"
-                placeholder="Juan"
-                autocomplete="given-name"
-                required
-              />
+            <div class="left-copy">
+                <div class="eyebrow">Plataforma educativa</div>
+                <h1>
+                    Practica a tu ritmo,<br />
+                    <span>avanza con confianza.</span>
+                </h1>
+                <p>
+                    Ejercicios paso a paso, retroalimentación al instante y Quanty, el asistente que
+                    te acompaña en cada tema.
+                </p>
             </div>
-            <div class="form-group">
-              <label class="form-label" for="last-name">Apellido</label>
-              <input
-                id="last-name"
-                v-model="lastName"
-                type="text"
-                class="form-input"
-                placeholder="Pérez"
-                autocomplete="family-name"
-                required
-              />
+
+            <div class="feature-list">
+                <div class="feature-pill">
+                    <i class="pi pi-check-circle"></i>
+                    <span>Hojas de práctica por nivel</span>
+                </div>
+                <div class="feature-pill">
+                    <i class="pi pi-check-circle"></i>
+                    <span>Quanty, con pistas y ejemplos</span>
+                </div>
+                <div class="feature-pill">
+                    <i class="pi pi-check-circle"></i>
+                    <span>Progreso visible para docente y estudiante</span>
+                </div>
             </div>
-          </div>
 
-          <fieldset class="profile-type-picker">
-            <legend>¿Cómo vas a usar Practiq?</legend>
-            <label class="profile-type-option">
-              <input v-model="profileType" type="radio" value="student" />
-              <span>
-                <strong>Alumno</strong>
-                <small>Practicar, resolver actividades y avanzar por niveles.</small>
-              </span>
-            </label>
-            <label class="profile-type-option">
-              <input v-model="profileType" type="radio" value="teacher" />
-              <span>
-                <strong>Docente</strong>
-                <small>Crear tareas, acompañar cursos y revisar entregas.</small>
-              </span>
-            </label>
-          </fieldset>
-
-          <div class="form-group">
-            <label class="form-label" for="register-email">Email</label>
-            <input
-              id="register-email"
-              v-model="email"
-              type="email"
-              class="form-input"
-              :class="{ 'form-input--error': emailError }"
-              placeholder="tu@email.com"
-              autocomplete="email"
-              required
-            />
-            <small v-if="emailError" class="form-error">{{ emailError }}</small>
-          </div>
-
-          <div class="two-col">
-            <div class="form-group">
-              <label class="form-label" for="register-password"
-                >Contraseña</label
-              >
-              <input
-                id="register-password"
-                v-model="password"
-                type="password"
-                class="form-input"
-                :class="{ 'form-input--error': registerPasswordError }"
-                placeholder="Mín. 8 caracteres"
-                autocomplete="new-password"
-                required
-              />
-              <small v-if="registerPasswordError" class="form-error">{{
-                registerPasswordError
-              }}</small>
-              <small v-else-if="password" class="form-help"
-                >Segura para crear cuenta.</small
-              >
+            <div class="left-preview">
+                <img
+                    src="@/assets/quanty.png"
+                    class="preview-robot"
+                    alt="Quanty, el asistente de Practiq"
+                />
             </div>
-            <div class="form-group">
-              <label class="form-label" for="confirm-password">Confirmar</label>
-              <input
-                id="confirm-password"
-                v-model="confirmPassword"
-                type="password"
-                class="form-input"
-                :class="{ 'form-input--error': confirmPasswordError }"
-                placeholder="Repite tu contraseña"
-                autocomplete="new-password"
-                required
-              />
-              <small v-if="confirmPasswordError" class="form-error">{{
-                confirmPasswordError
-              }}</small>
+        </section>
+
+        <section class="auth-right">
+            <div class="auth-mobile-brand">
+                <img src="@/assets/logo.png" class="brand-logo brand-logo--mobile" alt="Practiq" />
             </div>
-          </div>
 
-          <div v-if="errorMsg" class="alert alert--error">
-            <i class="pi pi-exclamation-circle"></i>
-            <span>{{ errorMsg }}</span>
-          </div>
+            <div class="auth-card" :class="`auth-card--${currentView}`">
+                <div class="card-header">
+                    <h2 class="card-title">
+                        {{
+                            currentView === 'login'
+                                ? 'Iniciar sesión'
+                                : currentView === 'register'
+                                  ? 'Crear cuenta'
+                                  : currentView === 'forgot'
+                                    ? 'Recuperar contraseña'
+                                    : 'Completar perfil'
+                        }}
+                    </h2>
+                    <p class="card-subtitle">
+                        {{
+                            currentView === 'login'
+                                ? 'Entra para continuar con tus prácticas.'
+                                : currentView === 'register'
+                                  ? 'Crea tu cuenta y empezá a practicar.'
+                                  : currentView === 'forgot'
+                                    ? 'Te enviaremos un enlace para recuperar el acceso.'
+                                    : 'Confirmá tus datos para terminar de entrar.'
+                        }}
+                    </p>
+                    <div
+                        v-if="currentView === 'login' || currentView === 'register'"
+                        class="auth-switch"
+                        aria-label="Cambiar modo de acceso"
+                    >
+                        <button
+                            type="button"
+                            class="auth-switch__btn"
+                            :class="{ 'auth-switch__btn--active': currentView === 'login' }"
+                            :aria-pressed="currentView === 'login'"
+                            @click="goLogin"
+                        >
+                            Ingresar
+                        </button>
+                        <button
+                            type="button"
+                            class="auth-switch__btn"
+                            :class="{
+                                'auth-switch__btn--active': currentView === 'register',
+                            }"
+                            :aria-pressed="currentView === 'register'"
+                            @click="goRegister"
+                        >
+                            Crear cuenta
+                        </button>
+                    </div>
+                </div>
 
-          <button
-            type="submit"
-            class="submit-btn"
-            :disabled="loading || !isRegisterValid"
-          >
-            <span v-if="loading" class="spinner"></span>
-            <span>{{ loading ? "Creando cuenta..." : "Crear cuenta" }}</span>
-          </button>
-        </form>
+                <form
+                    v-if="currentView === 'login'"
+                    class="auth-form"
+                    @submit.prevent="handleLogin"
+                >
+                    <div class="form-group">
+                        <label class="form-label" for="login-email">Email</label>
+                        <input
+                            id="login-email"
+                            v-model="email"
+                            type="email"
+                            class="form-input"
+                            :class="{ 'form-input--error': emailError }"
+                            placeholder="tu@email.com"
+                            autocomplete="email"
+                            required
+                        />
+                        <small v-if="emailError" class="form-error">{{ emailError }}</small>
+                    </div>
 
-        <!-- ── FORGOT PASSWORD FORM ── -->
-        <form
-          v-else-if="currentView === 'forgot'"
-          class="auth-form"
-          @submit.prevent="handleForgotPassword"
-        >
-          <div class="form-group">
-            <label class="form-label" for="forgot-email">Email</label>
-            <input
-              id="forgot-email"
-              v-model="forgotEmail"
-              type="email"
-              class="form-input"
-              placeholder="tu@email.com"
-              required
-            />
-          </div>
+                    <div class="form-group">
+                        <div class="label-row">
+                            <label class="form-label" for="login-password">Contraseña</label>
+                            <button type="button" class="text-link" @click="goForgot">
+                                ¿La olvidaste?
+                            </button>
+                        </div>
+                        <input
+                            id="login-password"
+                            v-model="password"
+                            type="password"
+                            class="form-input"
+                            :class="{ 'form-input--error': passwordError }"
+                            placeholder="Tu contraseña"
+                            autocomplete="current-password"
+                            required
+                        />
+                        <small v-if="passwordError" class="form-error">{{ passwordError }}</small>
+                    </div>
 
-          <div v-if="forgotSent" class="alert alert--success">
-            <i class="pi pi-check-circle"></i>
-            <span
-              >Si el email existe, recibirás un enlace de recuperación.</span
-            >
-          </div>
+                    <div v-if="errorMsg" class="alert alert--error">
+                        <i class="pi pi-exclamation-circle"></i>
+                        <span>{{ errorMsg }}</span>
+                    </div>
 
-          <div v-else-if="errorMsg" class="alert alert--error">
-            <i class="pi pi-exclamation-circle"></i>
-            <span>{{ errorMsg }}</span>
-          </div>
+                    <button type="submit" class="submit-btn" :disabled="loading || !isLoginValid">
+                        <span v-if="loading" class="spinner"></span>
+                        <span>{{ loading ? 'Ingresando...' : 'Entrar' }}</span>
+                    </button>
+                </form>
 
-          <button
-            type="submit"
-            class="submit-btn"
-            :disabled="loading || !forgotEmail"
-          >
-            <span v-if="loading" class="spinner"></span>
-            <span>{{ loading ? "Enviando..." : "Enviar enlace" }}</span>
-          </button>
+                <form
+                    v-else-if="currentView === 'register'"
+                    class="auth-form"
+                    @submit.prevent="handleRegister"
+                >
+                    <div class="two-col">
+                        <div class="form-group">
+                            <label class="form-label" for="first-name">Nombre</label>
+                            <input
+                                id="first-name"
+                                v-model="firstName"
+                                type="text"
+                                class="form-input"
+                                placeholder="Juan"
+                                autocomplete="given-name"
+                                required
+                            />
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label" for="last-name">Apellido</label>
+                            <input
+                                id="last-name"
+                                v-model="lastName"
+                                type="text"
+                                class="form-input"
+                                placeholder="Pérez"
+                                autocomplete="family-name"
+                                required
+                            />
+                        </div>
+                    </div>
 
-          <button type="button" class="ghost-btn" @click="goLogin">
-            Volver a login
-          </button>
-        </form>
+                    <fieldset class="profile-type-picker">
+                        <legend>¿Cómo vas a usar Practiq?</legend>
+                        <label class="profile-type-option">
+                            <input v-model="profileType" type="radio" value="student" />
+                            <span>
+                                <strong>Alumno</strong>
+                                <small
+                                    >Practicar, resolver actividades y avanzar por niveles.</small
+                                >
+                            </span>
+                        </label>
+                        <label class="profile-type-option">
+                            <input v-model="profileType" type="radio" value="teacher" />
+                            <span>
+                                <strong>Docente</strong>
+                                <small>Crear tareas, acompañar cursos y revisar entregas.</small>
+                            </span>
+                        </label>
+                    </fieldset>
 
-        <!-- ── COMPLETE PROFILE FORM ── -->
-        <form v-else class="auth-form" @submit.prevent="completePendingProfile">
-          <div class="identity-box">
-            <div class="identity-avatar">{{ pendingInitial }}</div>
-            <div>
-              <div class="identity-name">{{ pendingFullName }}</div>
-              <div class="identity-email">{{ pendingProfile.email }}</div>
+                    <div class="form-group">
+                        <label class="form-label" for="register-email">Email</label>
+                        <input
+                            id="register-email"
+                            v-model="email"
+                            type="email"
+                            class="form-input"
+                            :class="{ 'form-input--error': emailError }"
+                            placeholder="tu@email.com"
+                            autocomplete="email"
+                            required
+                        />
+                        <small v-if="emailError" class="form-error">{{ emailError }}</small>
+                    </div>
+
+                    <div class="two-col">
+                        <div class="form-group">
+                            <label class="form-label" for="register-password">Contraseña</label>
+                            <input
+                                id="register-password"
+                                v-model="password"
+                                type="password"
+                                class="form-input"
+                                :class="{ 'form-input--error': registerPasswordError }"
+                                placeholder="Mín. 8 caracteres"
+                                autocomplete="new-password"
+                                required
+                            />
+                            <small v-if="registerPasswordError" class="form-error">{{
+                                registerPasswordError
+                            }}</small>
+                            <small v-else-if="password" class="form-help"
+                                >Segura para crear cuenta.</small
+                            >
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label" for="confirm-password">Confirmar</label>
+                            <input
+                                id="confirm-password"
+                                v-model="confirmPassword"
+                                type="password"
+                                class="form-input"
+                                :class="{ 'form-input--error': confirmPasswordError }"
+                                placeholder="Repite tu contraseña"
+                                autocomplete="new-password"
+                                required
+                            />
+                            <small v-if="confirmPasswordError" class="form-error">{{
+                                confirmPasswordError
+                            }}</small>
+                        </div>
+                    </div>
+
+                    <div v-if="errorMsg" class="alert alert--error">
+                        <i class="pi pi-exclamation-circle"></i>
+                        <span>{{ errorMsg }}</span>
+                    </div>
+
+                    <button
+                        type="submit"
+                        class="submit-btn"
+                        :disabled="loading || !isRegisterValid"
+                    >
+                        <span v-if="loading" class="spinner"></span>
+                        <span>{{ loading ? 'Creando cuenta...' : 'Crear cuenta' }}</span>
+                    </button>
+                </form>
+
+                <form
+                    v-else-if="currentView === 'forgot'"
+                    class="auth-form"
+                    @submit.prevent="handleForgotPassword"
+                >
+                    <div class="form-group">
+                        <label class="form-label" for="forgot-email">Email</label>
+                        <input
+                            id="forgot-email"
+                            v-model="forgotEmail"
+                            type="email"
+                            class="form-input"
+                            placeholder="tu@email.com"
+                            required
+                        />
+                    </div>
+
+                    <div v-if="forgotSent" class="alert alert--success">
+                        <i class="pi pi-check-circle"></i>
+                        <span>Si el email existe, recibirás un enlace de recuperación.</span>
+                    </div>
+
+                    <div v-else-if="errorMsg" class="alert alert--error">
+                        <i class="pi pi-exclamation-circle"></i>
+                        <span>{{ errorMsg }}</span>
+                    </div>
+
+                    <button type="submit" class="submit-btn" :disabled="loading || !forgotEmail">
+                        <span v-if="loading" class="spinner"></span>
+                        <span>{{ loading ? 'Enviando...' : 'Enviar enlace' }}</span>
+                    </button>
+
+                    <button type="button" class="ghost-btn" @click="goLogin">Volver a login</button>
+                </form>
+
+                <form v-else class="auth-form" @submit.prevent="completePendingProfile">
+                    <div class="identity-box">
+                        <div class="identity-avatar">{{ pendingInitial }}</div>
+                        <div>
+                            <div class="identity-name">{{ pendingFullName }}</div>
+                            <div class="identity-email">{{ pendingProfile.email }}</div>
+                        </div>
+                    </div>
+
+                    <fieldset class="profile-type-picker">
+                        <legend>¿Cómo vas a usar Practiq?</legend>
+                        <label class="profile-type-option">
+                            <input
+                                v-model="pendingProfile.profile_type"
+                                type="radio"
+                                value="student"
+                            />
+                            <span
+                                ><strong>Alumno</strong
+                                ><small>Acceder a prácticas y niveles.</small></span
+                            >
+                        </label>
+                        <label class="profile-type-option">
+                            <input
+                                v-model="pendingProfile.profile_type"
+                                type="radio"
+                                value="teacher"
+                            />
+                            <span
+                                ><strong>Docente</strong
+                                ><small>Acceder al panel docente.</small></span
+                            >
+                        </label>
+                    </fieldset>
+
+                    <div v-if="errorMsg" class="alert alert--error">
+                        <i class="pi pi-exclamation-circle"></i>
+                        <span>{{ errorMsg }}</span>
+                    </div>
+
+                    <button type="submit" class="submit-btn" :disabled="loading">
+                        <span v-if="loading" class="spinner"></span>
+                        <span>{{ loading ? 'Guardando...' : 'Completar acceso' }}</span>
+                    </button>
+                </form>
+
+                <template v-if="currentView !== 'forgot' && currentView !== 'complete'">
+                    <div class="auth-divider"><span>o continúa con</span></div>
+                    <GoogleButton @code="handleGoogleLogin" />
+                </template>
+
+                <div v-if="currentView === 'login'" class="card-footer">
+                    <span>¿No tienes cuenta?</span>
+                    <button type="button" class="text-link" @click="goRegister">
+                        Crear cuenta
+                    </button>
+                </div>
+
+                <div v-else-if="currentView === 'register'" class="card-footer">
+                    <span>¿Ya tienes cuenta?</span>
+                    <button type="button" class="text-link" @click="goLogin">Inicia sesión</button>
+                </div>
             </div>
-          </div>
-
-          <fieldset class="profile-type-picker">
-            <legend>¿Cómo vas a usar Practiq?</legend>
-            <label class="profile-type-option">
-              <input
-                v-model="pendingProfile.profile_type"
-                type="radio"
-                value="student"
-              />
-              <span><strong>Alumno</strong><small>Acceder a prácticas y niveles.</small></span>
-            </label>
-            <label class="profile-type-option">
-              <input
-                v-model="pendingProfile.profile_type"
-                type="radio"
-                value="teacher"
-              />
-              <span><strong>Docente</strong><small>Acceder al panel docente.</small></span>
-            </label>
-          </fieldset>
-
-          <div v-if="errorMsg" class="alert alert--error">
-            <i class="pi pi-exclamation-circle"></i>
-            <span>{{ errorMsg }}</span>
-          </div>
-
-          <button type="submit" class="submit-btn" :disabled="loading">
-            <span v-if="loading" class="spinner"></span>
-            <span>{{ loading ? "Guardando..." : "Completar acceso" }}</span>
-          </button>
-        </form>
-
-        <!-- ── GOOGLE + FOOTER ── -->
-        <template v-if="currentView !== 'forgot' && currentView !== 'complete'">
-          <div class="auth-divider"><span>o continúa con</span></div>
-          <GoogleButton @code="handleGoogleLogin" />
-        </template>
-
-        <div v-if="currentView === 'login'" class="card-footer">
-          <span>¿No tienes cuenta?</span>
-          <button type="button" class="text-link" @click="goRegister">
-            Crear cuenta
-          </button>
-        </div>
-
-        <div v-else-if="currentView === 'register'" class="card-footer">
-          <span>¿Ya tienes cuenta?</span>
-          <button type="button" class="text-link" @click="goLogin">
-            Inicia sesión
-          </button>
-        </div>
-      </div>
-    </section>
-  </div>
+        </section>
+    </div>
 </template>
 
 <style scoped>
-  /* Page grid */
-  .auth-page {
-    height: 100dvh;
-    display: grid;
-    grid-template-columns: 1.1fr 1fr;
-    background: var(--gradient-auth-bg);
-    overflow: hidden;
-  }
-
-  /* Left panel */
-  .auth-left {
-    position: relative;
-    height: 100dvh;
-    overflow: hidden;
-    color: var(--color-on-brand-panel);
-    padding: 0px 48px 40px;
-    display: flex;
-    flex-direction: column;
-    background: var(--gradient-brand-panel);
-  }
-
-  .glow {
-    position: absolute;
-    border-radius: 50%;
-    filter: blur(80px);
-    pointer-events: none;
-  }
-  .glow--top {
-    top: -120px;
-    right: -60px;
-    width: 320px;
-    height: 320px;
-    background: rgba(var(--practiq-violet-light-rgb), 0.35);
-  }
-  .glow--bottom {
-    bottom: -100px;
-    left: -80px;
-    width: 280px;
-    height: 280px;
-    background: rgba(var(--color-info-rgb), 0.25);
-  }
-
-  .left-brand {
-    display: flex;
-    align-items: center;
-    gap: 14px;
-    position: relative;
-    z-index: 1;
-    margin-top: -16px;
-    margin-bottom: 32px;
-  }
-
-  .brand-logo {
-    width: 180px;
-    display: block;
-    filter: brightness(0) invert(1);
-    padding: 30px 0;
-  }
-  .brand-logo--mobile {
-    width: 130px;
-    filter: none;
-  }
-  .brand-mark {
-    width: 44px;
-    height: 44px;
-    border-radius: var(--radius-lg);
-    display: grid;
-    place-items: center;
-    font-weight: 800;
-    font-size: var(--font-stat-value);
-    color: var(--practiq-violet-900);
-    background: rgba(var(--surface-card-rgb), 0.95);
-    box-shadow: var(--shadow-md);
-  }
-  .brand-mark--mobile {
-    color: var(--color-on-primary);
-    background: var(--gradient-brand);
-    box-shadow: var(--shadow-violet-lg);
-  }
-  .brand-name {
-    font-size: var(--font-stat-value);
-    font-weight: 800;
-    line-height: 1.2;
-  }
-  .brand-tag {
-    font-size: var(--text-sm);
-    opacity: 0.75;
-  }
-
-  .left-copy {
-    position: relative;
-    z-index: 1;
-    margin-top: 0;
-    padding-top: 20px;
-    max-width: 520px;
-  }
-  .eyebrow {
-    font-size: var(--text-xs);
-    text-transform: uppercase;
-    letter-spacing: 0.18em;
-    font-weight: 700;
-    opacity: 0.7;
-    margin-bottom: 16px;
-  }
-  .left-copy h1 {
-    font-size: clamp(1.8rem, 3.5vw, 2.6rem);
-    line-height: 1.15;
-    font-weight: 800;
-  }
-  .left-copy h1 span {
-    color: var(--practiq-indigo-soft);
-  }
-  .left-copy p {
-    margin-top: 16px;
-    max-width: 440px;
-    font-size: var(--text-lg);
-    line-height: 1.7;
-    color: var(--text-brand-panel-muted);
-  }
-
-  .feature-list {
-    position: relative;
-    z-index: 1;
-    margin-top: 28px;
-    display: flex;
-    flex-direction: column;
-    gap: 10px;
-    max-width: 380px;
-  }
-  .feature-pill {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    padding: 12px 16px;
-    border-radius: var(--radius-lg);
-    background: rgba(var(--surface-card-rgb), 0.1);
-    border: 1px solid rgba(var(--surface-card-rgb), 0.12);
-    font-size: var(--text-base);
-    font-weight: 500;
-  }
-  .feature-pill .pi {
-    color: var(--practiq-violet-300);
-    font-size: var(--text-lg);
-  }
-
-  .left-preview {
-    position: absolute;
-    right: 0;
-    bottom: 0;
-    width: min(380px, 42vw);
-    z-index: 0;
-    display: flex;
-    align-items: flex-end;
-    justify-content: flex-end;
-  }
-  .preview-robot {
-    width: 100%;
-    display: block;
-    pointer-events: none;
-    user-select: none;
-    filter: drop-shadow(var(--shadow-illustration));
-  }
-
-  /* Right panel */
-  .auth-right {
-    height: 100dvh;
-    min-height: 0;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: flex-start;
-    padding: 40px 32px;
-    overflow-y: auto;
-    overscroll-behavior: contain;
-  }
-  .auth-mobile-brand {
-    display: none;
-  }
-
-  .auth-card {
-    width: 100%;
-    max-width: 440px;
-    margin-block: auto;
-    padding: 36px 32px;
-    border-radius: var(--radius-2xl);
-    background: var(--surface-card);
-    border: 1px solid var(--surface-card-border);
-    box-shadow: var(--shadow-auth-card);
-  }
-  .auth-card--register {
-    max-width: 520px;
-    padding: 28px 28px;
-  }
-  .card-header {
-    margin-bottom: 24px;
-  }
-  .auth-card--register .card-header {
-    margin-bottom: 18px;
-  }
-  .card-title {
-    font-size: 1.5rem;
-    font-weight: 700;
-    color: var(--text-primary);
-    line-height: 1.2;
-    margin-bottom: 6px;
-  }
-  .card-subtitle {
-    font-size: var(--text-md);
-    color: var(--text-secondary);
-    line-height: 1.5;
-  }
-
-  .auth-switch {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 4px;
-    margin-top: 18px;
-    padding: 4px;
-    border-radius: var(--radius-pill);
-    background: var(--surface-subtle);
-    border: 1px solid var(--surface-border);
-  }
-
-  .auth-switch__btn {
-    border: none;
-    border-radius: var(--radius-pill);
-    padding: 9px 12px;
-    background: transparent;
-    color: var(--text-secondary);
-    font-size: var(--text-sm);
-    font-weight: 800;
-    cursor: pointer;
-    transition: var(--transition-fast);
-  }
-
-  .auth-switch__btn--active {
-    background: var(--surface-card);
-    color: var(--practiq-violet-dark);
-    box-shadow: var(--shadow-sm);
-  }
-
-  /* Form */
-  .auth-form {
-    display: flex;
-    flex-direction: column;
-    gap: 16px;
-  }
-  .auth-card--register .auth-form {
-    gap: 12px;
-  }
-  .auth-form .form-group {
-    margin-bottom: 0;
-  }
-  .auth-form .form-input {
-    padding: 12px 16px;
-    border-radius: var(--radius-md);
-    font-size: var(--text-md);
-  }
-  .auth-card--register .auth-form .form-input {
-    padding: 10px 13px;
-  }
-
-  .form-input--error {
-    border-color: var(--color-error) !important;
-  }
-  .form-input--error:focus {
-    box-shadow: var(--focus-ring-error) !important;
-  }
-
-  .label-row {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 8px;
-    margin-bottom: 6px;
-  }
-  .label-row .form-label {
-    margin-bottom: 0;
-  }
-  .two-col {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 14px;
-  }
-  .auth-card--register .two-col {
-    gap: 10px;
-  }
-
-  .teacher-note {
-    margin: 0;
-    padding: 10px 14px;
-    border-radius: var(--radius-lg);
-    background: var(--practiq-violet-bg);
-    border: 1px solid var(--surface-border);
-    color: var(--text-secondary);
-    font-size: var(--text-sm);
-    line-height: 1.5;
-  }
-
-  .profile-type-picker {
-    display: grid;
-    gap: 8px;
-    margin: 0;
-    padding: 12px;
-    border: 1px solid var(--surface-border);
-    border-radius: var(--radius-lg);
-    background: var(--surface-subtle);
-  }
-  .profile-type-picker legend {
-    padding: 0 4px;
-    color: var(--text-secondary);
-    font-size: var(--text-sm);
-    font-weight: 700;
-  }
-  .profile-type-option {
-    display: flex;
-    align-items: flex-start;
-    gap: 9px;
-    padding: 8px;
-    border-radius: var(--radius-md);
-    color: var(--text-primary);
-    cursor: pointer;
-  }
-  .profile-type-option:hover {
-    background: var(--fill-primary-subtle);
-  }
-  .profile-type-option input {
-    margin: 3px 0 0;
-    accent-color: var(--practiq-violet);
-  }
-  .profile-type-option span {
-    display: grid;
-    gap: 2px;
-  }
-  .profile-type-option strong {
-    font-size: var(--text-sm);
-  }
-  .profile-type-option small {
-    color: var(--text-secondary);
-    font-size: var(--text-xs);
-    line-height: 1.35;
-  }
-
-  .form-help {
-    display: block;
-    margin-top: 6px;
-    color: var(--color-success-dark);
-    font-size: var(--text-xs);
-    font-weight: 600;
-  }
-
-  /* Buttons */
-  .submit-btn {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 8px;
-    width: 100%;
-    min-height: 48px;
-    border: none;
-    border-radius: var(--radius-md);
-    font-size: var(--text-lg);
-    font-weight: 600;
-    cursor: pointer;
-    background: var(--practiq-violet);
-    color: var(--color-on-primary);
-    box-shadow: var(--shadow-violet);
-    transition: var(--transition);
-  }
-  .submit-btn:hover:not(:disabled) {
-    background: var(--practiq-violet-dark);
-    transform: translateY(-1px);
-    box-shadow: var(--shadow-violet-lg);
-  }
-  .submit-btn:disabled {
-    opacity: 0.5;
-    cursor: not-allowed;
-  }
-
-  .ghost-btn {
-    width: 100%;
-    min-height: 44px;
-    border: 1px solid var(--surface-border);
-    border-radius: var(--radius-md);
-    font-size: var(--text-md);
-    font-weight: 600;
-    cursor: pointer;
-    background: var(--surface-card);
-    color: var(--text-primary);
-    transition: var(--transition);
-  }
-  .ghost-btn:hover {
-    background: var(--surface-hover);
-  }
-
-  .text-link {
-    border: none;
-    background: none;
-    padding: 0;
-    color: var(--practiq-violet);
-    font-weight: 600;
-    font-size: var(--text-base);
-    cursor: pointer;
-  }
-  .text-link:hover {
-    color: var(--practiq-violet-dark);
-  }
-
-  /* Alerts */
-  .alert {
-    display: flex;
-    align-items: flex-start;
-    gap: 10px;
-    padding: 12px 14px;
-    border-radius: var(--radius-md);
-    font-size: var(--text-base);
-    line-height: 1.5;
-  }
-  .alert--error {
-    background: var(--color-error-bg);
-    color: var(--color-error-dark);
-    border: 1px solid rgba(var(--color-error-rgb), 0.12);
-  }
-  .alert--success {
-    background: var(--color-success-bg);
-    color: var(--color-success-dark);
-    border: 1px solid rgba(var(--color-success-rgb), 0.12);
-  }
-
-  /* Divider */
-  .auth-divider {
-    position: relative;
-    margin: 22px 0 18px;
-    text-align: center;
-    color: var(--text-muted);
-    font-size: var(--text-base);
-  }
-  .auth-card--register .auth-divider {
-    margin: 16px 0 14px;
-  }
-  .auth-divider::before {
-    content: "";
-    position: absolute;
-    left: 0;
-    right: 0;
-    top: 50%;
-    height: 1px;
-    background: var(--surface-border);
-  }
-  .auth-divider span {
-    position: relative;
-    z-index: 1;
-    padding: 0 14px;
-    background: var(--surface-card);
-  }
-
-  /* Footer */
-  .card-footer {
-    margin-top: 20px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 6px;
-    font-size: var(--text-md);
-    color: var(--text-secondary);
-  }
-
-  /* Identity box */
-  .identity-box {
-    display: flex;
-    align-items: center;
-    gap: 14px;
-    padding: 16px;
-    border-radius: var(--radius-xl);
-    background: var(--surface-hover);
-    border: 1px solid var(--surface-border);
-  }
-  .identity-avatar {
-    width: 48px;
-    height: 48px;
-    border-radius: var(--radius-lg);
-    display: grid;
-    place-items: center;
-    background: var(--practiq-violet);
-    color: var(--color-on-primary);
-    font-weight: 800;
-    font-size: 18px;
-    flex-shrink: 0;
-  }
-  .identity-name {
-    font-weight: 700;
-    font-size: var(--text-lg);
-    color: var(--text-primary);
-  }
-  .identity-email {
-    margin-top: 2px;
-    font-size: var(--text-base);
-    color: var(--text-secondary);
-  }
-
-  /* Responsive */
-  @media (max-width: 1024px) {
     .auth-page {
-      grid-template-columns: 1fr;
+        height: 100dvh;
+        display: grid;
+        grid-template-columns: 1.1fr 1fr;
+        background: var(--gradient-auth-bg);
+        overflow: hidden;
     }
+
     .auth-left {
-      display: none;
+        position: relative;
+        height: 100dvh;
+        overflow: hidden;
+        color: var(--color-on-brand-panel);
+        padding: 0px 48px 40px;
+        display: flex;
+        flex-direction: column;
+        background: var(--gradient-brand-panel);
+    }
+
+    .glow {
+        position: absolute;
+        border-radius: 50%;
+        filter: blur(80px);
+        pointer-events: none;
+    }
+    .glow--top {
+        top: -120px;
+        right: -60px;
+        width: 320px;
+        height: 320px;
+        background: rgba(var(--practiq-violet-light-rgb), 0.35);
+    }
+    .glow--bottom {
+        bottom: -100px;
+        left: -80px;
+        width: 280px;
+        height: 280px;
+        background: rgba(var(--color-info-rgb), 0.25);
+    }
+
+    .left-brand {
+        display: flex;
+        align-items: center;
+        gap: 14px;
+        position: relative;
+        z-index: 1;
+        margin-top: -16px;
+        margin-bottom: 32px;
+    }
+
+    .brand-logo {
+        width: 180px;
+        display: block;
+        filter: brightness(0) invert(1);
+        padding: 30px 0;
+    }
+    .brand-logo--mobile {
+        width: 130px;
+        filter: none;
+    }
+    .brand-mark {
+        width: 44px;
+        height: 44px;
+        border-radius: var(--radius-lg);
+        display: grid;
+        place-items: center;
+        font-weight: 800;
+        font-size: var(--font-stat-value);
+        color: var(--practiq-violet-900);
+        background: rgba(var(--surface-card-rgb), 0.95);
+        box-shadow: var(--shadow-md);
+    }
+    .brand-mark--mobile {
+        color: var(--color-on-primary);
+        background: var(--gradient-brand);
+        box-shadow: var(--shadow-violet-lg);
+    }
+    .brand-name {
+        font-size: var(--font-stat-value);
+        font-weight: 800;
+        line-height: 1.2;
+    }
+    .brand-tag {
+        font-size: var(--text-sm);
+        opacity: 0.75;
+    }
+
+    .left-copy {
+        position: relative;
+        z-index: 1;
+        margin-top: 0;
+        padding-top: 20px;
+        max-width: 520px;
+    }
+    .eyebrow {
+        font-size: var(--text-xs);
+        text-transform: uppercase;
+        letter-spacing: 0.18em;
+        font-weight: 700;
+        opacity: 0.7;
+        margin-bottom: 16px;
+    }
+    .left-copy h1 {
+        font-size: clamp(1.8rem, 3.5vw, 2.6rem);
+        line-height: 1.15;
+        font-weight: 800;
+    }
+    .left-copy h1 span {
+        color: var(--practiq-indigo-soft);
+    }
+    .left-copy p {
+        margin-top: 16px;
+        max-width: 440px;
+        font-size: var(--text-lg);
+        line-height: 1.7;
+        color: var(--text-brand-panel-muted);
+    }
+
+    .feature-list {
+        position: relative;
+        z-index: 1;
+        margin-top: 28px;
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+        max-width: 380px;
+    }
+    .feature-pill {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        padding: 12px 16px;
+        border-radius: var(--radius-lg);
+        background: rgba(var(--surface-card-rgb), 0.1);
+        border: 1px solid rgba(var(--surface-card-rgb), 0.12);
+        font-size: var(--text-base);
+        font-weight: 500;
+    }
+    .feature-pill .pi {
+        color: var(--practiq-violet-300);
+        font-size: var(--text-lg);
+    }
+
+    .left-preview {
+        position: absolute;
+        right: 0;
+        bottom: 0;
+        width: min(380px, 42vw);
+        z-index: 0;
+        display: flex;
+        align-items: flex-end;
+        justify-content: flex-end;
+    }
+    .preview-robot {
+        width: 100%;
+        display: block;
+        pointer-events: none;
+        user-select: none;
+        filter: drop-shadow(var(--shadow-illustration));
+    }
+
+    .auth-right {
+        height: 100dvh;
+        min-height: 0;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: flex-start;
+        padding: 40px 32px;
+        overflow-y: auto;
+        overscroll-behavior: contain;
     }
     .auth-mobile-brand {
-      display: flex;
-      align-items: center;
-      gap: 12px;
-      margin-bottom: 24px;
+        display: none;
     }
-    .auth-right {
-      height: 100dvh;
-      min-height: 0;
+
+    .auth-card {
+        width: 100%;
+        max-width: 440px;
+        margin-block: auto;
+        padding: 36px 32px;
+        border-radius: var(--radius-2xl);
+        background: var(--surface-card);
+        border: 1px solid var(--surface-card-border);
+        box-shadow: var(--shadow-auth-card);
     }
-  }
-  @media (max-width: 480px) {
-    .auth-right {
-      padding: 18px 14px;
-    }
-    .auth-mobile-brand {
-      margin-bottom: 12px;
-    }
-    .auth-card,
     .auth-card--register {
-      padding: 22px 18px;
-      border-radius: var(--radius-2xl);
+        max-width: 520px;
+        padding: 28px 28px;
     }
-    .two-col,
-    .profile-grid {
-      grid-template-columns: 1fr;
+    .card-header {
+        margin-bottom: 24px;
     }
-    .auth-card--register .profile-grid {
-      grid-template-columns: 1fr 1fr;
-    }
-    .auth-card--register .profile-option {
-      padding: 10px;
-    }
-    .auth-card--register .profile-option__desc {
-      display: none;
+    .auth-card--register .card-header {
+        margin-bottom: 18px;
     }
     .card-title {
-      font-size: 1.3rem;
+        font-size: 1.5rem;
+        font-weight: 700;
+        color: var(--text-primary);
+        line-height: 1.2;
+        margin-bottom: 6px;
     }
     .card-subtitle {
-      font-size: var(--text-base);
-    }
-    .auth-switch {
-      margin-top: 14px;
+        font-size: var(--text-md);
+        color: var(--text-secondary);
+        line-height: 1.5;
     }
 
-    /* Tap targets >= 44px en mobile */
+    .auth-switch {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 4px;
+        margin-top: 18px;
+        padding: 4px;
+        border-radius: var(--radius-pill);
+        background: var(--surface-subtle);
+        border: 1px solid var(--surface-border);
+    }
+
     .auth-switch__btn {
-      min-height: 44px;
+        border: none;
+        border-radius: var(--radius-pill);
+        padding: 9px 12px;
+        background: transparent;
+        color: var(--text-secondary);
+        font-size: var(--text-sm);
+        font-weight: 800;
+        cursor: pointer;
+        transition: var(--transition-fast);
     }
-    .auth-form .form-input,
+
+    .auth-switch__btn--active {
+        background: var(--surface-card);
+        color: var(--practiq-violet-dark);
+        box-shadow: var(--shadow-sm);
+    }
+
+    .auth-form {
+        display: flex;
+        flex-direction: column;
+        gap: 16px;
+    }
+    .auth-card--register .auth-form {
+        gap: 12px;
+    }
+    .auth-form .form-group {
+        margin-bottom: 0;
+    }
+    .auth-form .form-input {
+        padding: 12px 16px;
+        border-radius: var(--radius-md);
+        font-size: var(--text-md);
+    }
     .auth-card--register .auth-form .form-input {
-      min-height: 48px;
+        padding: 10px 13px;
     }
+
+    .form-input--error {
+        border-color: var(--color-error) !important;
+    }
+    .form-input--error:focus {
+        box-shadow: var(--focus-ring-error) !important;
+    }
+
+    .label-row {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 8px;
+        margin-bottom: 6px;
+    }
+    .label-row .form-label {
+        margin-bottom: 0;
+    }
+    .two-col {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 14px;
+    }
+    .auth-card--register .two-col {
+        gap: 10px;
+    }
+
+    .teacher-note {
+        margin: 0;
+        padding: 10px 14px;
+        border-radius: var(--radius-lg);
+        background: var(--practiq-violet-bg);
+        border: 1px solid var(--surface-border);
+        color: var(--text-secondary);
+        font-size: var(--text-sm);
+        line-height: 1.5;
+    }
+
+    .profile-type-picker {
+        display: grid;
+        gap: 8px;
+        margin: 0;
+        padding: 12px;
+        border: 1px solid var(--surface-border);
+        border-radius: var(--radius-lg);
+        background: var(--surface-subtle);
+    }
+    .profile-type-picker legend {
+        padding: 0 4px;
+        color: var(--text-secondary);
+        font-size: var(--text-sm);
+        font-weight: 700;
+    }
+    .profile-type-option {
+        display: flex;
+        align-items: flex-start;
+        gap: 9px;
+        padding: 8px;
+        border-radius: var(--radius-md);
+        color: var(--text-primary);
+        cursor: pointer;
+    }
+    .profile-type-option:hover {
+        background: var(--fill-primary-subtle);
+    }
+    .profile-type-option input {
+        margin: 3px 0 0;
+        accent-color: var(--practiq-violet);
+    }
+    .profile-type-option span {
+        display: grid;
+        gap: 2px;
+    }
+    .profile-type-option strong {
+        font-size: var(--text-sm);
+    }
+    .profile-type-option small {
+        color: var(--text-secondary);
+        font-size: var(--text-xs);
+        line-height: 1.35;
+    }
+
+    .form-help {
+        display: block;
+        margin-top: 6px;
+        color: var(--color-success-dark);
+        font-size: var(--text-xs);
+        font-weight: 600;
+    }
+
     .submit-btn {
-      min-height: 50px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 8px;
+        width: 100%;
+        min-height: 48px;
+        border: none;
+        border-radius: var(--radius-md);
+        font-size: var(--text-lg);
+        font-weight: 600;
+        cursor: pointer;
+        background: var(--practiq-violet);
+        color: var(--color-on-primary);
+        box-shadow: var(--shadow-violet);
+        transition: var(--transition);
     }
+    .submit-btn:hover:not(:disabled) {
+        background: var(--practiq-violet-dark);
+        transform: translateY(-1px);
+        box-shadow: var(--shadow-violet-lg);
+    }
+    .submit-btn:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+    }
+
+    .ghost-btn {
+        width: 100%;
+        min-height: 44px;
+        border: 1px solid var(--surface-border);
+        border-radius: var(--radius-md);
+        font-size: var(--text-md);
+        font-weight: 600;
+        cursor: pointer;
+        background: var(--surface-card);
+        color: var(--text-primary);
+        transition: var(--transition);
+    }
+    .ghost-btn:hover {
+        background: var(--surface-hover);
+    }
+
     .text-link {
-      display: inline-flex;
-      align-items: center;
-      min-height: 32px;
+        border: none;
+        background: none;
+        padding: 0;
+        color: var(--practiq-violet);
+        font-weight: 600;
+        font-size: var(--text-base);
+        cursor: pointer;
     }
-  }
+    .text-link:hover {
+        color: var(--practiq-violet-dark);
+    }
+
+    .alert {
+        display: flex;
+        align-items: flex-start;
+        gap: 10px;
+        padding: 12px 14px;
+        border-radius: var(--radius-md);
+        font-size: var(--text-base);
+        line-height: 1.5;
+    }
+    .alert--error {
+        background: var(--color-error-bg);
+        color: var(--color-error-dark);
+        border: 1px solid rgba(var(--color-error-rgb), 0.12);
+    }
+    .alert--success {
+        background: var(--color-success-bg);
+        color: var(--color-success-dark);
+        border: 1px solid rgba(var(--color-success-rgb), 0.12);
+    }
+
+    .auth-divider {
+        position: relative;
+        margin: 22px 0 18px;
+        text-align: center;
+        color: var(--text-muted);
+        font-size: var(--text-base);
+    }
+    .auth-card--register .auth-divider {
+        margin: 16px 0 14px;
+    }
+    .auth-divider::before {
+        content: '';
+        position: absolute;
+        left: 0;
+        right: 0;
+        top: 50%;
+        height: 1px;
+        background: var(--surface-border);
+    }
+    .auth-divider span {
+        position: relative;
+        z-index: 1;
+        padding: 0 14px;
+        background: var(--surface-card);
+    }
+
+    .card-footer {
+        margin-top: 20px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 6px;
+        font-size: var(--text-md);
+        color: var(--text-secondary);
+    }
+
+    .identity-box {
+        display: flex;
+        align-items: center;
+        gap: 14px;
+        padding: 16px;
+        border-radius: var(--radius-xl);
+        background: var(--surface-hover);
+        border: 1px solid var(--surface-border);
+    }
+    .identity-avatar {
+        width: 48px;
+        height: 48px;
+        border-radius: var(--radius-lg);
+        display: grid;
+        place-items: center;
+        background: var(--practiq-violet);
+        color: var(--color-on-primary);
+        font-weight: 800;
+        font-size: 18px;
+        flex-shrink: 0;
+    }
+    .identity-name {
+        font-weight: 700;
+        font-size: var(--text-lg);
+        color: var(--text-primary);
+    }
+    .identity-email {
+        margin-top: 2px;
+        font-size: var(--text-base);
+        color: var(--text-secondary);
+    }
+
+    @media (max-width: 1024px) {
+        .auth-page {
+            grid-template-columns: 1fr;
+        }
+        .auth-left {
+            display: none;
+        }
+        .auth-mobile-brand {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            margin-bottom: 24px;
+        }
+        .auth-right {
+            height: 100dvh;
+            min-height: 0;
+        }
+    }
+    @media (max-width: 480px) {
+        .auth-right {
+            padding: 18px 14px;
+        }
+        .auth-mobile-brand {
+            margin-bottom: 12px;
+        }
+        .auth-card,
+        .auth-card--register {
+            padding: 22px 18px;
+            border-radius: var(--radius-2xl);
+        }
+        .two-col,
+        .profile-grid {
+            grid-template-columns: 1fr;
+        }
+        .auth-card--register .profile-grid {
+            grid-template-columns: 1fr 1fr;
+        }
+        .auth-card--register .profile-option {
+            padding: 10px;
+        }
+        .auth-card--register .profile-option__desc {
+            display: none;
+        }
+        .card-title {
+            font-size: 1.3rem;
+        }
+        .card-subtitle {
+            font-size: var(--text-base);
+        }
+        .auth-switch {
+            margin-top: 14px;
+        }
+
+        .auth-switch__btn {
+            min-height: 44px;
+        }
+        .auth-form .form-input,
+        .auth-card--register .auth-form .form-input {
+            min-height: 48px;
+        }
+        .submit-btn {
+            min-height: 50px;
+        }
+        .text-link {
+            display: inline-flex;
+            align-items: center;
+            min-height: 32px;
+        }
+    }
 </style>

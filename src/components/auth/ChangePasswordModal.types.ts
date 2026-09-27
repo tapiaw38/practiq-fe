@@ -1,7 +1,7 @@
 export interface ChangePasswordModalProps {
-  visible: boolean;
+    visible: boolean;
 }
 
 export interface ChangePasswordModalEmits {
-  (e: "update:visible", value: boolean): void;
+    (e: 'update:visible', value: boolean): void;
 }

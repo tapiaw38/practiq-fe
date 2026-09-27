@@ -1,3 +1,3 @@
 export interface OperationResult {
-  message: string;
+    message: string;
 }

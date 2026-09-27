@@ -1,1339 +1,1338 @@
 <script setup lang="ts">
-  import UiModal from "@/components/ui/UiModal.vue";
-  import { ref, reactive, computed, onMounted, watch } from "vue";
-  import TeacherLayout from "@/layouts/TeacherLayout.vue";
-  import Skeleton from "@/components/ui/Skeleton.vue";
-  import { useCourse } from "@/composables/useCourse";
-  import { useNotebook } from "@/composables/useNotebook";
-  import { useGrade } from "@/composables/useGrade";
-  import { useSubject } from "@/composables/useSubject";
-  import { formatDateTime } from "@/utils/formatters";
-  import type { NotebookSubmissionFull } from "@/types";
+    import UiModal from '@/components/ui/UiModal.vue';
+    import { ref, reactive, computed, onMounted, watch } from 'vue';
+    import TeacherLayout from '@/layouts/TeacherLayout.vue';
+    import Skeleton from '@/components/ui/Skeleton.vue';
+    import { useCourse } from '@/composables/useCourse';
+    import { useNotebook } from '@/composables/useNotebook';
+    import { useGrade } from '@/composables/useGrade';
+    import { useSubject } from '@/composables/useSubject';
+    import { formatDateTime } from '@/utils/formatters';
+    import type { NotebookSubmissionFull } from '@/types';
 
-  function effectiveVerdict(submission: NotebookSubmissionFull) {
-    return submission.teacher_is_correct ?? submission.ai_is_correct;
-  }
-
-  const { courses, students, loadCourses, loadStudents } = useCourse();
-  const { grades, loadGrades } = useGrade();
-  const { subjects, loadSubjects } = useSubject();
-  const {
-    submissionsPage,
-    submissionsPageSize,
-    submissionsHasMore,
-    loadSubmissions: loadSubmissionsService,
-    loadSubmissionsPage,
-    nextSubmissionsPage,
-    prevSubmissionsPage,
-    triggerAIReview: triggerAIReviewService,
-    updateManualReview: updateManualReviewService,
-  } = useNotebook();
-  const loading = ref(true);
-  const submissions = ref<NotebookSubmissionFull[]>([]);
-  const reviewingIds = ref<Set<string>>(new Set());
-  const previewSubmission = ref<NotebookSubmissionFull | null>(null);
-  const reviewingSubmission = ref<NotebookSubmissionFull | null>(null);
-  const savingReview = ref(false);
-  const studentsLoading = ref(false);
-  let searchDebounceTimer: ReturnType<typeof setTimeout> | null = null;
-
-  const filters = reactive({
-    courseId: "",
-    gradeId: "",
-    subjectId: "",
-    studentId: "",
-    reviewedStatus: "",
-    studentSearch: "",
-  });
-
-  const reviewForm = reactive({
-    isCorrect: null as boolean | null,
-    feedback: "",
-  });
-
-  const filteredSubmissions = computed(() => {
-    let result = [...submissions.value];
-
-    if (filters.studentSearch.trim()) {
-      const search = filters.studentSearch.toLowerCase();
-      result = result.filter(
-        (s) =>
-          (s.student_name?.toLowerCase() || "").includes(search) ||
-          (s.student_email?.toLowerCase() || "").includes(search),
-      );
+    function effectiveVerdict(submission: NotebookSubmissionFull) {
+        return submission.teacher_is_correct ?? submission.ai_is_correct;
     }
 
-    return result;
-  });
+    const { courses, students, loadCourses, loadStudents } = useCourse();
+    const { grades, loadGrades } = useGrade();
+    const { subjects, loadSubjects } = useSubject();
+    const {
+        submissionsPage,
+        submissionsPageSize,
+        submissionsHasMore,
+        loadSubmissions: loadSubmissionsService,
+        loadSubmissionsPage,
+        nextSubmissionsPage,
+        prevSubmissionsPage,
+        triggerAIReview: triggerAIReviewService,
+        updateManualReview: updateManualReviewService,
+    } = useNotebook();
+    const loading = ref(true);
+    const submissions = ref<NotebookSubmissionFull[]>([]);
+    const reviewingIds = ref<Set<string>>(new Set());
+    const previewSubmission = ref<NotebookSubmissionFull | null>(null);
+    const reviewingSubmission = ref<NotebookSubmissionFull | null>(null);
+    const savingReview = ref(false);
+    const studentsLoading = ref(false);
+    let searchDebounceTimer: ReturnType<typeof setTimeout> | null = null;
 
-  const activeFilterCount = computed(() =>
-    [filters.gradeId, filters.subjectId, filters.courseId, filters.studentId, filters.reviewedStatus, filters.studentSearch]
-      .filter(Boolean).length,
-  );
-
-  /** Any of these is enough to query the server; a course is not required. */
-  const hasScope = () =>
-    !!(filters.courseId || filters.gradeId || filters.subjectId);
-
-  onMounted(async () => {
-    await Promise.all([
-      loadCoursesData(),
-      loadGrades(),
-      loadSubjects(),
-    ]);
-    if (hasScope()) {
-      if (filters.courseId) {
-        await loadStudentsForCourse();
-      }
-      await loadSubmissions();
-    } else {
-      loading.value = false;
-    }
-  });
-
-  watch(
-    () => filters.studentSearch,
-    () => {
-      if (searchDebounceTimer) {
-        clearTimeout(searchDebounceTimer);
-      }
-      searchDebounceTimer = setTimeout(() => {
-        // Searching swaps to the unpaginated set and hides the pager, so this
-        // has to refetch for every scope. Limiting it to courseId left a
-        // grade- or subject-scoped search filtering only the loaded page,
-        // with matches on later pages unreachable and no sign they existed.
-        if (hasScope()) {
-          loadSubmissions(1);
-        }
-      }, 300);
-    }
-  );
-
-  async function loadCoursesData() {
-    try {
-      await loadCourses("teacher");
-    } catch (err) {
-      console.error("Failed to load courses:", err);
-    }
-  }
-
-  async function loadSubmissions(page = 1) {
-    if (!hasScope()) {
-      submissions.value = [];
-      // Clearing the filters emptied the list but left the counter wherever
-      // the teacher had paged to, so the next scope opened on a stale page.
-      submissionsPage.value = 1;
-      loading.value = false;
-      return;
-    }
-
-    loading.value = true;
-    try {
-      const filterParams: Record<string, string | boolean | undefined> = {};
-      if (filters.courseId) filterParams.course_id = filters.courseId;
-      if (filters.gradeId) filterParams.grade_id = filters.gradeId;
-      if (filters.subjectId) filterParams.subject_id = filters.subjectId;
-      if (filters.studentId) filterParams.student_id = filters.studentId;
-      if (filters.reviewedStatus === "reviewed") filterParams.reviewed = true;
-      if (filters.reviewedStatus === "unreviewed")
-        filterParams.reviewed = false;
-
-      if (filters.studentSearch.trim()) {
-        submissions.value = (await loadSubmissionsService(filterParams)) || [];
-      } else {
-        submissions.value =
-          (await loadSubmissionsPage(page, filterParams)) || [];
-      }
-    } catch (err) {
-      console.error("Failed to load submissions:", err);
-      submissions.value = [];
-    } finally {
-      loading.value = false;
-    }
-  }
-
-  async function goToNextPage() {
-    if (!submissionsHasMore.value) return;
-    const filterParams: Record<string, string | boolean | undefined> = {};
-    if (filters.courseId) filterParams.course_id = filters.courseId;
-    if (filters.gradeId) filterParams.grade_id = filters.gradeId;
-    if (filters.subjectId) filterParams.subject_id = filters.subjectId;
-    if (filters.studentId) filterParams.student_id = filters.studentId;
-    if (filters.reviewedStatus === "reviewed") filterParams.reviewed = true;
-    if (filters.reviewedStatus === "unreviewed") filterParams.reviewed = false;
-
-    loading.value = true;
-    try {
-      submissions.value = (await nextSubmissionsPage(filterParams)) || [];
-    } catch (err) {
-      console.error("Failed to load next page:", err);
-    } finally {
-      loading.value = false;
-    }
-  }
-
-  async function goToPrevPage() {
-    if (submissionsPage.value <= 1) return;
-    const filterParams: Record<string, string | boolean | undefined> = {};
-    if (filters.courseId) filterParams.course_id = filters.courseId;
-    if (filters.gradeId) filterParams.grade_id = filters.gradeId;
-    if (filters.subjectId) filterParams.subject_id = filters.subjectId;
-    if (filters.studentId) filterParams.student_id = filters.studentId;
-    if (filters.reviewedStatus === "reviewed") filterParams.reviewed = true;
-    if (filters.reviewedStatus === "unreviewed") filterParams.reviewed = false;
-
-    loading.value = true;
-    try {
-      submissions.value = (await prevSubmissionsPage(filterParams)) || [];
-    } catch (err) {
-      console.error("Failed to load previous page:", err);
-    } finally {
-      loading.value = false;
-    }
-  }
-
-  async function loadStudentsForCourse() {
-    if (!filters.courseId) {
-      students.value = [];
-      return;
-    }
-
-    studentsLoading.value = true;
-    try {
-      await loadStudents(filters.courseId);
-    } catch (err) {
-      console.error("Failed to load students:", err);
-      students.value = [];
-    } finally {
-      studentsLoading.value = false;
-    }
-  }
-
-  async function onCourseChange() {
-    filters.studentId = "";
-    await Promise.all([loadStudentsForCourse(), loadSubmissions()]);
-  }
-
-  async function refreshSubmissions() {
-    await loadSubmissions(submissionsPage.value);
-  }
-
-  async function clearFilters() {
-    Object.assign(filters, {
-      courseId: "",
-      gradeId: "",
-      subjectId: "",
-      studentId: "",
-      reviewedStatus: "",
-      studentSearch: "",
+    const filters = reactive({
+        courseId: '',
+        gradeId: '',
+        subjectId: '',
+        studentId: '',
+        reviewedStatus: '',
+        studentSearch: '',
     });
-    students.value = [];
-    await loadSubmissions(1);
-  }
 
-  function getInitial(name?: string) {
-    return (name || "E").charAt(0).toUpperCase();
-  }
+    const reviewForm = reactive({
+        isCorrect: null as boolean | null,
+        feedback: '',
+    });
 
-  function openPreview(submission: NotebookSubmissionFull) {
-    previewSubmission.value = submission;
-  }
+    const filteredSubmissions = computed(() => {
+        let result = [...submissions.value];
 
-  function openReviewModal(submission: NotebookSubmissionFull) {
-    reviewingSubmission.value = submission;
-    reviewForm.isCorrect = submission.teacher_is_correct ?? null;
-    reviewForm.feedback = submission.teacher_feedback || "";
-  }
+        if (filters.studentSearch.trim()) {
+            const search = filters.studentSearch.toLowerCase();
+            result = result.filter(
+                (s) =>
+                    (s.student_name?.toLowerCase() || '').includes(search) ||
+                    (s.student_email?.toLowerCase() || '').includes(search),
+            );
+        }
 
-  function closeReviewModal() {
-    reviewingSubmission.value = null;
-    reviewForm.isCorrect = null;
-    reviewForm.feedback = "";
-  }
+        return result;
+    });
 
-  async function triggerAIReview(submissionId: string) {
-    reviewingIds.value.add(submissionId);
-    try {
-      const reviewedSubmission = await triggerAIReviewService(submissionId);
-      const index = submissions.value.findIndex((s) => s.id === submissionId);
-      if (index >= 0 && reviewedSubmission) {
-        submissions.value[index] = reviewedSubmission;
-      }
-    } catch (err) {
-      console.error("Failed to trigger AI review:", err);
-    } finally {
-      reviewingIds.value.delete(submissionId);
+    const activeFilterCount = computed(
+        () =>
+            [
+                filters.gradeId,
+                filters.subjectId,
+                filters.courseId,
+                filters.studentId,
+                filters.reviewedStatus,
+                filters.studentSearch,
+            ].filter(Boolean).length,
+    );
+
+    const hasScope = () => !!(filters.courseId || filters.gradeId || filters.subjectId);
+
+    onMounted(async () => {
+        await Promise.all([loadCoursesData(), loadGrades(), loadSubjects()]);
+        if (hasScope()) {
+            if (filters.courseId) {
+                await loadStudentsForCourse();
+            }
+            await loadSubmissions();
+        } else {
+            loading.value = false;
+        }
+    });
+
+    watch(
+        () => filters.studentSearch,
+        () => {
+            if (searchDebounceTimer) {
+                clearTimeout(searchDebounceTimer);
+            }
+            searchDebounceTimer = setTimeout(() => {
+                if (hasScope()) {
+                    loadSubmissions(1);
+                }
+            }, 300);
+        },
+    );
+
+    async function loadCoursesData() {
+        try {
+            await loadCourses('teacher');
+        } catch (err) {
+            console.error('Failed to load courses:', err);
+        }
     }
-  }
 
-  async function saveManualReview() {
-    if (!reviewingSubmission.value || reviewForm.isCorrect === null) return;
+    async function loadSubmissions(page = 1) {
+        if (!hasScope()) {
+            submissions.value = [];
 
-    savingReview.value = true;
-    try {
-      await updateManualReviewService(reviewingSubmission.value.id, {
-        teacher_is_correct: reviewForm.isCorrect,
-        teacher_feedback: reviewForm.feedback,
-      });
+            submissionsPage.value = 1;
+            loading.value = false;
+            return;
+        }
 
-      // Update local state
-      const idx = submissions.value.findIndex(
-        (s) => s.id === reviewingSubmission.value!.id,
-      );
-      if (idx >= 0) {
-        submissions.value[idx] = {
-          ...submissions.value[idx],
-          teacher_is_correct: reviewForm.isCorrect,
-          teacher_feedback: reviewForm.feedback,
-          teacher_reviewed_at: new Date().toISOString(),
-        };
-      }
+        loading.value = true;
+        try {
+            const filterParams: Record<string, string | boolean | undefined> = {};
+            if (filters.courseId) filterParams.course_id = filters.courseId;
+            if (filters.gradeId) filterParams.grade_id = filters.gradeId;
+            if (filters.subjectId) filterParams.subject_id = filters.subjectId;
+            if (filters.studentId) filterParams.student_id = filters.studentId;
+            if (filters.reviewedStatus === 'reviewed') filterParams.reviewed = true;
+            if (filters.reviewedStatus === 'unreviewed') filterParams.reviewed = false;
 
-      closeReviewModal();
-    } catch (err) {
-      console.error("Failed to save review:", err);
-    } finally {
-      savingReview.value = false;
+            if (filters.studentSearch.trim()) {
+                submissions.value = (await loadSubmissionsService(filterParams)) || [];
+            } else {
+                submissions.value = (await loadSubmissionsPage(page, filterParams)) || [];
+            }
+        } catch (err) {
+            console.error('Failed to load submissions:', err);
+            submissions.value = [];
+        } finally {
+            loading.value = false;
+        }
     }
-  }
+
+    async function goToNextPage() {
+        if (!submissionsHasMore.value) return;
+        const filterParams: Record<string, string | boolean | undefined> = {};
+        if (filters.courseId) filterParams.course_id = filters.courseId;
+        if (filters.gradeId) filterParams.grade_id = filters.gradeId;
+        if (filters.subjectId) filterParams.subject_id = filters.subjectId;
+        if (filters.studentId) filterParams.student_id = filters.studentId;
+        if (filters.reviewedStatus === 'reviewed') filterParams.reviewed = true;
+        if (filters.reviewedStatus === 'unreviewed') filterParams.reviewed = false;
+
+        loading.value = true;
+        try {
+            submissions.value = (await nextSubmissionsPage(filterParams)) || [];
+        } catch (err) {
+            console.error('Failed to load next page:', err);
+        } finally {
+            loading.value = false;
+        }
+    }
+
+    async function goToPrevPage() {
+        if (submissionsPage.value <= 1) return;
+        const filterParams: Record<string, string | boolean | undefined> = {};
+        if (filters.courseId) filterParams.course_id = filters.courseId;
+        if (filters.gradeId) filterParams.grade_id = filters.gradeId;
+        if (filters.subjectId) filterParams.subject_id = filters.subjectId;
+        if (filters.studentId) filterParams.student_id = filters.studentId;
+        if (filters.reviewedStatus === 'reviewed') filterParams.reviewed = true;
+        if (filters.reviewedStatus === 'unreviewed') filterParams.reviewed = false;
+
+        loading.value = true;
+        try {
+            submissions.value = (await prevSubmissionsPage(filterParams)) || [];
+        } catch (err) {
+            console.error('Failed to load previous page:', err);
+        } finally {
+            loading.value = false;
+        }
+    }
+
+    async function loadStudentsForCourse() {
+        if (!filters.courseId) {
+            students.value = [];
+            return;
+        }
+
+        studentsLoading.value = true;
+        try {
+            await loadStudents(filters.courseId);
+        } catch (err) {
+            console.error('Failed to load students:', err);
+            students.value = [];
+        } finally {
+            studentsLoading.value = false;
+        }
+    }
+
+    async function onCourseChange() {
+        filters.studentId = '';
+        await Promise.all([loadStudentsForCourse(), loadSubmissions()]);
+    }
+
+    async function refreshSubmissions() {
+        await loadSubmissions(submissionsPage.value);
+    }
+
+    async function clearFilters() {
+        Object.assign(filters, {
+            courseId: '',
+            gradeId: '',
+            subjectId: '',
+            studentId: '',
+            reviewedStatus: '',
+            studentSearch: '',
+        });
+        students.value = [];
+        await loadSubmissions(1);
+    }
+
+    function getInitial(name?: string) {
+        return (name || 'E').charAt(0).toUpperCase();
+    }
+
+    function openPreview(submission: NotebookSubmissionFull) {
+        previewSubmission.value = submission;
+    }
+
+    function openReviewModal(submission: NotebookSubmissionFull) {
+        reviewingSubmission.value = submission;
+        reviewForm.isCorrect = submission.teacher_is_correct ?? null;
+        reviewForm.feedback = submission.teacher_feedback || '';
+    }
+
+    function closeReviewModal() {
+        reviewingSubmission.value = null;
+        reviewForm.isCorrect = null;
+        reviewForm.feedback = '';
+    }
+
+    async function triggerAIReview(submissionId: string) {
+        reviewingIds.value.add(submissionId);
+        try {
+            const reviewedSubmission = await triggerAIReviewService(submissionId);
+            const index = submissions.value.findIndex((s) => s.id === submissionId);
+            if (index >= 0 && reviewedSubmission) {
+                submissions.value[index] = reviewedSubmission;
+            }
+        } catch (err) {
+            console.error('Failed to trigger AI review:', err);
+        } finally {
+            reviewingIds.value.delete(submissionId);
+        }
+    }
+
+    async function saveManualReview() {
+        if (!reviewingSubmission.value || reviewForm.isCorrect === null) return;
+
+        savingReview.value = true;
+        try {
+            await updateManualReviewService(reviewingSubmission.value.id, {
+                teacher_is_correct: reviewForm.isCorrect,
+                teacher_feedback: reviewForm.feedback,
+            });
+
+            const idx = submissions.value.findIndex((s) => s.id === reviewingSubmission.value!.id);
+            if (idx >= 0) {
+                submissions.value[idx] = {
+                    ...submissions.value[idx],
+                    teacher_is_correct: reviewForm.isCorrect,
+                    teacher_feedback: reviewForm.feedback,
+                    teacher_reviewed_at: new Date().toISOString(),
+                };
+            }
+
+            closeReviewModal();
+        } catch (err) {
+            console.error('Failed to save review:', err);
+        } finally {
+            savingReview.value = false;
+        }
+    }
 </script>
 
 <template>
-  <TeacherLayout>
-    <div class="review-dashboard">
-      <!-- Header -->
-      <div class="page-header">
-        <div class="page-header__left">
-          <div class="page-kicker">Revision de cuadernos</div>
-          <h1 class="page-title">Entregas de estudiantes</h1>
-        </div>
-        <div class="page-header__right">
-          <button class="btn btn-secondary" @click="refreshSubmissions">
-            <i class="pi pi-refresh"></i>
-            Actualizar
-          </button>
-        </div>
-      </div>
-
-      <!-- Filters -->
-      <section class="filters-panel" aria-label="Filtros de entregas">
-        <div class="filters-panel__head">
-          <div><strong>Filtrar entregas</strong><span v-if="activeFilterCount">{{ activeFilterCount }} activos</span></div>
-          <button v-if="activeFilterCount" class="filters-clear" type="button" @click="clearFilters"><i class="pi pi-filter-slash"></i> Limpiar</button>
-        </div>
-      <div class="filters-bar">
-        <div class="filter-group">
-          <label class="filter-label">Grado</label>
-          <select
-            v-model="filters.gradeId"
-            class="filter-select"
-            @change="() => loadSubmissions(1)"
-          >
-            <option value="">Todos los grados</option>
-            <option
-              v-for="grade in grades"
-              :key="grade.id"
-              :value="grade.id"
-            >
-              {{ grade.name }}
-            </option>
-          </select>
-        </div>
-        <div class="filter-group">
-          <label class="filter-label">Materia</label>
-          <select
-            v-model="filters.subjectId"
-            class="filter-select"
-            @change="() => loadSubmissions(1)"
-          >
-            <option value="">Todas las materias</option>
-            <option
-              v-for="subject in subjects"
-              :key="subject.id"
-              :value="subject.id"
-            >
-              {{ subject.name }}
-            </option>
-          </select>
-        </div>
-        <div class="filter-group">
-          <label class="filter-label">Curso</label>
-          <select
-            v-model="filters.courseId"
-            class="filter-select"
-            @change="onCourseChange"
-          >
-            <option value="">Todos los cursos</option>
-            <option
-              v-for="course in courses"
-              :key="course.id"
-              :value="course.id"
-            >
-              {{ course.title }}
-            </option>
-          </select>
-        </div>
-        <div class="filter-group">
-          <label class="filter-label">Estado de revision</label>
-          <select
-            v-model="filters.reviewedStatus"
-            class="filter-select"
-            @change="() => loadSubmissions(1)"
-          >
-            <option value="">Todas del curso</option>
-            <option value="reviewed">Revisadas (IA)</option>
-            <option value="unreviewed">Sin revisar (IA)</option>
-          </select>
-        </div>
-        <div class="filter-group">
-          <label class="filter-label">Estudiante</label>
-          <select
-            v-model="filters.studentId"
-            class="filter-select"
-            :disabled="studentsLoading || students.length === 0"
-            @change="() => loadSubmissions(1)"
-          >
-            <option value="">Todos los alumnos del curso</option>
-            <option
-              v-for="student in students"
-              :key="student.id"
-              :value="student.id"
-            >
-              {{ student.name }} · {{ student.email }}
-            </option>
-          </select>
-        </div>
-        <div class="filter-group filter-group--search">
-          <label class="filter-label">Buscar en resultados</label>
-          <input
-            v-model="filters.studentSearch"
-            type="text"
-            class="filter-input"
-            placeholder="Nombre o email..."
-          />
-        </div>
-      </div>
-      </section>
-
-      <div v-if="!filters.courseId && !filters.gradeId && !filters.subjectId && !loading" class="scope-hint">
-        <i class="pi pi-filter"></i>
-        Selecciona al menos un filtro (grado, materia o curso) para ver entregas.
-      </div>
-
-      <!-- Loading Skeleton -->
-      <template v-if="loading">
-        <div class="submissions-grid">
-          <article
-            v-for="n in 4"
-            :key="n"
-            class="submission-card submission-card--skeleton"
-          >
-            <div
-              class="submission-header"
-              style="
-                display: flex;
-                justify-content: space-between;
-                align-items: flex-start;
-              "
-            >
-              <div
-                class="student-info"
-                style="display: flex; gap: 12px; align-items: center"
-              >
-                <Skeleton variant="avatar" size="42px" />
-                <div
-                  class="student-details"
-                  style="display: flex; flex-direction: column; gap: 6px"
-                >
-                  <Skeleton width="120px" height="16px" />
-                  <Skeleton width="160px" height="14px" />
+    <TeacherLayout>
+        <div class="review-dashboard">
+            <div class="page-header">
+                <div class="page-header__left">
+                    <div class="page-kicker">Revision de cuadernos</div>
+                    <h1 class="page-title">Entregas de estudiantes</h1>
                 </div>
-              </div>
-              <Skeleton variant="badge" width="80px" />
-            </div>
-            <div
-              class="submission-meta"
-              style="display: flex; gap: 16px; margin-top: 14px"
-            >
-              <Skeleton width="100px" height="14px" />
-              <Skeleton width="80px" height="14px" />
-              <Skeleton width="120px" height="14px" />
-            </div>
-            <Skeleton
-              width="100%"
-              height="180px"
-              class="preview-skel"
-              style="margin-top: 14px"
-            />
-            <div
-              class="submission-actions"
-              style="display: flex; gap: 10px; margin-top: 14px"
-            >
-              <Skeleton width="100px" height="36px" />
-              <Skeleton width="140px" height="36px" />
-            </div>
-          </article>
-        </div>
-      </template>
-
-      <!-- Empty State -->
-      <div v-else-if="hasScope() && filteredSubmissions.length === 0" class="empty-state">
-        <div class="empty-icon">
-          <i class="pi pi-inbox"></i>
-        </div>
-        <h3>Sin resultados</h3>
-        <p>
-          No encontramos entregas de cuadernos con los filtros seleccionados.
-        </p>
-      </div>
-
-      <!-- Submissions Grid -->
-      <div v-else>
-        <div class="submissions-grid">
-          <article
-            v-for="submission in filteredSubmissions"
-            :key="submission.id"
-            class="submission-card"
-            :class="{
-              'submission-card--needs-review':
-                submission.needs_teacher_review &&
-                !submission.teacher_reviewed_at,
-              'submission-card--correct': effectiveVerdict(submission) === true,
-              'submission-card--incorrect': effectiveVerdict(submission) === false,
-              'submission-card--pending':
-                effectiveVerdict(submission) == null,
-            }"
-          >
-            <div class="submission-header">
-              <div class="student-info">
-                <div class="student-avatar">
-                  {{ getInitial(submission.student_name) }}
+                <div class="page-header__right">
+                    <button class="btn btn-secondary" @click="refreshSubmissions">
+                        <i class="pi pi-refresh"></i>
+                        Actualizar
+                    </button>
                 </div>
-                <div class="student-details">
-                  <div class="student-name">
-                    {{ submission.student_name || "Estudiante" }}
-                  </div>
-                  <div class="student-email">
-                    {{ submission.student_email }}
-                  </div>
+            </div>
+
+            <section class="filters-panel" aria-label="Filtros de entregas">
+                <div class="filters-panel__head">
+                    <div>
+                        <strong>Filtrar entregas</strong
+                        ><span v-if="activeFilterCount">{{ activeFilterCount }} activos</span>
+                    </div>
+                    <button
+                        v-if="activeFilterCount"
+                        class="filters-clear"
+                        type="button"
+                        @click="clearFilters"
+                    >
+                        <i class="pi pi-filter-slash"></i> Limpiar
+                    </button>
                 </div>
-              </div>
-              <div class="submission-badges">
-                <span
-                  v-if="effectiveVerdict(submission) === true"
-                  class="badge badge--success"
-                >
-                  <i class="pi pi-check"></i> Correcto
-                </span>
-                <span
-                  v-else-if="effectiveVerdict(submission) === false"
-                  class="badge badge--error"
-                >
-                  <i class="pi pi-times"></i> Incorrecto
-                </span>
-                <span v-else class="badge badge--pending">
-                  <i class="pi pi-clock"></i> Pendiente
-                </span>
-                <span
-                  v-if="
-                    submission.needs_teacher_review &&
-                    !submission.teacher_reviewed_at
-                  "
-                  class="badge badge--review"
-                  title="La consigna de esta página no fue verificada, así que la IA solo sugiere"
-                >
-                  <i class="pi pi-flag"></i> Requiere tu revisión
-                </span>
-                <span
-                  v-if="submission.teacher_reviewed_at"
-                  class="badge badge--teacher"
-                >
-                  <i class="pi pi-user"></i> Revisado
-                </span>
-              </div>
-            </div>
+                <div class="filters-bar">
+                    <div class="filter-group">
+                        <label class="filter-label">Grado</label>
+                        <select
+                            v-model="filters.gradeId"
+                            class="filter-select"
+                            @change="() => loadSubmissions(1)"
+                        >
+                            <option value="">Todos los grados</option>
+                            <option v-for="grade in grades" :key="grade.id" :value="grade.id">
+                                {{ grade.name }}
+                            </option>
+                        </select>
+                    </div>
+                    <div class="filter-group">
+                        <label class="filter-label">Materia</label>
+                        <select
+                            v-model="filters.subjectId"
+                            class="filter-select"
+                            @change="() => loadSubmissions(1)"
+                        >
+                            <option value="">Todas las materias</option>
+                            <option
+                                v-for="subject in subjects"
+                                :key="subject.id"
+                                :value="subject.id"
+                            >
+                                {{ subject.name }}
+                            </option>
+                        </select>
+                    </div>
+                    <div class="filter-group">
+                        <label class="filter-label">Curso</label>
+                        <select
+                            v-model="filters.courseId"
+                            class="filter-select"
+                            @change="onCourseChange"
+                        >
+                            <option value="">Todos los cursos</option>
+                            <option v-for="course in courses" :key="course.id" :value="course.id">
+                                {{ course.title }}
+                            </option>
+                        </select>
+                    </div>
+                    <div class="filter-group">
+                        <label class="filter-label">Estado de revision</label>
+                        <select
+                            v-model="filters.reviewedStatus"
+                            class="filter-select"
+                            @change="() => loadSubmissions(1)"
+                        >
+                            <option value="">Todas del curso</option>
+                            <option value="reviewed">Revisadas (IA)</option>
+                            <option value="unreviewed">Sin revisar (IA)</option>
+                        </select>
+                    </div>
+                    <div class="filter-group">
+                        <label class="filter-label">Estudiante</label>
+                        <select
+                            v-model="filters.studentId"
+                            class="filter-select"
+                            :disabled="studentsLoading || students.length === 0"
+                            @change="() => loadSubmissions(1)"
+                        >
+                            <option value="">Todos los alumnos del curso</option>
+                            <option
+                                v-for="student in students"
+                                :key="student.id"
+                                :value="student.id"
+                            >
+                                {{ student.name }} · {{ student.email }}
+                            </option>
+                        </select>
+                    </div>
+                    <div class="filter-group filter-group--search">
+                        <label class="filter-label">Buscar en resultados</label>
+                        <input
+                            v-model="filters.studentSearch"
+                            type="text"
+                            class="filter-input"
+                            placeholder="Nombre o email..."
+                        />
+                    </div>
+                </div>
+            </section>
 
-            <div class="submission-meta">
-              <span class="meta-item">
-                <i class="pi pi-book"></i>
-                {{ submission.notebook_title || "Cuaderno" }}
-              </span>
-              <span class="meta-item">
-                <i class="pi pi-file"></i>
-                Pagina {{ submission.page_number }}
-              </span>
-              <span class="meta-item">
-                <i class="pi pi-calendar"></i>
-                {{ formatDateTime(submission.created_at) }}
-              </span>
-            </div>
-
-            <!-- Canvas Preview -->
-            <div class="canvas-preview" v-if="submission.canvas_data">
-              <img
-                :src="submission.canvas_data"
-                :alt="`Respuesta de ${submission.student_name}`"
-                class="preview-image"
-                @click="openPreview(submission)"
-              />
-            </div>
-
-            <!-- AI Feedback -->
-            <div v-if="submission.ai_feedback" class="ai-feedback-box">
-              <div class="feedback-header">
-                <i class="pi pi-android"></i>
-                <span>Feedback IA</span>
-              </div>
-              <p class="feedback-text">{{ submission.ai_feedback }}</p>
-            </div>
-
-            <!-- Teacher Review Section -->
             <div
-              v-if="submission.teacher_feedback"
-              class="teacher-feedback-box"
+                v-if="!filters.courseId && !filters.gradeId && !filters.subjectId && !loading"
+                class="scope-hint"
             >
-              <div class="feedback-header">
-                <i class="pi pi-user"></i>
-                <span>Tu revision</span>
-              </div>
-              <p class="feedback-text">{{ submission.teacher_feedback }}</p>
-              <span
-                class="review-badge"
-                :class="
-                  submission.teacher_is_correct
-                    ? 'review-badge--correct'
-                    : 'review-badge--incorrect'
+                <i class="pi pi-filter"></i>
+                Selecciona al menos un filtro (grado, materia o curso) para ver entregas.
+            </div>
+
+            <template v-if="loading">
+                <div class="submissions-grid">
+                    <article
+                        v-for="n in 4"
+                        :key="n"
+                        class="submission-card submission-card--skeleton"
+                    >
+                        <div
+                            class="submission-header"
+                            style="
+                                display: flex;
+                                justify-content: space-between;
+                                align-items: flex-start;
+                            "
+                        >
+                            <div
+                                class="student-info"
+                                style="display: flex; gap: 12px; align-items: center"
+                            >
+                                <Skeleton variant="avatar" size="42px" />
+                                <div
+                                    class="student-details"
+                                    style="display: flex; flex-direction: column; gap: 6px"
+                                >
+                                    <Skeleton width="120px" height="16px" />
+                                    <Skeleton width="160px" height="14px" />
+                                </div>
+                            </div>
+                            <Skeleton variant="badge" width="80px" />
+                        </div>
+                        <div
+                            class="submission-meta"
+                            style="display: flex; gap: 16px; margin-top: 14px"
+                        >
+                            <Skeleton width="100px" height="14px" />
+                            <Skeleton width="80px" height="14px" />
+                            <Skeleton width="120px" height="14px" />
+                        </div>
+                        <Skeleton
+                            width="100%"
+                            height="180px"
+                            class="preview-skel"
+                            style="margin-top: 14px"
+                        />
+                        <div
+                            class="submission-actions"
+                            style="display: flex; gap: 10px; margin-top: 14px"
+                        >
+                            <Skeleton width="100px" height="36px" />
+                            <Skeleton width="140px" height="36px" />
+                        </div>
+                    </article>
+                </div>
+            </template>
+
+            <div v-else-if="hasScope() && filteredSubmissions.length === 0" class="empty-state">
+                <div class="empty-icon">
+                    <i class="pi pi-inbox"></i>
+                </div>
+                <h3>Sin resultados</h3>
+                <p>No encontramos entregas de cuadernos con los filtros seleccionados.</p>
+            </div>
+
+            <div v-else>
+                <div class="submissions-grid">
+                    <article
+                        v-for="submission in filteredSubmissions"
+                        :key="submission.id"
+                        class="submission-card"
+                        :class="{
+                            'submission-card--needs-review':
+                                submission.needs_teacher_review && !submission.teacher_reviewed_at,
+                            'submission-card--correct': effectiveVerdict(submission) === true,
+                            'submission-card--incorrect': effectiveVerdict(submission) === false,
+                            'submission-card--pending': effectiveVerdict(submission) == null,
+                        }"
+                    >
+                        <div class="submission-header">
+                            <div class="student-info">
+                                <div class="student-avatar">
+                                    {{ getInitial(submission.student_name) }}
+                                </div>
+                                <div class="student-details">
+                                    <div class="student-name">
+                                        {{ submission.student_name || 'Estudiante' }}
+                                    </div>
+                                    <div class="student-email">
+                                        {{ submission.student_email }}
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="submission-badges">
+                                <span
+                                    v-if="effectiveVerdict(submission) === true"
+                                    class="badge badge--success"
+                                >
+                                    <i class="pi pi-check"></i> Correcto
+                                </span>
+                                <span
+                                    v-else-if="effectiveVerdict(submission) === false"
+                                    class="badge badge--error"
+                                >
+                                    <i class="pi pi-times"></i> Incorrecto
+                                </span>
+                                <span v-else class="badge badge--pending">
+                                    <i class="pi pi-clock"></i> Pendiente
+                                </span>
+                                <span
+                                    v-if="
+                                        submission.needs_teacher_review &&
+                                        !submission.teacher_reviewed_at
+                                    "
+                                    class="badge badge--review"
+                                    title="La consigna de esta página no fue verificada, así que la IA solo sugiere"
+                                >
+                                    <i class="pi pi-flag"></i> Requiere tu revisión
+                                </span>
+                                <span
+                                    v-if="submission.teacher_reviewed_at"
+                                    class="badge badge--teacher"
+                                >
+                                    <i class="pi pi-user"></i> Revisado
+                                </span>
+                            </div>
+                        </div>
+
+                        <div class="submission-meta">
+                            <span class="meta-item">
+                                <i class="pi pi-book"></i>
+                                {{ submission.notebook_title || 'Cuaderno' }}
+                            </span>
+                            <span class="meta-item">
+                                <i class="pi pi-file"></i>
+                                Pagina {{ submission.page_number }}
+                            </span>
+                            <span class="meta-item">
+                                <i class="pi pi-calendar"></i>
+                                {{ formatDateTime(submission.created_at) }}
+                            </span>
+                        </div>
+
+                        <div class="canvas-preview" v-if="submission.canvas_data">
+                            <img
+                                :src="submission.canvas_data"
+                                :alt="`Respuesta de ${submission.student_name}`"
+                                class="preview-image"
+                                @click="openPreview(submission)"
+                            />
+                        </div>
+
+                        <div v-if="submission.ai_feedback" class="ai-feedback-box">
+                            <div class="feedback-header">
+                                <i class="pi pi-android"></i>
+                                <span>Feedback IA</span>
+                            </div>
+                            <p class="feedback-text">{{ submission.ai_feedback }}</p>
+                        </div>
+
+                        <div v-if="submission.teacher_feedback" class="teacher-feedback-box">
+                            <div class="feedback-header">
+                                <i class="pi pi-user"></i>
+                                <span>Tu revision</span>
+                            </div>
+                            <p class="feedback-text">{{ submission.teacher_feedback }}</p>
+                            <span
+                                class="review-badge"
+                                :class="
+                                    submission.teacher_is_correct
+                                        ? 'review-badge--correct'
+                                        : 'review-badge--incorrect'
+                                "
+                            >
+                                {{
+                                    submission.teacher_is_correct
+                                        ? 'Marcado correcto'
+                                        : 'Marcado incorrecto'
+                                }}
+                            </span>
+                        </div>
+
+                        <div class="submission-actions">
+                            <button
+                                v-if="submission.ai_is_correct === undefined"
+                                class="btn btn-sm btn-secondary"
+                                :disabled="reviewingIds.has(submission.id)"
+                                @click="triggerAIReview(submission.id)"
+                            >
+                                <i
+                                    v-if="reviewingIds.has(submission.id)"
+                                    class="pi pi-spin pi-spinner"
+                                ></i>
+                                <i v-else class="pi pi-android"></i>
+                                {{
+                                    reviewingIds.has(submission.id)
+                                        ? 'Evaluando...'
+                                        : 'Evaluar con IA'
+                                }}
+                            </button>
+                            <button
+                                class="btn btn-sm btn-primary"
+                                @click="openReviewModal(submission)"
+                            >
+                                <i class="pi pi-pencil"></i>
+                                Revisar manualmente
+                            </button>
+                        </div>
+                    </article>
+                </div>
+            </div>
+
+            <div
+                v-if="
+                    !loading &&
+                    !filters.studentSearch.trim() &&
+                    (filteredSubmissions.length > 0 || submissionsPage > 1)
                 "
-              >
-                {{
-                  submission.teacher_is_correct
-                    ? "Marcado correcto"
-                    : "Marcado incorrecto"
-                }}
-              </span>
-            </div>
-
-            <!-- Actions -->
-            <div class="submission-actions">
-              <button
-                v-if="submission.ai_is_correct === undefined"
-                class="btn btn-sm btn-secondary"
-                :disabled="reviewingIds.has(submission.id)"
-                @click="triggerAIReview(submission.id)"
-              >
-                <i
-                  v-if="reviewingIds.has(submission.id)"
-                  class="pi pi-spin pi-spinner"
-                ></i>
-                <i v-else class="pi pi-android"></i>
-                {{
-                  reviewingIds.has(submission.id)
-                    ? "Evaluando..."
-                    : "Evaluar con IA"
-                }}
-              </button>
-              <button
-                class="btn btn-sm btn-primary"
-                @click="openReviewModal(submission)"
-              >
-                <i class="pi pi-pencil"></i>
-                Revisar manualmente
-              </button>
-            </div>
-          </article>
-        </div>
-      </div>
-
-      <!-- Pagination Controls -->
-      <div v-if="!loading && !filters.studentSearch.trim() && (filteredSubmissions.length > 0 || submissionsPage > 1)" class="pagination-controls">
-        <button
-          class="btn btn-secondary"
-          :disabled="submissionsPage === 1"
-          @click="goToPrevPage"
-        >
-          <i class="pi pi-chevron-left"></i>
-          Anterior
-        </button>
-        <span class="pagination-info">
-          Página {{ submissionsPage }} ·
-          {{ filteredSubmissions.length }} resultados
-        </span>
-        <button
-          class="btn btn-secondary"
-          :disabled="!submissionsHasMore"
-          @click="goToNextPage"
-        >
-          Siguiente
-          <i class="pi pi-chevron-right"></i>
-        </button>
-      </div>
-
-      <!-- Preview Modal -->
-      <UiModal
-        :visible="Boolean(previewSubmission)"
-        @close="previewSubmission = null"
-      >
-        <template v-if="previewSubmission">
-          <div class="modal-box modal-box--large">
-            <div class="modal-head">
-              <h3 class="modal-title">
-                {{ previewSubmission.student_name }} - Pagina
-                {{ previewSubmission.page_number }}
-              </h3>
-              <button class="icon-btn" @click="previewSubmission = null">
-                <i class="pi pi-times"></i>
-              </button>
-            </div>
-            <div class="preview-content">
-              <img
-                :src="previewSubmission.canvas_data"
-                alt="Vista previa"
-                class="full-preview-image"
-              />
-            </div>
-          </div>
-        </template>
-      </UiModal>
-
-      <!-- Review Modal -->
-      <UiModal
-        :visible="Boolean(reviewingSubmission)"
-        @close="closeReviewModal"
-      >
-        <template v-if="reviewingSubmission">
-          <div class="modal-box">
-            <div class="modal-head">
-              <h3 class="modal-title">Revision manual</h3>
-              <button class="icon-btn" @click="closeReviewModal">
-                <i class="pi pi-times"></i>
-              </button>
-            </div>
-
-            <div class="review-form">
-              <div class="review-student-info">
-                <div class="student-avatar">
-                  {{ getInitial(reviewingSubmission.student_name) }}
-                </div>
-                <div>
-                  <div class="student-name">
-                    {{ reviewingSubmission.student_name }}
-                  </div>
-                  <div class="meta-item">
-                    {{ reviewingSubmission.notebook_title }} - Pagina
-                    {{ reviewingSubmission.page_number }}
-                  </div>
-                </div>
-              </div>
-
-              <div
-                v-if="reviewingSubmission.canvas_data"
-                class="review-preview"
-              >
-                <img
-                  :src="reviewingSubmission.canvas_data"
-                  alt="Respuesta"
-                  class="preview-image"
-                />
-              </div>
-
-              <div
-                v-if="reviewingSubmission.ai_feedback"
-                class="ai-feedback-mini"
-              >
-                <strong>IA dice:</strong>
-                {{ reviewingSubmission.ai_feedback }}
-              </div>
-
-              <div class="form-group">
-                <label class="form-label">Es correcto?</label>
-                <div class="correctness-toggle">
-                  <button
-                    type="button"
-                    class="toggle-btn"
-                    :class="{
-                      'toggle-btn--active': reviewForm.isCorrect === true,
-                    }"
-                    @click="reviewForm.isCorrect = true"
-                  >
-                    <i class="pi pi-check"></i> Correcto
-                  </button>
-                  <button
-                    type="button"
-                    class="toggle-btn toggle-btn--danger"
-                    :class="{
-                      'toggle-btn--active': reviewForm.isCorrect === false,
-                    }"
-                    @click="reviewForm.isCorrect = false"
-                  >
-                    <i class="pi pi-times"></i> Incorrecto
-                  </button>
-                </div>
-              </div>
-
-              <div class="form-group">
-                <label class="form-label">Comentarios</label>
-                <textarea
-                  v-model="reviewForm.feedback"
-                  class="form-textarea"
-                  rows="4"
-                  placeholder="Escribe tu feedback para el estudiante..."
-                ></textarea>
-              </div>
-
-              <div class="modal-actions">
-                <button class="btn btn-secondary" @click="closeReviewModal">
-                  Cancelar
-                </button>
+                class="pagination-controls"
+            >
                 <button
-                  class="btn btn-primary"
-                  :disabled="reviewForm.isCorrect === null || savingReview"
-                  @click="saveManualReview"
+                    class="btn btn-secondary"
+                    :disabled="submissionsPage === 1"
+                    @click="goToPrevPage"
                 >
-                  <span v-if="savingReview" class="spinner spinner-sm"></span>
-                  <i v-else class="pi pi-check"></i>
-                  Guardar revision
+                    <i class="pi pi-chevron-left"></i>
+                    Anterior
                 </button>
-              </div>
+                <span class="pagination-info">
+                    Página {{ submissionsPage }} · {{ filteredSubmissions.length }} resultados
+                </span>
+                <button
+                    class="btn btn-secondary"
+                    :disabled="!submissionsHasMore"
+                    @click="goToNextPage"
+                >
+                    Siguiente
+                    <i class="pi pi-chevron-right"></i>
+                </button>
             </div>
-          </div>
-        </template>
-      </UiModal>
-    </div>
-  </TeacherLayout>
+
+            <UiModal :visible="Boolean(previewSubmission)" @close="previewSubmission = null">
+                <template v-if="previewSubmission">
+                    <div class="modal-box modal-box--large">
+                        <div class="modal-head">
+                            <h3 class="modal-title">
+                                {{ previewSubmission.student_name }} - Pagina
+                                {{ previewSubmission.page_number }}
+                            </h3>
+                            <button class="icon-btn" @click="previewSubmission = null">
+                                <i class="pi pi-times"></i>
+                            </button>
+                        </div>
+                        <div class="preview-content">
+                            <img
+                                :src="previewSubmission.canvas_data"
+                                alt="Vista previa"
+                                class="full-preview-image"
+                            />
+                        </div>
+                    </div>
+                </template>
+            </UiModal>
+
+            <UiModal :visible="Boolean(reviewingSubmission)" @close="closeReviewModal">
+                <template v-if="reviewingSubmission">
+                    <div class="modal-box">
+                        <div class="modal-head">
+                            <h3 class="modal-title">Revision manual</h3>
+                            <button class="icon-btn" @click="closeReviewModal">
+                                <i class="pi pi-times"></i>
+                            </button>
+                        </div>
+
+                        <div class="review-form">
+                            <div class="review-student-info">
+                                <div class="student-avatar">
+                                    {{ getInitial(reviewingSubmission.student_name) }}
+                                </div>
+                                <div>
+                                    <div class="student-name">
+                                        {{ reviewingSubmission.student_name }}
+                                    </div>
+                                    <div class="meta-item">
+                                        {{ reviewingSubmission.notebook_title }} - Pagina
+                                        {{ reviewingSubmission.page_number }}
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div v-if="reviewingSubmission.canvas_data" class="review-preview">
+                                <img
+                                    :src="reviewingSubmission.canvas_data"
+                                    alt="Respuesta"
+                                    class="preview-image"
+                                />
+                            </div>
+
+                            <div v-if="reviewingSubmission.ai_feedback" class="ai-feedback-mini">
+                                <strong>IA dice:</strong>
+                                {{ reviewingSubmission.ai_feedback }}
+                            </div>
+
+                            <div class="form-group">
+                                <label class="form-label">Es correcto?</label>
+                                <div class="correctness-toggle">
+                                    <button
+                                        type="button"
+                                        class="toggle-btn"
+                                        :class="{
+                                            'toggle-btn--active': reviewForm.isCorrect === true,
+                                        }"
+                                        @click="reviewForm.isCorrect = true"
+                                    >
+                                        <i class="pi pi-check"></i> Correcto
+                                    </button>
+                                    <button
+                                        type="button"
+                                        class="toggle-btn toggle-btn--danger"
+                                        :class="{
+                                            'toggle-btn--active': reviewForm.isCorrect === false,
+                                        }"
+                                        @click="reviewForm.isCorrect = false"
+                                    >
+                                        <i class="pi pi-times"></i> Incorrecto
+                                    </button>
+                                </div>
+                            </div>
+
+                            <div class="form-group">
+                                <label class="form-label">Comentarios</label>
+                                <textarea
+                                    v-model="reviewForm.feedback"
+                                    class="form-textarea"
+                                    rows="4"
+                                    placeholder="Escribe tu feedback para el estudiante..."
+                                ></textarea>
+                            </div>
+
+                            <div class="modal-actions">
+                                <button class="btn btn-secondary" @click="closeReviewModal">
+                                    Cancelar
+                                </button>
+                                <button
+                                    class="btn btn-primary"
+                                    :disabled="reviewForm.isCorrect === null || savingReview"
+                                    @click="saveManualReview"
+                                >
+                                    <span v-if="savingReview" class="spinner spinner-sm"></span>
+                                    <i v-else class="pi pi-check"></i>
+                                    Guardar revision
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </template>
+            </UiModal>
+        </div>
+    </TeacherLayout>
 </template>
 
 <style scoped>
-  .review-dashboard {
-    padding: 24px 28px 40px;
-    max-width: 1280px;
-  }
-
-  /* Header */
-  .page-header {
-    margin-bottom: 20px;
-  }
-
-  /* Filters */
-  .filters-panel {
-    padding: 14px 16px 16px;
-    background: var(--surface-elevated);
-    border-radius: var(--radius-xl);
-    border: 1px solid var(--surface-elevated-strong);
-    margin-bottom: 20px;
-  }
-  .filters-panel__head { display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:12px;color:var(--text-heading);font-size:var(--text-sm); }
-  .filters-panel__head > div { display:flex;align-items:center;gap:8px; }.filters-panel__head span { padding:2px 7px;border-radius:var(--radius-pill);background:var(--fill-primary-soft);color:var(--practiq-violet-dark);font-size:var(--text-xs);font-weight:800; }
-  .filters-clear { display:inline-flex;align-items:center;gap:6px;min-height:32px;padding:5px 8px;border:0;border-radius:var(--radius-md);background:transparent;color:var(--practiq-violet-dark);font:inherit;font-size:var(--text-xs);font-weight:800;cursor:pointer; }.filters-clear:hover { background:var(--fill-primary-soft); }
-  .filters-bar {
-    display: flex;
-    gap: 16px;
-    flex-wrap: wrap;
-  }
-
-  .filter-group {
-    display: flex;
-    flex-direction: column;
-    gap: 6px;
-    min-width: 180px;
-  }
-
-  .filter-group--search {
-    flex: 1;
-    min-width: 220px;
-  }
-
-  .filter-label {
-    font-size: var(--text-xs);
-    font-weight: 700;
-    color: var(--text-secondary);
-    text-transform: uppercase;
-    letter-spacing: 0.06em;
-  }
-
-  .filter-select,
-  .filter-input {
-    padding: 10px 14px;
-    border-radius: var(--radius-md);
-    border: 1.5px solid rgba(var(--practiq-violet-rgb), 0.15);
-    font-size: var(--text-base);
-    color: var(--text-primary);
-    background: var(--surface-elevated-strong);
-    outline: none;
-    transition: border-color 0.15s;
-  }
-
-  .filter-select:focus,
-  .filter-input:focus {
-    border-color: var(--practiq-violet);
-  }
-
-  .filter-select:disabled {
-    cursor: not-allowed;
-    opacity: 0.65;
-  }
-
-  .scope-hint {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    padding: 14px 16px;
-    margin-bottom: 20px;
-    border-radius: var(--radius-lg);
-    background: var(--fill-primary-subtle);
-    color: var(--text-secondary);
-    font-size: var(--text-base);
-    font-weight: 600;
-  }
-
-  .scope-hint i {
-    color: var(--practiq-violet);
-  }
-
-  /* Skeleton styles */
-  .submission-card--skeleton {
-    pointer-events: none;
-  }
-  .preview-skel {
-    border-radius: var(--radius-lg);
-  }
-  .mt-4 {
-    margin-top: 4px;
-  }
-
-  .empty-state {
-    padding: 64px 24px;
-  }
-
-  .empty-icon {
-    width: 64px;
-    height: 64px;
-    border-radius: var(--radius-xl);
-    background: var(--fill-primary-subtle);
-    display: grid;
-    place-items: center;
-    margin: 0 auto 20px;
-    font-size: 28px;
-    color: var(--practiq-violet);
-  }
-
-  .empty-state h3 {
-    font-size: 20px;
-    font-weight: 700;
-    color: var(--text-primary);
-    margin-bottom: 8px;
-  }
-
-  .empty-state p {
-    font-size: var(--text-md);
-    color: var(--text-secondary);
-  }
-
-  /* Submissions Grid */
-  .submissions-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(380px, 1fr));
-    gap: 20px;
-  }
-
-  .submission-card {
-    background: var(--surface-elevated);
-    border-radius: var(--radius-2xl);
-    border: 1.5px solid var(--surface-elevated-strong);
-    box-shadow: var(--shadow-card);
-    padding: 20px;
-    display: flex;
-    flex-direction: column;
-    gap: 16px;
-    transition: var(--transition);
-  }
-
-  .submission-card:hover {
-    box-shadow: var(--shadow-card-lg);
-  }
-
-  .submission-card--correct {
-    border-color: rgba(var(--color-success-rgb), 0.3);
-  }
-
-  .submission-card--incorrect {
-    border-color: rgba(var(--color-error-rgb), 0.3);
-  }
-
-  .submission-card--pending {
-    border-color: rgba(var(--color-warning-rgb), 0.3);
-  }
-
-  .submission-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: flex-start;
-    gap: 12px;
-  }
-
-  .student-info {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-  }
-
-  .student-avatar {
-    width: 42px;
-    height: 42px;
-    border-radius: var(--radius-lg);
-    background: var(--gradient-brand);
-    color: var(--color-on-primary);
-    font-weight: 800;
-    font-size: var(--text-lg);
-    display: grid;
-    place-items: center;
-    flex-shrink: 0;
-  }
-
-  .student-details {
-    min-width: 0;
-  }
-
-  .student-name {
-    font-size: var(--text-base);
-    font-weight: 700;
-    color: var(--text-primary);
-  }
-
-  .student-email {
-    font-size: var(--text-sm);
-    color: var(--text-secondary);
-  }
-
-  .submission-badges {
-    display: flex;
-    gap: 6px;
-    flex-wrap: wrap;
-  }
-
-  .badge {
-    display: inline-flex;
-    align-items: center;
-    gap: 4px;
-    padding: 4px 10px;
-    border-radius: var(--radius-pill);
-    font-size: var(--text-xs);
-    font-weight: 700;
-  }
-
-  .badge--success {
-    background: var(--color-success-bg);
-    color: var(--color-success-dark);
-  }
-
-  .badge--error {
-    background: var(--color-error-bg);
-    color: var(--color-error-dark);
-  }
-
-  .badge--pending {
-    background: var(--color-warning-bg);
-    color: var(--color-warning-dark);
-  }
-
-  .badge--teacher {
-    background: var(--fill-primary-soft);
-    color: var(--practiq-violet);
-  }
-
-  .badge--review {
-    background: rgba(var(--color-warning-rgb), 0.16);
-    color: var(--color-warning-dark);
-  }
-
-  .submission-card--needs-review {
-    box-shadow:
-      inset 3px 0 0 var(--color-warning),
-      var(--elevation-tint-shadow);
-  }
-
-  .submission-meta {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 12px;
-  }
-
-  .meta-item {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    font-size: var(--text-sm);
-    color: var(--text-secondary);
-  }
-
-  .meta-item i {
-    font-size: 14px;
-    color: var(--text-muted);
-  }
-
-  /* Canvas Preview */
-  .canvas-preview {
-    border-radius: var(--radius-lg);
-    overflow: hidden;
-    border: 1px solid rgba(var(--surface-border-rgb), 0.15);
-    cursor: pointer;
-  }
-
-  .preview-image {
-    width: 100%;
-    height: 180px;
-    object-fit: contain;
-    background: var(--surface-bg);
-    display: block;
-  }
-
-  /* Feedback Boxes */
-  .ai-feedback-box,
-  .teacher-feedback-box {
-    padding: 12px 14px;
-    border-radius: var(--radius-md);
-    font-size: var(--text-sm);
-  }
-
-  .ai-feedback-box {
-    background: var(--fill-primary-faint);
-    border: 1px solid rgba(var(--practiq-violet-rgb), 0.15);
-  }
-
-  .teacher-feedback-box {
-    background: var(--color-success-bg);
-    border: 1px solid rgba(var(--color-success-rgb), 0.2);
-  }
-
-  .feedback-header {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    font-weight: 700;
-    color: var(--practiq-violet);
-    margin-bottom: 6px;
-  }
-
-  .teacher-feedback-box .feedback-header {
-    color: var(--color-success-dark);
-  }
-
-  .feedback-text {
-    margin: 0;
-    color: var(--text-secondary);
-    line-height: 1.5;
-  }
-
-  .review-badge {
-    display: inline-block;
-    margin-top: 8px;
-    padding: 3px 8px;
-    border-radius: var(--radius-pill);
-    font-size: var(--text-xs);
-    font-weight: 700;
-  }
-
-  .review-badge--correct {
-    background: rgba(var(--color-success-rgb), 0.15);
-    color: var(--color-success-dark);
-  }
-
-  .review-badge--incorrect {
-    background: rgba(var(--color-error-rgb), 0.15);
-    color: var(--color-error-dark);
-  }
-
-  /* Actions */
-  .submission-actions {
-    display: flex;
-    gap: 10px;
-    flex-wrap: wrap;
-    margin-top: auto;
-  }
-
-  .btn-sm {
-    padding: 8px 14px;
-    font-size: var(--text-sm);
-  }
-
-  /* Modal */
-  .modal-box--large {
-    max-width: 800px;
-    width: 90vw;
-  }
-
-  .preview-content {
-    padding: 20px;
-    background: var(--surface-bg);
-    border-radius: var(--radius-md);
-  }
-
-  .full-preview-image {
-    width: 100%;
-    max-height: 70vh;
-    object-fit: contain;
-  }
-
-  /* Review Form */
-  .review-form {
-    display: flex;
-    flex-direction: column;
-    gap: 20px;
-  }
-
-  .review-student-info {
-    display: flex;
-    align-items: center;
-    gap: 14px;
-    padding: 14px;
-    background: var(--surface-subtle);
-    border-radius: var(--radius-lg);
-  }
-
-  .review-preview {
-    border-radius: var(--radius-md);
-    overflow: hidden;
-    border: 1px solid rgba(var(--surface-border-rgb), 0.15);
-  }
-
-  .review-preview .preview-image {
-    height: 200px;
-  }
-
-  .ai-feedback-mini {
-    padding: 10px 14px;
-    background: var(--fill-primary-faint);
-    border-radius: var(--radius-md);
-    font-size: var(--text-sm);
-    color: var(--text-secondary);
-  }
-
-  .correctness-toggle {
-    display: flex;
-    gap: 10px;
-  }
-
-  .toggle-btn {
-    flex: 1;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 6px;
-    padding: 12px 16px;
-    border-radius: var(--radius-md);
-    border: 2px solid rgba(var(--color-success-rgb), 0.3);
-    background: transparent;
-    font-size: var(--text-base);
-    font-weight: 600;
-    color: var(--color-success-dark);
-    cursor: pointer;
-    transition: all 0.15s;
-  }
-
-  .toggle-btn:hover {
-    background: rgba(var(--color-success-rgb), 0.08);
-  }
-
-  .toggle-btn--active {
-    background: var(--color-success);
-    color: white;
-    border-color: var(--color-success);
-  }
-
-  .toggle-btn--danger {
-    border-color: rgba(var(--color-error-rgb), 0.3);
-    color: var(--color-error-dark);
-  }
-
-  .toggle-btn--danger:hover {
-    background: rgba(var(--color-error-rgb), 0.08);
-  }
-
-  .toggle-btn--danger.toggle-btn--active {
-    background: var(--color-error);
-    border-color: var(--color-error);
-  }
-
-  /* Pagination */
-  .pagination-controls {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 16px;
-    margin-top: 24px;
-    padding: 16px 20px;
-    background: var(--surface-elevated);
-    border-radius: var(--radius-xl);
-    border: 1px solid var(--surface-elevated-strong);
-  }
-
-  .pagination-info {
-    font-size: var(--text-base);
-    font-weight: 600;
-    color: var(--text-secondary);
-  }
-
-  .btn:disabled {
-    opacity: 0.5;
-    cursor: not-allowed;
-  }
-
-  /* Responsive */
-  @media (max-width: 1024px) {
     .review-dashboard {
-      padding: 20px 16px 40px;
+        padding: 24px 28px 40px;
+        max-width: 1280px;
     }
 
-    .submissions-grid {
-      grid-template-columns: 1fr;
-    }
-  }
-
-  @media (max-width: 768px) {
     .page-header {
-      flex-direction: column;
-      align-items: flex-start;
-      gap: 16px;
-      padding: 20px;
+        margin-bottom: 20px;
     }
 
+    .filters-panel {
+        padding: 14px 16px 16px;
+        background: var(--surface-elevated);
+        border-radius: var(--radius-xl);
+        border: 1px solid var(--surface-elevated-strong);
+        margin-bottom: 20px;
+    }
+    .filters-panel__head {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        margin-bottom: 12px;
+        color: var(--text-heading);
+        font-size: var(--text-sm);
+    }
+    .filters-panel__head > div {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+    }
+    .filters-panel__head span {
+        padding: 2px 7px;
+        border-radius: var(--radius-pill);
+        background: var(--fill-primary-soft);
+        color: var(--practiq-violet-dark);
+        font-size: var(--text-xs);
+        font-weight: 800;
+    }
+    .filters-clear {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        min-height: 32px;
+        padding: 5px 8px;
+        border: 0;
+        border-radius: var(--radius-md);
+        background: transparent;
+        color: var(--practiq-violet-dark);
+        font: inherit;
+        font-size: var(--text-xs);
+        font-weight: 800;
+        cursor: pointer;
+    }
+    .filters-clear:hover {
+        background: var(--fill-primary-soft);
+    }
     .filters-bar {
-      flex-direction: column;
-      gap: 10px;
+        display: flex;
+        gap: 16px;
+        flex-wrap: wrap;
     }
-
-    .filters-panel { padding: 12px; }
 
     .filter-group {
-      width: 100%;
-      min-width: 0;
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+        min-width: 180px;
+    }
+
+    .filter-group--search {
+        flex: 1;
+        min-width: 220px;
+    }
+
+    .filter-label {
+        font-size: var(--text-xs);
+        font-weight: 700;
+        color: var(--text-secondary);
+        text-transform: uppercase;
+        letter-spacing: 0.06em;
     }
 
     .filter-select,
     .filter-input {
-      width: 100%;
-      min-height: 46px;
+        padding: 10px 14px;
+        border-radius: var(--radius-md);
+        border: 1.5px solid rgba(var(--practiq-violet-rgb), 0.15);
+        font-size: var(--text-base);
+        color: var(--text-primary);
+        background: var(--surface-elevated-strong);
+        outline: none;
+        transition: border-color 0.15s;
+    }
+
+    .filter-select:focus,
+    .filter-input:focus {
+        border-color: var(--practiq-violet);
+    }
+
+    .filter-select:disabled {
+        cursor: not-allowed;
+        opacity: 0.65;
+    }
+
+    .scope-hint {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        padding: 14px 16px;
+        margin-bottom: 20px;
+        border-radius: var(--radius-lg);
+        background: var(--fill-primary-subtle);
+        color: var(--text-secondary);
+        font-size: var(--text-base);
+        font-weight: 600;
+    }
+
+    .scope-hint i {
+        color: var(--practiq-violet);
+    }
+
+    .submission-card--skeleton {
+        pointer-events: none;
+    }
+    .preview-skel {
+        border-radius: var(--radius-lg);
+    }
+    .mt-4 {
+        margin-top: 4px;
+    }
+
+    .empty-state {
+        padding: 64px 24px;
+    }
+
+    .empty-icon {
+        width: 64px;
+        height: 64px;
+        border-radius: var(--radius-xl);
+        background: var(--fill-primary-subtle);
+        display: grid;
+        place-items: center;
+        margin: 0 auto 20px;
+        font-size: 28px;
+        color: var(--practiq-violet);
+    }
+
+    .empty-state h3 {
+        font-size: 20px;
+        font-weight: 700;
+        color: var(--text-primary);
+        margin-bottom: 8px;
+    }
+
+    .empty-state p {
+        font-size: var(--text-md);
+        color: var(--text-secondary);
+    }
+
+    .submissions-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(380px, 1fr));
+        gap: 20px;
+    }
+
+    .submission-card {
+        background: var(--surface-elevated);
+        border-radius: var(--radius-2xl);
+        border: 1.5px solid var(--surface-elevated-strong);
+        box-shadow: var(--shadow-card);
+        padding: 20px;
+        display: flex;
+        flex-direction: column;
+        gap: 16px;
+        transition: var(--transition);
+    }
+
+    .submission-card:hover {
+        box-shadow: var(--shadow-card-lg);
+    }
+
+    .submission-card--correct {
+        border-color: rgba(var(--color-success-rgb), 0.3);
+    }
+
+    .submission-card--incorrect {
+        border-color: rgba(var(--color-error-rgb), 0.3);
+    }
+
+    .submission-card--pending {
+        border-color: rgba(var(--color-warning-rgb), 0.3);
     }
 
     .submission-header {
-      flex-direction: column;
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+        gap: 12px;
+    }
+
+    .student-info {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+    }
+
+    .student-avatar {
+        width: 42px;
+        height: 42px;
+        border-radius: var(--radius-lg);
+        background: var(--gradient-brand);
+        color: var(--color-on-primary);
+        font-weight: 800;
+        font-size: var(--text-lg);
+        display: grid;
+        place-items: center;
+        flex-shrink: 0;
+    }
+
+    .student-details {
+        min-width: 0;
+    }
+
+    .student-name {
+        font-size: var(--text-base);
+        font-weight: 700;
+        color: var(--text-primary);
+    }
+
+    .student-email {
+        font-size: var(--text-sm);
+        color: var(--text-secondary);
     }
 
     .submission-badges {
-      width: 100%;
+        display: flex;
+        gap: 6px;
+        flex-wrap: wrap;
     }
 
-    .correctness-toggle {
-      flex-direction: column;
+    .badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+        padding: 4px 10px;
+        border-radius: var(--radius-pill);
+        font-size: var(--text-xs);
+        font-weight: 700;
+    }
+
+    .badge--success {
+        background: var(--color-success-bg);
+        color: var(--color-success-dark);
+    }
+
+    .badge--error {
+        background: var(--color-error-bg);
+        color: var(--color-error-dark);
+    }
+
+    .badge--pending {
+        background: var(--color-warning-bg);
+        color: var(--color-warning-dark);
+    }
+
+    .badge--teacher {
+        background: var(--fill-primary-soft);
+        color: var(--practiq-violet);
+    }
+
+    .badge--review {
+        background: rgba(var(--color-warning-rgb), 0.16);
+        color: var(--color-warning-dark);
+    }
+
+    .submission-card--needs-review {
+        box-shadow:
+            inset 3px 0 0 var(--color-warning),
+            var(--elevation-tint-shadow);
+    }
+
+    .submission-meta {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 12px;
+    }
+
+    .meta-item {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        font-size: var(--text-sm);
+        color: var(--text-secondary);
+    }
+
+    .meta-item i {
+        font-size: 14px;
+        color: var(--text-muted);
+    }
+
+    .canvas-preview {
+        border-radius: var(--radius-lg);
+        overflow: hidden;
+        border: 1px solid rgba(var(--surface-border-rgb), 0.15);
+        cursor: pointer;
+    }
+
+    .preview-image {
+        width: 100%;
+        height: 180px;
+        object-fit: contain;
+        background: var(--surface-bg);
+        display: block;
+    }
+
+    .ai-feedback-box,
+    .teacher-feedback-box {
+        padding: 12px 14px;
+        border-radius: var(--radius-md);
+        font-size: var(--text-sm);
+    }
+
+    .ai-feedback-box {
+        background: var(--fill-primary-faint);
+        border: 1px solid rgba(var(--practiq-violet-rgb), 0.15);
+    }
+
+    .teacher-feedback-box {
+        background: var(--color-success-bg);
+        border: 1px solid rgba(var(--color-success-rgb), 0.2);
+    }
+
+    .feedback-header {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        font-weight: 700;
+        color: var(--practiq-violet);
+        margin-bottom: 6px;
+    }
+
+    .teacher-feedback-box .feedback-header {
+        color: var(--color-success-dark);
+    }
+
+    .feedback-text {
+        margin: 0;
+        color: var(--text-secondary);
+        line-height: 1.5;
+    }
+
+    .review-badge {
+        display: inline-block;
+        margin-top: 8px;
+        padding: 3px 8px;
+        border-radius: var(--radius-pill);
+        font-size: var(--text-xs);
+        font-weight: 700;
+    }
+
+    .review-badge--correct {
+        background: rgba(var(--color-success-rgb), 0.15);
+        color: var(--color-success-dark);
+    }
+
+    .review-badge--incorrect {
+        background: rgba(var(--color-error-rgb), 0.15);
+        color: var(--color-error-dark);
     }
 
     .submission-actions {
-      flex-direction: column;
+        display: flex;
+        gap: 10px;
+        flex-wrap: wrap;
+        margin-top: auto;
     }
 
-    .submission-actions > * {
-      width: 100%;
-      justify-content: center;
-      min-height: 44px;
+    .btn-sm {
+        padding: 8px 14px;
+        font-size: var(--text-sm);
     }
-  }
+
+    .modal-box--large {
+        max-width: 800px;
+        width: 90vw;
+    }
+
+    .preview-content {
+        padding: 20px;
+        background: var(--surface-bg);
+        border-radius: var(--radius-md);
+    }
+
+    .full-preview-image {
+        width: 100%;
+        max-height: 70vh;
+        object-fit: contain;
+    }
+
+    .review-form {
+        display: flex;
+        flex-direction: column;
+        gap: 20px;
+    }
+
+    .review-student-info {
+        display: flex;
+        align-items: center;
+        gap: 14px;
+        padding: 14px;
+        background: var(--surface-subtle);
+        border-radius: var(--radius-lg);
+    }
+
+    .review-preview {
+        border-radius: var(--radius-md);
+        overflow: hidden;
+        border: 1px solid rgba(var(--surface-border-rgb), 0.15);
+    }
+
+    .review-preview .preview-image {
+        height: 200px;
+    }
+
+    .ai-feedback-mini {
+        padding: 10px 14px;
+        background: var(--fill-primary-faint);
+        border-radius: var(--radius-md);
+        font-size: var(--text-sm);
+        color: var(--text-secondary);
+    }
+
+    .correctness-toggle {
+        display: flex;
+        gap: 10px;
+    }
+
+    .toggle-btn {
+        flex: 1;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 6px;
+        padding: 12px 16px;
+        border-radius: var(--radius-md);
+        border: 2px solid rgba(var(--color-success-rgb), 0.3);
+        background: transparent;
+        font-size: var(--text-base);
+        font-weight: 600;
+        color: var(--color-success-dark);
+        cursor: pointer;
+        transition: all 0.15s;
+    }
+
+    .toggle-btn:hover {
+        background: rgba(var(--color-success-rgb), 0.08);
+    }
+
+    .toggle-btn--active {
+        background: var(--color-success);
+        color: white;
+        border-color: var(--color-success);
+    }
+
+    .toggle-btn--danger {
+        border-color: rgba(var(--color-error-rgb), 0.3);
+        color: var(--color-error-dark);
+    }
+
+    .toggle-btn--danger:hover {
+        background: rgba(var(--color-error-rgb), 0.08);
+    }
+
+    .toggle-btn--danger.toggle-btn--active {
+        background: var(--color-error);
+        border-color: var(--color-error);
+    }
+
+    .pagination-controls {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 16px;
+        margin-top: 24px;
+        padding: 16px 20px;
+        background: var(--surface-elevated);
+        border-radius: var(--radius-xl);
+        border: 1px solid var(--surface-elevated-strong);
+    }
+
+    .pagination-info {
+        font-size: var(--text-base);
+        font-weight: 600;
+        color: var(--text-secondary);
+    }
+
+    .btn:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+    }
+
+    @media (max-width: 1024px) {
+        .review-dashboard {
+            padding: 20px 16px 40px;
+        }
+
+        .submissions-grid {
+            grid-template-columns: 1fr;
+        }
+    }
+
+    @media (max-width: 768px) {
+        .page-header {
+            flex-direction: column;
+            align-items: flex-start;
+            gap: 16px;
+            padding: 20px;
+        }
+
+        .filters-bar {
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        .filters-panel {
+            padding: 12px;
+        }
+
+        .filter-group {
+            width: 100%;
+            min-width: 0;
+        }
+
+        .filter-select,
+        .filter-input {
+            width: 100%;
+            min-height: 46px;
+        }
+
+        .submission-header {
+            flex-direction: column;
+        }
+
+        .submission-badges {
+            width: 100%;
+        }
+
+        .correctness-toggle {
+            flex-direction: column;
+        }
+
+        .submission-actions {
+            flex-direction: column;
+        }
+
+        .submission-actions > * {
+            width: 100%;
+            justify-content: center;
+            min-height: 44px;
+        }
+    }
 </style>
