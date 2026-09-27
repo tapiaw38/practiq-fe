@@ -1,5 +1,5 @@
 <script setup lang="ts">
-  import { ref } from "vue";
+  import { computed, ref, watch } from "vue";
   import {
     renderEquation,
     renderInlineEquation,
@@ -12,8 +12,53 @@
     ExercisesListProps,
   } from "./ExercisesList.types";
 
-  defineProps<ExercisesListProps>();
+  const props = defineProps<ExercisesListProps>();
   const emit = defineEmits<ExercisesListEmits>();
+
+  const levelGroups = computed(() => {
+    const byLevel = new Map<number, Exercise[]>();
+    for (const exercise of props.exercises) {
+      const level = exercise.difficulty ?? 0;
+      const items = byLevel.get(level) ?? [];
+      items.push(exercise);
+      byLevel.set(level, items);
+    }
+    return [...byLevel.entries()]
+      .sort(([a], [b]) => a - b)
+      .map(([level, items]) => ({ level, items }));
+  });
+
+  const collapsedLevels = ref<Set<number>>(new Set());
+
+  watch(
+    levelGroups,
+    (groups) => {
+      const levels = new Set(groups.map((group) => group.level));
+      const next = new Set([...collapsedLevels.value].filter((level) => levels.has(level)));
+      if (!collapsedLevels.value.size && groups.length > 1) {
+        for (const group of groups) next.add(group.level);
+      }
+      collapsedLevels.value = next;
+    },
+    { immediate: true },
+  );
+
+  function toggleLevel(level: number) {
+    const next = new Set(collapsedLevels.value);
+    if (next.has(level)) next.delete(level);
+    else next.add(level);
+    collapsedLevels.value = next;
+  }
+
+  const allCollapsed = computed(
+    () => levelGroups.value.length > 0 && collapsedLevels.value.size === levelGroups.value.length,
+  );
+
+  function toggleAll() {
+    collapsedLevels.value = allCollapsed.value
+      ? new Set()
+      : new Set(levelGroups.value.map((group) => group.level));
+  }
 
   function fillBlanksAnswerText(correctAnswer?: string): string {
     const placements = deserializeAnswer(correctAnswer);
@@ -96,15 +141,30 @@
     <div v-else-if="exercises.length === 0" class="empty-inline">
       No hay ejercicios en este tema.
     </div>
-    <div v-else class="items-list">
-      <div v-for="exercise in exercises" :key="exercise.id" class="list-item">
+    <template v-else>
+      <div v-if="levelGroups.length > 1" class="levels-toolbar">
+        <button type="button" class="btn btn-ghost btn-sm" @click="toggleAll">
+          <i class="pi" :class="allCollapsed ? 'pi-angle-double-down' : 'pi-angle-double-up'"></i>
+          {{ allCollapsed ? "Expandir todo" : "Contraer todo" }}
+        </button>
+      </div>
+
+      <section v-for="group in levelGroups" :key="group.level" class="level-group">
+        <button type="button" class="level-head" @click="toggleLevel(group.level)">
+          <span class="difficulty-badge" :style="{ background: diffColor(group.level) }">
+            {{ group.level }}
+          </span>
+          <span class="level-title">Nivel {{ group.level }}</span>
+          <span class="level-count">
+            {{ group.items.length }}
+            {{ group.items.length === 1 ? "ejercicio" : "ejercicios" }}
+          </span>
+          <i class="pi" :class="collapsedLevels.has(group.level) ? 'pi-chevron-down' : 'pi-chevron-up'"></i>
+        </button>
+
+        <div v-if="!collapsedLevels.has(group.level)" class="items-list">
+          <div v-for="exercise in group.items" :key="exercise.id" class="list-item">
         <div class="item-info">
-          <div
-            class="difficulty-badge"
-            :style="{ background: diffColor(exercise.difficulty) }"
-          >
-            {{ exercise.difficulty }}
-          </div>
           <div>
             <div
               v-if="exercise.type === 'equation'"
@@ -162,8 +222,10 @@
             <i class="pi pi-trash"></i>
           </button>
         </div>
-      </div>
-    </div>
+          </div>
+        </div>
+      </section>
+    </template>
 
     <FileViewer
       :show="!!preview"
@@ -219,6 +281,46 @@
     color: var(--text-secondary);
     text-align: center;
   }
+  .levels-toolbar {
+    display: flex;
+    justify-content: flex-end;
+    margin-bottom: 6px;
+  }
+
+  .level-group {
+    margin-bottom: 10px;
+  }
+
+  .level-head {
+    width: 100%;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 10px;
+    border: 1px solid var(--surface-border);
+    border-radius: var(--radius-lg);
+    background: var(--surface-sunken);
+    cursor: pointer;
+    color: inherit;
+    text-align: left;
+    min-height: 44px;
+  }
+
+  .level-title {
+    font-weight: 700;
+    font-size: 14px;
+  }
+
+  .level-count {
+    margin-left: auto;
+    font-size: 12px;
+    color: var(--text-secondary);
+  }
+
+  .level-group .items-list {
+    margin-top: 8px;
+  }
+
   .items-list {
     display: grid;
     gap: 10px;
