@@ -1,23 +1,22 @@
 <script setup lang="ts">
-    import { ref } from 'vue';
-    import type { CourseLevelsPanelEmits, CourseLevelsPanelProps } from './CourseLevelsPanel.types';
+import { ref } from 'vue';
+import type { CourseLevelsPanelEmits, CourseLevelsPanelProps } from './CourseLevelsPanel.types';
 
-    defineProps<CourseLevelsPanelProps>();
-    const emit = defineEmits<CourseLevelsPanelEmits>();
-    const expandedLevels = ref(new Set<number>([1]));
+defineProps<CourseLevelsPanelProps>();
+const emit = defineEmits<CourseLevelsPanelEmits>();
+const expandedLevels = ref(new Set<number>([1]));
 
-    function toggleLevel(level: number) {
-        const next = new Set(expandedLevels.value);
-        next.has(level) ? next.delete(level) : next.add(level);
-        expandedLevels.value = next;
-    }
+function toggleLevel(level: number) {
+    const next = new Set(expandedLevels.value);
+    next.has(level) ? next.delete(level) : next.add(level);
+    expandedLevels.value = next;
+}
 
-    const isLevelExpanded = (level: number) => expandedLevels.value.has(level);
+const isLevelExpanded = (level: number) => expandedLevels.value.has(level);
 
-    const countExercises = (value: unknown) =>
-        Array.isArray(value) ? value.length : Number(value || 0);
-    const countPages = (value: unknown) =>
-        Array.isArray(value) ? value.length : Number(value || 0);
+const countExercises = (value: unknown) =>
+    Array.isArray(value) ? value.length : Number(value || 0);
+const countPages = (value: unknown) => (Array.isArray(value) ? value.length : Number(value || 0));
 </script>
 
 <template>
@@ -159,175 +158,175 @@
 </template>
 
 <style scoped>
-    .tab-content {
-        background: var(--surface-elevated);
-        border: 1px solid var(--surface-elevated-strong);
-        border-radius: var(--radius-2xl);
-        box-shadow: var(--shadow-card);
-        padding: 20px;
-    }
-    .section-header {
-        display: flex;
-        justify-content: space-between;
-        align-items: flex-start;
-        gap: 16px;
-        margin-bottom: 16px;
-    }
-    .section-header h2 {
-        margin: 0;
-        color: var(--text-heading);
-        font-size: 1.25rem;
-        font-weight: 800;
-    }
-    .section-copy {
-        margin: 6px 0 0;
-        color: var(--text-secondary);
-        font-size: var(--text-sm);
-        max-width: 680px;
-    }
-    .levels-grid {
-        display: grid;
-        gap: 10px;
-    }
-    .teacher-level-card {
-        background: var(--surface-card);
-        border: 1px solid var(--surface-border);
-        border-radius: var(--radius-xl);
-        padding: 12px;
-        transition: var(--transition-fast);
-    }
-    .teacher-level-card:hover {
-        transform: translateY(-1px);
-        box-shadow: var(--shadow-card);
-    }
+.tab-content {
+    background: var(--surface-elevated);
+    border: 1px solid var(--surface-elevated-strong);
+    border-radius: var(--radius-2xl);
+    box-shadow: var(--shadow-card);
+    padding: 20px;
+}
+.section-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 16px;
+    margin-bottom: 16px;
+}
+.section-header h2 {
+    margin: 0;
+    color: var(--text-heading);
+    font-size: 1.25rem;
+    font-weight: 800;
+}
+.section-copy {
+    margin: 6px 0 0;
+    color: var(--text-secondary);
+    font-size: var(--text-sm);
+    max-width: 680px;
+}
+.levels-grid {
+    display: grid;
+    gap: 10px;
+}
+.teacher-level-card {
+    background: var(--surface-card);
+    border: 1px solid var(--surface-border);
+    border-radius: var(--radius-xl);
+    padding: 12px;
+    transition: var(--transition-fast);
+}
+.teacher-level-card:hover {
+    transform: translateY(-1px);
+    box-shadow: var(--shadow-card);
+}
+.teacher-level-card__top,
+.teacher-level-actions,
+.teacher-level-sections {
+    display: flex;
+}
+.teacher-level-card__top {
+    justify-content: space-between;
+    gap: 12px;
+    align-items: center;
+}
+.teacher-level-actions {
+    gap: 6px;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+}
+.teacher-level-label {
+    font-weight: 800;
+    color: var(--text-heading);
+}
+.teacher-level-meta {
+    color: var(--text-secondary);
+    font-size: var(--text-sm);
+    margin-top: 4px;
+}
+.level-collapse-toggle {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    min-height: 28px;
+    margin-top: 7px;
+    padding: 0;
+    border: 0;
+    background: transparent;
+    color: var(--practiq-violet);
+    font: inherit;
+    font-size: var(--text-sm);
+    font-weight: 800;
+    cursor: pointer;
+}
+.teacher-level-card--collapsed .teacher-level-actions,
+.teacher-level-card--collapsed .teacher-level-sections {
+    display: none;
+}
+.teacher-level-sections {
+    margin-top: 10px;
+    gap: 8px;
+    align-items: stretch;
+}
+.teacher-level-block {
+    flex: 1;
+    min-width: 0;
+    background: var(--surface-hover);
+    border: 1px solid var(--surface-border);
+    border-radius: var(--radius-lg);
+    padding: 9px 10px;
+}
+.teacher-level-block__title {
+    font-size: var(--text-xs);
+    font-weight: 800;
+    text-transform: uppercase;
+    color: var(--text-secondary);
+    margin-bottom: 6px;
+}
+.mini-list {
+    display: grid;
+    gap: 5px;
+}
+.mini-item {
+    width: 100%;
+    border: 1px solid var(--surface-border);
+    border-radius: var(--radius-md);
+    background: var(--surface-elevated);
+    padding: 7px 8px;
+    text-align: left;
+    display: grid;
+    gap: 2px;
+}
+.mini-item--link {
+    cursor: pointer;
+    transition: var(--transition-fast);
+}
+.mini-item--link:hover {
+    border-color: var(--practiq-violet);
+    transform: translateY(-1px);
+}
+.mini-item span {
+    color: var(--text-primary);
+    font-weight: 700;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.mini-item small,
+.mini-empty {
+    color: var(--text-secondary);
+    font-size: var(--text-xs);
+}
+@media (max-width: 760px) {
+    .section-header,
     .teacher-level-card__top,
-    .teacher-level-actions,
-    .teacher-level-sections {
-        display: flex;
-    }
-    .teacher-level-card__top {
-        justify-content: space-between;
-        gap: 12px;
-        align-items: center;
-    }
     .teacher-level-actions {
-        gap: 6px;
-        flex-wrap: wrap;
-        justify-content: flex-end;
-    }
-    .teacher-level-label {
-        font-weight: 800;
-        color: var(--text-heading);
-    }
-    .teacher-level-meta {
-        color: var(--text-secondary);
-        font-size: var(--text-sm);
-        margin-top: 4px;
-    }
-    .level-collapse-toggle {
-        display: inline-flex;
-        align-items: center;
-        gap: 7px;
-        min-height: 28px;
-        margin-top: 7px;
-        padding: 0;
-        border: 0;
-        background: transparent;
-        color: var(--practiq-violet);
-        font: inherit;
-        font-size: var(--text-sm);
-        font-weight: 800;
-        cursor: pointer;
-    }
-    .teacher-level-card--collapsed .teacher-level-actions,
-    .teacher-level-card--collapsed .teacher-level-sections {
-        display: none;
-    }
-    .teacher-level-sections {
-        margin-top: 10px;
-        gap: 8px;
+        flex-direction: column;
         align-items: stretch;
     }
-    .teacher-level-block {
-        flex: 1;
-        min-width: 0;
-        background: var(--surface-hover);
-        border: 1px solid var(--surface-border);
-        border-radius: var(--radius-lg);
-        padding: 9px 10px;
+    .teacher-level-sections {
+        flex-direction: column;
     }
-    .teacher-level-block__title {
-        font-size: var(--text-xs);
-        font-weight: 800;
-        text-transform: uppercase;
-        color: var(--text-secondary);
-        margin-bottom: 6px;
-    }
-    .mini-list {
-        display: grid;
-        gap: 5px;
-    }
-    .mini-item {
-        width: 100%;
-        border: 1px solid var(--surface-border);
-        border-radius: var(--radius-md);
-        background: var(--surface-elevated);
-        padding: 7px 8px;
-        text-align: left;
-        display: grid;
-        gap: 2px;
-    }
-    .mini-item--link {
-        cursor: pointer;
-        transition: var(--transition-fast);
-    }
-    .mini-item--link:hover {
-        border-color: var(--practiq-violet);
-        transform: translateY(-1px);
-    }
-    .mini-item span {
-        color: var(--text-primary);
-        font-weight: 700;
+    .teacher-level-card {
+        padding: 0;
         overflow: hidden;
-        text-overflow: ellipsis;
-        white-space: nowrap;
     }
-    .mini-item small,
-    .mini-empty {
-        color: var(--text-secondary);
-        font-size: var(--text-xs);
+    .teacher-level-card__top {
+        padding: 16px;
+        gap: 12px;
     }
-    @media (max-width: 760px) {
-        .section-header,
-        .teacher-level-card__top,
-        .teacher-level-actions {
-            flex-direction: column;
-            align-items: stretch;
-        }
-        .teacher-level-sections {
-            flex-direction: column;
-        }
-        .teacher-level-card {
-            padding: 0;
-            overflow: hidden;
-        }
-        .teacher-level-card__top {
-            padding: 16px;
-            gap: 12px;
-        }
-        .teacher-level-summary {
-            width: 100%;
-        }
-        .level-collapse-toggle {
-            min-height: 32px;
-            margin-top: 8px;
-        }
-        .teacher-level-actions {
-            width: 100%;
-        }
-        .teacher-level-sections {
-            margin: 0;
-            padding: 0 16px 16px;
-        }
+    .teacher-level-summary {
+        width: 100%;
     }
+    .level-collapse-toggle {
+        min-height: 32px;
+        margin-top: 8px;
+    }
+    .teacher-level-actions {
+        width: 100%;
+    }
+    .teacher-level-sections {
+        margin: 0;
+        padding: 0 16px 16px;
+    }
+}
 </style>

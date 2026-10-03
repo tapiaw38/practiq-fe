@@ -1,105 +1,104 @@
 <script setup lang="ts">
-    import { ref, onMounted } from 'vue';
-    import { useRoute, useRouter } from 'vue-router';
-    import StudentLayout from '@/layouts/StudentLayout.vue';
-    import Skeleton from '@/components/ui/Skeleton.vue';
-    import StudentLevelsList from '@/components/student/levels/StudentLevelsList.vue';
-    import FileViewer from '@/components/ui/FileViewer.vue';
-    import { useCourse } from '@/composables/useCourse';
-    import { useLevel } from '@/composables/useLevel';
-    import { useMaterial } from '@/composables/useMaterial';
-    import type { CourseLevelsResponse, LevelSheetSummary, Material } from '@/types';
+import { ref, onMounted } from 'vue';
+import { useRoute, useRouter } from 'vue-router';
+import StudentLayout from '@/layouts/StudentLayout.vue';
+import Skeleton from '@/components/ui/Skeleton.vue';
+import StudentLevelsList from '@/components/student/levels/StudentLevelsList.vue';
+import FileViewer from '@/components/ui/FileViewer.vue';
+import { useCourse } from '@/composables/useCourse';
+import { useLevel } from '@/composables/useLevel';
+import { useMaterial } from '@/composables/useMaterial';
+import type { CourseLevelsResponse, LevelSheetSummary, Material } from '@/types';
 
-    const route = useRoute();
-    const router = useRouter();
-    const courseId = route.params.courseId as string;
+const route = useRoute();
+const router = useRouter();
+const courseId = route.params.courseId as string;
 
-    const { loadCourse } = useCourse();
-    const { loadCourseLevels } = useLevel();
-    const { loadMaterials, loadMaterial } = useMaterial();
-    const loading = ref(true);
-    const data = ref<CourseLevelsResponse | null>(null);
-    const courseTitle = ref('');
-    const materials = ref<Material[]>([]);
+const { loadCourse } = useCourse();
+const { loadCourseLevels } = useLevel();
+const { loadMaterials, loadMaterial } = useMaterial();
+const loading = ref(true);
+const data = ref<CourseLevelsResponse | null>(null);
+const courseTitle = ref('');
+const materials = ref<Material[]>([]);
 
-    const expanded = ref<Set<string>>(new Set());
+const expanded = ref<Set<string>>(new Set());
 
-    const CLAMP_CHARS = 120;
+const CLAMP_CHARS = 120;
 
-    function canExpand(material: Material) {
-        return (
-            material.extracted_text_truncated ||
-            (material.extracted_text?.length ?? 0) > CLAMP_CHARS
-        );
-    }
+function canExpand(material: Material) {
+    return (
+        material.extracted_text_truncated || (material.extracted_text?.length ?? 0) > CLAMP_CHARS
+    );
+}
 
-    async function toggleExpanded(material: Material) {
-        const next = new Set(expanded.value);
-        if (next.has(material.id)) {
-            next.delete(material.id);
-            expanded.value = next;
-            return;
-        }
-        next.add(material.id);
+async function toggleExpanded(material: Material) {
+    const next = new Set(expanded.value);
+    if (next.has(material.id)) {
+        next.delete(material.id);
         expanded.value = next;
-
-        if (!material.extracted_text_truncated) return;
-        const full = await loadMaterial(material.id);
-        if (!full) return;
-        materials.value = materials.value.map((m) =>
-            m.id === material.id
-                ? { ...m, extracted_text: full.extracted_text, extracted_text_truncated: false }
-                : m,
-        );
+        return;
     }
+    next.add(material.id);
+    expanded.value = next;
 
-    onMounted(async () => {
-        try {
-            const [levelsRes, courseRes, materialsRes] = await Promise.allSettled([
-                loadCourseLevels(courseId),
-                loadCourse(courseId),
-                loadMaterials(courseId),
-            ]);
-            if (levelsRes.status === 'fulfilled') data.value = levelsRes.value;
-            if (courseRes.status === 'fulfilled') {
-                courseTitle.value = courseRes.value?.title || '';
-            }
+    if (!material.extracted_text_truncated) return;
+    const full = await loadMaterial(material.id);
+    if (!full) return;
+    materials.value = materials.value.map((m) =>
+        m.id === material.id
+            ? { ...m, extracted_text: full.extracted_text, extracted_text_truncated: false }
+            : m,
+    );
+}
 
-            if (materialsRes.status === 'fulfilled') materials.value = materialsRes.value || [];
-        } finally {
-            loading.value = false;
+onMounted(async () => {
+    try {
+        const [levelsRes, courseRes, materialsRes] = await Promise.allSettled([
+            loadCourseLevels(courseId),
+            loadCourse(courseId),
+            loadMaterials(courseId),
+        ]);
+        if (levelsRes.status === 'fulfilled') data.value = levelsRes.value;
+        if (courseRes.status === 'fulfilled') {
+            courseTitle.value = courseRes.value?.title || '';
         }
-    });
 
-    function goLevelTest(sheet: LevelSheetSummary) {
-        router.push(`/student/level-test/${sheet.id}`);
+        if (materialsRes.status === 'fulfilled') materials.value = materialsRes.value || [];
+    } finally {
+        loading.value = false;
     }
+});
 
-    function openPractice(sheetId: string) {
-        router.push(`/student/practice/${sheetId}`);
-    }
+function goLevelTest(sheet: LevelSheetSummary) {
+    router.push(`/student/level-test/${sheet.id}`);
+}
 
-    function openNotebook(notebookId: string) {
-        router.push(`/student/notebook/${notebookId}`);
-    }
+function openPractice(sheetId: string) {
+    router.push(`/student/practice/${sheetId}`);
+}
 
-    const MATERIAL_ICONS: Record<string, string> = {
-        pdf: 'pi-file-pdf',
-        image: 'pi-image',
-        video: 'pi-video',
-        worksheet: 'pi-file-edit',
-        text: 'pi-align-left',
-    };
+function openNotebook(notebookId: string) {
+    router.push(`/student/notebook/${notebookId}`);
+}
 
-    function materialIcon(type: string) {
-        return MATERIAL_ICONS[type] ?? 'pi-file';
-    }
+const MATERIAL_ICONS: Record<string, string> = {
+    pdf: 'pi-file-pdf',
+    image: 'pi-image',
+    video: 'pi-video',
+    worksheet: 'pi-file-edit',
+    text: 'pi-align-left',
+};
 
-    const viewing = ref<Material | null>(null);
+function materialIcon(type: string) {
+    return MATERIAL_ICONS[type] ?? 'pi-file';
+}
 
-    function openableURL(material: Material) {
-        return material.view_url || material.file_url || '';
-    }
+const viewing = ref<Material | null>(null);
+
+function openableURL(material: Material) {
+    return material.view_url || material.file_url || '';
+}
 </script>
 
 <template>
@@ -223,352 +222,352 @@
 </template>
 
 <style scoped>
-    .materials-section {
-        background: var(--surface-elevated);
-        border: 1px solid var(--surface-elevated-strong);
-        border-radius: var(--radius-2xl);
-        box-shadow: var(--shadow-card);
-        padding: 18px;
+.materials-section {
+    background: var(--surface-elevated);
+    border: 1px solid var(--surface-elevated-strong);
+    border-radius: var(--radius-2xl);
+    box-shadow: var(--shadow-card);
+    padding: 18px;
+}
+.materials-title {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin: 0 0 14px;
+    font-size: 1.1rem;
+    font-weight: 800;
+    color: var(--text-heading);
+}
+.materials-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: grid;
+    gap: 10px;
+}
+.material-item {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 12px 14px;
+    border: 1px solid var(--surface-border);
+    border-radius: var(--radius-lg);
+    background: var(--surface-card);
+}
+.material-icon {
+    display: grid;
+    place-items: center;
+    width: 38px;
+    height: 38px;
+    flex: 0 0 auto;
+    border-radius: var(--radius-md, 10px);
+    background: var(--fill-primary-soft);
+    color: var(--practiq-violet);
+}
+.material-body {
+    flex: 1;
+    min-width: 0;
+}
+.material-name {
+    font-weight: 800;
+    color: var(--text-primary);
+}
+.material-text {
+    margin: 2px 0 0;
+    color: var(--text-secondary);
+    font-size: var(--text-sm);
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+}
+.material-text--open {
+    display: block;
+    -webkit-line-clamp: none;
+    line-clamp: none;
+    overflow: visible;
+}
+.material-more {
+    margin-top: 4px;
+    padding: 4px 0;
+    min-height: 32px;
+    border: none;
+    background: none;
+    color: var(--practiq-violet);
+    font-size: var(--text-sm);
+    font-weight: 700;
+    cursor: pointer;
+}
+.material-open {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    flex: 0 0 auto;
+    padding: 8px 12px;
+    border-radius: var(--radius-lg);
+    background: var(--fill-primary-soft);
+    color: var(--practiq-violet);
+    font-weight: 700;
+    font-size: var(--text-sm);
+    text-decoration: none;
+    border: none;
+    cursor: pointer;
+    font-family: inherit;
+}
+.levels-shell {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 24px 20px 60px;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+}
+
+.levels-header {
+    display: flex;
+    align-items: flex-start;
+    gap: 16px;
+    padding: 20px 24px;
+    background: var(--elevation-tint-bg);
+    border-radius: var(--radius-2xl);
+    border: 1.5px solid rgba(var(--practiq-violet-rgb), 0.12);
+    box-shadow: var(--shadow-card);
+}
+
+.btn-back {
+    width: 38px;
+    height: 38px;
+    border-radius: 50%;
+    border: 1.5px solid rgba(var(--practiq-violet-rgb), 0.2);
+    background: var(--surface-elevated-strong);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    margin-top: 2px;
+    transition: background 0.15s;
+}
+.btn-back:hover {
+    background: var(--fill-primary-faint);
+}
+
+.header-info {
+    flex: 1;
+    min-width: 0;
+}
+.header-kicker {
+    font-size: var(--text-xs);
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: var(--practiq-violet);
+    margin-bottom: 4px;
+}
+.header-title {
+    font-size: 1.3rem;
+    font-weight: 800;
+    color: var(--text-primary);
+    margin: 0;
+}
+.header-title-skeleton {
+    margin-top: 6px;
+}
+
+.current-level-badge {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 10px 20px;
+    background: var(--gradient-brand);
+    border-radius: var(--radius-xl);
+    color: var(--color-on-primary);
+    flex-shrink: 0;
+}
+.cl-label {
+    font-size: 10px;
+    font-weight: 600;
+    opacity: 0.85;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+}
+.cl-value {
+    font-size: 1.8rem;
+    font-weight: 800;
+    line-height: 1;
+}
+
+.current-level-badge-skeleton {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 10px 20px;
+    background: rgba(var(--practiq-violet-light-rgb), 0.1);
+    border-radius: var(--radius-xl);
+    flex-shrink: 0;
+}
+.levels-path-skeleton {
+    display: grid;
+    gap: 22px;
+}
+.unit-skeleton {
+    display: grid;
+    gap: 18px;
+}
+.unit-banner-skeleton {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 14px 18px;
+    border-radius: var(--radius-2xl);
+    background: var(--practiq-violet);
+}
+.unit-state-skeleton {
+    margin-top: 5px;
+}
+.unit-path-skeleton {
+    display: grid;
+    justify-items: center;
+    gap: 20px;
+    padding: 4px 0 8px;
+}
+.path-topic-skeleton {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    width: 100%;
+}
+.path-topic-skeleton::before,
+.path-topic-skeleton::after {
+    content: '';
+    flex: 1;
+    height: 2px;
+    border-radius: var(--radius-pill);
+    background: rgba(var(--practiq-violet-rgb), 0.2);
+}
+.path-slot-skeleton {
+    display: grid;
+    justify-items: center;
+    gap: 6px;
+}
+.path-slot-skeleton--2 {
+    transform: translateX(44px);
+}
+.path-slot-skeleton--3 {
+    transform: translateX(-44px);
+}
+.mt-4 {
+    margin-top: 4px;
+}
+
+.levels-list {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+}
+
+.level-card {
+    background: rgba(var(--surface-card-rgb), 0.9);
+    border-radius: var(--radius-2xl);
+    box-shadow: var(--shadow-card);
+    overflow: hidden;
+    transition: box-shadow 0.15s;
+}
+
+.lc-header {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    padding: 18px 20px;
+}
+
+.lc-meta {
+    flex: 1;
+}
+
+.lc-body {
+    padding: 16px 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+}
+
+.lc-section {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.lc-items {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.lc-item-info {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    flex: 1;
+    min-width: 0;
+}
+@media (max-width: 1024px) {
+    .levels-shell {
+        padding: 20px 16px 48px;
     }
-    .materials-title {
-        display: flex;
-        align-items: center;
-        gap: 8px;
-        margin: 0 0 14px;
+    .levels-header {
+        padding: 16px 20px;
+    }
+}
+
+@media (max-width: 768px) {
+    .levels-shell {
+        padding: 16px 12px 40px;
+        gap: 14px;
+    }
+    .levels-header {
+        padding: 14px 16px;
+        gap: 12px;
+        flex-wrap: wrap;
+    }
+    .header-title {
         font-size: 1.1rem;
-        font-weight: 800;
-        color: var(--text-heading);
     }
-    .materials-list {
-        list-style: none;
-        margin: 0;
-        padding: 0;
-        display: grid;
+    .current-level-badge {
+        padding: 8px 14px;
+    }
+    .cl-value {
+        font-size: 1.5rem;
+    }
+    .lc-header {
+        padding: 14px 16px;
+        gap: 10px;
+        flex-wrap: wrap;
+    }
+    .lc-body {
+        padding: 12px 16px;
+    }
+}
+
+@media (max-width: 600px) {
+    .levels-shell {
+        padding: 12px 8px 32px;
         gap: 10px;
     }
-    .material-item {
-        display: flex;
-        align-items: center;
-        gap: 12px;
-        padding: 12px 14px;
-        border: 1px solid var(--surface-border);
-        border-radius: var(--radius-lg);
-        background: var(--surface-card);
-    }
-    .material-icon {
-        display: grid;
-        place-items: center;
-        width: 38px;
-        height: 38px;
-        flex: 0 0 auto;
-        border-radius: var(--radius-md, 10px);
-        background: var(--fill-primary-soft);
-        color: var(--practiq-violet);
-    }
-    .material-body {
-        flex: 1;
-        min-width: 0;
-    }
-    .material-name {
-        font-weight: 800;
-        color: var(--text-primary);
-    }
-    .material-text {
-        margin: 2px 0 0;
-        color: var(--text-secondary);
-        font-size: var(--text-sm);
-        display: -webkit-box;
-        -webkit-line-clamp: 2;
-        line-clamp: 2;
-        -webkit-box-orient: vertical;
-        overflow: hidden;
-    }
-    .material-text--open {
-        display: block;
-        -webkit-line-clamp: none;
-        line-clamp: none;
-        overflow: visible;
-    }
-    .material-more {
-        margin-top: 4px;
-        padding: 4px 0;
-        min-height: 32px;
-        border: none;
-        background: none;
-        color: var(--practiq-violet);
-        font-size: var(--text-sm);
-        font-weight: 700;
-        cursor: pointer;
-    }
-    .material-open {
-        display: inline-flex;
-        align-items: center;
-        gap: 6px;
-        flex: 0 0 auto;
-        padding: 8px 12px;
-        border-radius: var(--radius-lg);
-        background: var(--fill-primary-soft);
-        color: var(--practiq-violet);
-        font-weight: 700;
-        font-size: var(--text-sm);
-        text-decoration: none;
-        border: none;
-        cursor: pointer;
-        font-family: inherit;
-    }
-    .levels-shell {
-        max-width: 1200px;
-        margin: 0 auto;
-        padding: 24px 20px 60px;
-        display: flex;
-        flex-direction: column;
-        gap: 16px;
-    }
-
     .levels-header {
-        display: flex;
-        align-items: flex-start;
-        gap: 16px;
-        padding: 20px 24px;
-        background: var(--elevation-tint-bg);
-        border-radius: var(--radius-2xl);
-        border: 1.5px solid rgba(var(--practiq-violet-rgb), 0.12);
-        box-shadow: var(--shadow-card);
+        padding: 12px;
+    }
+    .lc-header {
+        padding: 12px;
+    }
+    .lc-body {
+        padding: 10px 12px;
     }
 
     .btn-back {
-        width: 38px;
-        height: 38px;
-        border-radius: 50%;
-        border: 1.5px solid rgba(var(--practiq-violet-rgb), 0.2);
-        background: var(--surface-elevated-strong);
-        cursor: pointer;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        flex-shrink: 0;
-        margin-top: 2px;
-        transition: background 0.15s;
+        width: 44px;
+        height: 44px;
     }
-    .btn-back:hover {
-        background: var(--fill-primary-faint);
-    }
-
-    .header-info {
-        flex: 1;
-        min-width: 0;
-    }
-    .header-kicker {
-        font-size: var(--text-xs);
-        font-weight: 700;
-        text-transform: uppercase;
-        letter-spacing: 0.1em;
-        color: var(--practiq-violet);
-        margin-bottom: 4px;
-    }
-    .header-title {
-        font-size: 1.3rem;
-        font-weight: 800;
-        color: var(--text-primary);
-        margin: 0;
-    }
-    .header-title-skeleton {
-        margin-top: 6px;
-    }
-
-    .current-level-badge {
-        display: flex;
-        flex-direction: column;
-        align-items: center;
-        padding: 10px 20px;
-        background: var(--gradient-brand);
-        border-radius: var(--radius-xl);
-        color: var(--color-on-primary);
-        flex-shrink: 0;
-    }
-    .cl-label {
-        font-size: 10px;
-        font-weight: 600;
-        opacity: 0.85;
-        text-transform: uppercase;
-        letter-spacing: 0.06em;
-    }
-    .cl-value {
-        font-size: 1.8rem;
-        font-weight: 800;
-        line-height: 1;
-    }
-
-    .current-level-badge-skeleton {
-        display: flex;
-        flex-direction: column;
-        align-items: center;
-        padding: 10px 20px;
-        background: rgba(var(--practiq-violet-light-rgb), 0.1);
-        border-radius: var(--radius-xl);
-        flex-shrink: 0;
-    }
-    .levels-path-skeleton {
-        display: grid;
-        gap: 22px;
-    }
-    .unit-skeleton {
-        display: grid;
-        gap: 18px;
-    }
-    .unit-banner-skeleton {
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        padding: 14px 18px;
-        border-radius: var(--radius-2xl);
-        background: var(--practiq-violet);
-    }
-    .unit-state-skeleton {
-        margin-top: 5px;
-    }
-    .unit-path-skeleton {
-        display: grid;
-        justify-items: center;
-        gap: 20px;
-        padding: 4px 0 8px;
-    }
-    .path-topic-skeleton {
-        display: flex;
-        align-items: center;
-        gap: 10px;
-        width: 100%;
-    }
-    .path-topic-skeleton::before,
-    .path-topic-skeleton::after {
-        content: '';
-        flex: 1;
-        height: 2px;
-        border-radius: var(--radius-pill);
-        background: rgba(var(--practiq-violet-rgb), 0.2);
-    }
-    .path-slot-skeleton {
-        display: grid;
-        justify-items: center;
-        gap: 6px;
-    }
-    .path-slot-skeleton--2 {
-        transform: translateX(44px);
-    }
-    .path-slot-skeleton--3 {
-        transform: translateX(-44px);
-    }
-    .mt-4 {
-        margin-top: 4px;
-    }
-
-    .levels-list {
-        display: flex;
-        flex-direction: column;
-        gap: 14px;
-    }
-
-    .level-card {
-        background: rgba(var(--surface-card-rgb), 0.9);
-        border-radius: var(--radius-2xl);
-        box-shadow: var(--shadow-card);
-        overflow: hidden;
-        transition: box-shadow 0.15s;
-    }
-
-    .lc-header {
-        display: flex;
-        align-items: center;
-        gap: 14px;
-        padding: 18px 20px;
-    }
-
-    .lc-meta {
-        flex: 1;
-    }
-
-    .lc-body {
-        padding: 16px 20px;
-        display: flex;
-        flex-direction: column;
-        gap: 16px;
-    }
-
-    .lc-section {
-        display: flex;
-        flex-direction: column;
-        gap: 8px;
-    }
-
-    .lc-items {
-        display: flex;
-        flex-direction: column;
-        gap: 6px;
-    }
-
-    .lc-item-info {
-        display: flex;
-        flex-direction: column;
-        gap: 2px;
-        flex: 1;
-        min-width: 0;
-    }
-    @media (max-width: 1024px) {
-        .levels-shell {
-            padding: 20px 16px 48px;
-        }
-        .levels-header {
-            padding: 16px 20px;
-        }
-    }
-
-    @media (max-width: 768px) {
-        .levels-shell {
-            padding: 16px 12px 40px;
-            gap: 14px;
-        }
-        .levels-header {
-            padding: 14px 16px;
-            gap: 12px;
-            flex-wrap: wrap;
-        }
-        .header-title {
-            font-size: 1.1rem;
-        }
-        .current-level-badge {
-            padding: 8px 14px;
-        }
-        .cl-value {
-            font-size: 1.5rem;
-        }
-        .lc-header {
-            padding: 14px 16px;
-            gap: 10px;
-            flex-wrap: wrap;
-        }
-        .lc-body {
-            padding: 12px 16px;
-        }
-    }
-
-    @media (max-width: 600px) {
-        .levels-shell {
-            padding: 12px 8px 32px;
-            gap: 10px;
-        }
-        .levels-header {
-            padding: 12px;
-        }
-        .lc-header {
-            padding: 12px;
-        }
-        .lc-body {
-            padding: 10px 12px;
-        }
-
-        .btn-back {
-            width: 44px;
-            height: 44px;
-        }
-    }
+}
 </style>

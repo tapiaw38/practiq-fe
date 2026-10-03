@@ -1,13 +1,13 @@
 <script setup lang="ts">
-    import type { TopicForm, TopicModalEmits, TopicModalProps } from './TopicModal.types';
-    import UiModal from '@/components/ui/UiModal.vue';
+import type { TopicForm, TopicModalEmits, TopicModalProps } from './TopicModal.types';
+import UiModal from '@/components/ui/UiModal.vue';
 
-    const props = defineProps<TopicModalProps>();
-    const emit = defineEmits<TopicModalEmits>();
+const props = defineProps<TopicModalProps>();
+const emit = defineEmits<TopicModalEmits>();
 
-    const updateField = <K extends keyof TopicForm>(field: K, value: TopicForm[K]) => {
-        emit('update:topic', { ...props.topic, [field]: value });
-    };
+const updateField = <K extends keyof TopicForm>(field: K, value: TopicForm[K]) => {
+    emit('update:topic', { ...props.topic, [field]: value });
+};
 </script>
 
 <template>
@@ -73,33 +73,33 @@
 </template>
 
 <style scoped>
-    .modal-box {
-        width: min(560px, 100%);
-        max-height: calc(100vh - 40px);
-        overflow: auto;
-        background: var(--surface-elevated);
-        border: 1px solid var(--surface-elevated-strong);
-        border-radius: var(--radius-2xl);
-        box-shadow: var(--shadow-lg);
-        padding: 22px;
-    }
-    .modal-title {
-        margin: 0 0 18px;
-        font-size: 1.2rem;
-        font-weight: 800;
-    }
+.modal-box {
+    width: min(560px, 100%);
+    max-height: calc(100vh - 40px);
+    overflow: auto;
+    background: var(--surface-elevated);
+    border: 1px solid var(--surface-elevated-strong);
+    border-radius: var(--radius-2xl);
+    box-shadow: var(--shadow-lg);
+    padding: 22px;
+}
+.modal-title {
+    margin: 0 0 18px;
+    font-size: 1.2rem;
+    font-weight: 800;
+}
+.modal-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 10px;
+    margin-top: 18px;
+}
+@media (max-width: 560px) {
     .modal-actions {
-        display: flex;
-        justify-content: flex-end;
-        gap: 10px;
-        margin-top: 18px;
+        flex-direction: column;
     }
-    @media (max-width: 560px) {
-        .modal-actions {
-            flex-direction: column;
-        }
-        .modal-actions .btn {
-            width: 100%;
-        }
+    .modal-actions .btn {
+        width: 100%;
     }
+}
 </style>

@@ -1,693 +1,671 @@
 <script setup lang="ts">
-    import {
-        ref,
-        computed,
-        onMounted,
-        onUnmounted,
-        nextTick,
-        watch,
-        defineAsyncComponent,
-    } from 'vue';
-    import { statementImageDataURL } from '@/utils/statementImage';
-    import ExerciseStepper from '@/components/student/exercises/ExerciseStepper.vue';
-    import { useRoute, useRouter } from 'vue-router';
-    import { useToast } from '@/composables/useToast';
-    import StudentLayout from '@/layouts/StudentLayout.vue';
-    import Skeleton from '@/components/ui/Skeleton.vue';
-    import ConfirmModal from '@/components/ui/ConfirmModal.vue';
-    import XPBubbles from '@/components/ui/XPBubbles.vue';
-    import DrawingCanvas from '@/components/ui/DrawingCanvas.vue';
-    import ColorPalette from '@/components/ui/ColorPalette.vue';
-    import { BASE_COLORS } from '@/utils/palette';
-    import AttachmentAnswer from '@/components/student/exercises/AttachmentAnswer.vue';
-    import ExerciseMedia from '@/components/ui/ExerciseMedia.vue';
-    import FillBlanksAnswer from '@/components/student/exercises/FillBlanksAnswer.vue';
-    import { useLeaveWarning } from '@/composables/useLeaveWarning';
-    import { usePracticeSheet } from '@/composables/usePracticeSheet';
-    import { useAuthStore } from '@/stores/authStore';
-    import type { UploadedFile } from '@/services/uploads/uploadService';
-    import type { PracticeSheet, PracticeSheetExercise, SubmitResult } from '@/types';
-    import {
-        composeAssistantWorkImage,
-        extractTeacherImageDataUrl,
-        parseExerciseMetadata,
-        pickBestStudentImage,
-        prepareHandwritingImage,
-        summarizeExerciseMetadata,
-        statementMediaAudioAttachment,
-        statementMediaDocumentAttachment,
-        statementMediaPreviewDataURL,
-    } from '@/utils/assistantExerciseContext';
-    import { formatDuration } from '@/utils/formatters';
-    import { renderContent, renderEquation } from '@/composables/useContentRenderer';
-    import { useConfetti } from '@/composables/useConfetti';
-    import { useSound } from '@/composables/useSound';
-    import { useCuriosities } from '@/composables/useCuriosities';
-    import { tuckAssistantFab } from '@/composables/useAssistantFabOffset';
-    import AiLoadingModal from '@/components/student/ai/AiLoadingModal.vue';
-    import UiModal from '@/components/ui/UiModal.vue';
-    import { buildFillBlanksAssistantContext } from '@/utils/fillBlanks';
-    import {
-        loadingMessages,
-        levelUpMessages,
-        encourageMessages,
-        randomMessage,
-    } from '@/utils/motivationalMessages';
+import { ref, computed, onMounted, onUnmounted, nextTick, watch, defineAsyncComponent } from 'vue';
+import { statementImageDataURL } from '@/utils/statementImage';
+import ExerciseStepper from '@/components/student/exercises/ExerciseStepper.vue';
+import { useRoute, useRouter } from 'vue-router';
+import { useToast } from '@/composables/useToast';
+import StudentLayout from '@/layouts/StudentLayout.vue';
+import Skeleton from '@/components/ui/Skeleton.vue';
+import ConfirmModal from '@/components/ui/ConfirmModal.vue';
+import XPBubbles from '@/components/ui/XPBubbles.vue';
+import DrawingCanvas from '@/components/ui/DrawingCanvas.vue';
+import ColorPalette from '@/components/ui/ColorPalette.vue';
+import { BASE_COLORS } from '@/utils/palette';
+import AttachmentAnswer from '@/components/student/exercises/AttachmentAnswer.vue';
+import ExerciseMedia from '@/components/ui/ExerciseMedia.vue';
+import FillBlanksAnswer from '@/components/student/exercises/FillBlanksAnswer.vue';
+import { useLeaveWarning } from '@/composables/useLeaveWarning';
+import { usePracticeSheet } from '@/composables/usePracticeSheet';
+import { useAuthStore } from '@/stores/authStore';
+import type { UploadedFile } from '@/types/uploads';
+import type { PracticeSheet, PracticeSheetExercise, SubmitResult } from '@/types';
+import {
+    composeAssistantWorkImage,
+    extractTeacherImageDataUrl,
+    parseExerciseMetadata,
+    pickBestStudentImage,
+    prepareHandwritingImage,
+    summarizeExerciseMetadata,
+    statementMediaAudioAttachment,
+    statementMediaDocumentAttachment,
+    statementMediaPreviewDataURL,
+} from '@/utils/assistantExerciseContext';
+import { formatDuration } from '@/utils/formatters';
+import { renderContent, renderEquation } from '@/composables/useContentRenderer';
+import { useConfetti } from '@/composables/useConfetti';
+import { useSound } from '@/composables/useSound';
+import { useCuriosities } from '@/composables/useCuriosities';
+import { tuckAssistantFab } from '@/composables/useAssistantFabOffset';
+import AiLoadingModal from '@/components/student/ai/AiLoadingModal.vue';
+import UiModal from '@/components/ui/UiModal.vue';
+import { buildFillBlanksAssistantContext } from '@/utils/fillBlanks';
+import {
+    loadingMessages,
+    levelUpMessages,
+    encourageMessages,
+    randomMessage,
+} from '@/utils/motivationalMessages';
 
-    const MathFieldEditor = defineAsyncComponent(
-        () => import('@/components/ui/MathFieldEditor.vue'),
-    );
+const MathFieldEditor = defineAsyncComponent(() => import('@/components/ui/MathFieldEditor.vue'));
 
-    const toast = useToast();
-    const route = useRoute();
-    const router = useRouter();
-    const { leaveConfirmState, onLeaveConfirm, onLeaveCancel, leave } = useLeaveWarning(
-        () => testStarted.value && !submitted.value,
-    );
-    const authStore = useAuthStore();
-    const { loadPracticeSheet, submitPracticeSheetAsync, loadSubmitJob } = usePracticeSheet();
-    const { fireLevelUp } = useConfetti();
-    const { play: playSound } = useSound();
-    const { curiosities, fetchCuriosities } = useCuriosities();
-    const curiosityIndex = ref(0);
+const toast = useToast();
+const route = useRoute();
+const router = useRouter();
+const { leaveConfirmState, onLeaveConfirm, onLeaveCancel, leave } = useLeaveWarning(
+    () => testStarted.value && !submitted.value,
+);
+const authStore = useAuthStore();
+const { loadPracticeSheet, submitPracticeSheetAsync, loadSubmitJob } = usePracticeSheet();
+const { fireLevelUp } = useConfetti();
+const { play: playSound } = useSound();
+const { curiosities, fetchCuriosities } = useCuriosities();
+const curiosityIndex = ref(0);
 
-    const sheet = ref<PracticeSheet | null>(null);
-    const loading = ref(true);
-    const submitted = ref(false);
-    const submitting = ref(false);
+const sheet = ref<PracticeSheet | null>(null);
+const loading = ref(true);
+const submitted = ref(false);
+const submitting = ref(false);
 
-    const pendingSubmitJobId = ref<string | null>(null);
-    const result = ref<SubmitResult | null>(null);
-    const showAllErrors = ref(false);
+const pendingSubmitJobId = ref<string | null>(null);
+const result = ref<SubmitResult | null>(null);
+const showAllErrors = ref(false);
 
-    const incorrectResults = computed(
-        () =>
-            result.value?.exercise_results?.filter(
-                (r) => !r.is_correct && !r.needs_teacher_review,
-            ) ?? [],
-    );
+const incorrectResults = computed(
+    () =>
+        result.value?.exercise_results?.filter((r) => !r.is_correct && !r.needs_teacher_review) ??
+        [],
+);
 
-    const pendingResults = computed(
-        () => result.value?.exercise_results?.filter((r) => r.needs_teacher_review) ?? [],
-    );
+const pendingResults = computed(
+    () => result.value?.exercise_results?.filter((r) => r.needs_teacher_review) ?? [],
+);
 
-    const visibleErrors = computed(() =>
-        showAllErrors.value ? incorrectResults.value : incorrectResults.value.slice(0, 3),
-    );
+const visibleErrors = computed(() =>
+    showAllErrors.value ? incorrectResults.value : incorrectResults.value.slice(0, 3),
+);
 
-    const hiddenErrorsCount = computed(() => Math.max(0, incorrectResults.value.length - 3));
+const hiddenErrorsCount = computed(() => Math.max(0, incorrectResults.value.length - 3));
 
-    function formatStudentAnswer(answer: string): string {
-        if (!answer || answer.trim() === '') return '(vacío)';
-        if (answer.toUpperCase() === 'UNREADABLE') return '(no se pudo leer)';
-        if (answer.startsWith('data:image/')) return '(no se pudo leer)';
-        return answer;
-    }
+function formatStudentAnswer(answer: string): string {
+    if (!answer || answer.trim() === '') return '(vacío)';
+    if (answer.toUpperCase() === 'UNREADABLE') return '(no se pudo leer)';
+    if (answer.startsWith('data:image/')) return '(no se pudo leer)';
+    return answer;
+}
 
-    const answers = ref<Record<string, string>>({});
-    const attachments = ref<Record<string, UploadedFile | null>>({});
+const answers = ref<Record<string, string>>({});
+const attachments = ref<Record<string, UploadedFile | null>>({});
 
-    const uploadingAttachments = ref<Set<string>>(new Set());
+const uploadingAttachments = ref<Set<string>>(new Set());
 
-    function setUploading(exerciseId: string, value: boolean) {
-        const next = new Set(uploadingAttachments.value);
-        if (value) next.add(exerciseId);
-        else next.delete(exerciseId);
-        uploadingAttachments.value = next;
-    }
+function setUploading(exerciseId: string, value: boolean) {
+    const next = new Set(uploadingAttachments.value);
+    if (value) next.add(exerciseId);
+    else next.delete(exerciseId);
+    uploadingAttachments.value = next;
+}
 
-    function setAttachment(exerciseId: string, value: UploadedFile | null) {
-        attachments.value = { ...attachments.value, [exerciseId]: value };
-    }
+function setAttachment(exerciseId: string, value: UploadedFile | null) {
+    attachments.value = { ...attachments.value, [exerciseId]: value };
+}
 
-    const showInstructionsModal = ref(true);
-    const showTimeWarning = ref(false);
-    const showRetryModal = ref(false);
-    const showSuccessModal = ref(false);
-    const testStarted = ref(false);
-    let warningShown = false;
+const showInstructionsModal = ref(true);
+const showTimeWarning = ref(false);
+const showRetryModal = ref(false);
+const showSuccessModal = ref(false);
+const testStarted = ref(false);
+let warningShown = false;
 
-    watch(
-        [showInstructionsModal, showRetryModal, showSuccessModal],
-        ([instructions, retry, success]) => {
-            document.body.classList.toggle(
-                'assistant-modal-open',
-                instructions || retry || success,
-            );
-        },
-        { immediate: true },
-    );
-    const loadingMessage = ref(randomMessage(loadingMessages));
-    let loadingMsgInterval: ReturnType<typeof setInterval> | null = null;
+watch(
+    [showInstructionsModal, showRetryModal, showSuccessModal],
+    ([instructions, retry, success]) => {
+        document.body.classList.toggle('assistant-modal-open', instructions || retry || success);
+    },
+    { immediate: true },
+);
+const loadingMessage = ref(randomMessage(loadingMessages));
+let loadingMsgInterval: ReturnType<typeof setInterval> | null = null;
 
-    const canvasRefs: Record<string, InstanceType<typeof DrawingCanvas> | null> = {};
-    const canvasData = ref<Record<string, string>>({});
-    const activeId = ref<string>('');
-    const tool = ref<'pen' | 'eraser'>('pen');
+const canvasRefs: Record<string, InstanceType<typeof DrawingCanvas> | null> = {};
+const canvasData = ref<Record<string, string>>({});
+const activeId = ref<string>('');
+const tool = ref<'pen' | 'eraser'>('pen');
 
-    const penColor = ref(BASE_COLORS[0].value);
-    const penSize = ref(3);
+const penColor = ref(BASE_COLORS[0].value);
+const penSize = ref(3);
 
-    const TEST_DURATION_SECONDS = 30 * 60;
-    const timeLeft = ref(TEST_DURATION_SECONDS);
+const TEST_DURATION_SECONDS = 30 * 60;
+const timeLeft = ref(TEST_DURATION_SECONDS);
 
-    function secondsUntilDeadline(deadline?: string) {
-        if (!deadline) return null;
-        const remaining = Math.floor((new Date(deadline).getTime() - Date.now()) / 1000);
-        return Number.isFinite(remaining) ? Math.max(remaining, 0) : null;
-    }
-    let timer: ReturnType<typeof setInterval> | null = null;
+function secondsUntilDeadline(deadline?: string) {
+    if (!deadline) return null;
+    const remaining = Math.floor((new Date(deadline).getTime() - Date.now()) / 1000);
+    return Number.isFinite(remaining) ? Math.max(remaining, 0) : null;
+}
+let timer: ReturnType<typeof setInterval> | null = null;
 
-    const hasTimeLimit = computed(() => (sheet.value?.time_limit_minutes ?? 0) > 0);
-    const elapsedSeconds = ref(0);
+const hasTimeLimit = computed(() => (sheet.value?.time_limit_minutes ?? 0) > 0);
+const elapsedSeconds = ref(0);
 
-    function startTimer() {
-        if (timer) clearInterval(timer);
-        timer = setInterval(() => {
-            if (testStarted.value) elapsedSeconds.value++;
-            if (!hasTimeLimit.value) return;
+function startTimer() {
+    if (timer) clearInterval(timer);
+    timer = setInterval(() => {
+        if (testStarted.value) elapsedSeconds.value++;
+        if (!hasTimeLimit.value) return;
 
-            const remaining = secondsUntilDeadline(sheet.value?.deadline);
-            if (remaining !== null) timeLeft.value = remaining;
-            if (!testStarted.value) return;
-            if (timeLeft.value <= 0) {
-                clearInterval(timer!);
-                timer = null;
-                submit();
-            } else if (timeLeft.value <= 300 && !warningShown) {
-                showTimeWarning.value = true;
-                warningShown = true;
+        const remaining = secondsUntilDeadline(sheet.value?.deadline);
+        if (remaining !== null) timeLeft.value = remaining;
+        if (!testStarted.value) return;
+        if (timeLeft.value <= 0) {
+            clearInterval(timer!);
+            timer = null;
+            submit();
+        } else if (timeLeft.value <= 300 && !warningShown) {
+            showTimeWarning.value = true;
+            warningShown = true;
 
-                setTimeout(() => {
-                    showTimeWarning.value = false;
-                }, 10000);
-            } else if (remaining === null) {
-                timeLeft.value--;
-            }
-        }, 1000);
-    }
-
-    const teacherImages = ref<Record<string, string>>({});
-
-    function teacherImageFor(
-        exercise?: { id?: string; question?: string; metadata?: string } | null,
-    ) {
-        if (!exercise?.id) return '';
-
-        return teacherImages.value[exercise.id] || extractTeacherImageDataUrl(exercise as never);
-    }
-
-    async function loadTeacherImages() {
-        const pending = (sheet.value?.exercises ?? [])
-            .map((item) => item.exercise)
-            .filter((exercise) => exercise?.has_teacher_image)
-            .map(async (exercise) => {
-                const dataUrl = await statementImageDataURL(exercise);
-                if (dataUrl) teacherImages.value[exercise.id] = dataUrl;
-            });
-        await Promise.all(pending);
-    }
-
-    const exercises = computed<PracticeSheetExercise[]>(() => sheet.value?.exercises || []);
-    const isCanvas = computed(() => sheet.value?.test_style === 'canvas');
-    const hasCanvasExercises = computed(() =>
-        exercises.value.some((ex) => exerciseUsesCanvas(ex.exercise.type)),
-    );
-
-    function isAnswered(exerciseId: string) {
-        const exercise = exercises.value.find((ex) => ex.exercise.id === exerciseId)?.exercise;
-        if (exercise?.type === 'attachment') {
-            return !!attachments.value[exerciseId];
+            setTimeout(() => {
+                showTimeWarning.value = false;
+            }, 10000);
+        } else if (remaining === null) {
+            timeLeft.value--;
         }
-        if (exercise && exerciseUsesCanvas(exercise.type)) return !!canvasData.value[exerciseId];
-        return (answers.value[exerciseId] || '').trim() !== '';
+    }, 1000);
+}
+
+const teacherImages = ref<Record<string, string>>({});
+
+function teacherImageFor(exercise?: { id?: string; question?: string; metadata?: string } | null) {
+    if (!exercise?.id) return '';
+
+    return teacherImages.value[exercise.id] || extractTeacherImageDataUrl(exercise as never);
+}
+
+async function loadTeacherImages() {
+    const pending = (sheet.value?.exercises ?? [])
+        .map((item) => item.exercise)
+        .filter((exercise) => exercise?.has_teacher_image)
+        .map(async (exercise) => {
+            const dataUrl = await statementImageDataURL(exercise);
+            if (dataUrl) teacherImages.value[exercise.id] = dataUrl;
+        });
+    await Promise.all(pending);
+}
+
+const exercises = computed<PracticeSheetExercise[]>(() => sheet.value?.exercises || []);
+const isCanvas = computed(() => sheet.value?.test_style === 'canvas');
+const hasCanvasExercises = computed(() =>
+    exercises.value.some((ex) => exerciseUsesCanvas(ex.exercise.type)),
+);
+
+function isAnswered(exerciseId: string) {
+    const exercise = exercises.value.find((ex) => ex.exercise.id === exerciseId)?.exercise;
+    if (exercise?.type === 'attachment') {
+        return !!attachments.value[exerciseId];
     }
+    if (exercise && exerciseUsesCanvas(exercise.type)) return !!canvasData.value[exerciseId];
+    return (answers.value[exerciseId] || '').trim() !== '';
+}
 
-    const currentIdx = ref(0);
+const currentIdx = ref(0);
 
-    const visibleExercises = computed(() => {
-        const current = exercises.value[currentIdx.value];
-        return current ? [current] : [];
-    });
+const visibleExercises = computed(() => {
+    const current = exercises.value[currentIdx.value];
+    return current ? [current] : [];
+});
 
-    const answeredFlags = computed(() =>
-        exercises.value.map((item) => isAnswered(item.exercise.id)),
+const answeredFlags = computed(() => exercises.value.map((item) => isAnswered(item.exercise.id)));
+
+function goToExercise(index: number) {
+    if (index < 0 || index >= exercises.value.length) return;
+    if (index === currentIdx.value) return;
+    const target = exercises.value[index];
+    if (!target) return;
+    currentIdx.value = index;
+    setActiveExercise(target.exercise.id);
+}
+
+function setActiveExercise(exerciseId: string) {
+    activeId.value = exerciseId;
+    const index = exercises.value.findIndex((item) => item.exercise.id === exerciseId);
+    window.dispatchEvent(
+        new CustomEvent('practiq:assistant:active-context', {
+            detail: { label: index >= 0 ? `E${index + 1}` : '' },
+        }),
     );
+}
 
-    function goToExercise(index: number) {
-        if (index < 0 || index >= exercises.value.length) return;
-        if (index === currentIdx.value) return;
-        const target = exercises.value[index];
-        if (!target) return;
-        currentIdx.value = index;
-        setActiveExercise(target.exercise.id);
-    }
+const OWN_INPUT_TYPES = new Set(['multiple_choice', 'fill_blanks', 'attachment', 'equation']);
 
-    function setActiveExercise(exerciseId: string) {
-        activeId.value = exerciseId;
-        const index = exercises.value.findIndex((item) => item.exercise.id === exerciseId);
-        window.dispatchEvent(
-            new CustomEvent('practiq:assistant:active-context', {
-                detail: { label: index >= 0 ? `E${index + 1}` : '' },
-            }),
-        );
-    }
+function exerciseUsesCanvas(exerciseType: string) {
+    if (OWN_INPUT_TYPES.has(exerciseType)) return false;
+    return isCanvas.value || exerciseType === 'handwritten' || exerciseType === 'canvas';
+}
 
-    const OWN_INPUT_TYPES = new Set(['multiple_choice', 'fill_blanks', 'attachment', 'equation']);
+function exerciseOptions(metadata?: string) {
+    const options = parseExerciseMetadata(metadata)?.options;
+    return Array.isArray(options) ? options.map((option) => String(option)).filter(Boolean) : [];
+}
 
-    function exerciseUsesCanvas(exerciseType: string) {
-        if (OWN_INPUT_TYPES.has(exerciseType)) return false;
-        return isCanvas.value || exerciseType === 'handwritten' || exerciseType === 'canvas';
-    }
+const answeredCount = computed(
+    () => exercises.value.filter((ex) => isAnswered(ex.exercise.id)).length,
+);
+const unansweredCount = computed(() => exercises.value.length - answeredCount.value);
+const answeredPercent = computed(() =>
+    exercises.value.length ? Math.round((answeredCount.value / exercises.value.length) * 100) : 0,
+);
+const formattedTime = computed(() => formatDuration(timeLeft.value));
 
-    function exerciseOptions(metadata?: string) {
-        const options = parseExerciseMetadata(metadata)?.options;
-        return Array.isArray(options)
-            ? options.map((option) => String(option)).filter(Boolean)
-            : [];
-    }
+const timeLimitLabel = computed(() => {
+    const minutes = sheet.value?.time_limit_minutes ?? 0;
+    if (minutes <= 0) return '';
+    return minutes === 1 ? '1 minuto' : `${minutes} minutos`;
+});
 
-    const answeredCount = computed(
-        () => exercises.value.filter((ex) => isAnswered(ex.exercise.id)).length,
-    );
-    const unansweredCount = computed(() => exercises.value.length - answeredCount.value);
-    const answeredPercent = computed(() =>
-        exercises.value.length
-            ? Math.round((answeredCount.value / exercises.value.length) * 100)
-            : 0,
-    );
-    const formattedTime = computed(() => formatDuration(timeLeft.value));
+const attemptsLeftLabel = computed(() => {
+    const allowed = sheet.value?.attempts_allowed ?? 0;
+    if (allowed <= 1) return '';
+    const left = Math.max(allowed - (sheet.value?.attempts_used ?? 0), 0);
+    return left === 1 ? 'Último intento' : `${left} intentos restantes`;
+});
 
-    const timeLimitLabel = computed(() => {
-        const minutes = sheet.value?.time_limit_minutes ?? 0;
-        if (minutes <= 0) return '';
-        return minutes === 1 ? '1 minuto' : `${minutes} minutos`;
-    });
+function setCanvasRef(id: string, el: InstanceType<typeof DrawingCanvas> | null) {
+    canvasRefs[id] = el;
+}
 
-    const attemptsLeftLabel = computed(() => {
-        const allowed = sheet.value?.attempts_allowed ?? 0;
-        if (allowed <= 1) return '';
-        const left = Math.max(allowed - (sheet.value?.attempts_used ?? 0), 0);
-        return left === 1 ? 'Último intento' : `${left} intentos restantes`;
-    });
+function undoActive() {
+    const id = activeId.value;
+    if (!id) return;
+    const canvas = canvasRefs[id];
+    if (!canvas) return;
+    canvas.undo();
+}
 
-    function setCanvasRef(id: string, el: InstanceType<typeof DrawingCanvas> | null) {
-        canvasRefs[id] = el;
-    }
+function clearCanvas(id: string) {
+    const canvas = canvasRefs[id];
+    if (!canvas) return;
+    canvas.clear();
+    const copy = { ...canvasData.value };
+    delete copy[id];
+    canvasData.value = copy;
+}
 
-    function undoActive() {
-        const id = activeId.value;
-        if (!id) return;
-        const canvas = canvasRefs[id];
-        if (!canvas) return;
-        canvas.undo();
-    }
+tuckAssistantFab('.test-footer');
 
-    function clearCanvas(id: string) {
-        const canvas = canvasRefs[id];
-        if (!canvas) return;
-        canvas.clear();
-        const copy = { ...canvasData.value };
-        delete copy[id];
-        canvasData.value = copy;
-    }
+onMounted(async () => {
+    const id = route.params.id as string;
+    try {
+        sheet.value = await loadPracticeSheet(id);
+        const remaining = secondsUntilDeadline(sheet.value.deadline);
+        if (remaining !== null) timeLeft.value = remaining;
+        loadTeacherImages();
 
-    tuckAssistantFab('.test-footer');
-
-    onMounted(async () => {
-        const id = route.params.id as string;
-        try {
-            sheet.value = await loadPracticeSheet(id);
-            const remaining = secondsUntilDeadline(sheet.value.deadline);
-            if (remaining !== null) timeLeft.value = remaining;
-            loadTeacherImages();
-
-            const first = exercises.value[0]?.exercise.id;
-            if (first) setActiveExercise(first);
-            for (const ex of exercises.value) {
-                answers.value[ex.exercise.id] = '';
-            }
-
-            if (sheet.value.course_id) {
-                fetchCuriosities(sheet.value.course_id);
-            }
-
-            if (hasTimeLimit.value) startTimer();
-        } finally {
-            loading.value = false;
-        }
-    });
-
-    onUnmounted(() => {
-        document.body.classList.remove('assistant-modal-open');
-        if (timer) clearInterval(timer);
-        if (loadingMsgInterval) clearInterval(loadingMsgInterval);
-        if ((window as any).__practiqAssistantHookSource === 'level-test') {
-            delete window.__practiqAssistantCapture;
-            delete window.__practiqAssistantContext;
-            delete window.__practiqAssistantMediaAttachments;
-            delete (window as any).__practiqAssistantHookSource;
-        }
-    });
-
-    async function confirmExit() {
-        await leave(() => router.back());
-    }
-
-    function getNextCuriosity(): string {
-        if (curiosities.value.length > 0) {
-            const msg = curiosities.value[curiosityIndex.value % curiosities.value.length];
-            curiosityIndex.value++;
-            return msg;
-        }
-        return randomMessage(loadingMessages);
-    }
-
-    async function submit() {
-        if (uploadingAttachments.value.size > 0) {
-            toast.add({
-                severity: 'warn',
-                summary: 'Esperá un momento',
-                detail: 'Todavía se está subiendo un archivo. Se enviaría sin él.',
-                life: 3500,
-            });
-            return;
+        const first = exercises.value[0]?.exercise.id;
+        if (first) setActiveExercise(first);
+        for (const ex of exercises.value) {
+            answers.value[ex.exercise.id] = '';
         }
 
-        if (submitting.value) return;
-        submitting.value = true;
-        if (timer) clearInterval(timer);
+        if (sheet.value.course_id) {
+            fetchCuriosities(sheet.value.course_id);
+        }
 
+        if (hasTimeLimit.value) startTimer();
+    } finally {
+        loading.value = false;
+    }
+});
+
+onUnmounted(() => {
+    document.body.classList.remove('assistant-modal-open');
+    if (timer) clearInterval(timer);
+    if (loadingMsgInterval) clearInterval(loadingMsgInterval);
+    if ((window as any).__practiqAssistantHookSource === 'level-test') {
+        delete window.__practiqAssistantCapture;
+        delete window.__practiqAssistantContext;
+        delete window.__practiqAssistantMediaAttachments;
+        delete (window as any).__practiqAssistantHookSource;
+    }
+});
+
+async function confirmExit() {
+    await leave(() => router.back());
+}
+
+function getNextCuriosity(): string {
+    if (curiosities.value.length > 0) {
+        const msg = curiosities.value[curiosityIndex.value % curiosities.value.length];
+        curiosityIndex.value++;
+        return msg;
+    }
+    return randomMessage(loadingMessages);
+}
+
+async function submit() {
+    if (uploadingAttachments.value.size > 0) {
+        toast.add({
+            severity: 'warn',
+            summary: 'Esperá un momento',
+            detail: 'Todavía se está subiendo un archivo. Se enviaría sin él.',
+            life: 3500,
+        });
+        return;
+    }
+
+    if (submitting.value) return;
+    submitting.value = true;
+    if (timer) clearInterval(timer);
+
+    loadingMessage.value = getNextCuriosity();
+    loadingMsgInterval = setInterval(() => {
         loadingMessage.value = getNextCuriosity();
-        loadingMsgInterval = setInterval(() => {
-            loadingMessage.value = getNextCuriosity();
-        }, 3000);
+    }, 3000);
 
-        const perExerciseSeconds = exercises.value.length
-            ? Math.round(elapsedSeconds.value / exercises.value.length)
-            : 0;
+    const perExerciseSeconds = exercises.value.length
+        ? Math.round(elapsedSeconds.value / exercises.value.length)
+        : 0;
 
-        try {
-            if (!pendingSubmitJobId.value) {
-                const attempts = await Promise.all(
-                    exercises.value.map(async (ex) => {
-                        if (ex.exercise.type === 'attachment') {
-                            const uploaded = attachments.value[ex.exercise.id];
-                            return {
-                                exercise_id: ex.exercise.id,
-                                answer_text: '',
-                                canvas_data: '',
-                                attachment_url: uploaded?.url ?? '',
-                                attachment_name: uploaded?.filename ?? '',
-                                attachment_content_type: uploaded?.content_type ?? '',
-                                time_spent_seconds: perExerciseSeconds,
-                                hints_used: 0,
-                            };
-                        }
+    try {
+        if (!pendingSubmitJobId.value) {
+            const attempts = await Promise.all(
+                exercises.value.map(async (ex) => {
+                    if (ex.exercise.type === 'attachment') {
+                        const uploaded = attachments.value[ex.exercise.id];
                         return {
                             exercise_id: ex.exercise.id,
-                            answer_text: exerciseUsesCanvas(ex.exercise.type)
-                                ? ''
-                                : answers.value[ex.exercise.id] || '',
-                            canvas_data: exerciseUsesCanvas(ex.exercise.type)
-                                ? await buildCanvasDataForOCR(ex.exercise.id)
-                                : '',
+                            answer_text: '',
+                            canvas_data: '',
+                            attachment_url: uploaded?.url ?? '',
+                            attachment_name: uploaded?.filename ?? '',
+                            attachment_content_type: uploaded?.content_type ?? '',
                             time_spent_seconds: perExerciseSeconds,
                             hints_used: 0,
                         };
-                    }),
-                );
-                const start = await submitPracticeSheetAsync(sheet.value!.id, {
-                    attempts,
-                });
-                pendingSubmitJobId.value = start.job_id;
-            }
-
-            const jobId = pendingSubmitJobId.value;
-            let jobDone = false;
-
-            while (!jobDone) {
-                await new Promise((resolve) => setTimeout(resolve, 1200));
-                const job = await loadSubmitJob(jobId);
-                if (job.status === 'processing') {
-                    continue;
-                }
-                if (job.status === 'failed') {
-                    pendingSubmitJobId.value = null;
-                    throw new Error(job.message || 'No se pudo evaluar la prueba');
-                }
-                result.value = job.result?.data || null;
-                jobDone = true;
-            }
-
-            if (!result.value) {
-                throw new Error('No se recibió resultado de evaluación');
-            }
-            showAllErrors.value = false;
-            submitted.value = true;
-            pendingSubmitJobId.value = null;
-
-            if (!result.value.pending_review) {
-                if (result.value.should_level_up) {
-                    showSuccessModal.value = true;
-                    fireLevelUp();
-                    playSound('levelup');
-                } else {
-                    playSound('incorrect');
-                }
-            }
-        } catch (err) {
-            console.error(err);
-            const errorMessage = err instanceof Error ? err.message : '';
-
-            if (!submitted.value && !pendingSubmitJobId.value) {
-                if (timeLeft.value > 0) startTimer();
-                toast.add({
-                    severity: 'error',
-                    summary: 'No se pudo enviar',
-                    detail:
-                        errorMessage === 'this level test was already submitted'
-                            ? 'Esta prueba ya fue enviada. Pedile a tu docente una nueva oportunidad.'
-                            : timeLeft.value > 0
-                              ? 'Revisá tu conexión y volvé a intentar. El tiempo sigue corriendo.'
-                              : 'Se acabó el tiempo y no pudimos enviar la prueba. Avisale a tu docente.',
-                    life: 5000,
-                });
-            } else if (!submitted.value) {
-                toast.add({
-                    severity: 'warn',
-                    summary: 'Envío recibido',
-                    detail: 'No pudimos consultar la evaluación. Volvé a intentarlo para ver el resultado.',
-                    life: 5000,
-                });
-            }
-        } finally {
-            submitting.value = false;
-            if (loadingMsgInterval) {
-                clearInterval(loadingMsgInterval);
-                loadingMsgInterval = null;
-            }
-        }
-    }
-
-    function buildCanvasDataForOCR(exerciseId: string) {
-        return prepareHandwritingImage(canvasData.value[exerciseId] || '');
-    }
-
-    function getAssistantExerciseId() {
-        const visible = exercises.value[currentIdx.value]?.exercise.id;
-        if (visible) return visible;
-
-        if (activeId.value) {
-            return activeId.value;
+                    }
+                    return {
+                        exercise_id: ex.exercise.id,
+                        answer_text: exerciseUsesCanvas(ex.exercise.type)
+                            ? ''
+                            : answers.value[ex.exercise.id] || '',
+                        canvas_data: exerciseUsesCanvas(ex.exercise.type)
+                            ? await buildCanvasDataForOCR(ex.exercise.id)
+                            : '',
+                        time_spent_seconds: perExerciseSeconds,
+                        hints_used: 0,
+                    };
+                }),
+            );
+            const start = await submitPracticeSheetAsync(sheet.value!.id, {
+                attempts,
+            });
+            pendingSubmitJobId.value = start.job_id;
         }
 
-        const answeredId = Object.keys(canvasData.value)[0];
-        if (answeredId) return answeredId;
+        const jobId = pendingSubmitJobId.value;
+        let jobDone = false;
 
-        return exercises.value[0]?.exercise.id || '';
+        while (!jobDone) {
+            await new Promise((resolve) => setTimeout(resolve, 1200));
+            const job = await loadSubmitJob(jobId);
+            if (job.status === 'processing') {
+                continue;
+            }
+            if (job.status === 'failed') {
+                pendingSubmitJobId.value = null;
+                throw new Error(job.message || 'No se pudo evaluar la prueba');
+            }
+            result.value = job.result?.data || null;
+            jobDone = true;
+        }
+
+        if (!result.value) {
+            throw new Error('No se recibió resultado de evaluación');
+        }
+        showAllErrors.value = false;
+        submitted.value = true;
+        pendingSubmitJobId.value = null;
+
+        if (!result.value.pending_review) {
+            if (result.value.should_level_up) {
+                showSuccessModal.value = true;
+                fireLevelUp();
+                playSound('levelup');
+            } else {
+                playSound('incorrect');
+            }
+        }
+    } catch (err) {
+        console.error(err);
+        const errorMessage = err instanceof Error ? err.message : '';
+
+        if (!submitted.value && !pendingSubmitJobId.value) {
+            if (timeLeft.value > 0) startTimer();
+            toast.add({
+                severity: 'error',
+                summary: 'No se pudo enviar',
+                detail:
+                    errorMessage === 'this level test was already submitted'
+                        ? 'Esta prueba ya fue enviada. Pedile a tu docente una nueva oportunidad.'
+                        : timeLeft.value > 0
+                          ? 'Revisá tu conexión y volvé a intentar. El tiempo sigue corriendo.'
+                          : 'Se acabó el tiempo y no pudimos enviar la prueba. Avisale a tu docente.',
+                life: 5000,
+            });
+        } else if (!submitted.value) {
+            toast.add({
+                severity: 'warn',
+                summary: 'Envío recibido',
+                detail: 'No pudimos consultar la evaluación. Volvé a intentarlo para ver el resultado.',
+                life: 5000,
+            });
+        }
+    } finally {
+        submitting.value = false;
+        if (loadingMsgInterval) {
+            clearInterval(loadingMsgInterval);
+            loadingMsgInterval = null;
+        }
+    }
+}
+
+function buildCanvasDataForOCR(exerciseId: string) {
+    return prepareHandwritingImage(canvasData.value[exerciseId] || '');
+}
+
+function getAssistantExerciseId() {
+    const visible = exercises.value[currentIdx.value]?.exercise.id;
+    if (visible) return visible;
+
+    if (activeId.value) {
+        return activeId.value;
     }
 
-    function getAssistantExerciseIndex(exerciseId: string) {
-        return exercises.value.findIndex((item) => item.exercise.id === exerciseId);
-    }
+    const answeredId = Object.keys(canvasData.value)[0];
+    if (answeredId) return answeredId;
 
-    function assistantMediaPath(exerciseId: string) {
-        if (!sheet.value?.id || !exerciseId) return '';
-        return `/practice-sheets/${encodeURIComponent(sheet.value.id)}/exercises/${encodeURIComponent(exerciseId)}/assistant-media`;
-    }
+    return exercises.value[0]?.exercise.id || '';
+}
 
-    (window as any).__practiqAssistantHookSource = 'level-test';
+function getAssistantExerciseIndex(exerciseId: string) {
+    return exercises.value.findIndex((item) => item.exercise.id === exerciseId);
+}
 
-    window.__practiqAssistantContext = () => {
-        if (!sheet.value) return null;
+function assistantMediaPath(exerciseId: string) {
+    if (!sheet.value?.id || !exerciseId) return '';
+    return `/practice-sheets/${encodeURIComponent(sheet.value.id)}/exercises/${encodeURIComponent(exerciseId)}/assistant-media`;
+}
 
-        const activeExerciseId = getAssistantExerciseId();
-        const activeExerciseIndex = getAssistantExerciseIndex(activeExerciseId);
-        const activeExercise =
-            activeExerciseIndex >= 0 ? exercises.value[activeExerciseIndex]?.exercise : null;
-        const activeTeacherImage = teacherImageFor(activeExercise);
+(window as any).__practiqAssistantHookSource = 'level-test';
 
-        return {
-            current_view: 'student_level_test',
-            activity_type: 'level_test',
-            sheet_id: sheet.value.id,
-            sheet_title: sheet.value.title,
-            level: sheet.value.level,
-            response_mode: hasCanvasExercises.value ? 'mixed' : 'keyboard',
-            exercise_count: exercises.value.length,
-            active_exercise: activeExercise
-                ? {
-                      id: activeExercise.id,
-                      number: activeExerciseIndex + 1,
-                      type: activeExercise.type,
-                      difficulty: activeExercise.difficulty,
-                      question:
-                          activeExercise.type === 'handwritten' && activeTeacherImage
-                              ? '[consigna manuscrita en imagen adjunta]'
-                              : activeExercise.question,
-                      has_teacher_image: !!activeTeacherImage,
-                      has_statement_media: !!activeExercise.media_view_url,
-                      question_source:
-                          activeExercise.type === 'handwritten' && activeTeacherImage
-                              ? 'teacher_image_attachment'
-                              : 'text',
-                      student_answer:
-                          activeExercise.type === 'fill_blanks'
-                              ? buildFillBlanksAssistantContext(
-                                    activeExercise,
-                                    answers.value[activeExercise.id] || '',
-                                )
-                                    .blanks.filter((blank) => blank.value)
-                                    .map((blank) => `Hueco ${blank.id}: ${blank.value}`)
-                                    .join(', ')
-                              : answers.value[activeExercise.id] || '',
-                      student_answer_raw:
-                          activeExercise.type === 'fill_blanks'
-                              ? answers.value[activeExercise.id] || ''
-                              : '',
-                      puzzle:
-                          activeExercise.type === 'fill_blanks'
-                              ? buildFillBlanksAssistantContext(
-                                    activeExercise,
-                                    answers.value[activeExercise.id] || '',
-                                )
-                              : null,
-                      metadata_summary:
-                          activeExercise.type === 'fill_blanks'
-                              ? ''
-                              : JSON.stringify(summarizeExerciseMetadata(activeExercise) || {}),
-                  }
-                : null,
-            exercise_list: exercises.value.map((item, idx) => ({
-                id: item.exercise.id,
-                number: idx + 1,
-                type: item.exercise.type,
-                difficulty: item.exercise.difficulty,
-                question:
-                    item.exercise.type === 'handwritten' && teacherImageFor(item.exercise)
-                        ? '[consigna manuscrita en imagen adjunta]'
-                        : item.exercise.question,
-                has_teacher_image: !!teacherImageFor(item.exercise),
-                question_source:
-                    item.exercise.type === 'handwritten' && teacherImageFor(item.exercise)
-                        ? 'teacher_image_attachment'
-                        : 'text',
-            })),
-            answered_exercise_ids: exercises.value
-                .filter((item) => isAnswered(item.exercise.id))
-                .map((item) => item.exercise.id),
-        };
+window.__practiqAssistantContext = () => {
+    if (!sheet.value) return null;
+
+    const activeExerciseId = getAssistantExerciseId();
+    const activeExerciseIndex = getAssistantExerciseIndex(activeExerciseId);
+    const activeExercise =
+        activeExerciseIndex >= 0 ? exercises.value[activeExerciseIndex]?.exercise : null;
+    const activeTeacherImage = teacherImageFor(activeExercise);
+
+    return {
+        current_view: 'student_level_test',
+        activity_type: 'level_test',
+        sheet_id: sheet.value.id,
+        sheet_title: sheet.value.title,
+        level: sheet.value.level,
+        response_mode: hasCanvasExercises.value ? 'mixed' : 'keyboard',
+        exercise_count: exercises.value.length,
+        active_exercise: activeExercise
+            ? {
+                  id: activeExercise.id,
+                  number: activeExerciseIndex + 1,
+                  type: activeExercise.type,
+                  difficulty: activeExercise.difficulty,
+                  question:
+                      activeExercise.type === 'handwritten' && activeTeacherImage
+                          ? '[consigna manuscrita en imagen adjunta]'
+                          : activeExercise.question,
+                  has_teacher_image: !!activeTeacherImage,
+                  has_statement_media: !!activeExercise.media_view_url,
+                  question_source:
+                      activeExercise.type === 'handwritten' && activeTeacherImage
+                          ? 'teacher_image_attachment'
+                          : 'text',
+                  student_answer:
+                      activeExercise.type === 'fill_blanks'
+                          ? buildFillBlanksAssistantContext(
+                                activeExercise,
+                                answers.value[activeExercise.id] || '',
+                            )
+                                .blanks.filter((blank) => blank.value)
+                                .map((blank) => `Hueco ${blank.id}: ${blank.value}`)
+                                .join(', ')
+                          : answers.value[activeExercise.id] || '',
+                  student_answer_raw:
+                      activeExercise.type === 'fill_blanks'
+                          ? answers.value[activeExercise.id] || ''
+                          : '',
+                  puzzle:
+                      activeExercise.type === 'fill_blanks'
+                          ? buildFillBlanksAssistantContext(
+                                activeExercise,
+                                answers.value[activeExercise.id] || '',
+                            )
+                          : null,
+                  metadata_summary:
+                      activeExercise.type === 'fill_blanks'
+                          ? ''
+                          : JSON.stringify(summarizeExerciseMetadata(activeExercise) || {}),
+              }
+            : null,
+        exercise_list: exercises.value.map((item, idx) => ({
+            id: item.exercise.id,
+            number: idx + 1,
+            type: item.exercise.type,
+            difficulty: item.exercise.difficulty,
+            question:
+                item.exercise.type === 'handwritten' && teacherImageFor(item.exercise)
+                    ? '[consigna manuscrita en imagen adjunta]'
+                    : item.exercise.question,
+            has_teacher_image: !!teacherImageFor(item.exercise),
+            question_source:
+                item.exercise.type === 'handwritten' && teacherImageFor(item.exercise)
+                    ? 'teacher_image_attachment'
+                    : 'text',
+        })),
+        answered_exercise_ids: exercises.value
+            .filter((item) => isAnswered(item.exercise.id))
+            .map((item) => item.exercise.id),
     };
+};
 
-    window.__practiqAssistantCapture = async () => {
-        const exerciseId = getAssistantExerciseId();
-        if (!exerciseId) return null;
-        const exerciseIndex = getAssistantExerciseIndex(exerciseId);
-        const exercise = exerciseIndex >= 0 ? exercises.value[exerciseIndex]?.exercise : null;
-        if (!exercise) return null;
+window.__practiqAssistantCapture = async () => {
+    const exerciseId = getAssistantExerciseId();
+    if (!exerciseId) return null;
+    const exerciseIndex = getAssistantExerciseIndex(exerciseId);
+    const exercise = exerciseIndex >= 0 ? exercises.value[exerciseIndex]?.exercise : null;
+    if (!exercise) return null;
 
-        const studentDataUrl = exerciseUsesCanvas(exercise.type)
-            ? await pickBestStudentImage([
-                  await buildCanvasDataForOCR(exerciseId),
-                  canvasData.value[exerciseId],
-              ])
-            : '';
+    const studentDataUrl = exerciseUsesCanvas(exercise.type)
+        ? await pickBestStudentImage([
+              await buildCanvasDataForOCR(exerciseId),
+              canvasData.value[exerciseId],
+          ])
+        : '';
 
-        const teacherDataUrl =
-            (await statementMediaPreviewDataURL(exercise, assistantMediaPath(exerciseId))) ||
-            (await statementImageDataURL(exercise)) ||
-            teacherImageFor(exercise);
-        const dataUrl = await composeAssistantWorkImage({
-            teacherDataUrl,
-            studentDataUrl,
-            teacherLabel: 'Consigna del docente',
-            studentLabel: 'Respuesta del alumno',
-        });
+    const teacherDataUrl =
+        (await statementMediaPreviewDataURL(exercise, assistantMediaPath(exerciseId))) ||
+        (await statementImageDataURL(exercise)) ||
+        teacherImageFor(exercise);
+    const dataUrl = await composeAssistantWorkImage({
+        teacherDataUrl,
+        studentDataUrl,
+        teacherLabel: 'Consigna del docente',
+        studentLabel: 'Respuesta del alumno',
+    });
 
-        if (!dataUrl) return null;
+    if (!dataUrl) return null;
 
-        return {
-            dataUrl,
-            filename: `level-test-${exerciseId}.jpg`,
-            contentType: dataUrl.startsWith('data:image/png') ? 'image/png' : 'image/jpeg',
-        };
+    return {
+        dataUrl,
+        filename: `level-test-${exerciseId}.jpg`,
+        contentType: dataUrl.startsWith('data:image/png') ? 'image/png' : 'image/jpeg',
     };
+};
 
-    window.__practiqAssistantMediaAttachments = async () => {
-        const exerciseId = getAssistantExerciseId();
-        const exerciseIndex = getAssistantExerciseIndex(exerciseId);
-        const exercise = exerciseIndex >= 0 ? exercises.value[exerciseIndex]?.exercise : null;
-        const [audio, document] = await Promise.all([
-            statementMediaAudioAttachment(exercise, assistantMediaPath(exerciseId)),
-            statementMediaDocumentAttachment(exercise, assistantMediaPath(exerciseId)),
-        ]);
+window.__practiqAssistantMediaAttachments = async () => {
+    const exerciseId = getAssistantExerciseId();
+    const exerciseIndex = getAssistantExerciseIndex(exerciseId);
+    const exercise = exerciseIndex >= 0 ? exercises.value[exerciseIndex]?.exercise : null;
+    const [audio, document] = await Promise.all([
+        statementMediaAudioAttachment(exercise, assistantMediaPath(exerciseId)),
+        statementMediaDocumentAttachment(exercise, assistantMediaPath(exerciseId)),
+    ]);
 
-        return [audio, document].filter((item) => item !== null);
-    };
+    return [audio, document].filter((item) => item !== null);
+};
 
-    function retry() {
-        showRetryModal.value = true;
-    }
+function retry() {
+    showRetryModal.value = true;
+}
 
-    async function confirmRetry() {
-        showRetryModal.value = false;
-        submitted.value = false;
-        result.value = null;
-        warningShown = false;
-        elapsedSeconds.value = 0;
-        canvasData.value = {};
-        for (const key in answers.value) answers.value[key] = '';
+async function confirmRetry() {
+    showRetryModal.value = false;
+    submitted.value = false;
+    result.value = null;
+    warningShown = false;
+    elapsedSeconds.value = 0;
+    canvasData.value = {};
+    for (const key in answers.value) answers.value[key] = '';
 
-        attachments.value = {};
+    attachments.value = {};
 
-        try {
-            sheet.value = await loadPracticeSheet(route.params.id as string);
-        } catch {}
-        const remaining = secondsUntilDeadline(sheet.value?.deadline);
-        timeLeft.value = remaining ?? (sheet.value?.time_limit_minutes ?? 0) * 60;
-        startTimer();
-    }
+    try {
+        sheet.value = await loadPracticeSheet(route.params.id as string);
+    } catch {}
+    const remaining = secondsUntilDeadline(sheet.value?.deadline);
+    timeLeft.value = remaining ?? (sheet.value?.time_limit_minutes ?? 0) * 60;
+    startTimer();
+}
 
-    function goBackFromInstructions() {
-        router.back();
-    }
+function goBackFromInstructions() {
+    router.back();
+}
 
-    const expiredBeforeStart = computed(
-        () => hasTimeLimit.value && !testStarted.value && timeLeft.value <= 0,
-    );
+const expiredBeforeStart = computed(
+    () => hasTimeLimit.value && !testStarted.value && timeLeft.value <= 0,
+);
 
-    function startTest() {
-        if (expiredBeforeStart.value) return;
-        showInstructionsModal.value = false;
-        testStarted.value = true;
-        startTimer();
-    }
+function startTest() {
+    if (expiredBeforeStart.value) return;
+    showInstructionsModal.value = false;
+    testStarted.value = true;
+    startTimer();
+}
 
-    function closeSuccessAndGoHome() {
-        showSuccessModal.value = false;
-        router.push('/student/dashboard');
-    }
+function closeSuccessAndGoHome() {
+    showSuccessModal.value = false;
+    router.push('/student/dashboard');
+}
 </script>
 
 <template>
@@ -1321,1280 +1299,1280 @@
 </template>
 
 <style scoped>
+.test-shell {
+    max-width: 780px;
+    margin: 0 auto;
+    padding: 24px 20px 60px;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    background: var(--gradient-app-bg);
+}
+
+.test-header {
+    display: flex;
+    align-items: flex-start;
+    gap: 16px;
+    padding: 20px 24px;
+    background: var(--gradient-card-accent);
+    border-radius: var(--radius-2xl);
+    border: 1.5px solid rgba(var(--practiq-violet-rgb), 0.12);
+    box-shadow: var(--shadow-card);
+}
+
+.btn-back {
+    width: 38px;
+    height: 38px;
+    border-radius: 50%;
+    border: 1.5px solid rgba(var(--practiq-violet-rgb), 0.2);
+    background: var(--surface-elevated-strong);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    margin-top: 2px;
+}
+.btn-back:hover {
+    background: var(--fill-primary-faint);
+}
+
+.test-header-info {
+    flex: 1;
+}
+
+.level-badge {
+    display: inline-block;
+    padding: 3px 12px;
+    border-radius: var(--radius-2xl);
+    background: var(--gradient-brand);
+    color: var(--color-on-primary);
+    font-size: 0.75rem;
+    font-weight: 700;
+    margin-bottom: 6px;
+}
+
+.test-title {
+    font-size: 1.3rem;
+    font-weight: 800;
+    color: var(--text-primary);
+    margin: 0 0 4px;
+}
+
+.test-subtitle {
+    font-size: 0.82rem;
+    color: var(--text-secondary);
+}
+
+.timer {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 1.1rem;
+    font-weight: 700;
+    color: var(--text-secondary);
+    background: var(--gradient-brand-soft);
+    padding: 8px 16px;
+    border-radius: var(--radius-md);
+    flex-shrink: 0;
+}
+.timer--warning {
+    color: var(--color-error-dark);
+    background: var(--color-error-bg);
+}
+
+.test-progress-bar {
+    height: 6px;
+    background: var(--fill-primary-soft);
+    border-radius: var(--radius-pill);
+    overflow: hidden;
+}
+.test-progress-fill {
+    height: 100%;
+    background: var(--gradient-brand);
+    border-radius: var(--radius-pill);
+    transition: width 0.3s ease;
+}
+.test-progress-label {
+    font-size: 0.8rem;
+    color: var(--text-secondary);
+    text-align: right;
+}
+
+.draw-tools-bar {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 10px 16px;
+    background: var(--surface-elevated-strong);
+    border-radius: var(--radius-lg);
+    border: 1.5px solid rgba(var(--practiq-violet-rgb), 0.1);
+    flex-wrap: wrap;
+}
+
+.tool-btn {
+    width: 30px;
+    height: 30px;
+    border-radius: var(--radius-sm);
+    border: 1.5px solid rgba(var(--practiq-violet-rgb), 0.15);
+    background: var(--surface-elevated);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.9rem;
+    color: var(--text-secondary);
+    transition: all 0.15s;
+}
+.tool-btn:hover:not(.tool-btn--active) {
+    border-color: var(--practiq-violet);
+    color: var(--practiq-violet);
+}
+.tool-btn--active:hover {
+    color: var(--color-on-primary);
+}
+.tool-btn--pen-active,
+.tool-btn--pen-active:hover {
+    border-color: transparent;
+    color: #fff;
+    box-shadow: none;
+}
+.tool-btn--active {
+    background: var(--practiq-violet);
+    color: var(--color-on-primary);
+    border-color: var(--practiq-violet);
+}
+
+.tool-sep {
+    width: 1px;
+    height: 28px;
+    background: rgba(var(--practiq-violet-rgb), 0.15);
+    margin: 0 4px;
+}
+
+.size-slider {
+    width: 80px;
+    accent-color: var(--practiq-violet);
+}
+
+.size-val {
+    font-size: 0.8rem;
+    color: var(--text-secondary);
+    min-width: 28px;
+}
+
+.exercises-list {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.ex-card {
+    display: flex;
+    gap: 16px;
+    align-items: flex-start;
+    padding: 18px 20px;
+    background: var(--surface-elevated-strong);
+    border-radius: var(--radius-xl);
+    border: 1.5px solid rgba(var(--practiq-violet-rgb), 0.08);
+    transition: border-color 0.15s;
+}
+
+.ex-card--answered {
+    border-color: rgba(var(--color-success-rgb), 0.3);
+    background: var(--color-success-bg);
+}
+
+.ex-num {
+    width: 32px;
+    height: 32px;
+    border-radius: var(--radius-sm);
+    background: var(--fill-primary-soft);
+    color: var(--practiq-violet);
+    font-weight: 800;
+    font-size: 0.9rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+}
+
+.ex-card--answered .ex-num {
+    background: rgba(var(--color-success-rgb), 0.15);
+    color: var(--color-success-dark);
+}
+
+.ex-body {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+.ex-body--skeleton {
+    gap: 12px;
+}
+
+.ex-question {
+    font-size: 1rem;
+    font-weight: 600;
+    color: var(--text-primary);
+    line-height: 1.5;
+}
+
+.ex-question--math {
+    padding: 10px 12px;
+    border-radius: var(--radius-sm);
+    background: var(--surface-elevated-strong);
+    border: 1px solid rgba(var(--practiq-violet-rgb), 0.12);
+}
+
+.teacher-handwritten-image {
+    width: 100%;
+    max-height: 260px;
+    object-fit: contain;
+    border: 1.5px solid rgba(var(--practiq-violet-rgb), 0.15);
+    border-radius: var(--radius-sm);
+    background: var(--surface-card);
+    box-shadow: var(--shadow-card);
+}
+
+.ex-input {
+    padding: 10px 14px;
+    border-radius: var(--radius-sm);
+    border: 1.5px solid rgba(var(--practiq-violet-rgb), 0.15);
+    font-size: 1rem;
+    color: var(--text-primary);
+    background: var(--surface-elevated-strong);
+    outline: none;
+    transition: border-color 0.15s;
+}
+.ex-input:focus {
+    border-color: var(--practiq-violet);
+}
+
+.equation-answer-wrap {
+    width: 100%;
+}
+.equation-answer-wrap :deep(.math-field-editor) {
+    min-height: 44px;
+    padding: 8px 12px;
+    font-size: 1.1rem;
+    border-radius: var(--radius-sm);
+    border: 1.5px solid rgba(var(--practiq-violet-rgb), 0.15);
+    background: var(--surface-elevated-strong);
+}
+.equation-answer-wrap :deep(.math-field-editor:focus-within) {
+    border-color: var(--practiq-violet);
+    box-shadow: 0 0 0 3px rgba(var(--practiq-violet-rgb), 0.12);
+}
+
+.choice-options {
+    display: grid;
+    gap: 10px;
+}
+
+.choice-option {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 14px;
+    border: 1.5px solid rgba(var(--practiq-violet-rgb), 0.14);
+    border-radius: var(--radius-sm);
+    background: var(--surface-elevated-strong);
+    color: var(--text-primary);
+    cursor: pointer;
+    transition:
+        border-color 0.15s,
+        background 0.15s;
+}
+
+.choice-option:hover,
+.choice-option--selected {
+    border-color: rgba(var(--practiq-violet-rgb), 0.36);
+    background: var(--fill-primary-faint);
+}
+
+.choice-option input {
+    width: 18px;
+    height: 18px;
+    accent-color: var(--practiq-violet);
+    flex: 0 0 auto;
+}
+
+.canvas-wrap {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.canvas-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+
+.canvas-label {
+    font-size: 0.82rem;
+    font-weight: 600;
+    color: var(--text-secondary);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+}
+
+.btn-clear-canvas {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    padding: 4px 10px;
+    border-radius: var(--radius-sm);
+    border: 1px solid rgba(var(--color-error-rgb), 0.2);
+    background: var(--surface-elevated-strong);
+    color: var(--color-error);
+    cursor: pointer;
+    font-size: 0.78rem;
+    transition: all 0.15s;
+}
+.btn-clear-canvas:hover {
+    background: rgba(var(--color-error-rgb), 0.08);
+}
+
+.ex-canvas {
+    width: 100%;
+    height: 220px;
+    border-radius: var(--radius-md);
+    border: 1.5px solid rgba(var(--practiq-violet-rgb), 0.15);
+    display: block;
+    touch-action: none;
+    box-shadow: var(--shadow-card);
+    background-color: var(--surface-bg-soft);
+    background-image:
+        linear-gradient(
+            90deg,
+            transparent 56px,
+            rgba(var(--color-error-rgb), 0.25) 56px,
+            rgba(var(--color-error-rgb), 0.25) 57.5px,
+            transparent 57.5px
+        ),
+        repeating-linear-gradient(
+            transparent,
+            transparent 31px,
+            rgba(var(--practiq-violet-rgb), 0.1) 31px,
+            rgba(var(--practiq-violet-rgb), 0.1) 32px
+        );
+    background-repeat: no-repeat, repeat;
+}
+
+.test-footer {
+    display: grid;
+    grid-template-columns: 1fr auto 1fr;
+    align-items: center;
+    gap: 12px;
+    padding: 16px 20px;
+
+    background: rgb(var(--surface-card-rgb));
+    border-radius: var(--radius-xl);
+    border: 1.5px solid rgba(var(--practiq-violet-rgb), 0.1);
+    position: sticky;
+    bottom: 16px;
+    z-index: 3;
+    scroll-margin-bottom: 24px;
+}
+
+.footer-nav {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    justify-content: center;
+}
+
+.footer-actions {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+}
+
+.footer-hint {
+    font-size: 0.85rem;
+    color: var(--text-secondary);
+}
+
+.btn-step {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 10px 18px;
+    border-radius: var(--radius-md);
+    border: 1.5px solid rgba(var(--practiq-violet-rgb), 0.2);
+    background: var(--surface-elevated-strong);
+    color: var(--practiq-violet);
+    font-weight: 600;
+    font-size: 0.9rem;
+    cursor: pointer;
+}
+.btn-step:hover:not(:disabled) {
+    background: var(--fill-primary-faint);
+    border-color: rgba(var(--practiq-violet-rgb), 0.35);
+}
+.btn-step:disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
+}
+
+.btn-submit {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 12px 28px;
+    border-radius: var(--radius-md);
+    border: none;
+    background: var(--gradient-brand);
+    color: var(--color-on-primary);
+    font-weight: 700;
+    font-size: 0.95rem;
+    cursor: pointer;
+    box-shadow: var(--shadow-indigo);
+    transition: opacity 0.15s;
+}
+.btn-submit:hover:not(:disabled) {
+    opacity: 0.9;
+}
+.btn-submit:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+
+.progress-skel {
+    margin-left: auto;
+}
+.ex-card--skeleton {
+    pointer-events: none;
+}
+.ex-num-skel {
+    border-radius: var(--radius-sm);
+}
+.canvas-skel {
+    border-radius: var(--radius-md);
+    margin-top: 8px;
+}
+
+.results-panel {
+    display: flex;
+    justify-content: center;
+    padding: 20px 0;
+}
+
+.result-card {
+    background: var(--surface-elevated-strong);
+    border-radius: 28px;
+    padding: 40px 48px;
+    text-align: center;
+    max-width: 460px;
+    width: 100%;
+    box-shadow: var(--shadow-panel);
+    border: 2px solid transparent;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 20px;
+}
+
+.result-card--pass {
+    border-color: rgba(var(--color-success-rgb), 0.3);
+}
+.result-card--fail {
+    border-color: rgba(var(--color-warning-rgb), 0.3);
+}
+
+.result-card--pending {
+    border-color: rgba(var(--color-info-rgb), 0.3);
+}
+
+.result-icon {
+    font-size: 2.7rem;
+    line-height: 1;
+}
+.result-card--pass .result-icon {
+    color: var(--color-warning);
+}
+.result-card--fail .result-icon {
+    color: var(--practiq-violet);
+}
+
+.result-heading {
+    font-size: 1.6rem;
+    font-weight: 800;
+    color: var(--text-primary);
+    margin: 0;
+}
+
+.score-ring {
+    position: relative;
+    width: 140px;
+    height: 140px;
+}
+
+.ring-svg {
+    width: 140px;
+    height: 140px;
+    transform: scaleX(-1);
+}
+
+.ring-label {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+}
+
+.ring-score {
+    font-size: 1.8rem;
+    font-weight: 800;
+    color: var(--text-primary);
+    line-height: 1;
+}
+
+.ring-sub {
+    font-size: 0.85rem;
+    color: var(--text-secondary);
+}
+
+.level-up-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    padding: 8px 20px;
+    border-radius: var(--radius-pill);
+    background: linear-gradient(135deg, var(--color-success), var(--color-success-dark));
+    color: var(--color-on-primary);
+    font-weight: 700;
+    font-size: 0.95rem;
+}
+
+.result-rec {
+    font-size: 0.95rem;
+    color: var(--text-secondary);
+    line-height: 1.6;
+    margin: 0;
+}
+
+.result-ai-feedback {
+    background: var(--fill-primary-faint);
+    border: 1px solid rgba(var(--practiq-violet-rgb), 0.15);
+    border-radius: var(--radius-sm);
+    padding: 10px 14px;
+    font-size: 0.88rem;
+    color: var(--text-secondary);
+    line-height: 1.5;
+    width: 100%;
+    text-align: left;
+}
+
+.pending-review-badge {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin: 16px 0;
+    padding: 14px 16px;
+    border-radius: var(--radius-lg, 14px);
+    background: var(--color-warning-bg, rgba(245, 158, 11, 0.12));
+    color: var(--text-primary);
+    font-weight: 600;
+}
+.all-correct-badge {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    width: 100%;
+    padding: 14px 16px;
+    border-radius: var(--radius-lg);
+    background: var(--fill-success-subtle);
+    color: var(--color-success-dark, #166534);
+    font-weight: 600;
+    text-align: center;
+}
+
+.exercise-results-section {
+    width: 100%;
+}
+
+.exercise-results-list {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.exercise-results-list--expanded {
+    max-height: 250px;
+    overflow-y: auto;
+}
+
+.exercise-result-item {
+    display: flex;
+    gap: 10px;
+    padding: 12px;
+    border-radius: var(--radius-lg);
+    text-align: left;
+}
+
+.exercise-result--incorrect {
+    background: var(--fill-error-subtle, #fef2f2);
+}
+
+.exercise-result-icon {
+    font-size: 1.15rem;
+    line-height: 1;
+    flex-shrink: 0;
+    color: var(--color-error);
+}
+
+.exercise-result-content {
+    flex: 1;
+    font-size: 0.85rem;
+}
+
+.exercise-result-answers {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px 8px;
+    margin-bottom: 6px;
+}
+
+.answer-label {
+    color: var(--text-muted);
+    font-size: 0.75rem;
+}
+
+.answer-student {
+    color: var(--color-error, #dc2626);
+    font-weight: 600;
+}
+
+.answer-correct {
+    color: var(--color-success, #16a34a);
+    font-weight: 600;
+}
+
+.exercise-result-feedback {
+    color: var(--text-secondary);
+    line-height: 1.4;
+}
+
+.btn-show-more {
+    margin-top: 8px;
+    width: 100%;
+    padding: 10px;
+    border: 1px dashed var(--border-color);
+    border-radius: var(--radius-md);
+    background: transparent;
+    color: var(--text-secondary);
+    font-size: 0.85rem;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.btn-show-more:hover {
+    background: var(--surface-subtle);
+    color: var(--text-primary);
+}
+
+.result-actions {
+    display: flex;
+    gap: 12px;
+    flex-wrap: wrap;
+    justify-content: center;
+}
+
+.btn-secondary {
+    padding: 10px 22px;
+    border-radius: var(--radius-md);
+    border: 1.5px solid rgba(var(--practiq-violet-rgb), 0.2);
+    background: var(--surface-elevated-strong);
+    color: var(--text-primary);
+    font-weight: 600;
+    cursor: pointer;
+    font-size: 0.9rem;
+    transition: all 0.15s;
+}
+.btn-secondary:hover {
+    border-color: var(--practiq-violet);
+}
+
+.btn-retry {
+    padding: 10px 22px;
+    border-radius: var(--radius-md);
+    border: none;
+    background: linear-gradient(135deg, var(--color-warning), var(--color-warning-strong));
+    color: var(--color-on-primary);
+    font-weight: 700;
+    cursor: pointer;
+    font-size: 0.9rem;
+}
+.btn-retry:hover {
+    opacity: 0.9;
+}
+
+.instructions-modal {
+    position: relative;
+    max-width: 500px;
+    text-align: center;
+}
+
+.instructions-close {
+    position: absolute;
+    top: 16px;
+    right: 16px;
+}
+
+.instructions-icon {
+    width: 64px;
+    height: 64px;
+    margin: 0 auto 20px;
+    border-radius: 50%;
+    background: var(--fill-primary-soft);
+    display: grid;
+    place-items: center;
+    font-size: 28px;
+    color: var(--practiq-violet);
+}
+
+.instructions-content {
+    text-align: left;
+    margin-bottom: 20px;
+}
+
+.instructions-intro {
+    font-size: var(--text-base);
+    color: var(--text-secondary);
+    margin-bottom: 16px;
+}
+
+.instructions-list {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.instructions-list li {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 12px 16px;
+    background: var(--surface-subtle);
+    border-radius: var(--radius-md);
+    font-size: var(--text-base);
+    color: var(--text-primary);
+}
+
+.instructions-list li i {
+    color: var(--practiq-violet);
+    font-size: 18px;
+    flex-shrink: 0;
+}
+
+.instructions-expired {
+    color: var(--color-error, #b91c1c);
+    font-weight: 700;
+}
+.instructions-tip {
+    margin-top: 16px;
+    padding: 12px 16px;
+    background: var(--fill-primary-faint);
+    border-radius: var(--radius-md);
+    font-size: var(--text-sm);
+    color: var(--practiq-violet-dark);
+}
+
+.time-warning-toast {
+    position: fixed;
+    bottom: 100px;
+    left: 50%;
+    transform: translateX(-50%);
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 14px 24px;
+    background: linear-gradient(135deg, var(--color-warning), var(--color-warning-strong));
+    color: white;
+    border-radius: var(--radius-xl);
+    box-shadow: 0 8px 32px rgba(var(--color-warning-rgb), 0.3);
+    font-size: var(--text-base);
+    font-weight: 600;
+    z-index: 10000;
+    animation: pulse 1s ease-in-out infinite;
+}
+
+@keyframes pulse {
+    0%,
+    100% {
+        transform: translateX(-50%) scale(1);
+    }
+    50% {
+        transform: translateX(-50%) scale(1.02);
+    }
+}
+
+.toast-close {
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    border: none;
+    background: rgba(var(--surface-card-rgb), 0.2);
+    color: white;
+    cursor: pointer;
+    display: grid;
+    place-items: center;
+    margin-left: 8px;
+}
+
+.toast-close:hover {
+    background: rgba(var(--surface-card-rgb), 0.3);
+}
+
+.retry-warning {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    padding: 14px 16px;
+    background: rgba(var(--color-warning-rgb), 0.1);
+    border: 1px solid rgba(var(--color-warning-rgb), 0.3);
+    border-radius: var(--radius-md);
+    margin: 16px 0;
+    text-align: left;
+}
+
+.retry-warning > i {
+    color: var(--color-warning-dark);
+    font-size: 20px;
+    flex-shrink: 0;
+    margin-top: 2px;
+}
+
+.retry-warning ul {
+    margin: 8px 0 0;
+    padding-left: 20px;
+    font-size: var(--text-sm);
+    color: var(--text-secondary);
+}
+
+.retry-warning li {
+    margin-bottom: 4px;
+}
+
+.modal-desc {
+    font-size: var(--text-base);
+    color: var(--text-secondary);
+    margin: 0;
+}
+
+.success-modal {
+    position: relative;
+    max-width: 440px;
+    text-align: center;
+}
+
+.success-confetti {
+    display: flex;
+    justify-content: center;
+    gap: 16px;
+    margin-bottom: 16px;
+}
+
+.confetti-piece {
+    font-size: 34px;
+    line-height: 1;
+    color: var(--color-warning);
+    animation: bounce 0.6s ease-out;
+}
+
+.confetti-piece:nth-child(2) {
+    animation-delay: 0.1s;
+}
+
+.confetti-piece:nth-child(3) {
+    animation-delay: 0.2s;
+}
+
+@keyframes bounce {
+    0% {
+        transform: translateY(20px) scale(0);
+        opacity: 0;
+    }
+    60% {
+        transform: translateY(-10px) scale(1.1);
+    }
+    100% {
+        transform: translateY(0) scale(1);
+        opacity: 1;
+    }
+}
+
+.success-title {
+    color: var(--color-success-dark);
+    font-size: 1.8rem;
+}
+
+.success-message {
+    font-size: var(--text-lg);
+    color: var(--text-primary);
+    margin-bottom: 20px;
+}
+
+.level-unlock-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    padding: 14px 24px;
+    background: var(--gradient-brand);
+    color: white;
+    border-radius: var(--radius-xl);
+    font-size: var(--text-lg);
+    font-weight: 700;
+    margin-bottom: 16px;
+}
+
+.success-recommendation {
+    font-size: var(--text-sm);
+    color: var(--text-secondary);
+    padding: 12px 16px;
+    background: var(--surface-subtle);
+    border-radius: var(--radius-md);
+    margin-bottom: 16px;
+}
+
+.btn-lg {
+    padding: 14px 32px;
+    font-size: var(--text-lg);
+}
+
+.slide-up-enter-active,
+.slide-up-leave-active {
+    transition: all 0.3s ease;
+}
+
+.slide-up-enter-from,
+.slide-up-leave-to {
+    transform: translateX(-50%) translateY(100px);
+    opacity: 0;
+}
+
+@media (max-width: 1024px) {
     .test-shell {
-        max-width: 780px;
-        margin: 0 auto;
-        padding: 24px 20px 60px;
-        display: flex;
-        flex-direction: column;
-        gap: 16px;
-        background: var(--gradient-app-bg);
+        padding: 20px 16px 48px;
     }
-
     .test-header {
-        display: flex;
-        align-items: flex-start;
-        gap: 16px;
-        padding: 20px 24px;
-        background: var(--gradient-card-accent);
-        border-radius: var(--radius-2xl);
-        border: 1.5px solid rgba(var(--practiq-violet-rgb), 0.12);
-        box-shadow: var(--shadow-card);
+        padding: 16px 20px;
     }
+}
 
-    .btn-back {
-        width: 38px;
-        height: 38px;
-        border-radius: 50%;
-        border: 1.5px solid rgba(var(--practiq-violet-rgb), 0.2);
-        background: var(--surface-elevated-strong);
-        cursor: pointer;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        flex-shrink: 0;
-        margin-top: 2px;
+@media (max-width: 768px) {
+    .test-shell {
+        padding: 16px 12px 40px;
+        gap: 12px;
     }
-    .btn-back:hover {
-        background: var(--fill-primary-faint);
+    .test-header {
+        padding: 14px 16px;
+        gap: 10px;
+        flex-wrap: wrap;
     }
-
-    .test-header-info {
-        flex: 1;
-    }
-
-    .level-badge {
-        display: inline-block;
-        padding: 3px 12px;
-        border-radius: var(--radius-2xl);
-        background: var(--gradient-brand);
-        color: var(--color-on-primary);
-        font-size: 0.75rem;
-        font-weight: 700;
-        margin-bottom: 6px;
-    }
-
     .test-title {
-        font-size: 1.3rem;
-        font-weight: 800;
-        color: var(--text-primary);
-        margin: 0 0 4px;
-    }
-
-    .test-subtitle {
-        font-size: 0.82rem;
-        color: var(--text-secondary);
-    }
-
-    .timer {
-        display: flex;
-        align-items: center;
-        gap: 6px;
         font-size: 1.1rem;
-        font-weight: 700;
-        color: var(--text-secondary);
-        background: var(--gradient-brand-soft);
-        padding: 8px 16px;
-        border-radius: var(--radius-md);
-        flex-shrink: 0;
     }
-    .timer--warning {
-        color: var(--color-error-dark);
-        background: var(--color-error-bg);
+    .test-subtitle {
+        font-size: 0.78rem;
     }
+    .timer {
+        font-size: 0.95rem;
+        padding: 6px 12px;
+    }
+    .ex-card {
+        padding: 14px 16px;
+        gap: 12px;
+    }
+    .draw-tools-bar {
+        padding: 8px 12px;
+    }
+    .test-footer {
+        padding: 12px 16px;
+    }
+    .btn-submit {
+        padding: 10px 20px;
+        font-size: 0.88rem;
+    }
+    .result-card {
+        padding: 28px 24px;
+    }
+}
 
-    .test-progress-bar {
-        height: 6px;
-        background: var(--fill-primary-soft);
-        border-radius: var(--radius-pill);
-        overflow: hidden;
+@media (max-width: 600px) {
+    .test-shell {
+        padding: 10px 8px 32px;
+        gap: 10px;
     }
-    .test-progress-fill {
-        height: 100%;
-        background: var(--gradient-brand);
-        border-radius: var(--radius-pill);
-        transition: width 0.3s ease;
+    .test-header {
+        padding: 12px;
     }
-    .test-progress-label {
-        font-size: 0.8rem;
-        color: var(--text-secondary);
-        text-align: right;
+    .ex-card {
+        padding: 12px;
+        flex-direction: column;
+        gap: 8px;
+    }
+    .ex-num {
+        width: 28px;
+        height: 28px;
+        font-size: 0.82rem;
+    }
+    .ex-canvas {
+        height: 180px;
+    }
+    .test-footer {
+        grid-template-columns: 1fr;
+        padding: 10px 12px;
+        gap: 8px;
+
+        bottom: 0;
+        margin-left: -8px;
+        margin-right: -8px;
+        border-radius: var(--radius-xl) var(--radius-xl) 0 0;
+        border-bottom: 0;
+        padding-bottom: max(10px, env(safe-area-inset-bottom));
     }
 
     .draw-tools-bar {
-        display: flex;
-        align-items: center;
-        gap: 6px;
-        padding: 10px 16px;
-        background: var(--surface-elevated-strong);
-        border-radius: var(--radius-lg);
-        border: 1.5px solid rgba(var(--practiq-violet-rgb), 0.1);
-        flex-wrap: wrap;
+        flex-wrap: nowrap;
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+    }
+
+    .draw-tools-bar > * {
+        flex-shrink: 0;
+    }
+    .footer-nav .btn-step {
+        flex: 1;
+        justify-content: center;
+    }
+    .btn-submit {
+        width: 100%;
+        justify-content: center;
+    }
+    .result-card {
+        padding: 20px 16px;
+    }
+    .result-actions {
+        flex-direction: column;
+        align-items: stretch;
+    }
+    .btn-secondary,
+    .btn-retry {
+        text-align: center;
+    }
+
+    .btn-back,
+    .toast-close {
+        width: 44px;
+        height: 44px;
     }
 
     .tool-btn {
-        width: 30px;
-        height: 30px;
-        border-radius: var(--radius-sm);
-        border: 1.5px solid rgba(var(--practiq-violet-rgb), 0.15);
-        background: var(--surface-elevated);
-        cursor: pointer;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        font-size: 0.9rem;
-        color: var(--text-secondary);
-        transition: all 0.15s;
-    }
-    .tool-btn:hover:not(.tool-btn--active) {
-        border-color: var(--practiq-violet);
-        color: var(--practiq-violet);
-    }
-    .tool-btn--active:hover {
-        color: var(--color-on-primary);
-    }
-    .tool-btn--pen-active,
-    .tool-btn--pen-active:hover {
-        border-color: transparent;
-        color: #fff;
-        box-shadow: none;
-    }
-    .tool-btn--active {
-        background: var(--practiq-violet);
-        color: var(--color-on-primary);
-        border-color: var(--practiq-violet);
-    }
-
-    .tool-sep {
-        width: 1px;
-        height: 28px;
-        background: rgba(var(--practiq-violet-rgb), 0.15);
-        margin: 0 4px;
-    }
-
-    .size-slider {
-        width: 80px;
-        accent-color: var(--practiq-violet);
-    }
-
-    .size-val {
-        font-size: 0.8rem;
-        color: var(--text-secondary);
-        min-width: 28px;
-    }
-
-    .exercises-list {
-        display: flex;
-        flex-direction: column;
-        gap: 12px;
-    }
-
-    .ex-card {
-        display: flex;
-        gap: 16px;
-        align-items: flex-start;
-        padding: 18px 20px;
-        background: var(--surface-elevated-strong);
-        border-radius: var(--radius-xl);
-        border: 1.5px solid rgba(var(--practiq-violet-rgb), 0.08);
-        transition: border-color 0.15s;
-    }
-
-    .ex-card--answered {
-        border-color: rgba(var(--color-success-rgb), 0.3);
-        background: var(--color-success-bg);
-    }
-
-    .ex-num {
-        width: 32px;
-        height: 32px;
-        border-radius: var(--radius-sm);
-        background: var(--fill-primary-soft);
-        color: var(--practiq-violet);
-        font-weight: 800;
-        font-size: 0.9rem;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        flex-shrink: 0;
-    }
-
-    .ex-card--answered .ex-num {
-        background: rgba(var(--color-success-rgb), 0.15);
-        color: var(--color-success-dark);
-    }
-
-    .ex-body {
-        flex: 1;
-        display: flex;
-        flex-direction: column;
-        gap: 10px;
-    }
-    .ex-body--skeleton {
-        gap: 12px;
-    }
-
-    .ex-question {
+        width: 40px;
+        height: 40px;
         font-size: 1rem;
-        font-weight: 600;
-        color: var(--text-primary);
-        line-height: 1.5;
-    }
-
-    .ex-question--math {
-        padding: 10px 12px;
-        border-radius: var(--radius-sm);
-        background: var(--surface-elevated-strong);
-        border: 1px solid rgba(var(--practiq-violet-rgb), 0.12);
-    }
-
-    .teacher-handwritten-image {
-        width: 100%;
-        max-height: 260px;
-        object-fit: contain;
-        border: 1.5px solid rgba(var(--practiq-violet-rgb), 0.15);
-        border-radius: var(--radius-sm);
-        background: var(--surface-card);
-        box-shadow: var(--shadow-card);
-    }
-
-    .ex-input {
-        padding: 10px 14px;
-        border-radius: var(--radius-sm);
-        border: 1.5px solid rgba(var(--practiq-violet-rgb), 0.15);
-        font-size: 1rem;
-        color: var(--text-primary);
-        background: var(--surface-elevated-strong);
-        outline: none;
-        transition: border-color 0.15s;
-    }
-    .ex-input:focus {
-        border-color: var(--practiq-violet);
-    }
-
-    .equation-answer-wrap {
-        width: 100%;
-    }
-    .equation-answer-wrap :deep(.math-field-editor) {
-        min-height: 44px;
-        padding: 8px 12px;
-        font-size: 1.1rem;
-        border-radius: var(--radius-sm);
-        border: 1.5px solid rgba(var(--practiq-violet-rgb), 0.15);
-        background: var(--surface-elevated-strong);
-    }
-    .equation-answer-wrap :deep(.math-field-editor:focus-within) {
-        border-color: var(--practiq-violet);
-        box-shadow: 0 0 0 3px rgba(var(--practiq-violet-rgb), 0.12);
-    }
-
-    .choice-options {
-        display: grid;
-        gap: 10px;
     }
 
     .choice-option {
-        display: flex;
-        align-items: center;
-        gap: 10px;
-        padding: 10px 14px;
-        border: 1.5px solid rgba(var(--practiq-violet-rgb), 0.14);
-        border-radius: var(--radius-sm);
-        background: var(--surface-elevated-strong);
-        color: var(--text-primary);
-        cursor: pointer;
-        transition:
-            border-color 0.15s,
-            background 0.15s;
-    }
-
-    .choice-option:hover,
-    .choice-option--selected {
-        border-color: rgba(var(--practiq-violet-rgb), 0.36);
-        background: var(--fill-primary-faint);
+        min-height: 52px;
+        padding: 12px 14px;
     }
 
     .choice-option input {
-        width: 18px;
-        height: 18px;
-        accent-color: var(--practiq-violet);
-        flex: 0 0 auto;
-    }
-
-    .canvas-wrap {
-        display: flex;
-        flex-direction: column;
-        gap: 8px;
-    }
-
-    .canvas-header {
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-    }
-
-    .canvas-label {
-        font-size: 0.82rem;
-        font-weight: 600;
-        color: var(--text-secondary);
-        text-transform: uppercase;
-        letter-spacing: 0.04em;
-    }
-
-    .btn-clear-canvas {
-        display: flex;
-        align-items: center;
-        gap: 4px;
-        padding: 4px 10px;
-        border-radius: var(--radius-sm);
-        border: 1px solid rgba(var(--color-error-rgb), 0.2);
-        background: var(--surface-elevated-strong);
-        color: var(--color-error);
-        cursor: pointer;
-        font-size: 0.78rem;
-        transition: all 0.15s;
-    }
-    .btn-clear-canvas:hover {
-        background: rgba(var(--color-error-rgb), 0.08);
-    }
-
-    .ex-canvas {
-        width: 100%;
-        height: 220px;
-        border-radius: var(--radius-md);
-        border: 1.5px solid rgba(var(--practiq-violet-rgb), 0.15);
-        display: block;
-        touch-action: none;
-        box-shadow: var(--shadow-card);
-        background-color: var(--surface-bg-soft);
-        background-image:
-            linear-gradient(
-                90deg,
-                transparent 56px,
-                rgba(var(--color-error-rgb), 0.25) 56px,
-                rgba(var(--color-error-rgb), 0.25) 57.5px,
-                transparent 57.5px
-            ),
-            repeating-linear-gradient(
-                transparent,
-                transparent 31px,
-                rgba(var(--practiq-violet-rgb), 0.1) 31px,
-                rgba(var(--practiq-violet-rgb), 0.1) 32px
-            );
-        background-repeat: no-repeat, repeat;
-    }
-
-    .test-footer {
-        display: grid;
-        grid-template-columns: 1fr auto 1fr;
-        align-items: center;
-        gap: 12px;
-        padding: 16px 20px;
-
-        background: rgb(var(--surface-card-rgb));
-        border-radius: var(--radius-xl);
-        border: 1.5px solid rgba(var(--practiq-violet-rgb), 0.1);
-        position: sticky;
-        bottom: 16px;
-        z-index: 3;
-        scroll-margin-bottom: 24px;
-    }
-
-    .footer-nav {
-        display: flex;
-        align-items: center;
-        gap: 10px;
-        justify-content: center;
-    }
-
-    .footer-actions {
-        display: flex;
-        align-items: center;
-        justify-content: flex-end;
-    }
-
-    .footer-hint {
-        font-size: 0.85rem;
-        color: var(--text-secondary);
-    }
-
-    .btn-step {
-        display: flex;
-        align-items: center;
-        gap: 6px;
-        padding: 10px 18px;
-        border-radius: var(--radius-md);
-        border: 1.5px solid rgba(var(--practiq-violet-rgb), 0.2);
-        background: var(--surface-elevated-strong);
-        color: var(--practiq-violet);
-        font-weight: 600;
-        font-size: 0.9rem;
-        cursor: pointer;
-    }
-    .btn-step:hover:not(:disabled) {
-        background: var(--fill-primary-faint);
-        border-color: rgba(var(--practiq-violet-rgb), 0.35);
-    }
-    .btn-step:disabled {
-        opacity: 0.45;
-        cursor: not-allowed;
+        width: 22px;
+        height: 22px;
     }
 
     .btn-submit {
-        display: flex;
-        align-items: center;
-        gap: 8px;
-        padding: 12px 28px;
-        border-radius: var(--radius-md);
-        border: none;
-        background: var(--gradient-brand);
-        color: var(--color-on-primary);
-        font-weight: 700;
-        font-size: 0.95rem;
-        cursor: pointer;
-        box-shadow: var(--shadow-indigo);
-        transition: opacity 0.15s;
+        min-height: 50px;
     }
-    .btn-submit:hover:not(:disabled) {
-        opacity: 0.9;
-    }
-    .btn-submit:disabled {
-        opacity: 0.6;
-        cursor: not-allowed;
+}
+
+@media (max-width: 680px) {
+    .test-shell {
+        padding: 16px 10px 80px;
     }
 
-    .progress-skel {
-        margin-left: auto;
-    }
-    .ex-card--skeleton {
-        pointer-events: none;
-    }
-    .ex-num-skel {
-        border-radius: var(--radius-sm);
-    }
-    .canvas-skel {
-        border-radius: var(--radius-md);
-        margin-top: 8px;
-    }
-
-    .results-panel {
-        display: flex;
-        justify-content: center;
-        padding: 20px 0;
-    }
-
-    .result-card {
-        background: var(--surface-elevated-strong);
-        border-radius: 28px;
-        padding: 40px 48px;
-        text-align: center;
-        max-width: 460px;
-        width: 100%;
-        box-shadow: var(--shadow-panel);
-        border: 2px solid transparent;
-        display: flex;
-        flex-direction: column;
-        align-items: center;
-        gap: 20px;
-    }
-
-    .result-card--pass {
-        border-color: rgba(var(--color-success-rgb), 0.3);
-    }
-    .result-card--fail {
-        border-color: rgba(var(--color-warning-rgb), 0.3);
-    }
-
-    .result-card--pending {
-        border-color: rgba(var(--color-info-rgb), 0.3);
-    }
-
-    .result-icon {
-        font-size: 2.7rem;
-        line-height: 1;
-    }
-    .result-card--pass .result-icon {
-        color: var(--color-warning);
-    }
-    .result-card--fail .result-icon {
-        color: var(--practiq-violet);
-    }
-
-    .result-heading {
-        font-size: 1.6rem;
-        font-weight: 800;
-        color: var(--text-primary);
-        margin: 0;
-    }
-
-    .score-ring {
-        position: relative;
-        width: 140px;
-        height: 140px;
-    }
-
-    .ring-svg {
-        width: 140px;
-        height: 140px;
-        transform: scaleX(-1);
-    }
-
-    .ring-label {
-        position: absolute;
-        inset: 0;
-        display: flex;
-        flex-direction: column;
-        align-items: center;
-        justify-content: center;
-    }
-
-    .ring-score {
-        font-size: 1.8rem;
-        font-weight: 800;
-        color: var(--text-primary);
-        line-height: 1;
-    }
-
-    .ring-sub {
-        font-size: 0.85rem;
-        color: var(--text-secondary);
-    }
-
-    .level-up-badge {
-        display: inline-flex;
-        align-items: center;
-        gap: 7px;
-        padding: 8px 20px;
-        border-radius: var(--radius-pill);
-        background: linear-gradient(135deg, var(--color-success), var(--color-success-dark));
-        color: var(--color-on-primary);
-        font-weight: 700;
-        font-size: 0.95rem;
-    }
-
-    .result-rec {
-        font-size: 0.95rem;
-        color: var(--text-secondary);
-        line-height: 1.6;
-        margin: 0;
-    }
-
-    .result-ai-feedback {
-        background: var(--fill-primary-faint);
-        border: 1px solid rgba(var(--practiq-violet-rgb), 0.15);
-        border-radius: var(--radius-sm);
-        padding: 10px 14px;
-        font-size: 0.88rem;
-        color: var(--text-secondary);
-        line-height: 1.5;
-        width: 100%;
-        text-align: left;
-    }
-
-    .pending-review-badge {
-        display: flex;
-        align-items: center;
-        gap: 10px;
-        margin: 16px 0;
-        padding: 14px 16px;
-        border-radius: var(--radius-lg, 14px);
-        background: var(--color-warning-bg, rgba(245, 158, 11, 0.12));
-        color: var(--text-primary);
-        font-weight: 600;
-    }
-    .all-correct-badge {
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        gap: 8px;
-        width: 100%;
-        padding: 14px 16px;
-        border-radius: var(--radius-lg);
-        background: var(--fill-success-subtle);
-        color: var(--color-success-dark, #166534);
-        font-weight: 600;
-        text-align: center;
-    }
-
-    .exercise-results-section {
-        width: 100%;
-    }
-
-    .exercise-results-list {
-        display: flex;
-        flex-direction: column;
-        gap: 10px;
-    }
-
-    .exercise-results-list--expanded {
-        max-height: 250px;
-        overflow-y: auto;
-    }
-
-    .exercise-result-item {
-        display: flex;
-        gap: 10px;
-        padding: 12px;
-        border-radius: var(--radius-lg);
-        text-align: left;
-    }
-
-    .exercise-result--incorrect {
-        background: var(--fill-error-subtle, #fef2f2);
-    }
-
-    .exercise-result-icon {
-        font-size: 1.15rem;
-        line-height: 1;
-        flex-shrink: 0;
-        color: var(--color-error);
-    }
-
-    .exercise-result-content {
-        flex: 1;
-        font-size: 0.85rem;
-    }
-
-    .exercise-result-answers {
-        display: flex;
-        flex-wrap: wrap;
-        gap: 4px 8px;
-        margin-bottom: 6px;
-    }
-
-    .answer-label {
-        color: var(--text-muted);
-        font-size: 0.75rem;
-    }
-
-    .answer-student {
-        color: var(--color-error, #dc2626);
-        font-weight: 600;
-    }
-
-    .answer-correct {
-        color: var(--color-success, #16a34a);
-        font-weight: 600;
-    }
-
-    .exercise-result-feedback {
-        color: var(--text-secondary);
-        line-height: 1.4;
-    }
-
-    .btn-show-more {
-        margin-top: 8px;
-        width: 100%;
-        padding: 10px;
-        border: 1px dashed var(--border-color);
-        border-radius: var(--radius-md);
-        background: transparent;
-        color: var(--text-secondary);
-        font-size: 0.85rem;
-        cursor: pointer;
-        transition: all 0.2s;
-    }
-
-    .btn-show-more:hover {
-        background: var(--surface-subtle);
-        color: var(--text-primary);
-    }
-
-    .result-actions {
-        display: flex;
-        gap: 12px;
-        flex-wrap: wrap;
-        justify-content: center;
-    }
-
-    .btn-secondary {
-        padding: 10px 22px;
-        border-radius: var(--radius-md);
-        border: 1.5px solid rgba(var(--practiq-violet-rgb), 0.2);
-        background: var(--surface-elevated-strong);
-        color: var(--text-primary);
-        font-weight: 600;
-        cursor: pointer;
-        font-size: 0.9rem;
-        transition: all 0.15s;
-    }
-    .btn-secondary:hover {
-        border-color: var(--practiq-violet);
-    }
-
-    .btn-retry {
-        padding: 10px 22px;
-        border-radius: var(--radius-md);
-        border: none;
-        background: linear-gradient(135deg, var(--color-warning), var(--color-warning-strong));
-        color: var(--color-on-primary);
-        font-weight: 700;
-        cursor: pointer;
-        font-size: 0.9rem;
-    }
-    .btn-retry:hover {
-        opacity: 0.9;
-    }
-
-    .instructions-modal {
-        position: relative;
-        max-width: 500px;
-        text-align: center;
-    }
-
-    .instructions-close {
-        position: absolute;
-        top: 16px;
-        right: 16px;
-    }
-
-    .instructions-icon {
-        width: 64px;
-        height: 64px;
-        margin: 0 auto 20px;
-        border-radius: 50%;
-        background: var(--fill-primary-soft);
+    .test-header {
         display: grid;
-        place-items: center;
-        font-size: 28px;
-        color: var(--practiq-violet);
-    }
+        grid-template-columns: 42px minmax(0, 1fr) auto;
 
-    .instructions-content {
-        text-align: left;
-        margin-bottom: 20px;
-    }
-
-    .instructions-intro {
-        font-size: var(--text-base);
-        color: var(--text-secondary);
-        margin-bottom: 16px;
-    }
-
-    .instructions-list {
-        list-style: none;
-        padding: 0;
-        margin: 0;
-        display: flex;
-        flex-direction: column;
-        gap: 12px;
-    }
-
-    .instructions-list li {
-        display: flex;
-        align-items: center;
-        gap: 12px;
-        padding: 12px 16px;
-        background: var(--surface-subtle);
-        border-radius: var(--radius-md);
-        font-size: var(--text-base);
-        color: var(--text-primary);
-    }
-
-    .instructions-list li i {
-        color: var(--practiq-violet);
-        font-size: 18px;
-        flex-shrink: 0;
-    }
-
-    .instructions-expired {
-        color: var(--color-error, #b91c1c);
-        font-weight: 700;
-    }
-    .instructions-tip {
-        margin-top: 16px;
-        padding: 12px 16px;
-        background: var(--fill-primary-faint);
-        border-radius: var(--radius-md);
-        font-size: var(--text-sm);
-        color: var(--practiq-violet-dark);
-    }
-
-    .time-warning-toast {
-        position: fixed;
-        bottom: 100px;
-        left: 50%;
-        transform: translateX(-50%);
-        display: flex;
-        align-items: center;
-        gap: 12px;
-        padding: 14px 24px;
-        background: linear-gradient(135deg, var(--color-warning), var(--color-warning-strong));
-        color: white;
+        padding: 14px 12px;
+        gap: 10px;
+        align-items: start;
         border-radius: var(--radius-xl);
-        box-shadow: 0 8px 32px rgba(var(--color-warning-rgb), 0.3);
-        font-size: var(--text-base);
-        font-weight: 600;
-        z-index: 10000;
-        animation: pulse 1s ease-in-out infinite;
     }
 
-    @keyframes pulse {
-        0%,
-        100% {
-            transform: translateX(-50%) scale(1);
-        }
-        50% {
-            transform: translateX(-50%) scale(1.02);
-        }
+    .test-header-info {
+        display: contents;
     }
-
-    .toast-close {
-        width: 28px;
-        height: 28px;
-        border-radius: 50%;
-        border: none;
-        background: rgba(var(--surface-card-rgb), 0.2);
-        color: white;
-        cursor: pointer;
-        display: grid;
-        place-items: center;
-        margin-left: 8px;
+    .btn-back {
+        grid-column: 1;
+        grid-row: 1 / span 2;
     }
-
-    .toast-close:hover {
-        background: rgba(var(--surface-card-rgb), 0.3);
-    }
-
-    .retry-warning {
-        display: flex;
-        align-items: flex-start;
-        gap: 12px;
-        padding: 14px 16px;
-        background: rgba(var(--color-warning-rgb), 0.1);
-        border: 1px solid rgba(var(--color-warning-rgb), 0.3);
-        border-radius: var(--radius-md);
-        margin: 16px 0;
-        text-align: left;
-    }
-
-    .retry-warning > i {
-        color: var(--color-warning-dark);
-        font-size: 20px;
-        flex-shrink: 0;
-        margin-top: 2px;
-    }
-
-    .retry-warning ul {
-        margin: 8px 0 0;
-        padding-left: 20px;
-        font-size: var(--text-sm);
-        color: var(--text-secondary);
-    }
-
-    .retry-warning li {
-        margin-bottom: 4px;
-    }
-
-    .modal-desc {
-        font-size: var(--text-base);
-        color: var(--text-secondary);
+    .test-title {
+        grid-column: 2;
+        grid-row: 1;
+        align-self: center;
+        font-size: 1.08rem;
         margin: 0;
     }
+    .test-subtitle {
+        grid-column: 2;
+        grid-row: 2;
+        display: -webkit-box;
+        overflow: hidden;
 
-    .success-modal {
-        position: relative;
-        max-width: 440px;
-        text-align: center;
+        font-size: 0.82rem;
+        line-height: 1.3;
+        -webkit-box-orient: vertical;
+        -webkit-line-clamp: 2;
     }
-
-    .success-confetti {
-        display: flex;
-        justify-content: center;
-        gap: 16px;
-        margin-bottom: 16px;
-    }
-
-    .confetti-piece {
-        font-size: 34px;
-        line-height: 1;
-        color: var(--color-warning);
-        animation: bounce 0.6s ease-out;
-    }
-
-    .confetti-piece:nth-child(2) {
-        animation-delay: 0.1s;
-    }
-
-    .confetti-piece:nth-child(3) {
-        animation-delay: 0.2s;
-    }
-
-    @keyframes bounce {
-        0% {
-            transform: translateY(20px) scale(0);
-            opacity: 0;
-        }
-        60% {
-            transform: translateY(-10px) scale(1.1);
-        }
-        100% {
-            transform: translateY(0) scale(1);
-            opacity: 1;
-        }
-    }
-
-    .success-title {
-        color: var(--color-success-dark);
-        font-size: 1.8rem;
-    }
-
-    .success-message {
-        font-size: var(--text-lg);
-        color: var(--text-primary);
-        margin-bottom: 20px;
-    }
-
-    .level-unlock-badge {
-        display: inline-flex;
-        align-items: center;
-        gap: 10px;
-        padding: 14px 24px;
-        background: var(--gradient-brand);
-        color: white;
-        border-radius: var(--radius-xl);
-        font-size: var(--text-lg);
-        font-weight: 700;
-        margin-bottom: 16px;
-    }
-
-    .success-recommendation {
-        font-size: var(--text-sm);
-        color: var(--text-secondary);
-        padding: 12px 16px;
-        background: var(--surface-subtle);
-        border-radius: var(--radius-md);
-        margin-bottom: 16px;
-    }
-
-    .btn-lg {
-        padding: 14px 32px;
-        font-size: var(--text-lg);
-    }
-
-    .slide-up-enter-active,
-    .slide-up-leave-active {
-        transition: all 0.3s ease;
-    }
-
-    .slide-up-enter-from,
-    .slide-up-leave-to {
-        transform: translateX(-50%) translateY(100px);
-        opacity: 0;
-    }
-
-    @media (max-width: 1024px) {
-        .test-shell {
-            padding: 20px 16px 48px;
-        }
-        .test-header {
-            padding: 16px 20px;
-        }
-    }
-
-    @media (max-width: 768px) {
-        .test-shell {
-            padding: 16px 12px 40px;
-            gap: 12px;
-        }
-        .test-header {
-            padding: 14px 16px;
-            gap: 10px;
-            flex-wrap: wrap;
-        }
-        .test-title {
-            font-size: 1.1rem;
-        }
-        .test-subtitle {
-            font-size: 0.78rem;
-        }
-        .timer {
-            font-size: 0.95rem;
-            padding: 6px 12px;
-        }
-        .ex-card {
-            padding: 14px 16px;
-            gap: 12px;
-        }
-        .draw-tools-bar {
-            padding: 8px 12px;
-        }
-        .test-footer {
-            padding: 12px 16px;
-        }
-        .btn-submit {
-            padding: 10px 20px;
-            font-size: 0.88rem;
-        }
-        .result-card {
-            padding: 28px 24px;
-        }
-    }
-
-    @media (max-width: 600px) {
-        .test-shell {
-            padding: 10px 8px 32px;
-            gap: 10px;
-        }
-        .test-header {
-            padding: 12px;
-        }
-        .ex-card {
-            padding: 12px;
-            flex-direction: column;
-            gap: 8px;
-        }
-        .ex-num {
-            width: 28px;
-            height: 28px;
-            font-size: 0.82rem;
-        }
-        .ex-canvas {
-            height: 180px;
-        }
-        .test-footer {
-            grid-template-columns: 1fr;
-            padding: 10px 12px;
-            gap: 8px;
-
-            bottom: 0;
-            margin-left: -8px;
-            margin-right: -8px;
-            border-radius: var(--radius-xl) var(--radius-xl) 0 0;
-            border-bottom: 0;
-            padding-bottom: max(10px, env(safe-area-inset-bottom));
-        }
-
-        .draw-tools-bar {
-            flex-wrap: nowrap;
-            overflow-x: auto;
-            -webkit-overflow-scrolling: touch;
-        }
-
-        .draw-tools-bar > * {
-            flex-shrink: 0;
-        }
-        .footer-nav .btn-step {
-            flex: 1;
-            justify-content: center;
-        }
-        .btn-submit {
-            width: 100%;
-            justify-content: center;
-        }
-        .result-card {
-            padding: 20px 16px;
-        }
-        .result-actions {
-            flex-direction: column;
-            align-items: stretch;
-        }
-        .btn-secondary,
-        .btn-retry {
-            text-align: center;
-        }
-
-        .btn-back,
-        .toast-close {
-            width: 44px;
-            height: 44px;
-        }
-
-        .tool-btn {
-            width: 40px;
-            height: 40px;
-            font-size: 1rem;
-        }
-
-        .choice-option {
-            min-height: 52px;
-            padding: 12px 14px;
-        }
-
-        .choice-option input {
-            width: 22px;
-            height: 22px;
-        }
-
-        .btn-submit {
-            min-height: 50px;
-        }
-    }
-
-    @media (max-width: 680px) {
-        .test-shell {
-            padding: 16px 10px 80px;
-        }
-
-        .test-header {
-            display: grid;
-            grid-template-columns: 42px minmax(0, 1fr) auto;
-
-            padding: 14px 12px;
-            gap: 10px;
-            align-items: start;
-            border-radius: var(--radius-xl);
-        }
-
-        .test-header-info {
-            display: contents;
-        }
-        .btn-back {
-            grid-column: 1;
-            grid-row: 1 / span 2;
-        }
-        .test-title {
-            grid-column: 2;
-            grid-row: 1;
-            align-self: center;
-            font-size: 1.08rem;
-            margin: 0;
-        }
-        .test-subtitle {
-            grid-column: 2;
-            grid-row: 2;
-            display: -webkit-box;
-            overflow: hidden;
-
-            font-size: 0.82rem;
-            line-height: 1.3;
-            -webkit-box-orient: vertical;
-            -webkit-line-clamp: 2;
-        }
-        .timer {
-            grid-column: 3;
-            grid-row: 1;
-            padding: 5px 7px;
-            gap: 3px;
-            font-size: 0.78rem;
-            white-space: nowrap;
-        }
-        .level-badge {
-            grid-column: 3;
-            grid-row: 2;
-            align-self: end;
-            justify-self: end;
-            margin: 0;
-            padding: 3px 7px;
-            font-size: 0.68rem;
-            line-height: 1;
-            white-space: nowrap;
-        }
-
-        .ex-card {
-            padding: 14px 12px;
-            display: grid;
-            grid-template-columns: auto 1fr;
-            gap: 10px;
-            align-items: center;
-        }
-        .ex-card > .ex-body {
-            display: contents;
-        }
-        .ex-card > .ex-body > * {
-            grid-column: 1 / -1;
-        }
-        .ex-num {
-            width: 28px;
-            height: 28px;
-            font-size: 0.82rem;
-        }
-        .ex-canvas {
-            height: 320px;
-        }
-
-        .test-footer {
-            grid-template-columns: 1fr;
-            gap: 12px;
-            align-items: stretch;
-            padding: 12px 16px;
-            bottom: 0;
-            margin-left: -10px;
-            margin-right: -10px;
-            border-radius: var(--radius-xl) var(--radius-xl) 0 0;
-            border-bottom: 0;
-            padding-bottom: max(12px, env(safe-area-inset-bottom));
-            margin-top: 8px;
-        }
-        .footer-hint {
-            display: none;
-        }
-        .footer-nav,
-        .footer-actions {
-            width: 100%;
-            gap: 8px;
-        }
-        .footer-nav .btn-step,
-        .footer-actions .btn-submit {
-            flex: 1;
-        }
-        .btn-step {
-            padding: 12px 16px;
-            justify-content: center;
-            font-size: 0.875rem;
-        }
-        .btn-submit {
-            min-height: 50px;
-        }
-
-        .draw-tools-bar {
-            flex-wrap: nowrap;
-            overflow-x: auto;
-            -webkit-overflow-scrolling: touch;
-            padding: 10px 12px;
-        }
-        .draw-tools-bar > * {
-            flex-shrink: 0;
-        }
-
-        .draw-tools-bar .size-slider {
-            width: 54px;
-        }
-        .draw-tools-bar .size-val {
-            min-width: 26px;
-        }
-        .tool-btn {
-            width: 40px;
-            height: 40px;
-        }
-    }
-
-    @media (min-width: 921px) {
-        :global(.practiq-assistant-focus-target--open .test-shell) {
-            width: calc(100% - var(--practiq-assistant-rail));
-            max-width: calc(100% - var(--practiq-assistant-rail));
-            margin-left: 0;
-            margin-right: auto;
-        }
-    }
-
-    .spinner {
-        width: 16px;
-        height: 16px;
-        border: 2px solid rgba(255, 255, 255, 0.3);
-        border-top-color: white;
-        border-radius: 50%;
-        animation: spin 0.8s linear infinite;
-    }
-
-    @keyframes spin {
-        to {
-            transform: rotate(360deg);
-        }
-    }
-    .test-header-aside {
-        display: flex;
-        align-items: center;
-        gap: 10px;
-    }
-
-    .attempts-left {
-        padding: 4px 10px;
-        border-radius: 999px;
-        background: var(--fill-primary-soft);
-        color: var(--practiq-violet-dark);
-        font-size: 12px;
-        font-weight: 800;
+    .timer {
+        grid-column: 3;
+        grid-row: 1;
+        padding: 5px 7px;
+        gap: 3px;
+        font-size: 0.78rem;
         white-space: nowrap;
     }
+    .level-badge {
+        grid-column: 3;
+        grid-row: 2;
+        align-self: end;
+        justify-self: end;
+        margin: 0;
+        padding: 3px 7px;
+        font-size: 0.68rem;
+        line-height: 1;
+        white-space: nowrap;
+    }
+
+    .ex-card {
+        padding: 14px 12px;
+        display: grid;
+        grid-template-columns: auto 1fr;
+        gap: 10px;
+        align-items: center;
+    }
+    .ex-card > .ex-body {
+        display: contents;
+    }
+    .ex-card > .ex-body > * {
+        grid-column: 1 / -1;
+    }
+    .ex-num {
+        width: 28px;
+        height: 28px;
+        font-size: 0.82rem;
+    }
+    .ex-canvas {
+        height: 320px;
+    }
+
+    .test-footer {
+        grid-template-columns: 1fr;
+        gap: 12px;
+        align-items: stretch;
+        padding: 12px 16px;
+        bottom: 0;
+        margin-left: -10px;
+        margin-right: -10px;
+        border-radius: var(--radius-xl) var(--radius-xl) 0 0;
+        border-bottom: 0;
+        padding-bottom: max(12px, env(safe-area-inset-bottom));
+        margin-top: 8px;
+    }
+    .footer-hint {
+        display: none;
+    }
+    .footer-nav,
+    .footer-actions {
+        width: 100%;
+        gap: 8px;
+    }
+    .footer-nav .btn-step,
+    .footer-actions .btn-submit {
+        flex: 1;
+    }
+    .btn-step {
+        padding: 12px 16px;
+        justify-content: center;
+        font-size: 0.875rem;
+    }
+    .btn-submit {
+        min-height: 50px;
+    }
+
+    .draw-tools-bar {
+        flex-wrap: nowrap;
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+        padding: 10px 12px;
+    }
+    .draw-tools-bar > * {
+        flex-shrink: 0;
+    }
+
+    .draw-tools-bar .size-slider {
+        width: 54px;
+    }
+    .draw-tools-bar .size-val {
+        min-width: 26px;
+    }
+    .tool-btn {
+        width: 40px;
+        height: 40px;
+    }
+}
+
+@media (min-width: 921px) {
+    :global(.practiq-assistant-focus-target--open .test-shell) {
+        width: calc(100% - var(--practiq-assistant-rail));
+        max-width: calc(100% - var(--practiq-assistant-rail));
+        margin-left: 0;
+        margin-right: auto;
+    }
+}
+
+.spinner {
+    width: 16px;
+    height: 16px;
+    border: 2px solid rgba(255, 255, 255, 0.3);
+    border-top-color: white;
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+    to {
+        transform: rotate(360deg);
+    }
+}
+.test-header-aside {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.attempts-left {
+    padding: 4px 10px;
+    border-radius: 999px;
+    background: var(--fill-primary-soft);
+    color: var(--practiq-violet-dark);
+    font-size: 12px;
+    font-weight: 800;
+    white-space: nowrap;
+}
 </style>

@@ -3,6 +3,7 @@ import type { Exercise } from '@/types';
 
 export interface IExerciseService {
     create(topicId: string, params: Partial<Exercise>): Promise<{ data: Exercise }>;
+    generateDrafts(topicId: string, form: FormData): Promise<{ data: unknown[] }>;
     list(topicId: string): Promise<{ data: Exercise[] }>;
     update(id: string, params: Partial<Exercise>): Promise<{ data: Exercise }>;
     delete(id: string): Promise<void>;
@@ -13,6 +14,13 @@ export class ExerciseService implements IExerciseService {
 
     async create(topicId: string, params: Partial<Exercise>): Promise<{ data: Exercise }> {
         const { data } = await this.api.post(`/topics/${topicId}/exercises`, params);
+        return data;
+    }
+
+    async generateDrafts(topicId: string, form: FormData): Promise<{ data: unknown[] }> {
+        const { data } = await this.api.post(`/topics/${topicId}/exercise-drafts/ai`, form, {
+            headers: { 'Content-Type': 'multipart/form-data' },
+        });
         return data;
     }
 

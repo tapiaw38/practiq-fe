@@ -1,370 +1,368 @@
 <script setup lang="ts">
-    import UiModal from '@/components/ui/UiModal.vue';
-    import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
-    import TeacherLayout from '@/layouts/TeacherLayout.vue';
-    import Skeleton from '@/components/ui/Skeleton.vue';
-    import ConfirmModal from '@/components/ui/ConfirmModal.vue';
-    import { useAssignment } from '@/composables/useAssignment';
-    import { useConfirm } from '@/composables/useConfirm';
-    import { useAuthAdmin } from '@/composables/useAuthAdmin';
-    import { useGrade } from '@/composables/useGrade';
-    import { useProfile } from '@/composables/useProfile';
-    import { useAuthStore } from '@/stores/authStore';
-    import type { AssignedUser, AuthApiUser, Grade, UserProfile } from '@/types';
+import UiModal from '@/components/ui/UiModal.vue';
+import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
+import TeacherLayout from '@/layouts/TeacherLayout.vue';
+import Skeleton from '@/components/ui/Skeleton.vue';
+import ConfirmModal from '@/components/ui/ConfirmModal.vue';
+import { useAssignment } from '@/composables/useAssignment';
+import { useConfirm } from '@/composables/useConfirm';
+import { useAuthAdmin } from '@/composables/useAuthAdmin';
+import { useGrade } from '@/composables/useGrade';
+import { useProfile } from '@/composables/useProfile';
+import { useAuthStore } from '@/stores/authStore';
+import type { AssignedUser, AuthApiUser, Grade, UserProfile } from '@/types';
 
-    const VIEW_KEY = 'admin-users-view';
-    const viewMode = ref<'list' | 'cards'>(
-        localStorage.getItem(VIEW_KEY) === 'cards' ? 'cards' : 'list',
+const VIEW_KEY = 'admin-users-view';
+const viewMode = ref<'list' | 'cards'>(
+    localStorage.getItem(VIEW_KEY) === 'cards' ? 'cards' : 'list',
+);
+
+function setViewMode(mode: 'list' | 'cards') {
+    viewMode.value = mode;
+    localStorage.setItem(VIEW_KEY, mode);
+}
+
+const narrowQuery = window.matchMedia('(max-width: 720px)');
+const isNarrow = ref(narrowQuery.matches);
+const onNarrowChange = (event: MediaQueryListEvent) => (isNarrow.value = event.matches);
+narrowQuery.addEventListener('change', onNarrowChange);
+onBeforeUnmount(() => narrowQuery.removeEventListener('change', onNarrowChange));
+
+const showCards = computed(() => isNarrow.value || viewMode.value === 'cards');
+
+type UserRow = {
+    user: AuthApiUser;
+    profile: UserProfile | null;
+};
+
+const authStore = useAuthStore();
+const { confirmState, showConfirm, onConfirm, onCancel } = useConfirm();
+const { loadUsers, updateUser } = useAuthAdmin();
+const {
+    loadTeacherStudents,
+    loadStudentTeachers,
+    assignTeacher: assignTeacherService,
+    unassignTeacher: unassignTeacherService,
+} = useAssignment();
+const { loadGrades, loadGradesByUsers, addGradeMember, removeGradeMember } = useGrade();
+const { loadProfileById, updateUIThemeById, updateAcademicStatusById, updateProfileTypeById } =
+    useProfile();
+const loading = ref(false);
+const errorMessage = ref('');
+const rows = ref<UserRow[]>([]);
+const grades = ref<Grade[]>([]);
+const teacherAssignments = ref<Record<string, AssignedUser[]>>({});
+const studentTeachers = ref<Record<string, AssignedUser[]>>({});
+const userGrades = ref<Record<string, Grade[]>>({});
+const teacherSelection = ref<Record<string, string>>({});
+const gradeSelection = ref<Record<string, string>>({});
+const themeForms = ref<Record<string, { ui_theme: 'primary' | 'secondary' }>>({});
+const savingTheme = ref(false);
+const themeSaveSuccess = ref(false);
+const searchTerm = ref('');
+const statusFilter = ref<'all' | 'active' | 'blocked' | 'pending'>('all');
+const editingStudent = ref<UserRow | null>(null);
+
+const statusOptions = [
+    { value: 'all', label: 'Todos' },
+    { value: 'active', label: 'Activos' },
+    { value: 'blocked', label: 'Bloqueados' },
+    { value: 'pending', label: 'Sin perfil' },
+] as const;
+
+const isSuperAdmin = computed(() => {
+    const roles = authStore.authUser?.roles || [];
+    return roles.some((role) => role.name === 'superadmin');
+});
+
+function practiqUserId(user: AuthApiUser) {
+    return user.username || user.id;
+}
+
+const teachers = computed(() =>
+    rows.value.filter((item) => item.profile?.profile_type === 'teacher'),
+);
+const students = computed(() =>
+    rows.value.filter((item) => item.profile?.profile_type === 'student'),
+);
+const pendingProfiles = computed(() => rows.value.filter((item) => !item.profile));
+
+const normalizedSearch = computed(() => searchTerm.value.trim().toLowerCase());
+
+function matchesSearch(item: UserRow) {
+    const needle = normalizedSearch.value;
+    if (!needle) return true;
+    return [fullName(item.user), item.user.email, practiqUserId(item.user)].some((value) =>
+        value.toLowerCase().includes(needle),
     );
+}
 
-    function setViewMode(mode: 'list' | 'cards') {
-        viewMode.value = mode;
-        localStorage.setItem(VIEW_KEY, mode);
+function matchesStatus(item: UserRow) {
+    if (statusFilter.value === 'all') return true;
+    if (statusFilter.value === 'pending') return !item.profile;
+    const blocked = item.profile?.academic_status === 'blocked' || !item.user.is_active;
+    if (statusFilter.value === 'blocked') return blocked;
+    if (statusFilter.value === 'active') return !!item.profile && !blocked;
+    return true;
+}
+
+const filteredTeachers = computed(() =>
+    teachers.value.filter((item) => matchesSearch(item) && matchesStatus(item)),
+);
+const filteredStudents = computed(() =>
+    students.value.filter((item) => matchesSearch(item) && matchesStatus(item)),
+);
+const filteredPendingProfiles = computed(() =>
+    pendingProfiles.value.filter((item) => matchesSearch(item) && matchesStatus(item)),
+);
+const currentEditingStudentId = computed(() =>
+    editingStudent.value ? practiqUserId(editingStudent.value.user) : '',
+);
+const currentStudentTeachers = computed(() =>
+    currentEditingStudentId.value ? studentTeachers.value[currentEditingStudentId.value] || [] : [],
+);
+const currentStudentGrades = computed(() =>
+    currentEditingStudentId.value ? userGrades.value[currentEditingStudentId.value] || [] : [],
+);
+
+onMounted(async () => {
+    if (isSuperAdmin.value) {
+        await loadData();
     }
+});
 
-    const narrowQuery = window.matchMedia('(max-width: 720px)');
-    const isNarrow = ref(narrowQuery.matches);
-    const onNarrowChange = (event: MediaQueryListEvent) => (isNarrow.value = event.matches);
-    narrowQuery.addEventListener('change', onNarrowChange);
-    onBeforeUnmount(() => narrowQuery.removeEventListener('change', onNarrowChange));
+async function loadData() {
+    loading.value = true;
+    errorMessage.value = '';
+    try {
+        const [usersData, gradesData] = await Promise.all([
+            loadUsers({ limit: 1000, offset: 0 }),
+            loadGrades(),
+        ]);
 
-    const showCards = computed(() => isNarrow.value || viewMode.value === 'cards');
-
-    type UserRow = {
-        user: AuthApiUser;
-        profile: UserProfile | null;
-    };
-
-    const authStore = useAuthStore();
-    const { confirmState, showConfirm, onConfirm, onCancel } = useConfirm();
-    const { loadUsers, updateUser } = useAuthAdmin();
-    const {
-        loadTeacherStudents,
-        loadStudentTeachers,
-        assignTeacher: assignTeacherService,
-        unassignTeacher: unassignTeacherService,
-    } = useAssignment();
-    const { loadGrades, loadGradesByUsers, addGradeMember, removeGradeMember } = useGrade();
-    const { loadProfileById, updateUIThemeById, updateAcademicStatusById, updateProfileTypeById } =
-        useProfile();
-    const loading = ref(false);
-    const errorMessage = ref('');
-    const rows = ref<UserRow[]>([]);
-    const grades = ref<Grade[]>([]);
-    const teacherAssignments = ref<Record<string, AssignedUser[]>>({});
-    const studentTeachers = ref<Record<string, AssignedUser[]>>({});
-    const userGrades = ref<Record<string, Grade[]>>({});
-    const teacherSelection = ref<Record<string, string>>({});
-    const gradeSelection = ref<Record<string, string>>({});
-    const themeForms = ref<Record<string, { ui_theme: 'primary' | 'secondary' }>>({});
-    const savingTheme = ref(false);
-    const themeSaveSuccess = ref(false);
-    const searchTerm = ref('');
-    const statusFilter = ref<'all' | 'active' | 'blocked' | 'pending'>('all');
-    const editingStudent = ref<UserRow | null>(null);
-
-    const statusOptions = [
-        { value: 'all', label: 'Todos' },
-        { value: 'active', label: 'Activos' },
-        { value: 'blocked', label: 'Bloqueados' },
-        { value: 'pending', label: 'Sin perfil' },
-    ] as const;
-
-    const isSuperAdmin = computed(() => {
-        const roles = authStore.authUser?.roles || [];
-        return roles.some((role) => role.name === 'superadmin');
-    });
-
-    function practiqUserId(user: AuthApiUser) {
-        return user.username || user.id;
-    }
-
-    const teachers = computed(() =>
-        rows.value.filter((item) => item.profile?.profile_type === 'teacher'),
-    );
-    const students = computed(() =>
-        rows.value.filter((item) => item.profile?.profile_type === 'student'),
-    );
-    const pendingProfiles = computed(() => rows.value.filter((item) => !item.profile));
-
-    const normalizedSearch = computed(() => searchTerm.value.trim().toLowerCase());
-
-    function matchesSearch(item: UserRow) {
-        const needle = normalizedSearch.value;
-        if (!needle) return true;
-        return [fullName(item.user), item.user.email, practiqUserId(item.user)].some((value) =>
-            value.toLowerCase().includes(needle),
-        );
-    }
-
-    function matchesStatus(item: UserRow) {
-        if (statusFilter.value === 'all') return true;
-        if (statusFilter.value === 'pending') return !item.profile;
-        const blocked = item.profile?.academic_status === 'blocked' || !item.user.is_active;
-        if (statusFilter.value === 'blocked') return blocked;
-        if (statusFilter.value === 'active') return !!item.profile && !blocked;
-        return true;
-    }
-
-    const filteredTeachers = computed(() =>
-        teachers.value.filter((item) => matchesSearch(item) && matchesStatus(item)),
-    );
-    const filteredStudents = computed(() =>
-        students.value.filter((item) => matchesSearch(item) && matchesStatus(item)),
-    );
-    const filteredPendingProfiles = computed(() =>
-        pendingProfiles.value.filter((item) => matchesSearch(item) && matchesStatus(item)),
-    );
-    const currentEditingStudentId = computed(() =>
-        editingStudent.value ? practiqUserId(editingStudent.value.user) : '',
-    );
-    const currentStudentTeachers = computed(() =>
-        currentEditingStudentId.value
-            ? studentTeachers.value[currentEditingStudentId.value] || []
-            : [],
-    );
-    const currentStudentGrades = computed(() =>
-        currentEditingStudentId.value ? userGrades.value[currentEditingStudentId.value] || [] : [],
-    );
-
-    onMounted(async () => {
-        if (isSuperAdmin.value) {
-            await loadData();
-        }
-    });
-
-    async function loadData() {
-        loading.value = true;
-        errorMessage.value = '';
-        try {
-            const [usersData, gradesData] = await Promise.all([
-                loadUsers({ limit: 1000, offset: 0 }),
-                loadGrades(),
-            ]);
-
-            const userRows = await Promise.all(
-                (usersData || []).map(async (user) => {
-                    try {
-                        const profile = await loadProfileById(practiqUserId(user));
-                        return { user, profile };
-                    } catch {
-                        return { user, profile: null };
-                    }
-                }),
-            );
-
-            rows.value = userRows;
-            grades.value = gradesData || [];
-            syncAssistantForms();
-            await loadAssignments();
-        } catch (error) {
-            console.error(error);
-            errorMessage.value = 'No se pudo cargar la estructura de usuarios.';
-        } finally {
-            loading.value = false;
-        }
-    }
-
-    async function loadAssignments() {
-        const teacherMap: Record<string, AssignedUser[]> = {};
-        const studentMap: Record<string, AssignedUser[]> = {};
-        const gradeMap: Record<string, Grade[]> = {};
-
-        await Promise.all(
-            teachers.value.map(async (teacher) => {
+        const userRows = await Promise.all(
+            (usersData || []).map(async (user) => {
                 try {
-                    const teacherId = practiqUserId(teacher.user);
-                    teacherMap[teacherId] = await loadTeacherStudents(teacherId);
+                    const profile = await loadProfileById(practiqUserId(user));
+                    return { user, profile };
                 } catch {
-                    teacherMap[practiqUserId(teacher.user)] = [];
+                    return { user, profile: null };
                 }
             }),
         );
 
-        const studentIds = students.value.map((student) => practiqUserId(student.user));
-        const gradesByStudent: Record<string, Grade[]> = await loadGradesByUsers(studentIds).catch(
-            () => ({}),
-        );
+        rows.value = userRows;
+        grades.value = gradesData || [];
+        syncAssistantForms();
+        await loadAssignments();
+    } catch (error) {
+        console.error(error);
+        errorMessage.value = 'No se pudo cargar la estructura de usuarios.';
+    } finally {
+        loading.value = false;
+    }
+}
 
-        await Promise.all(
-            students.value.map(async (student) => {
-                const studentId = practiqUserId(student.user);
-                try {
-                    studentMap[studentId] = (await loadStudentTeachers(studentId)) || [];
-                } catch {
-                    studentMap[studentId] = [];
-                }
-                gradeMap[studentId] = gradesByStudent[studentId] || [];
+async function loadAssignments() {
+    const teacherMap: Record<string, AssignedUser[]> = {};
+    const studentMap: Record<string, AssignedUser[]> = {};
+    const gradeMap: Record<string, Grade[]> = {};
+
+    await Promise.all(
+        teachers.value.map(async (teacher) => {
+            try {
+                const teacherId = practiqUserId(teacher.user);
+                teacherMap[teacherId] = await loadTeacherStudents(teacherId);
+            } catch {
+                teacherMap[practiqUserId(teacher.user)] = [];
+            }
+        }),
+    );
+
+    const studentIds = students.value.map((student) => practiqUserId(student.user));
+    const gradesByStudent: Record<string, Grade[]> = await loadGradesByUsers(studentIds).catch(
+        () => ({}),
+    );
+
+    await Promise.all(
+        students.value.map(async (student) => {
+            const studentId = practiqUserId(student.user);
+            try {
+                studentMap[studentId] = (await loadStudentTeachers(studentId)) || [];
+            } catch {
+                studentMap[studentId] = [];
+            }
+            gradeMap[studentId] = gradesByStudent[studentId] || [];
+        }),
+    );
+
+    teacherAssignments.value = teacherMap;
+    studentTeachers.value = studentMap;
+    userGrades.value = gradeMap;
+}
+
+function fullName(user: AuthApiUser) {
+    return `${user.first_name || ''} ${user.last_name || ''}`.trim() || user.email;
+}
+
+function syncAssistantForms() {
+    const next: Record<string, { ui_theme: 'primary' | 'secondary' }> = {};
+    for (const item of rows.value) {
+        next[practiqUserId(item.user)] = {
+            ui_theme: item.profile?.ui_theme || 'primary',
+        };
+    }
+    themeForms.value = next;
+}
+
+function openStudentEditor(item: UserRow) {
+    const userId = practiqUserId(item.user);
+
+    if (!themeForms.value[userId]) {
+        themeForms.value = {
+            ...themeForms.value,
+            [userId]: { ui_theme: item.profile?.ui_theme || 'primary' },
+        };
+    }
+    editingStudent.value = item;
+}
+
+function closeStudentEditor() {
+    editingStudent.value = null;
+}
+
+async function saveUITheme(userId: string) {
+    if (savingTheme.value) return;
+    savingTheme.value = true;
+    themeSaveSuccess.value = false;
+    try {
+        const form = themeForms.value[userId];
+        const profile = await updateUIThemeById(userId, form);
+        rows.value = rows.value.map((item) =>
+            practiqUserId(item.user) === userId ? { ...item, profile } : item,
+        );
+        if (editingStudent.value && practiqUserId(editingStudent.value.user) === userId) {
+            editingStudent.value = { ...editingStudent.value, profile };
+        }
+        themeSaveSuccess.value = true;
+        setTimeout(() => {
+            themeSaveSuccess.value = false;
+        }, 3000);
+    } catch (error) {
+        console.error(error);
+        errorMessage.value = 'No se pudo guardar el tema visual.';
+    } finally {
+        savingTheme.value = false;
+    }
+}
+
+async function assignTeacher(studentId: string) {
+    const teacherId = teacherSelection.value[studentId];
+    if (!teacherId) return;
+    try {
+        await assignTeacherService(teacherId, studentId);
+        teacherSelection.value[studentId] = '';
+        await loadAssignments();
+    } catch (error) {
+        console.error(error);
+        errorMessage.value = 'No se pudo asignar el profesor.';
+    }
+}
+
+async function unassignTeacher(teacherId: string, studentId: string) {
+    try {
+        await unassignTeacherService(teacherId, studentId);
+        await loadAssignments();
+    } catch (error) {
+        console.error(error);
+        errorMessage.value = 'No se pudo desvincular el profesor.';
+    }
+}
+
+async function assignGrade(userId: string) {
+    const gradeId = gradeSelection.value[userId];
+    if (!gradeId) return;
+    try {
+        await addGradeMember(gradeId, userId);
+        gradeSelection.value[userId] = '';
+        await loadAssignments();
+    } catch (error) {
+        console.error(error);
+        errorMessage.value = 'No se pudo asignar el grado.';
+    }
+}
+
+async function removeGrade(gradeId: string, userId: string) {
+    try {
+        await removeGradeMember(gradeId, userId);
+        await loadAssignments();
+    } catch (error) {
+        console.error(error);
+        errorMessage.value = 'No se pudo quitar el grado.';
+    }
+}
+
+async function toggleBlocked(item: UserRow) {
+    const nextBlocked = !(item.profile?.academic_status === 'blocked' || !item.user.is_active);
+    try {
+        const practiqId = practiqUserId(item.user);
+        const [authUser, profile] = await Promise.all([
+            updateUser(item.user.id, { is_active: !nextBlocked }),
+            updateAcademicStatusById(practiqId, {
+                academic_status: nextBlocked ? 'blocked' : 'active',
             }),
+        ]);
+
+        rows.value = rows.value.map((row) =>
+            row.user.id === item.user.id ? { user: authUser, profile } : row,
         );
-
-        teacherAssignments.value = teacherMap;
-        studentTeachers.value = studentMap;
-        userGrades.value = gradeMap;
-    }
-
-    function fullName(user: AuthApiUser) {
-        return `${user.first_name || ''} ${user.last_name || ''}`.trim() || user.email;
-    }
-
-    function syncAssistantForms() {
-        const next: Record<string, { ui_theme: 'primary' | 'secondary' }> = {};
-        for (const item of rows.value) {
-            next[practiqUserId(item.user)] = {
-                ui_theme: item.profile?.ui_theme || 'primary',
-            };
+        if (editingStudent.value && editingStudent.value.user.id === item.user.id) {
+            editingStudent.value = { user: authUser, profile };
         }
-        themeForms.value = next;
+    } catch (error) {
+        console.error(error);
+        errorMessage.value = 'No se pudo cambiar el estado del alumno.';
     }
+}
 
-    function openStudentEditor(item: UserRow) {
-        const userId = practiqUserId(item.user);
+function isSelf(user: AuthApiUser) {
+    return authStore.authUser?.id === user.id;
+}
 
-        if (!themeForms.value[userId]) {
-            themeForms.value = {
-                ...themeForms.value,
-                [userId]: { ui_theme: item.profile?.ui_theme || 'primary' },
-            };
-        }
-        editingStudent.value = item;
+const changingRole = ref<string | null>(null);
+
+async function setProfileType(item: UserRow, makeTeacher: boolean) {
+    if (!item.profile) {
+        errorMessage.value = 'El usuario debe iniciar sesión para crear su perfil Practiq.';
+        return;
     }
+    const name = fullName(item.user);
+    const ok = await showConfirm(
+        makeTeacher ? `¿Convertir a ${name} en docente?` : `¿Convertir a ${name} en alumno?`,
+        {
+            description: makeTeacher
+                ? 'Va a poder crear cursos y ver a los alumnos que tenga asignados. Su sesión actual se cierra y el cambio aplica cuando vuelva a entrar.'
+                : 'Vuelve a ser alumno y pierde acceso a funciones docentes.',
+            confirmLabel: makeTeacher ? 'Convertir en docente' : 'Convertir en alumno',
+            danger: !makeTeacher,
+        },
+    );
+    if (!ok) return;
 
-    function closeStudentEditor() {
-        editingStudent.value = null;
-    }
-
-    async function saveUITheme(userId: string) {
-        if (savingTheme.value) return;
-        savingTheme.value = true;
-        themeSaveSuccess.value = false;
-        try {
-            const form = themeForms.value[userId];
-            const profile = await updateUIThemeById(userId, form);
-            rows.value = rows.value.map((item) =>
-                practiqUserId(item.user) === userId ? { ...item, profile } : item,
-            );
-            if (editingStudent.value && practiqUserId(editingStudent.value.user) === userId) {
-                editingStudent.value = { ...editingStudent.value, profile };
-            }
-            themeSaveSuccess.value = true;
-            setTimeout(() => {
-                themeSaveSuccess.value = false;
-            }, 3000);
-        } catch (error) {
-            console.error(error);
-            errorMessage.value = 'No se pudo guardar el tema visual.';
-        } finally {
-            savingTheme.value = false;
-        }
-    }
-
-    async function assignTeacher(studentId: string) {
-        const teacherId = teacherSelection.value[studentId];
-        if (!teacherId) return;
-        try {
-            await assignTeacherService(teacherId, studentId);
-            teacherSelection.value[studentId] = '';
-            await loadAssignments();
-        } catch (error) {
-            console.error(error);
-            errorMessage.value = 'No se pudo asignar el profesor.';
-        }
-    }
-
-    async function unassignTeacher(teacherId: string, studentId: string) {
-        try {
-            await unassignTeacherService(teacherId, studentId);
-            await loadAssignments();
-        } catch (error) {
-            console.error(error);
-            errorMessage.value = 'No se pudo desvincular el profesor.';
-        }
-    }
-
-    async function assignGrade(userId: string) {
-        const gradeId = gradeSelection.value[userId];
-        if (!gradeId) return;
-        try {
-            await addGradeMember(gradeId, userId);
-            gradeSelection.value[userId] = '';
-            await loadAssignments();
-        } catch (error) {
-            console.error(error);
-            errorMessage.value = 'No se pudo asignar el grado.';
-        }
-    }
-
-    async function removeGrade(gradeId: string, userId: string) {
-        try {
-            await removeGradeMember(gradeId, userId);
-            await loadAssignments();
-        } catch (error) {
-            console.error(error);
-            errorMessage.value = 'No se pudo quitar el grado.';
-        }
-    }
-
-    async function toggleBlocked(item: UserRow) {
-        const nextBlocked = !(item.profile?.academic_status === 'blocked' || !item.user.is_active);
-        try {
-            const practiqId = practiqUserId(item.user);
-            const [authUser, profile] = await Promise.all([
-                updateUser(item.user.id, { is_active: !nextBlocked }),
-                updateAcademicStatusById(practiqId, {
-                    academic_status: nextBlocked ? 'blocked' : 'active',
-                }),
-            ]);
-
-            rows.value = rows.value.map((row) =>
-                row.user.id === item.user.id ? { user: authUser, profile } : row,
-            );
-            if (editingStudent.value && editingStudent.value.user.id === item.user.id) {
-                editingStudent.value = { user: authUser, profile };
-            }
-        } catch (error) {
-            console.error(error);
-            errorMessage.value = 'No se pudo cambiar el estado del alumno.';
-        }
-    }
-
-    function isSelf(user: AuthApiUser) {
-        return authStore.authUser?.id === user.id;
-    }
-
-    const changingRole = ref<string | null>(null);
-
-    async function setProfileType(item: UserRow, makeTeacher: boolean) {
-        if (!item.profile) {
-            errorMessage.value = 'El usuario debe iniciar sesión para crear su perfil Practiq.';
-            return;
-        }
-        const name = fullName(item.user);
-        const ok = await showConfirm(
-            makeTeacher ? `¿Convertir a ${name} en docente?` : `¿Convertir a ${name} en alumno?`,
-            {
-                description: makeTeacher
-                    ? 'Va a poder crear cursos y ver a los alumnos que tenga asignados. Su sesión actual se cierra y el cambio aplica cuando vuelva a entrar.'
-                    : 'Vuelve a ser alumno y pierde acceso a funciones docentes.',
-                confirmLabel: makeTeacher ? 'Convertir en docente' : 'Convertir en alumno',
-                danger: !makeTeacher,
-            },
+    changingRole.value = item.user.id;
+    try {
+        const updated = await updateProfileTypeById(practiqUserId(item.user), {
+            profile_type: makeTeacher ? 'teacher' : 'student',
+        });
+        rows.value = rows.value.map((row) =>
+            row.user.id === item.user.id ? { ...row, profile: updated } : row,
         );
-        if (!ok) return;
-
-        changingRole.value = item.user.id;
-        try {
-            const updated = await updateProfileTypeById(practiqUserId(item.user), {
-                profile_type: makeTeacher ? 'teacher' : 'student',
-            });
-            rows.value = rows.value.map((row) =>
-                row.user.id === item.user.id ? { ...row, profile: updated } : row,
-            );
-        } catch {
-            errorMessage.value = 'No se pudo cambiar el tipo de perfil.';
-        } finally {
-            changingRole.value = null;
-        }
+    } catch {
+        errorMessage.value = 'No se pudo cambiar el tipo de perfil.';
+    } finally {
+        changingRole.value = null;
     }
+}
 </script>
 
 <template>
@@ -925,692 +923,692 @@
 </template>
 
 <style scoped>
+.admin-shell {
+    padding: 24px 28px 40px;
+    display: flex;
+    flex-direction: column;
+    gap: 18px;
+}
+.hero-card,
+.locked-card,
+.loading-card,
+.error-card,
+.panel-card,
+.stat-card,
+.teacher-card,
+.student-card,
+.toolbar-card {
+    background: var(--surface-elevated);
+    border: 1px solid var(--surface-elevated-strong);
+    box-shadow: var(--shadow-card);
+    border-radius: var(--radius-2xl);
+}
+.hero-card,
+.panel-head,
+.student-head,
+.action-row,
+.stats-row,
+.chip-row,
+.toolbar-card,
+.search-box,
+.filter-row {
+    display: flex;
+}
+.hero-card,
+.panel-head,
+.student-head {
+    justify-content: space-between;
+    gap: 18px;
+    align-items: flex-start;
+}
+.hero-card,
+.panel-card,
+.teacher-card,
+.student-card,
+.stat-card {
+    padding: 16px 20px;
+}
+.hero-card {
+    position: relative;
+    padding: 22px 24px;
+    background: linear-gradient(115deg, var(--surface-elevated), var(--surface-card));
+    box-shadow: var(--shadow-card);
+    backdrop-filter: blur(18px);
+    overflow: hidden;
+    border-radius: var(--radius-2xl);
+}
+.hero-card > * {
+    position: relative;
+    z-index: 1;
+}
+.hero-card > div:first-child {
+    flex: 1;
+    min-width: 0;
+    text-align: left;
+}
+.hero-card > .btn {
+    align-self: flex-start;
+    width: auto;
+    flex: 0 0 auto;
+}
+.hero-kicker,
+.panel-kicker {
+    font-size: var(--text-sm);
+    font-weight: 700;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--practiq-violet);
+}
+.hero-title {
+    margin: 4px 0 6px;
+    font-size: var(--font-hero);
+    font-weight: 800;
+    color: var(--text-heading);
+    text-align: left;
+}
+.hero-copy {
+    margin: 0;
+    color: var(--text-secondary);
+    max-width: 720px;
+    font-size: var(--text-base);
+}
+.stats-row {
+    gap: 12px;
+}
+.stat-card {
+    flex: 1;
+    position: relative;
+    overflow: hidden;
+    padding-left: 58px;
+}
+.stat-icon {
+    position: absolute;
+    left: 16px;
+    top: 14px;
+    width: 34px;
+    height: 34px;
+    border-radius: var(--radius-sm);
+    display: grid;
+    place-items: center;
+    font-size: 16px;
+}
+.stat-icon--teacher {
+    background: var(--color-info-bg);
+    color: var(--color-info-dark);
+}
+.stat-icon--student {
+    background: var(--color-success-bg);
+    color: var(--color-success-dark);
+}
+.stat-icon--pending {
+    background: var(--color-warning-bg);
+    color: var(--color-warning-dark);
+}
+.stat-value {
+    font-size: var(--font-stat-value);
+    font-weight: 800;
+    color: var(--text-heading);
+}
+.stat-label {
+    color: var(--text-secondary);
+}
+.toolbar-card {
+    justify-content: space-between;
+    gap: 18px;
+    padding: 12px 14px;
+    align-items: center;
+}
+.search-box {
+    flex: 1;
+    gap: 8px;
+    align-items: center;
+    padding: 8px 12px;
+    border-radius: var(--radius-sm);
+    background: var(--surface-subtle);
+    border: 1px solid rgba(var(--surface-border-rgb), 0.16);
+}
+.search-box i {
+    color: var(--text-secondary);
+}
+.search-input {
+    width: 100%;
+    border: none;
+    background: transparent;
+    outline: none;
+    font: inherit;
+    color: var(--text-heading);
+}
+.filter-row {
+    gap: 8px;
+    flex-wrap: wrap;
+}
+.filter-chip {
+    border: none;
+    padding: 5px 10px;
+    border-radius: var(--radius-pill);
+    background: var(--surface-hover);
+    color: var(--text-secondary);
+    font-size: var(--text-sm);
+    font-weight: 700;
+    cursor: pointer;
+}
+.filter-chip--active {
+    background: var(--fill-primary-soft);
+    color: var(--practiq-violet-dark);
+}
+.panel-card {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+.panel-head h2 {
+    margin: 2px 0 0;
+    font-size: var(--font-section-title);
+    font-weight: 700;
+    color: var(--text-heading);
+}
+.teacher-state {
+    display: inline-flex;
+    padding: 3px 10px;
+    border-radius: var(--radius-pill);
+    font-size: var(--text-xs);
+    font-weight: 700;
+}
+.teacher-state--ok {
+    background: var(--color-success-bg);
+    color: var(--color-success-dark);
+}
+.teacher-state--blocked {
+    background: var(--color-error-bg);
+    color: var(--color-error-dark);
+}
+.teacher-badge {
+    display: inline-flex;
+    padding: 3px 8px;
+    border-radius: var(--radius-pill);
+    background: rgba(var(--text-primary-rgb), 0.05);
+    color: var(--text-secondary);
+    font-size: var(--text-xs);
+    font-weight: 700;
+}
+.teacher-badge--pending {
+    background: var(--color-warning-bg);
+    color: var(--color-warning-dark);
+}
+.chip-row {
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+}
+.chip-row--inline {
+    margin: 0;
+}
+.soft-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 3px 8px;
+    border-radius: var(--radius-pill);
+    background: var(--fill-primary-soft);
+    color: var(--practiq-violet-dark);
+    font-size: var(--text-xs);
+    font-weight: 700;
+}
+.soft-chip--teacher {
+    background: var(--color-info-bg);
+    color: var(--color-info-dark);
+}
+.soft-chip--grade {
+    background: var(--color-success-bg);
+    color: var(--color-success-dark);
+}
+.chip-action {
+    border: none;
+    background: transparent;
+    color: inherit;
+    cursor: pointer;
+    font-weight: 800;
+    padding: 0;
+}
+.data-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: var(--text-base);
+}
+.data-table thead th {
+    padding: 8px 12px;
+    text-align: left;
+    font-size: var(--text-xs);
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--text-secondary);
+    border-bottom: 1px solid rgba(var(--surface-border-rgb), 0.18);
+    background: var(--surface-subtle);
+}
+.data-table thead th:first-child {
+    border-radius: var(--radius-sm) 0 0 0;
+}
+.data-table thead th:last-child {
+    border-radius: 0 var(--radius-sm) 0 0;
+}
+.data-table tbody tr {
+    border-bottom: 1px solid rgba(var(--surface-border-rgb), 0.1);
+    transition: background 0.15s;
+}
+.data-table tbody tr:last-child {
+    border-bottom: none;
+}
+.data-table tbody tr:hover {
+    background: var(--fill-primary-faint);
+}
+.data-table tbody tr.row--pending {
+    background: rgba(var(--color-warning-rgb), 0.03);
+}
+.data-table tbody tr.row--pending:hover {
+    background: var(--fill-warning-subtle);
+}
+.data-table td {
+    padding: 10px 12px;
+    vertical-align: middle;
+    color: var(--text-heading);
+}
+.cell-muted {
+    color: var(--text-secondary);
+    font-size: var(--text-sm);
+}
+.cell-center {
+    text-align: center;
+    font-weight: 700;
+}
+.cell-actions {
+    text-align: right;
+    white-space: nowrap;
+}
+.detail-grid {
+    display: grid;
+    gap: 14px;
+    margin-top: 14px;
+}
+.detail-card {
+    padding: 10px 12px;
+    border-radius: var(--radius-sm);
+    background: var(--surface-subtle);
+    border: 1px solid rgba(var(--surface-border-rgb), 0.14);
+}
+.detail-label {
+    display: block;
+    font-size: var(--text-xs);
+    font-weight: 700;
+    text-transform: uppercase;
+    color: var(--text-secondary);
+    margin-bottom: 4px;
+}
+.detail-empty {
+    color: var(--text-muted);
+    font-size: var(--text-sm);
+}
+.empty-state {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    justify-content: center;
+    padding: 28px 16px;
+    border: 1px dashed rgba(var(--surface-border-rgb), 0.24);
+    border-radius: var(--radius-xl);
+    background: var(--surface-subtle);
+    color: var(--text-secondary);
+    font-size: var(--text-sm);
+    font-weight: 700;
+}
+.empty-state i {
+    color: var(--practiq-violet);
+}
+.action-row {
+    gap: 8px;
+    align-items: center;
+    margin-top: 10px;
+}
+.action-row--split {
+    justify-content: space-between;
+}
+.assistant-box {
+    display: grid;
+    gap: 8px;
+    margin-top: 12px;
+    padding: 16px;
+    border: 1px solid var(--surface-border);
+    border-radius: var(--radius-md);
+    background: var(--surface-bg-soft);
+}
+.assistant-title {
+    font-size: var(--text-sm);
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--text-secondary);
+}
+.assistant-copy,
+.detail-copy {
+    margin: 4px 0 0;
+    color: var(--text-secondary);
+    font-size: var(--text-sm);
+}
+.form-input,
+.form-select {
+    width: 100%;
+    border-radius: var(--radius-sm);
+    border: 1px solid rgba(var(--surface-border-rgb), 0.2);
+    background: var(--surface-subtle);
+    padding: 8px 10px;
+    font: inherit;
+    font-size: var(--text-base);
+    color: var(--text-heading);
+}
+.btn-danger {
+    background: var(--color-error);
+    color: var(--color-on-primary);
+    border: none;
+}
+.btn-success {
+    background: var(--color-success);
+    color: var(--color-on-primary);
+    border: none;
+}
+.status-pill {
+    display: inline-flex;
+    align-items: center;
+    padding: 3px 10px;
+    border-radius: var(--radius-pill);
+    font-size: var(--text-xs);
+    font-weight: 700;
+}
+.status-pill--ok {
+    background: var(--color-success-bg);
+    color: var(--color-success-dark);
+}
+.status-pill--blocked {
+    background: var(--color-error-bg);
+    color: var(--color-error-dark);
+}
+.loading-card,
+.error-card {
+    padding: 30px;
+    text-align: center;
+}
+.locked-card {
+    padding: 56px 30px;
+    text-align: center;
+}
+.locked-icon {
+    width: 64px;
+    height: 64px;
+    border-radius: 20px;
+    background: var(--color-error-bg);
+    color: var(--color-error-dark);
+    font-size: 28px;
+    display: grid;
+    place-items: center;
+    margin: 0 auto 16px;
+}
+.modal-card {
+    width: 720px;
+    max-width: 100%;
+
+    max-height: calc(100dvh - 48px);
+    overflow: auto;
+    padding: 16px;
+    border-radius: var(--radius-xl);
+    background: var(--surface-card);
+    box-shadow: var(--shadow-panel);
+}
+.modal-head {
+    display: flex;
+    justify-content: space-between;
+    gap: 16px;
+    align-items: flex-start;
+}
+.modal-head h3 {
+    margin: 8px 0 6px;
+    font-size: 18px;
+    color: var(--text-heading);
+}
+.modal-head p {
+    margin: 0;
+    color: var(--text-secondary);
+}
+.modal-body {
+    display: grid;
+    gap: 16px;
+    margin-top: 20px;
+}
+.modal-close {
+    width: 40px;
+    height: 40px;
+    border: none;
+    border-radius: var(--radius-pill);
+    background: rgba(var(--surface-border-rgb), 0.12);
+    color: var(--text-primary);
+    font-size: 24px;
+    line-height: 1;
+    cursor: pointer;
+}
+.modal-save {
+    justify-self: flex-end;
+}
+
+@media (max-width: 1024px) {
     .admin-shell {
-        padding: 24px 28px 40px;
-        display: flex;
-        flex-direction: column;
-        gap: 18px;
+        padding: 20px 20px 36px;
+    }
+    .data-table {
+        display: block;
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+    }
+}
+
+@media (max-width: 920px) {
+    .admin-shell {
+        padding: 16px 14px 28px;
     }
     .hero-card,
-    .locked-card,
-    .loading-card,
-    .error-card,
-    .panel-card,
-    .stat-card,
-    .teacher-card,
-    .student-card,
+    .panel-head,
+    .action-row--split,
     .toolbar-card {
-        background: var(--surface-elevated);
-        border: 1px solid var(--surface-elevated-strong);
-        box-shadow: var(--shadow-card);
-        border-radius: var(--radius-2xl);
-    }
-    .hero-card,
-    .panel-head,
-    .student-head,
-    .action-row,
-    .stats-row,
-    .chip-row,
-    .toolbar-card,
-    .search-box,
-    .filter-row {
-        display: flex;
-    }
-    .hero-card,
-    .panel-head,
-    .student-head {
-        justify-content: space-between;
-        gap: 18px;
-        align-items: flex-start;
-    }
-    .hero-card,
-    .panel-card,
-    .teacher-card,
-    .student-card,
-    .stat-card {
-        padding: 16px 20px;
+        flex-direction: column;
     }
     .hero-card {
-        position: relative;
-        padding: 22px 24px;
-        background: linear-gradient(115deg, var(--surface-elevated), var(--surface-card));
-        box-shadow: var(--shadow-card);
-        backdrop-filter: blur(18px);
-        overflow: hidden;
-        border-radius: var(--radius-2xl);
-    }
-    .hero-card > * {
-        position: relative;
-        z-index: 1;
-    }
-    .hero-card > div:first-child {
-        flex: 1;
-        min-width: 0;
-        text-align: left;
+        padding: 22px 18px;
+        border-radius: 22px;
     }
     .hero-card > .btn {
         align-self: flex-start;
         width: auto;
-        flex: 0 0 auto;
-    }
-    .hero-kicker,
-    .panel-kicker {
-        font-size: var(--text-sm);
-        font-weight: 700;
-        letter-spacing: 0.14em;
-        text-transform: uppercase;
-        color: var(--practiq-violet);
-    }
-    .hero-title {
-        margin: 4px 0 6px;
-        font-size: var(--font-hero);
-        font-weight: 800;
-        color: var(--text-heading);
-        text-align: left;
-    }
-    .hero-copy {
-        margin: 0;
-        color: var(--text-secondary);
-        max-width: 720px;
-        font-size: var(--text-base);
     }
     .stats-row {
-        gap: 12px;
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 8px;
     }
     .stat-card {
-        flex: 1;
-        position: relative;
-        overflow: hidden;
-        padding-left: 58px;
+        min-width: 0;
+        padding: 12px 8px 12px 46px;
     }
     .stat-icon {
-        position: absolute;
-        left: 16px;
-        top: 14px;
-        width: 34px;
-        height: 34px;
-        border-radius: var(--radius-sm);
-        display: grid;
-        place-items: center;
-        font-size: 16px;
-    }
-    .stat-icon--teacher {
-        background: var(--color-info-bg);
-        color: var(--color-info-dark);
-    }
-    .stat-icon--student {
-        background: var(--color-success-bg);
-        color: var(--color-success-dark);
-    }
-    .stat-icon--pending {
-        background: var(--color-warning-bg);
-        color: var(--color-warning-dark);
+        left: 10px;
+        top: 12px;
+        width: 28px;
+        height: 28px;
+        font-size: 13px;
     }
     .stat-value {
-        font-size: var(--font-stat-value);
-        font-weight: 800;
-        color: var(--text-heading);
+        font-size: 1.25rem;
     }
     .stat-label {
-        color: var(--text-secondary);
-    }
-    .toolbar-card {
-        justify-content: space-between;
-        gap: 18px;
-        padding: 12px 14px;
-        align-items: center;
-    }
-    .search-box {
-        flex: 1;
-        gap: 8px;
-        align-items: center;
-        padding: 8px 12px;
-        border-radius: var(--radius-sm);
-        background: var(--surface-subtle);
-        border: 1px solid rgba(var(--surface-border-rgb), 0.16);
-    }
-    .search-box i {
-        color: var(--text-secondary);
-    }
-    .search-input {
-        width: 100%;
-        border: none;
-        background: transparent;
-        outline: none;
-        font: inherit;
-        color: var(--text-heading);
-    }
-    .filter-row {
-        gap: 8px;
-        flex-wrap: wrap;
-    }
-    .filter-chip {
-        border: none;
-        padding: 5px 10px;
-        border-radius: var(--radius-pill);
-        background: var(--surface-hover);
-        color: var(--text-secondary);
-        font-size: var(--text-sm);
-        font-weight: 700;
-        cursor: pointer;
-    }
-    .filter-chip--active {
-        background: var(--fill-primary-soft);
-        color: var(--practiq-violet-dark);
-    }
-    .panel-card {
-        display: flex;
-        flex-direction: column;
-        gap: 12px;
-    }
-    .panel-head h2 {
-        margin: 2px 0 0;
-        font-size: var(--font-section-title);
-        font-weight: 700;
-        color: var(--text-heading);
-    }
-    .teacher-state {
-        display: inline-flex;
-        padding: 3px 10px;
-        border-radius: var(--radius-pill);
         font-size: var(--text-xs);
-        font-weight: 700;
-    }
-    .teacher-state--ok {
-        background: var(--color-success-bg);
-        color: var(--color-success-dark);
-    }
-    .teacher-state--blocked {
-        background: var(--color-error-bg);
-        color: var(--color-error-dark);
-    }
-    .teacher-badge {
-        display: inline-flex;
-        padding: 3px 8px;
-        border-radius: var(--radius-pill);
-        background: rgba(var(--text-primary-rgb), 0.05);
-        color: var(--text-secondary);
-        font-size: var(--text-xs);
-        font-weight: 700;
-    }
-    .teacher-badge--pending {
-        background: var(--color-warning-bg);
-        color: var(--color-warning-dark);
-    }
-    .chip-row {
-        display: flex;
-        gap: 6px;
-        flex-wrap: wrap;
-    }
-    .chip-row--inline {
-        margin: 0;
-    }
-    .soft-chip {
-        display: inline-flex;
-        align-items: center;
-        gap: 4px;
-        padding: 3px 8px;
-        border-radius: var(--radius-pill);
-        background: var(--fill-primary-soft);
-        color: var(--practiq-violet-dark);
-        font-size: var(--text-xs);
-        font-weight: 700;
-    }
-    .soft-chip--teacher {
-        background: var(--color-info-bg);
-        color: var(--color-info-dark);
-    }
-    .soft-chip--grade {
-        background: var(--color-success-bg);
-        color: var(--color-success-dark);
-    }
-    .chip-action {
-        border: none;
-        background: transparent;
-        color: inherit;
-        cursor: pointer;
-        font-weight: 800;
-        padding: 0;
-    }
-    .data-table {
-        width: 100%;
-        border-collapse: collapse;
-        font-size: var(--text-base);
-    }
-    .data-table thead th {
-        padding: 8px 12px;
-        text-align: left;
-        font-size: var(--text-xs);
-        font-weight: 700;
-        text-transform: uppercase;
-        letter-spacing: 0.08em;
-        color: var(--text-secondary);
-        border-bottom: 1px solid rgba(var(--surface-border-rgb), 0.18);
-        background: var(--surface-subtle);
-    }
-    .data-table thead th:first-child {
-        border-radius: var(--radius-sm) 0 0 0;
-    }
-    .data-table thead th:last-child {
-        border-radius: 0 var(--radius-sm) 0 0;
-    }
-    .data-table tbody tr {
-        border-bottom: 1px solid rgba(var(--surface-border-rgb), 0.1);
-        transition: background 0.15s;
-    }
-    .data-table tbody tr:last-child {
-        border-bottom: none;
-    }
-    .data-table tbody tr:hover {
-        background: var(--fill-primary-faint);
-    }
-    .data-table tbody tr.row--pending {
-        background: rgba(var(--color-warning-rgb), 0.03);
-    }
-    .data-table tbody tr.row--pending:hover {
-        background: var(--fill-warning-subtle);
-    }
-    .data-table td {
-        padding: 10px 12px;
-        vertical-align: middle;
-        color: var(--text-heading);
-    }
-    .cell-muted {
-        color: var(--text-secondary);
-        font-size: var(--text-sm);
-    }
-    .cell-center {
-        text-align: center;
-        font-weight: 700;
-    }
-    .cell-actions {
-        text-align: right;
-        white-space: nowrap;
-    }
-    .detail-grid {
-        display: grid;
-        gap: 14px;
-        margin-top: 14px;
-    }
-    .detail-card {
-        padding: 10px 12px;
-        border-radius: var(--radius-sm);
-        background: var(--surface-subtle);
-        border: 1px solid rgba(var(--surface-border-rgb), 0.14);
-    }
-    .detail-label {
-        display: block;
-        font-size: var(--text-xs);
-        font-weight: 700;
-        text-transform: uppercase;
-        color: var(--text-secondary);
-        margin-bottom: 4px;
-    }
-    .detail-empty {
-        color: var(--text-muted);
-        font-size: var(--text-sm);
-    }
-    .empty-state {
-        display: flex;
-        align-items: center;
-        gap: 10px;
-        justify-content: center;
-        padding: 28px 16px;
-        border: 1px dashed rgba(var(--surface-border-rgb), 0.24);
-        border-radius: var(--radius-xl);
-        background: var(--surface-subtle);
-        color: var(--text-secondary);
-        font-size: var(--text-sm);
-        font-weight: 700;
-    }
-    .empty-state i {
-        color: var(--practiq-violet);
-    }
-    .action-row {
-        gap: 8px;
-        align-items: center;
-        margin-top: 10px;
-    }
-    .action-row--split {
-        justify-content: space-between;
-    }
-    .assistant-box {
-        display: grid;
-        gap: 8px;
-        margin-top: 12px;
-        padding: 16px;
-        border: 1px solid var(--surface-border);
-        border-radius: var(--radius-md);
-        background: var(--surface-bg-soft);
-    }
-    .assistant-title {
-        font-size: var(--text-sm);
-        font-weight: 700;
-        text-transform: uppercase;
-        letter-spacing: 0.08em;
-        color: var(--text-secondary);
-    }
-    .assistant-copy,
-    .detail-copy {
-        margin: 4px 0 0;
-        color: var(--text-secondary);
-        font-size: var(--text-sm);
-    }
-    .form-input,
-    .form-select {
-        width: 100%;
-        border-radius: var(--radius-sm);
-        border: 1px solid rgba(var(--surface-border-rgb), 0.2);
-        background: var(--surface-subtle);
-        padding: 8px 10px;
-        font: inherit;
-        font-size: var(--text-base);
-        color: var(--text-heading);
-    }
-    .btn-danger {
-        background: var(--color-error);
-        color: var(--color-on-primary);
-        border: none;
-    }
-    .btn-success {
-        background: var(--color-success);
-        color: var(--color-on-primary);
-        border: none;
-    }
-    .status-pill {
-        display: inline-flex;
-        align-items: center;
-        padding: 3px 10px;
-        border-radius: var(--radius-pill);
-        font-size: var(--text-xs);
-        font-weight: 700;
-    }
-    .status-pill--ok {
-        background: var(--color-success-bg);
-        color: var(--color-success-dark);
-    }
-    .status-pill--blocked {
-        background: var(--color-error-bg);
-        color: var(--color-error-dark);
-    }
-    .loading-card,
-    .error-card {
-        padding: 30px;
-        text-align: center;
-    }
-    .locked-card {
-        padding: 56px 30px;
-        text-align: center;
-    }
-    .locked-icon {
-        width: 64px;
-        height: 64px;
-        border-radius: 20px;
-        background: var(--color-error-bg);
-        color: var(--color-error-dark);
-        font-size: 28px;
-        display: grid;
-        place-items: center;
-        margin: 0 auto 16px;
-    }
-    .modal-card {
-        width: 720px;
-        max-width: 100%;
-
-        max-height: calc(100dvh - 48px);
-        overflow: auto;
-        padding: 16px;
-        border-radius: var(--radius-xl);
-        background: var(--surface-card);
-        box-shadow: var(--shadow-panel);
+        line-height: 1.2;
+        overflow-wrap: anywhere;
     }
     .modal-head {
-        display: flex;
-        justify-content: space-between;
-        gap: 16px;
-        align-items: flex-start;
+        flex-direction: column;
+        align-items: stretch;
     }
-    .modal-head h3 {
-        margin: 8px 0 6px;
-        font-size: 18px;
-        color: var(--text-heading);
-    }
-    .modal-head p {
-        margin: 0;
-        color: var(--text-secondary);
-    }
-    .modal-body {
-        display: grid;
-        gap: 16px;
-        margin-top: 20px;
-    }
-    .modal-close {
-        width: 40px;
-        height: 40px;
-        border: none;
-        border-radius: var(--radius-pill);
-        background: rgba(var(--surface-border-rgb), 0.12);
-        color: var(--text-primary);
-        font-size: 24px;
-        line-height: 1;
-        cursor: pointer;
-    }
-    .modal-save {
-        justify-self: flex-end;
-    }
-
-    @media (max-width: 1024px) {
-        .admin-shell {
-            padding: 20px 20px 36px;
-        }
-        .data-table {
-            display: block;
-            overflow-x: auto;
-            -webkit-overflow-scrolling: touch;
-        }
-    }
-
-    @media (max-width: 920px) {
-        .admin-shell {
-            padding: 16px 14px 28px;
-        }
-        .hero-card,
-        .panel-head,
-        .action-row--split,
-        .toolbar-card {
-            flex-direction: column;
-        }
-        .hero-card {
-            padding: 22px 18px;
-            border-radius: 22px;
-        }
-        .hero-card > .btn {
-            align-self: flex-start;
-            width: auto;
-        }
-        .stats-row {
-            display: grid;
-            grid-template-columns: repeat(3, minmax(0, 1fr));
-            gap: 8px;
-        }
-        .stat-card {
-            min-width: 0;
-            padding: 12px 8px 12px 46px;
-        }
-        .stat-icon {
-            left: 10px;
-            top: 12px;
-            width: 28px;
-            height: 28px;
-            font-size: 13px;
-        }
-        .stat-value {
-            font-size: 1.25rem;
-        }
-        .stat-label {
-            font-size: var(--text-xs);
-            line-height: 1.2;
-            overflow-wrap: anywhere;
-        }
-        .modal-head {
-            flex-direction: column;
-            align-items: stretch;
-        }
-        .data-table {
-            display: block;
-            overflow-x: auto;
-            -webkit-overflow-scrolling: touch;
-        }
-    }
-
-    .data-table--cards {
-        overflow: visible;
-    }
-    .data-table--cards thead {
-        display: none;
-    }
-    .data-table--cards,
-    .data-table--cards tbody,
-    .data-table--cards tr,
-    .data-table--cards td {
+    .data-table {
         display: block;
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+    }
+}
+
+.data-table--cards {
+    overflow: visible;
+}
+.data-table--cards thead {
+    display: none;
+}
+.data-table--cards,
+.data-table--cards tbody,
+.data-table--cards tr,
+.data-table--cards td {
+    display: block;
+    width: 100%;
+}
+.data-table--cards tbody {
+    display: grid;
+    gap: 10px;
+}
+.data-table--cards tbody tr {
+    padding: 12px;
+    border: 1px solid rgba(var(--surface-border-rgb), 0.16);
+    border-radius: var(--radius-xl);
+    background: var(--surface-card);
+    box-shadow: var(--shadow-sm);
+}
+.data-table--cards td {
+    display: grid;
+    grid-template-columns: minmax(92px, 34%) 1fr;
+    gap: 10px;
+    align-items: start;
+    padding: 8px 0;
+    border-bottom: 1px solid rgba(var(--surface-border-rgb), 0.1);
+}
+.data-table--cards td:last-child {
+    border-bottom: none;
+}
+.data-table--cards td::before {
+    content: attr(data-label);
+    color: var(--text-secondary);
+    font-size: var(--text-xs);
+    font-weight: 800;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+}
+.data-table--cards .cell-center,
+.data-table--cards .cell-actions {
+    text-align: left;
+}
+.data-table--cards .cell-actions .btn {
+    width: 100%;
+    justify-content: center;
+}
+
+.view-toggle {
+    display: flex;
+    gap: 4px;
+    padding: 4px;
+    border-radius: var(--radius-lg);
+    background: var(--surface-elevated);
+    border: 1px solid var(--surface-elevated-strong);
+    flex-shrink: 0;
+}
+
+.view-btn {
+    display: grid;
+    place-items: center;
+    width: 34px;
+    height: 34px;
+    border: none;
+    border-radius: var(--radius-md, 8px);
+    background: transparent;
+    color: var(--text-secondary);
+    cursor: pointer;
+    transition: var(--transition-fast);
+}
+
+.view-btn:hover {
+    color: var(--practiq-violet);
+}
+
+.view-btn--active {
+    background: var(--fill-primary-soft);
+    color: var(--practiq-violet);
+}
+
+@media (max-width: 820px) {
+    .modal-card {
         width: 100%;
+        max-height: 95dvh;
+        overflow-y: auto;
+        -webkit-overflow-scrolling: touch;
+        border-radius: var(--radius-2xl) var(--radius-2xl) 0 0;
     }
-    .data-table--cards tbody {
-        display: grid;
-        gap: 10px;
+}
+
+@media (max-width: 720px) {
+    .toolbar-card {
+        align-items: stretch;
     }
-    .data-table--cards tbody tr {
-        padding: 12px;
-        border: 1px solid rgba(var(--surface-border-rgb), 0.16);
-        border-radius: var(--radius-xl);
-        background: var(--surface-card);
-        box-shadow: var(--shadow-sm);
+    .filter-row {
+        gap: 6px;
     }
-    .data-table--cards td {
-        display: grid;
-        grid-template-columns: minmax(92px, 34%) 1fr;
-        gap: 10px;
-        align-items: start;
-        padding: 8px 0;
-        border-bottom: 1px solid rgba(var(--surface-border-rgb), 0.1);
-    }
-    .data-table--cards td:last-child {
-        border-bottom: none;
-    }
-    .data-table--cards td::before {
-        content: attr(data-label);
-        color: var(--text-secondary);
-        font-size: var(--text-xs);
-        font-weight: 800;
-        letter-spacing: 0.04em;
-        text-transform: uppercase;
-    }
-    .data-table--cards .cell-center,
-    .data-table--cards .cell-actions {
-        text-align: left;
-    }
-    .data-table--cards .cell-actions .btn {
-        width: 100%;
-        justify-content: center;
+    .filter-chip {
+        flex: 1 1 calc(50% - 6px);
     }
 
     .view-toggle {
-        display: flex;
-        gap: 4px;
-        padding: 4px;
-        border-radius: var(--radius-lg);
-        background: var(--surface-elevated);
-        border: 1px solid var(--surface-elevated-strong);
-        flex-shrink: 0;
+        display: none;
     }
-
-    .view-btn {
-        display: grid;
-        place-items: center;
-        width: 34px;
-        height: 34px;
-        border: none;
-        border-radius: var(--radius-md, 8px);
-        background: transparent;
-        color: var(--text-secondary);
-        cursor: pointer;
-        transition: var(--transition-fast);
-    }
-
-    .view-btn:hover {
-        color: var(--practiq-violet);
-    }
-
-    .view-btn--active {
-        background: var(--fill-primary-soft);
-        color: var(--practiq-violet);
-    }
-
-    @media (max-width: 820px) {
-        .modal-card {
-            width: 100%;
-            max-height: 95dvh;
-            overflow-y: auto;
-            -webkit-overflow-scrolling: touch;
-            border-radius: var(--radius-2xl) var(--radius-2xl) 0 0;
-        }
-    }
-
-    @media (max-width: 720px) {
-        .toolbar-card {
-            align-items: stretch;
-        }
-        .filter-row {
-            gap: 6px;
-        }
-        .filter-chip {
-            flex: 1 1 calc(50% - 6px);
-        }
-
-        .view-toggle {
-            display: none;
-        }
-        .action-row {
-            flex-direction: column;
-            align-items: stretch;
-        }
-
-        .action-row .btn,
-        .action-row .form-select {
-            width: 100%;
-            min-height: 48px;
-            font-size: var(--text-md);
-        }
-        .action-row .btn {
-            padding: 0 1rem;
-        }
-
-        .modal-close {
-            width: 44px;
-            height: 44px;
-        }
-    }
-
-    .skeleton-tables {
-        display: flex;
+    .action-row {
         flex-direction: column;
-        gap: 20px;
+        align-items: stretch;
     }
 
-    .skeleton-table {
-        padding: 0 16px 16px;
+    .action-row .btn,
+    .action-row .form-select {
+        width: 100%;
+        min-height: 48px;
+        font-size: var(--text-md);
+    }
+    .action-row .btn {
+        padding: 0 1rem;
     }
 
-    .skeleton-row {
-        display: flex;
-        align-items: center;
-        gap: 16px;
-        padding: 12px 0;
-        border-bottom: 1px solid rgba(var(--surface-border-rgb), 0.1);
+    .modal-close {
+        width: 44px;
+        height: 44px;
     }
+}
 
-    .skeleton-row:last-child {
-        border-bottom: none;
-    }
+.skeleton-tables {
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+}
+
+.skeleton-table {
+    padding: 0 16px 16px;
+}
+
+.skeleton-row {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    padding: 12px 0;
+    border-bottom: 1px solid rgba(var(--surface-border-rgb), 0.1);
+}
+
+.skeleton-row:last-child {
+    border-bottom: none;
+}
 </style>

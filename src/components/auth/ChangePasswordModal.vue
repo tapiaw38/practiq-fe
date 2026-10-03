@@ -1,67 +1,67 @@
 <script setup lang="ts">
-    import UiModal from '@/components/ui/UiModal.vue';
-    import { ref, computed } from 'vue';
-    import { authService } from '@/services/auth/authService';
-    import type {
-        ChangePasswordModalEmits,
-        ChangePasswordModalProps,
-    } from './ChangePasswordModal.types';
+import UiModal from '@/components/ui/UiModal.vue';
+import { ref, computed } from 'vue';
+import { authService } from '@/services/auth/authService';
+import type {
+    ChangePasswordModalEmits,
+    ChangePasswordModalProps,
+} from './ChangePasswordModal.types';
 
-    const props = defineProps<ChangePasswordModalProps>();
-    const emit = defineEmits<ChangePasswordModalEmits>();
+const props = defineProps<ChangePasswordModalProps>();
+const emit = defineEmits<ChangePasswordModalEmits>();
 
-    const oldPassword = ref('');
-    const newPassword = ref('');
-    const confirmPassword = ref('');
-    const showOld = ref(false);
-    const showNew = ref(false);
-    const showConfirm = ref(false);
-    const loading = ref(false);
-    const errorMsg = ref('');
-    const success = ref(false);
+const oldPassword = ref('');
+const newPassword = ref('');
+const confirmPassword = ref('');
+const showOld = ref(false);
+const showNew = ref(false);
+const showConfirm = ref(false);
+const loading = ref(false);
+const errorMsg = ref('');
+const success = ref(false);
 
-    const passwordStrong = computed(
-        () =>
-            newPassword.value.length >= 8 &&
-            /[A-Z]/.test(newPassword.value) &&
-            /[a-z]/.test(newPassword.value) &&
-            /[0-9]/.test(newPassword.value) &&
-            /[^A-Za-z0-9]/.test(newPassword.value),
-    );
+const passwordStrong = computed(
+    () =>
+        newPassword.value.length >= 8 &&
+        /[A-Z]/.test(newPassword.value) &&
+        /[a-z]/.test(newPassword.value) &&
+        /[0-9]/.test(newPassword.value) &&
+        /[^A-Za-z0-9]/.test(newPassword.value),
+);
 
-    const canSubmit = computed(
-        () =>
-            oldPassword.value.length > 0 &&
-            passwordStrong.value &&
-            confirmPassword.value === newPassword.value &&
-            newPassword.value !== oldPassword.value,
-    );
+const canSubmit = computed(
+    () =>
+        oldPassword.value.length > 0 &&
+        passwordStrong.value &&
+        confirmPassword.value === newPassword.value &&
+        newPassword.value !== oldPassword.value,
+);
 
-    async function submit() {
-        if (!canSubmit.value) return;
-        loading.value = true;
-        errorMsg.value = '';
-        success.value = false;
-        try {
-            await authService.changePassword(oldPassword.value, newPassword.value);
-            success.value = true;
-            setTimeout(() => close(), 1800);
-        } catch (err: any) {
-            const msg = err?.response?.data?.message;
-            errorMsg.value = msg || 'Ocurrió un error. Intentá de nuevo.';
-        } finally {
-            loading.value = false;
-        }
+async function submit() {
+    if (!canSubmit.value) return;
+    loading.value = true;
+    errorMsg.value = '';
+    success.value = false;
+    try {
+        await authService.changePassword(oldPassword.value, newPassword.value);
+        success.value = true;
+        setTimeout(() => close(), 1800);
+    } catch (err: any) {
+        const msg = err?.response?.data?.message;
+        errorMsg.value = msg || 'Ocurrió un error. Intentá de nuevo.';
+    } finally {
+        loading.value = false;
     }
+}
 
-    function close() {
-        oldPassword.value = '';
-        newPassword.value = '';
-        confirmPassword.value = '';
-        errorMsg.value = '';
-        success.value = false;
-        emit('update:visible', false);
-    }
+function close() {
+    oldPassword.value = '';
+    newPassword.value = '';
+    confirmPassword.value = '';
+    errorMsg.value = '';
+    success.value = false;
+    emit('update:visible', false);
+}
 </script>
 
 <template>
@@ -162,27 +162,27 @@
 </template>
 
 <style scoped>
+.modal-box {
+    background: var(--surface-card);
+    border-radius: var(--radius-2xl);
+    width: min(420px, calc(100vw - 32px));
+    box-shadow: var(--shadow-lg);
+    overflow: hidden;
+}
+
+.modal-title {
+    font-size: 17px;
+    font-weight: 800;
+    color: var(--text-heading);
+    margin: 0;
+}
+
+@media (max-width: 820px) {
     .modal-box {
-        background: var(--surface-card);
-        border-radius: var(--radius-2xl);
-        width: min(420px, calc(100vw - 32px));
-        box-shadow: var(--shadow-lg);
-        overflow: hidden;
+        width: 100%;
+        max-height: 95dvh;
+        overflow-y: auto;
+        border-radius: var(--radius-2xl) var(--radius-2xl) 0 0;
     }
-
-    .modal-title {
-        font-size: 17px;
-        font-weight: 800;
-        color: var(--text-heading);
-        margin: 0;
-    }
-
-    @media (max-width: 820px) {
-        .modal-box {
-            width: 100%;
-            max-height: 95dvh;
-            overflow-y: auto;
-            border-radius: var(--radius-2xl) var(--radius-2xl) 0 0;
-        }
-    }
+}
 </style>

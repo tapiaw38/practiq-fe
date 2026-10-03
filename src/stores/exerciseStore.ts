@@ -30,6 +30,9 @@ export const useExerciseStore = (service: IExerciseService) =>
             }
         };
 
+        const generateDrafts = (topicId: string, form: FormData) =>
+            service.generateDrafts(topicId, form);
+
         const updateExercise = async (id: string, params: Partial<Exercise>) => {
             loading.value = true;
             try {
@@ -63,6 +66,7 @@ export const useExerciseStore = (service: IExerciseService) =>
             loading,
             fetchExercises,
             createExercise,
+            generateDrafts,
             updateExercise,
             deleteExercise,
             reset,

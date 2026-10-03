@@ -1,25 +1,11 @@
 import type { Exercise } from '@/types';
-
-export interface FillBlank {
-    id: number;
-    answer: string;
-}
-
-export interface FillBlanksConfig {
-    blanks: FillBlank[];
-
-    distractors: string[];
-
-    layout: 'text' | 'code';
-}
+import type { FillBlank, FillBlanksConfig, StatementSegment } from '@/types/fillBlanks';
 
 export function buildOptions(config: FillBlanksConfig): string[] {
     const answers = config.blanks.map((blank) => blank.answer.trim()).filter(Boolean);
     const distractors = config.distractors.map((option) => option.trim()).filter(Boolean);
     return [...answers, ...distractors];
 }
-
-export type StatementSegment = { kind: 'text'; value: string } | { kind: 'blank'; id: number };
 
 const BLANK_PATTERN = /\{\{\s*(\d+)\s*\}\}/g;
 

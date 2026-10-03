@@ -1,65 +1,65 @@
 <script setup lang="ts">
-    import UiModal from '@/components/ui/UiModal.vue';
-    import { ref, computed } from 'vue';
-    import { authApi } from '@/api/request/server';
-    import { useAuthStore } from '@/stores/authStore';
-    import type { SetPasswordModalEmits, SetPasswordModalProps } from './SetPasswordModal.types';
+import UiModal from '@/components/ui/UiModal.vue';
+import { ref, computed } from 'vue';
+import { authApi } from '@/api/request/server';
+import { useAuthStore } from '@/stores/authStore';
+import type { SetPasswordModalEmits, SetPasswordModalProps } from './SetPasswordModal.types';
 
-    const props = defineProps<SetPasswordModalProps>();
-    const emit = defineEmits<SetPasswordModalEmits>();
+const props = defineProps<SetPasswordModalProps>();
+const emit = defineEmits<SetPasswordModalEmits>();
 
-    const authStore = useAuthStore();
-    const newPassword = ref('');
-    const confirmPassword = ref('');
-    const showNew = ref(false);
-    const showConfirm = ref(false);
-    const loading = ref(false);
-    const errorMsg = ref('');
-    const success = ref(false);
+const authStore = useAuthStore();
+const newPassword = ref('');
+const confirmPassword = ref('');
+const showNew = ref(false);
+const showConfirm = ref(false);
+const loading = ref(false);
+const errorMsg = ref('');
+const success = ref(false);
 
-    const passwordStrong = computed(
-        () =>
-            newPassword.value.length >= 8 &&
-            /[A-Z]/.test(newPassword.value) &&
-            /[a-z]/.test(newPassword.value) &&
-            /[0-9]/.test(newPassword.value) &&
-            /[^A-Za-z0-9]/.test(newPassword.value),
-    );
+const passwordStrong = computed(
+    () =>
+        newPassword.value.length >= 8 &&
+        /[A-Z]/.test(newPassword.value) &&
+        /[a-z]/.test(newPassword.value) &&
+        /[0-9]/.test(newPassword.value) &&
+        /[^A-Za-z0-9]/.test(newPassword.value),
+);
 
-    const canSubmit = computed(
-        () => passwordStrong.value && confirmPassword.value === newPassword.value,
-    );
+const canSubmit = computed(
+    () => passwordStrong.value && confirmPassword.value === newPassword.value,
+);
 
-    async function submit() {
-        if (!canSubmit.value) return;
-        loading.value = true;
-        errorMsg.value = '';
-        success.value = false;
-        try {
-            await authApi.post('/user/me/password/set', {
-                new_password: newPassword.value,
-            });
+async function submit() {
+    if (!canSubmit.value) return;
+    loading.value = true;
+    errorMsg.value = '';
+    success.value = false;
+    try {
+        await authApi.post('/user/me/password/set', {
+            new_password: newPassword.value,
+        });
 
-            if (authStore.authUser) {
-                authStore.setAuthUser({ ...authStore.authUser, auth_method: 'hybrid' });
-            }
-            success.value = true;
-            setTimeout(() => close(), 1800);
-        } catch (err: any) {
-            const msg = err?.response?.data?.message;
-            errorMsg.value = msg || 'Ocurrió un error. Intentá de nuevo.';
-        } finally {
-            loading.value = false;
+        if (authStore.authUser) {
+            authStore.setAuthUser({ ...authStore.authUser, auth_method: 'hybrid' });
         }
+        success.value = true;
+        setTimeout(() => close(), 1800);
+    } catch (err: any) {
+        const msg = err?.response?.data?.message;
+        errorMsg.value = msg || 'Ocurrió un error. Intentá de nuevo.';
+    } finally {
+        loading.value = false;
     }
+}
 
-    function close() {
-        newPassword.value = '';
-        confirmPassword.value = '';
-        errorMsg.value = '';
-        success.value = false;
-        emit('update:visible', false);
-    }
+function close() {
+    newPassword.value = '';
+    confirmPassword.value = '';
+    errorMsg.value = '';
+    success.value = false;
+    emit('update:visible', false);
+}
 </script>
 
 <template>
@@ -151,44 +151,44 @@
 </template>
 
 <style scoped>
+.modal-box {
+    background: var(--surface-card);
+    border-radius: var(--radius-2xl);
+    width: min(420px, calc(100vw - 32px));
+    box-shadow: var(--shadow-lg);
+    overflow: hidden;
+}
+
+.modal-title {
+    font-size: 17px;
+    font-weight: 800;
+    color: var(--text-heading);
+    margin: 0;
+}
+
+.google-notice {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    padding: 12px 14px;
+    background: rgba(var(--practiq-indigo-rgb), 0.07);
+    border-radius: var(--radius-md);
+    font-size: var(--text-base);
+    color: var(--text-secondary);
+    line-height: 1.5;
+}
+.google-notice .pi {
+    color: var(--practiq-indigo);
+    flex-shrink: 0;
+    margin-top: 2px;
+}
+
+@media (max-width: 820px) {
     .modal-box {
-        background: var(--surface-card);
-        border-radius: var(--radius-2xl);
-        width: min(420px, calc(100vw - 32px));
-        box-shadow: var(--shadow-lg);
-        overflow: hidden;
+        width: 100%;
+        max-height: 95dvh;
+        overflow-y: auto;
+        border-radius: var(--radius-2xl) var(--radius-2xl) 0 0;
     }
-
-    .modal-title {
-        font-size: 17px;
-        font-weight: 800;
-        color: var(--text-heading);
-        margin: 0;
-    }
-
-    .google-notice {
-        display: flex;
-        align-items: flex-start;
-        gap: 10px;
-        padding: 12px 14px;
-        background: rgba(var(--practiq-indigo-rgb), 0.07);
-        border-radius: var(--radius-md);
-        font-size: var(--text-base);
-        color: var(--text-secondary);
-        line-height: 1.5;
-    }
-    .google-notice .pi {
-        color: var(--practiq-indigo);
-        flex-shrink: 0;
-        margin-top: 2px;
-    }
-
-    @media (max-width: 820px) {
-        .modal-box {
-            width: 100%;
-            max-height: 95dvh;
-            overflow-y: auto;
-            border-radius: var(--radius-2xl) var(--radius-2xl) 0 0;
-        }
-    }
+}
 </style>

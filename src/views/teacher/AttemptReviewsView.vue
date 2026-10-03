@@ -1,176 +1,176 @@
 <script setup lang="ts">
-    import { computed, onMounted, reactive, ref, watch } from 'vue';
-    import { useToast } from '@/composables/useToast';
-    import TeacherLayout from '@/layouts/TeacherLayout.vue';
-    import FileViewer from '@/components/ui/FileViewer.vue';
-    import ExerciseMedia from '@/components/ui/ExerciseMedia.vue';
-    import { practiqApi } from '@/api/request/server';
-    import { fileKind } from '@/utils/fileKind';
-    import { AttemptReviewService } from '@/services/attemptReviews/attemptReviewService';
-    import type { AttemptReview } from '@/types';
+import { computed, onMounted, reactive, ref, watch } from 'vue';
+import { useToast } from '@/composables/useToast';
+import TeacherLayout from '@/layouts/TeacherLayout.vue';
+import FileViewer from '@/components/ui/FileViewer.vue';
+import ExerciseMedia from '@/components/ui/ExerciseMedia.vue';
+import { practiqApi } from '@/api/request/server';
+import { fileKind } from '@/utils/fileKind';
+import { AttemptReviewService } from '@/services/attemptReviews/attemptReviewService';
+import type { AttemptReview } from '@/types';
 
-    const service = new AttemptReviewService(practiqApi);
-    const toast = useToast();
+const service = new AttemptReviewService(practiqApi);
+const toast = useToast();
 
-    const reviews = ref<AttemptReview[]>([]);
-    const loading = ref(true);
-    const hasMore = ref(false);
-    const page = ref(1);
-    const PAGE_SIZE = 20;
+const reviews = ref<AttemptReview[]>([]);
+const loading = ref(true);
+const hasMore = ref(false);
+const page = ref(1);
+const PAGE_SIZE = 20;
 
-    const filters = reactive({
-        courseId: '',
-        studentId: '',
-        reviewed: '',
-    });
-    const activeFilterCount = computed(
-        () => [filters.courseId, filters.studentId, filters.reviewed].filter(Boolean).length,
-    );
-    const saving = ref<string | null>(null);
-    const feedback = ref<Record<string, string>>({});
+const filters = reactive({
+    courseId: '',
+    studentId: '',
+    reviewed: '',
+});
+const activeFilterCount = computed(
+    () => [filters.courseId, filters.studentId, filters.reviewed].filter(Boolean).length,
+);
+const saving = ref<string | null>(null);
+const feedback = ref<Record<string, string>>({});
 
-    onMounted(load);
+onMounted(load);
 
-    async function load(target = page.value) {
-        loading.value = true;
-        try {
-            const result = await service.list({
-                ...filters,
-                limit: PAGE_SIZE,
-                offset: (target - 1) * PAGE_SIZE,
-            });
-            reviews.value = result.data;
-            hasMore.value = result.has_more;
-
-            page.value = target;
-        } catch {
-            toast.add({
-                severity: 'error',
-                summary: 'Error',
-                detail: 'No se pudieron cargar las entregas',
-                life: 3000,
-            });
-        } finally {
-            loading.value = false;
-        }
-    }
-
-    async function review(item: AttemptReview, isCorrect: boolean) {
-        if (saving.value) return;
-        saving.value = item.attempt_id;
-        try {
-            const feedbackWasEdited = Object.prototype.hasOwnProperty.call(
-                feedback.value,
-                item.attempt_id,
-            );
-
-            const feedbackValue = feedbackWasEdited
-                ? feedback.value[item.attempt_id].trim()
-                : (item.teacher_feedback ?? '');
-            await service.review(item.attempt_id, {
-                is_correct: isCorrect,
-                feedback: feedbackValue,
-            });
-            toast.add({
-                severity: 'success',
-                summary: 'Corregida',
-                detail: isCorrect ? 'Marcada como correcta' : 'Marcada como incorrecta',
-                life: 2500,
-            });
-            delete feedback.value[item.attempt_id];
-            await load();
-        } catch {
-            toast.add({
-                severity: 'error',
-                summary: 'Error',
-                detail: 'No se pudo guardar la corrección',
-                life: 3000,
-            });
-        } finally {
-            saving.value = null;
-        }
-    }
-
-    function applyFilters() {
-        load(1);
-    }
-
-    function clearFilters() {
-        filters.courseId = '';
-        filters.studentId = '';
-        filters.reviewed = '';
-        load(1);
-    }
-
-    const courses = ref<{ id: string; title: string }[]>([]);
-    const students = ref<{ id: string; name: string }[]>([]);
-
-    watch(reviews, (rows) => {
-        const byCourse = new Map<string, string>();
-        const byStudent = new Map<string, string>();
-        for (const row of rows) {
-            if (row.course_id) byCourse.set(row.course_id, row.course_title || row.course_id);
-            if (row.student_id) byStudent.set(row.student_id, row.student_name || row.student_id);
-        }
-        if (!filters.courseId) courses.value = [...byCourse].map(([id, title]) => ({ id, title }));
-        if (!filters.studentId) students.value = [...byStudent].map(([id, name]) => ({ id, name }));
-    });
-
-    function formatDate(value: string) {
-        return new Date(value).toLocaleString('es-AR', {
-            dateStyle: 'short',
-            timeStyle: 'short',
+async function load(target = page.value) {
+    loading.value = true;
+    try {
+        const result = await service.list({
+            ...filters,
+            limit: PAGE_SIZE,
+            offset: (target - 1) * PAGE_SIZE,
         });
+        reviews.value = result.data;
+        hasMore.value = result.has_more;
+
+        page.value = target;
+    } catch {
+        toast.add({
+            severity: 'error',
+            summary: 'Error',
+            detail: 'No se pudieron cargar las entregas',
+            life: 3000,
+        });
+    } finally {
+        loading.value = false;
     }
+}
 
-    function isUnreadable(item: AttemptReview) {
-        return (item.answer_text || '').trim().toUpperCase() === 'UNREADABLE';
+async function review(item: AttemptReview, isCorrect: boolean) {
+    if (saving.value) return;
+    saving.value = item.attempt_id;
+    try {
+        const feedbackWasEdited = Object.prototype.hasOwnProperty.call(
+            feedback.value,
+            item.attempt_id,
+        );
+
+        const feedbackValue = feedbackWasEdited
+            ? feedback.value[item.attempt_id].trim()
+            : (item.teacher_feedback ?? '');
+        await service.review(item.attempt_id, {
+            is_correct: isCorrect,
+            feedback: feedbackValue,
+        });
+        toast.add({
+            severity: 'success',
+            summary: 'Corregida',
+            detail: isCorrect ? 'Marcada como correcta' : 'Marcada como incorrecta',
+            life: 2500,
+        });
+        delete feedback.value[item.attempt_id];
+        await load();
+    } catch {
+        toast.add({
+            severity: 'error',
+            summary: 'Error',
+            detail: 'No se pudo guardar la corrección',
+            life: 3000,
+        });
+    } finally {
+        saving.value = null;
     }
+}
 
-    function answerText(item: AttemptReview) {
-        if (isUnreadable(item)) return 'No se pudo leer lo que escribió.';
-        return (item.answer_text || '').trim();
+function applyFilters() {
+    load(1);
+}
+
+function clearFilters() {
+    filters.courseId = '';
+    filters.studentId = '';
+    filters.reviewed = '';
+    load(1);
+}
+
+const courses = ref<{ id: string; title: string }[]>([]);
+const students = ref<{ id: string; name: string }[]>([]);
+
+watch(reviews, (rows) => {
+    const byCourse = new Map<string, string>();
+    const byStudent = new Map<string, string>();
+    for (const row of rows) {
+        if (row.course_id) byCourse.set(row.course_id, row.course_title || row.course_id);
+        if (row.student_id) byStudent.set(row.student_id, row.student_name || row.student_id);
     }
+    if (!filters.courseId) courses.value = [...byCourse].map(([id, title]) => ({ id, title }));
+    if (!filters.studentId) students.value = [...byStudent].map(([id, name]) => ({ id, name }));
+});
 
-    function fileLabel(item: AttemptReview) {
-        return item.attachment_name || 'archivo adjunto';
-    }
+function formatDate(value: string) {
+    return new Date(value).toLocaleString('es-AR', {
+        dateStyle: 'short',
+        timeStyle: 'short',
+    });
+}
 
-    const viewing = ref<AttemptReview | null>(null);
+function isUnreadable(item: AttemptReview) {
+    return (item.answer_text || '').trim().toUpperCase() === 'UNREADABLE';
+}
 
-    const preview = ref<{ url: string; title: string } | null>(null);
-    const loadingStatement = ref<string | null>(null);
+function answerText(item: AttemptReview) {
+    if (isUnreadable(item)) return 'No se pudo leer lo que escribió.';
+    return (item.answer_text || '').trim();
+}
 
-    function openPreview(url: string, title: string) {
-        preview.value = { url, title };
-    }
+function fileLabel(item: AttemptReview) {
+    return item.attachment_name || 'archivo adjunto';
+}
 
-    async function openStatementImage(item: AttemptReview) {
-        if (loadingStatement.value) return;
-        loadingStatement.value = item.attempt_id;
-        try {
-            const { data } = await service.statementImage(item.attempt_id);
-            if (!data.image) {
-                toast.add({
-                    severity: 'info',
-                    summary: 'Sin consigna',
-                    detail: 'Este ejercicio no tiene una consigna escrita a mano.',
-                    life: 3000,
-                });
-                return;
-            }
-            openPreview(data.image, 'Consigna del docente');
-        } catch {
+const viewing = ref<AttemptReview | null>(null);
+
+const preview = ref<{ url: string; title: string } | null>(null);
+const loadingStatement = ref<string | null>(null);
+
+function openPreview(url: string, title: string) {
+    preview.value = { url, title };
+}
+
+async function openStatementImage(item: AttemptReview) {
+    if (loadingStatement.value) return;
+    loadingStatement.value = item.attempt_id;
+    try {
+        const { data } = await service.statementImage(item.attempt_id);
+        if (!data.image) {
             toast.add({
-                severity: 'error',
-                summary: 'Error',
-                detail: 'No se pudo cargar la consigna',
+                severity: 'info',
+                summary: 'Sin consigna',
+                detail: 'Este ejercicio no tiene una consigna escrita a mano.',
                 life: 3000,
             });
-        } finally {
-            loadingStatement.value = null;
+            return;
         }
+        openPreview(data.image, 'Consigna del docente');
+    } catch {
+        toast.add({
+            severity: 'error',
+            summary: 'Error',
+            detail: 'No se pudo cargar la consigna',
+            life: 3000,
+        });
+    } finally {
+        loadingStatement.value = null;
     }
+}
 </script>
 
 <template>
@@ -464,466 +464,466 @@
 </template>
 
 <style scoped>
+.reviews-page {
+    padding: 24px 28px 40px;
+    max-width: 900px;
+}
+
+.page-header {
+    align-items: flex-start;
+    gap: 20px;
+}
+
+.page-title {
+    margin: 2px 0 0;
+}
+
+.page-subtitle {
+    margin: 8px 0 0;
+    color: var(--text-secondary);
+    max-width: 60ch;
+}
+
+.reviews-list {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+}
+
+.review-card {
+    padding: 18px 20px;
+    border-radius: 20px;
+    border: 1px solid var(--surface-elevated-strong);
+    background: var(--surface-card);
+    box-shadow: var(--shadow-soft);
+}
+
+.review-card--done {
+    opacity: 0.75;
+}
+
+.review-head {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 12px;
+}
+
+.review-student {
+    font-weight: 800;
+    color: var(--text-primary);
+}
+
+.review-meta {
+    font-size: var(--text-xs);
+    color: var(--text-secondary);
+    margin-top: 2px;
+}
+
+.review-tag {
+    padding: 4px 10px;
+    border-radius: 999px;
+    font-size: var(--text-xs);
+    font-weight: 700;
+    white-space: nowrap;
+}
+
+.review-tag--ok {
+    background: var(--color-success-bg);
+    color: var(--color-success-dark);
+}
+
+.review-tag--no {
+    background: var(--color-error-bg);
+    color: var(--red-600, #b91c1c);
+}
+
+.review-tag--pending {
+    background: var(--color-warning-bg, rgba(245, 158, 11, 0.14));
+    color: var(--text-primary);
+}
+
+.review-question {
+    margin: 12px 0;
+    color: var(--text-primary);
+    font-weight: 600;
+}
+
+.review-statement-media {
+    margin: 12px 0;
+    padding: 12px;
+    border-radius: var(--radius-md);
+    background: var(--surface-bg-soft);
+    color: var(--text-secondary);
+    font-size: var(--text-sm);
+    font-weight: 700;
+}
+
+.review-statement-media :deep(.exercise-media) {
+    margin-bottom: 0;
+}
+
+.review-ai {
+    margin: 12px 0 0;
+    padding: 10px 12px;
+    border-radius: 12px;
+    background: var(--surface-elevated);
+    border: 1px solid var(--surface-elevated-strong);
+}
+
+.review-ai-head {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: var(--text-xs);
+    font-weight: 700;
+    color: var(--practiq-violet);
+}
+
+.review-ai-text {
+    margin: 6px 0 0;
+    font-size: var(--text-sm);
+    color: var(--text-primary);
+}
+
+.review-ai-note {
+    display: block;
+    margin-top: 6px;
+    color: var(--text-secondary);
+    font-size: var(--text-xs);
+}
+
+.review-teacher-feedback {
+    margin: 10px 0 0;
+    font-size: var(--text-sm);
+    color: var(--text-secondary);
+}
+
+.review-feedback {
+    width: 100%;
+    margin-top: 6px;
+    padding: 10px 12px;
+    border-radius: 12px;
+    border: 1px solid var(--surface-elevated-strong);
+    background: var(--surface-ground, #fff);
+    color: var(--text-primary);
+    font-size: var(--text-sm);
+    font-family: inherit;
+    resize: vertical;
+}
+
+.review-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 10px;
+    margin-top: 12px;
+}
+
+.review-actions .btn-danger {
+    background: transparent;
+    color: var(--color-error-dark, #b91c1c);
+    border: 1.5px solid var(--color-error, #dc2626);
+}
+
+.review-actions .btn-danger:hover:not(:disabled) {
+    background: var(--color-error-bg);
+}
+
+.review-feedback-label {
+    display: block;
+    margin-top: 14px;
+    color: var(--text-secondary);
+    font-size: var(--text-xs);
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+}
+
+.review-feedback-label span {
+    text-transform: none;
+    letter-spacing: 0;
+    font-weight: 600;
+}
+
+.filters-panel {
+    padding: 14px 16px 16px;
+    margin: 14px 0 18px;
+    border: 1px solid var(--surface-elevated-strong);
+    border-radius: var(--radius-xl);
+    background: var(--surface-elevated);
+}
+
+.filters-panel__head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 12px;
+    color: var(--text-heading);
+    font-size: var(--text-sm);
+}
+.filters-panel__head > div {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+.filters-panel__head span {
+    padding: 2px 7px;
+    border-radius: var(--radius-pill);
+    background: var(--fill-primary-soft);
+    color: var(--practiq-violet-dark);
+    font-size: var(--text-xs);
+    font-weight: 800;
+}
+.filters-clear {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    min-height: 32px;
+    padding: 5px 8px;
+    border: 0;
+    border-radius: var(--radius-md);
+    background: transparent;
+    color: var(--practiq-violet-dark);
+    font: inherit;
+    font-size: var(--text-xs);
+    font-weight: 800;
+    cursor: pointer;
+}
+.filters-clear:hover {
+    background: var(--fill-primary-soft);
+}
+
+.filters-bar {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    gap: 10px;
+}
+
+.filter-group {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    min-width: 0;
+}
+
+.filter-label {
+    color: var(--text-secondary);
+    font-size: var(--text-xs);
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+}
+
+.filter-select {
+    min-height: 42px;
+    padding: 10px 14px;
+    border-radius: var(--radius-md);
+    border: 1.5px solid rgba(var(--practiq-violet-rgb), 0.15);
+    font: inherit;
+    font-size: var(--text-base);
+    color: var(--text-primary);
+    background: var(--surface-elevated-strong);
+    outline: none;
+    transition: border-color 0.15s;
+}
+
+.filter-select:focus {
+    border-color: var(--practiq-violet);
+}
+
+.pagination-controls {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    margin-top: 16px;
+    padding: 12px 16px;
+    background: var(--surface-elevated);
+    border: 1px solid var(--surface-elevated-strong);
+    border-radius: var(--radius-xl);
+}
+
+.pagination-info {
+    color: var(--text-secondary);
+    font-size: var(--text-sm);
+    font-weight: 700;
+}
+
+.review-ai > summary {
+    cursor: pointer;
+    list-style: none;
+}
+
+.review-ai > summary::-webkit-details-marker {
+    display: none;
+}
+
+.review-ai > summary::after {
+    content: '\e902';
+    font-family: 'primeicons';
+    margin-left: auto;
+    font-size: 11px;
+    transition: transform 0.2s;
+}
+
+.review-ai[open] > summary::after {
+    transform: rotate(180deg);
+}
+
+.review-thumbs {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    margin-top: 12px;
+}
+
+.review-thumb {
+    display: grid;
+    gap: 4px;
+    justify-items: center;
+    width: 96px;
+    padding: 8px;
+    border-radius: 12px;
+    border: 1px solid var(--surface-elevated-strong);
+    background: var(--surface-elevated);
+    color: var(--text-secondary);
+    font-size: var(--text-xs);
+    font-weight: 700;
+    cursor: pointer;
+    transition: var(--transition-fast);
+}
+
+.review-thumb:hover:not(:disabled) {
+    border-color: var(--practiq-violet);
+    color: var(--practiq-violet);
+}
+
+.review-thumb:disabled {
+    opacity: 0.6;
+    cursor: progress;
+}
+
+.review-thumb img {
+    width: 100%;
+    height: 56px;
+
+    object-fit: contain;
+    border-radius: 8px;
+    background: var(--surface-card);
+}
+
+.review-thumb--action {
+    place-content: center;
+    min-height: 84px;
+    font-size: 18px;
+}
+
+.review-thumb span {
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: var(--text-xs);
+}
+
+.review-answer-text {
+    margin: 8px 0 0;
+    color: var(--text-primary);
+    white-space: pre-wrap;
+}
+
+.review-answer-text--none {
+    color: var(--text-secondary);
+    font-style: italic;
+}
+
+.muted {
+    color: var(--text-secondary);
+}
+
+@media (max-width: 640px) {
     .reviews-page {
-        padding: 24px 28px 40px;
-        max-width: 900px;
+        padding: 16px 14px 32px;
     }
 
     .page-header {
-        align-items: flex-start;
-        gap: 20px;
-    }
-
-    .page-title {
-        margin: 2px 0 0;
-    }
-
-    .page-subtitle {
-        margin: 8px 0 0;
-        color: var(--text-secondary);
-        max-width: 60ch;
-    }
-
-    .reviews-list {
-        display: flex;
         flex-direction: column;
-        gap: 14px;
-    }
-
-    .review-card {
-        padding: 18px 20px;
-        border-radius: 20px;
-        border: 1px solid var(--surface-elevated-strong);
-        background: var(--surface-card);
-        box-shadow: var(--shadow-soft);
-    }
-
-    .review-card--done {
-        opacity: 0.75;
-    }
-
-    .review-head {
-        display: flex;
         align-items: flex-start;
-        justify-content: space-between;
-        gap: 12px;
-    }
-
-    .review-student {
-        font-weight: 800;
-        color: var(--text-primary);
-    }
-
-    .review-meta {
-        font-size: var(--text-xs);
-        color: var(--text-secondary);
-        margin-top: 2px;
-    }
-
-    .review-tag {
-        padding: 4px 10px;
-        border-radius: 999px;
-        font-size: var(--text-xs);
-        font-weight: 700;
-        white-space: nowrap;
-    }
-
-    .review-tag--ok {
-        background: var(--color-success-bg);
-        color: var(--color-success-dark);
-    }
-
-    .review-tag--no {
-        background: var(--color-error-bg);
-        color: var(--red-600, #b91c1c);
-    }
-
-    .review-tag--pending {
-        background: var(--color-warning-bg, rgba(245, 158, 11, 0.14));
-        color: var(--text-primary);
-    }
-
-    .review-question {
-        margin: 12px 0;
-        color: var(--text-primary);
-        font-weight: 600;
-    }
-
-    .review-statement-media {
-        margin: 12px 0;
-        padding: 12px;
-        border-radius: var(--radius-md);
-        background: var(--surface-bg-soft);
-        color: var(--text-secondary);
-        font-size: var(--text-sm);
-        font-weight: 700;
-    }
-
-    .review-statement-media :deep(.exercise-media) {
-        margin-bottom: 0;
-    }
-
-    .review-ai {
-        margin: 12px 0 0;
-        padding: 10px 12px;
-        border-radius: 12px;
-        background: var(--surface-elevated);
-        border: 1px solid var(--surface-elevated-strong);
-    }
-
-    .review-ai-head {
-        display: flex;
-        align-items: center;
-        gap: 6px;
-        display: flex;
-        align-items: center;
-        gap: 8px;
-        font-size: var(--text-xs);
-        font-weight: 700;
-        color: var(--practiq-violet);
-    }
-
-    .review-ai-text {
-        margin: 6px 0 0;
-        font-size: var(--text-sm);
-        color: var(--text-primary);
-    }
-
-    .review-ai-note {
-        display: block;
-        margin-top: 6px;
-        color: var(--text-secondary);
-        font-size: var(--text-xs);
-    }
-
-    .review-teacher-feedback {
-        margin: 10px 0 0;
-        font-size: var(--text-sm);
-        color: var(--text-secondary);
-    }
-
-    .review-feedback {
-        width: 100%;
-        margin-top: 6px;
-        padding: 10px 12px;
-        border-radius: 12px;
-        border: 1px solid var(--surface-elevated-strong);
-        background: var(--surface-ground, #fff);
-        color: var(--text-primary);
-        font-size: var(--text-sm);
-        font-family: inherit;
-        resize: vertical;
-    }
-
-    .review-actions {
-        display: flex;
-        justify-content: flex-end;
         gap: 10px;
-        margin-top: 12px;
-    }
-
-    .review-actions .btn-danger {
-        background: transparent;
-        color: var(--color-error-dark, #b91c1c);
-        border: 1.5px solid var(--color-error, #dc2626);
-    }
-
-    .review-actions .btn-danger:hover:not(:disabled) {
-        background: var(--color-error-bg);
-    }
-
-    .review-feedback-label {
-        display: block;
-        margin-top: 14px;
-        color: var(--text-secondary);
-        font-size: var(--text-xs);
-        font-weight: 800;
-        text-transform: uppercase;
-        letter-spacing: 0.04em;
-    }
-
-    .review-feedback-label span {
-        text-transform: none;
-        letter-spacing: 0;
-        font-weight: 600;
-    }
-
-    .filters-panel {
-        padding: 14px 16px 16px;
-        margin: 14px 0 18px;
-        border: 1px solid var(--surface-elevated-strong);
-        border-radius: var(--radius-xl);
-        background: var(--surface-elevated);
-    }
-
-    .filters-panel__head {
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        gap: 12px;
-        margin-bottom: 12px;
-        color: var(--text-heading);
-        font-size: var(--text-sm);
-    }
-    .filters-panel__head > div {
-        display: flex;
-        align-items: center;
-        gap: 8px;
-    }
-    .filters-panel__head span {
-        padding: 2px 7px;
-        border-radius: var(--radius-pill);
-        background: var(--fill-primary-soft);
-        color: var(--practiq-violet-dark);
-        font-size: var(--text-xs);
-        font-weight: 800;
-    }
-    .filters-clear {
-        display: inline-flex;
-        align-items: center;
-        gap: 6px;
-        min-height: 32px;
-        padding: 5px 8px;
-        border: 0;
-        border-radius: var(--radius-md);
-        background: transparent;
-        color: var(--practiq-violet-dark);
-        font: inherit;
-        font-size: var(--text-xs);
-        font-weight: 800;
-        cursor: pointer;
-    }
-    .filters-clear:hover {
-        background: var(--fill-primary-soft);
     }
 
     .filters-bar {
-        display: grid;
-        grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
-        gap: 10px;
+        grid-template-columns: 1fr 1fr;
+        gap: 8px;
     }
 
-    .filter-group {
-        display: flex;
+    .filters-panel {
+        margin-top: 12px;
+        padding: 12px;
+    }
+
+    .review-card {
+        padding: 14px;
+    }
+
+    .review-meta,
+    .review-question {
+        overflow-wrap: anywhere;
+    }
+
+    .review-head {
         flex-direction: column;
-        gap: 6px;
-        min-width: 0;
-    }
-
-    .filter-label {
-        color: var(--text-secondary);
-        font-size: var(--text-xs);
-        font-weight: 700;
-        text-transform: uppercase;
-        letter-spacing: 0.06em;
-    }
-
-    .filter-select {
-        min-height: 42px;
-        padding: 10px 14px;
-        border-radius: var(--radius-md);
-        border: 1.5px solid rgba(var(--practiq-violet-rgb), 0.15);
-        font: inherit;
-        font-size: var(--text-base);
-        color: var(--text-primary);
-        background: var(--surface-elevated-strong);
-        outline: none;
-        transition: border-color 0.15s;
-    }
-
-    .filter-select:focus {
-        border-color: var(--practiq-violet);
-    }
-
-    .pagination-controls {
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        gap: 16px;
-        margin-top: 16px;
-        padding: 12px 16px;
-        background: var(--surface-elevated);
-        border: 1px solid var(--surface-elevated-strong);
-        border-radius: var(--radius-xl);
-    }
-
-    .pagination-info {
-        color: var(--text-secondary);
-        font-size: var(--text-sm);
-        font-weight: 700;
-    }
-
-    .review-ai > summary {
-        cursor: pointer;
-        list-style: none;
-    }
-
-    .review-ai > summary::-webkit-details-marker {
-        display: none;
-    }
-
-    .review-ai > summary::after {
-        content: '\e902';
-        font-family: 'primeicons';
-        margin-left: auto;
-        font-size: 11px;
-        transition: transform 0.2s;
-    }
-
-    .review-ai[open] > summary::after {
-        transform: rotate(180deg);
+        align-items: flex-start;
+        gap: 8px;
     }
 
     .review-thumbs {
-        display: flex;
-        flex-wrap: wrap;
-        gap: 10px;
-        margin-top: 12px;
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(84px, 1fr));
     }
 
     .review-thumb {
-        display: grid;
-        gap: 4px;
-        justify-items: center;
-        width: 96px;
-        padding: 8px;
-        border-radius: 12px;
-        border: 1px solid var(--surface-elevated-strong);
-        background: var(--surface-elevated);
-        color: var(--text-secondary);
-        font-size: var(--text-xs);
-        font-weight: 700;
-        cursor: pointer;
-        transition: var(--transition-fast);
+        width: auto;
     }
 
-    .review-thumb:hover:not(:disabled) {
-        border-color: var(--practiq-violet);
-        color: var(--practiq-violet);
+    .review-actions {
+        flex-direction: column;
     }
-
-    .review-thumb:disabled {
-        opacity: 0.6;
-        cursor: progress;
-    }
-
-    .review-thumb img {
+    .review-actions > * {
         width: 100%;
-        height: 56px;
-
-        object-fit: contain;
-        border-radius: 8px;
-        background: var(--surface-card);
+        justify-content: center;
+        min-height: 46px;
     }
 
-    .review-thumb--action {
-        place-content: center;
-        min-height: 84px;
-        font-size: 18px;
+    .pagination-controls {
+        flex-wrap: wrap;
+        justify-content: center;
+        gap: 10px;
+        padding: 12px;
     }
 
-    .review-thumb span {
-        max-width: 100%;
-        overflow: hidden;
-        text-overflow: ellipsis;
-        white-space: nowrap;
-        font-size: var(--text-xs);
-    }
-
-    .review-answer-text {
-        margin: 8px 0 0;
-        color: var(--text-primary);
-        white-space: pre-wrap;
-    }
-
-    .review-answer-text--none {
-        color: var(--text-secondary);
-        font-style: italic;
-    }
-
-    .muted {
-        color: var(--text-secondary);
-    }
-
-    @media (max-width: 640px) {
-        .reviews-page {
-            padding: 16px 14px 32px;
-        }
-
-        .page-header {
-            flex-direction: column;
-            align-items: flex-start;
-            gap: 10px;
-        }
-
-        .filters-bar {
-            grid-template-columns: 1fr 1fr;
-            gap: 8px;
-        }
-
-        .filters-panel {
-            margin-top: 12px;
-            padding: 12px;
-        }
-
-        .review-card {
-            padding: 14px;
-        }
-
-        .review-meta,
-        .review-question {
-            overflow-wrap: anywhere;
-        }
-
-        .review-head {
-            flex-direction: column;
-            align-items: flex-start;
-            gap: 8px;
-        }
-
-        .review-thumbs {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(84px, 1fr));
-        }
-
-        .review-thumb {
-            width: auto;
-        }
-
-        .review-actions {
-            flex-direction: column;
-        }
-        .review-actions > * {
-            width: 100%;
-            justify-content: center;
-            min-height: 46px;
-        }
-
-        .pagination-controls {
-            flex-wrap: wrap;
-            justify-content: center;
-            gap: 10px;
-            padding: 12px;
-        }
-
-        .pagination-info {
-            order: -1;
-            width: 100%;
-            text-align: center;
-        }
-
-        .pagination-controls .btn {
-            flex: 1;
-            min-height: 44px;
-            justify-content: center;
-        }
-    }
-    .thumb-icon {
-        display: grid;
-        place-items: center;
+    .pagination-info {
+        order: -1;
         width: 100%;
-        height: 100%;
-        color: var(--text-secondary);
-        font-size: 20px;
+        text-align: center;
     }
+
+    .pagination-controls .btn {
+        flex: 1;
+        min-height: 44px;
+        justify-content: center;
+    }
+}
+.thumb-icon {
+    display: grid;
+    place-items: center;
+    width: 100%;
+    height: 100%;
+    color: var(--text-secondary);
+    font-size: 20px;
+}
 </style>

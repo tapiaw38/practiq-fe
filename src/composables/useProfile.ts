@@ -4,6 +4,7 @@ import { practiqApi } from '@/api/request/server';
 import {
     ProfileService,
     type AcademicStatusParams,
+    type AvatarParams,
     type UIThemeParams,
     type ProfileTypeParams,
     type SyncProfileParams,
@@ -87,6 +88,20 @@ export const useProfile = () => {
         }
     };
 
+    const updateAvatar = async (params: AvatarParams) => {
+        try {
+            return await store.updateAvatar(params);
+        } catch (error) {
+            toast.add({
+                severity: 'error',
+                summary: 'Error',
+                detail: 'No se pudo actualizar el avatar',
+                life: 3000,
+            });
+            throw error;
+        }
+    };
+
     const updateUIThemeById = async (id: string, params: UIThemeParams) => {
         try {
             const profile = await store.updateUIThemeById(id, params);
@@ -144,6 +159,7 @@ export const useProfile = () => {
         loadProfile,
         loadProfileById,
         findByEmail,
+        updateAvatar,
         updateUITheme,
         updateUIThemeById,
         updateAcademicStatusById,

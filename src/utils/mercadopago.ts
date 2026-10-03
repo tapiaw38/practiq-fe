@@ -1,17 +1,6 @@
+import type { CardDetails, CardToken } from '@/types/payments';
+
 const SDK_URL = 'https://sdk.mercadopago.com/js/v2';
-
-export interface CardDetails {
-    cardNumber: string;
-    cardholderName: string;
-
-    cardExpirationMonth: string;
-
-    cardExpirationYear: string;
-    securityCode: string;
-
-    identificationType: string;
-    identificationNumber: string;
-}
 
 type MercadoPagoSdk = {
     createCardToken(details: CardDetails): Promise<{ id: string }>;
@@ -19,12 +8,6 @@ type MercadoPagoSdk = {
         results?: Array<{ id?: string }>;
     }>;
 };
-
-export interface CardToken {
-    id: string;
-
-    paymentMethodId: string;
-}
 
 declare global {
     interface Window {

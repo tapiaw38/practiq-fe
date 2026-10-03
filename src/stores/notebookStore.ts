@@ -126,6 +126,18 @@ export const useNotebookStore = (service: INotebookService) =>
             }
         };
 
+        const deleteNotebookPage = async (pageId: string) => {
+            loading.value = true;
+            try {
+                await service.deletePage(pageId);
+            } finally {
+                loading.value = false;
+            }
+        };
+
+        const generatePageDrafts = (notebookId: string, form: FormData) =>
+            service.generatePageDrafts(notebookId, form);
+
         const savePageSubmission = async (
             pageId: string,
             params: { canvas_data?: string; answer_text?: string },
@@ -286,6 +298,8 @@ export const useNotebookStore = (service: INotebookService) =>
             deleteNotebook,
             addNotebookPage,
             updateNotebookPage,
+            deleteNotebookPage,
+            generatePageDrafts,
             savePageSubmission,
             savePageSubmissionAsync,
             fetchSubmissionJob,

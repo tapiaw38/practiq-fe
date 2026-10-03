@@ -1,141 +1,136 @@
 <script setup lang="ts">
-    import { computed, ref, watch } from 'vue';
-    import {
-        buildOptions,
-        deserializeAnswer,
-        parseFillBlanksConfig,
-        serializeAnswer,
-        shuffled,
-        splitStatement,
-    } from '@/utils/fillBlanks';
-    import type { Exercise } from '@/types';
+import { computed, ref, watch } from 'vue';
+import {
+    buildOptions,
+    deserializeAnswer,
+    parseFillBlanksConfig,
+    serializeAnswer,
+    shuffled,
+    splitStatement,
+} from '@/utils/fillBlanks';
+import type { Exercise } from '@/types';
+import type { FillBlanksAnswerEmits, FillBlanksAnswerProps } from './FillBlanksAnswer.types';
 
-    const props = defineProps<{
-        exercise: Pick<Exercise, 'question' | 'metadata'>;
+const props = defineProps<FillBlanksAnswerProps>();
+const emit = defineEmits<FillBlanksAnswerEmits>();
 
-        modelValue?: string;
-    }>();
-    const emit = defineEmits<{
-        (e: 'update:modelValue', value: string): void;
-    }>();
+const config = computed(() => parseFillBlanksConfig(props.exercise));
+const segments = computed(() => splitStatement(props.exercise.question));
 
-    const config = computed(() => parseFillBlanksConfig(props.exercise));
-    const segments = computed(() => splitStatement(props.exercise.question));
+const placements = ref<Record<number, number>>({});
+const selected = ref<number | null>(null);
+const dragging = ref<number | null>(null);
+const dragOverBlank = ref<number | null>(null);
 
-    const placements = ref<Record<number, number>>({});
-    const selected = ref<number | null>(null);
-    const dragging = ref<number | null>(null);
-    const dragOverBlank = ref<number | null>(null);
+const pool = ref<string[]>([]);
+watch(
+    () => props.exercise.metadata,
+    () => {
+        pool.value = shuffled(buildOptions(config.value));
+        hydrateFromModel();
+    },
+    { immediate: true },
+);
 
-    const pool = ref<string[]>([]);
-    watch(
-        () => props.exercise.metadata,
-        () => {
-            pool.value = shuffled(buildOptions(config.value));
-            hydrateFromModel();
-        },
-        { immediate: true },
-    );
+function hydrateFromModel() {
+    const saved = deserializeAnswer(props.modelValue);
+    const taken = new Set<number>();
+    const restored: Record<number, number> = {};
 
-    function hydrateFromModel() {
-        const saved = deserializeAnswer(props.modelValue);
-        const taken = new Set<number>();
-        const restored: Record<number, number> = {};
-
-        for (const [blankId, answer] of Object.entries(saved)) {
-            const index = pool.value.findIndex((option, i) => !taken.has(i) && option === answer);
-            if (index !== -1) {
-                taken.add(index);
-                restored[Number(blankId)] = index;
-            }
+    for (const [blankId, answer] of Object.entries(saved)) {
+        const index = pool.value.findIndex((option, i) => !taken.has(i) && option === answer);
+        if (index !== -1) {
+            taken.add(index);
+            restored[Number(blankId)] = index;
         }
-        placements.value = restored;
-        selected.value = null;
     }
+    placements.value = restored;
+    selected.value = null;
+}
 
-    watch(
-        () => props.modelValue,
-        (value) => {
-            if (!value && Object.keys(placements.value).length) {
-                placements.value = {};
-                selected.value = null;
-            }
-        },
-    );
-
-    const usedIndexes = computed(() => new Set(Object.values(placements.value)));
-
-    function optionAt(blankId: number) {
-        const index = placements.value[blankId];
-        return index === undefined ? '' : pool.value[index];
-    }
-
-    function emitAnswer() {
-        const values: Record<number, string> = {};
-        for (const [blankId, index] of Object.entries(placements.value)) {
-            values[Number(blankId)] = pool.value[index];
-        }
-        emit('update:modelValue', serializeAnswer(values));
-    }
-
-    function pickOption(index: number) {
-        if (usedIndexes.value.has(index)) return;
-        selected.value = selected.value === index ? null : index;
-    }
-
-    function tapBlank(blankId: number) {
-        if (selected.value !== null) {
-            placements.value = { ...placements.value, [blankId]: selected.value };
+watch(
+    () => props.modelValue,
+    (value) => {
+        if (!value && Object.keys(placements.value).length) {
+            placements.value = {};
             selected.value = null;
-            emitAnswer();
-            return;
         }
+    },
+);
 
-        if (placements.value[blankId] !== undefined) {
-            const next = { ...placements.value };
-            delete next[blankId];
-            placements.value = next;
-            emitAnswer();
-            return;
-        }
-        if (selected.value === null) return;
+const usedIndexes = computed(() => new Set(Object.values(placements.value)));
+
+function optionAt(blankId: number) {
+    const index = placements.value[blankId];
+    return index === undefined ? '' : pool.value[index];
+}
+
+function emitAnswer() {
+    const values: Record<number, string> = {};
+    for (const [blankId, index] of Object.entries(placements.value)) {
+        values[Number(blankId)] = pool.value[index];
+    }
+    emit('update:modelValue', serializeAnswer(values));
+}
+
+function pickOption(index: number) {
+    if (usedIndexes.value.has(index)) return;
+    selected.value = selected.value === index ? null : index;
+}
+
+function tapBlank(blankId: number) {
+    if (selected.value !== null) {
         placements.value = { ...placements.value, [blankId]: selected.value };
         selected.value = null;
         emitAnswer();
+        return;
     }
 
-    function startDrag(event: DragEvent, index: number) {
-        if (usedIndexes.value.has(index)) return;
-        dragging.value = index;
-        selected.value = index;
-        event.dataTransfer?.setData('text/plain', String(index));
-        if (event.dataTransfer) event.dataTransfer.effectAllowed = 'move';
-    }
-
-    function endDrag() {
-        dragging.value = null;
-        dragOverBlank.value = null;
-    }
-
-    function dropOnBlank(event: DragEvent, blankId: number) {
-        event.preventDefault();
-        const rawIndex = event.dataTransfer?.getData('text/plain');
-        const transferred = rawIndex ? Number(rawIndex) : NaN;
-        const index = Number.isInteger(transferred) ? transferred : dragging.value;
-        if (index !== null && index !== undefined && index >= 0 && !usedIndexes.value.has(index)) {
-            selected.value = index;
-            tapBlank(blankId);
-        }
-        endDrag();
-    }
-
-    function clearAll() {
-        placements.value = {};
-        selected.value = null;
+    if (placements.value[blankId] !== undefined) {
+        const next = { ...placements.value };
+        delete next[blankId];
+        placements.value = next;
         emitAnswer();
+        return;
     }
+    if (selected.value === null) return;
+    placements.value = { ...placements.value, [blankId]: selected.value };
+    selected.value = null;
+    emitAnswer();
+}
 
-    const remaining = computed(() => pool.value.length - usedIndexes.value.size);
+function startDrag(event: DragEvent, index: number) {
+    if (usedIndexes.value.has(index)) return;
+    dragging.value = index;
+    selected.value = index;
+    event.dataTransfer?.setData('text/plain', String(index));
+    if (event.dataTransfer) event.dataTransfer.effectAllowed = 'move';
+}
+
+function endDrag() {
+    dragging.value = null;
+    dragOverBlank.value = null;
+}
+
+function dropOnBlank(event: DragEvent, blankId: number) {
+    event.preventDefault();
+    const rawIndex = event.dataTransfer?.getData('text/plain');
+    const transferred = rawIndex ? Number(rawIndex) : NaN;
+    const index = Number.isInteger(transferred) ? transferred : dragging.value;
+    if (index !== null && index !== undefined && index >= 0 && !usedIndexes.value.has(index)) {
+        selected.value = index;
+        tapBlank(blankId);
+    }
+    endDrag();
+}
+
+function clearAll() {
+    placements.value = {};
+    selected.value = null;
+    emitAnswer();
+}
+
+const remaining = computed(() => pool.value.length - usedIndexes.value.size);
 </script>
 
 <template>
@@ -211,132 +206,132 @@
 </template>
 
 <style scoped>
-    .fb-answer {
-        display: flex;
-        flex-direction: column;
-        gap: 14px;
-    }
+.fb-answer {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+}
 
-    .fb-statement {
-        margin: 0;
-        line-height: 2.4;
-        color: var(--text-primary);
-        font-size: 1.05rem;
-        white-space: pre-wrap;
-    }
+.fb-statement {
+    margin: 0;
+    line-height: 2.4;
+    color: var(--text-primary);
+    font-size: 1.05rem;
+    white-space: pre-wrap;
+}
 
-    .fb-statement--code {
-        font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-        font-size: 0.95rem;
-        background: var(--surface-elevated);
-        border-radius: var(--radius-lg);
-        padding: 14px;
-    }
+.fb-statement--code {
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: 0.95rem;
+    background: var(--surface-elevated);
+    border-radius: var(--radius-lg);
+    padding: 14px;
+}
 
-    .fb-blank {
-        display: inline-block;
-        min-width: 84px;
-        padding: 6px 12px;
-        margin: 0 3px;
-        border-radius: 10px;
-        border: 2px dashed var(--surface-border);
-        background: var(--surface-card);
-        color: var(--text-primary);
-        font: inherit;
-        font-weight: 700;
-        cursor: pointer;
+.fb-blank {
+    display: inline-block;
+    min-width: 84px;
+    padding: 6px 12px;
+    margin: 0 3px;
+    border-radius: 10px;
+    border: 2px dashed var(--surface-border);
+    background: var(--surface-card);
+    color: var(--text-primary);
+    font: inherit;
+    font-weight: 700;
+    cursor: pointer;
 
-        min-height: 40px;
-        transition: var(--transition-fast);
-    }
+    min-height: 40px;
+    transition: var(--transition-fast);
+}
 
-    .fb-blank--filled {
-        border-style: solid;
-        border-color: var(--practiq-violet);
+.fb-blank--filled {
+    border-style: solid;
+    border-color: var(--practiq-violet);
+    background: var(--fill-primary-soft);
+    color: var(--practiq-violet);
+}
+
+.fb-blank--target {
+    border-color: var(--practiq-violet);
+    animation: fb-pulse 1.2s ease-in-out infinite;
+}
+
+.fb-blank--drag-over {
+    border-color: var(--practiq-violet);
+    background: var(--fill-primary-soft);
+}
+
+@keyframes fb-pulse {
+    50% {
         background: var(--fill-primary-soft);
-        color: var(--practiq-violet);
     }
+}
 
+@media (prefers-reduced-motion: reduce) {
     .fb-blank--target {
-        border-color: var(--practiq-violet);
-        animation: fb-pulse 1.2s ease-in-out infinite;
-    }
-
-    .fb-blank--drag-over {
-        border-color: var(--practiq-violet);
+        animation: none;
         background: var(--fill-primary-soft);
     }
+}
 
-    @keyframes fb-pulse {
-        50% {
-            background: var(--fill-primary-soft);
-        }
-    }
+.fb-pool {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+}
 
-    @media (prefers-reduced-motion: reduce) {
-        .fb-blank--target {
-            animation: none;
-            background: var(--fill-primary-soft);
-        }
-    }
+.fb-option {
+    padding: 10px 16px;
+    min-height: 44px;
+    border-radius: 12px;
+    border: 1px solid var(--surface-elevated-strong);
+    background: var(--surface-card);
+    color: var(--text-primary);
+    font: inherit;
+    font-weight: 700;
+    cursor: pointer;
+    transition: var(--transition-fast);
+}
 
-    .fb-pool {
-        display: flex;
-        flex-wrap: wrap;
-        gap: 10px;
-    }
+.fb-option:not(:disabled):active {
+    cursor: grabbing;
+}
 
-    .fb-option {
-        padding: 10px 16px;
-        min-height: 44px;
-        border-radius: 12px;
-        border: 1px solid var(--surface-elevated-strong);
-        background: var(--surface-card);
-        color: var(--text-primary);
-        font: inherit;
-        font-weight: 700;
-        cursor: pointer;
-        transition: var(--transition-fast);
-    }
+.fb-option--selected {
+    border-color: var(--practiq-violet);
+    background: var(--fill-primary-soft);
+    color: var(--practiq-violet);
+    transform: translateY(-1px);
+}
 
-    .fb-option:not(:disabled):active {
-        cursor: grabbing;
-    }
+.fb-option--used {
+    opacity: 0.35;
+    cursor: default;
+}
 
-    .fb-option--selected {
-        border-color: var(--practiq-violet);
-        background: var(--fill-primary-soft);
-        color: var(--practiq-violet);
-        transform: translateY(-1px);
-    }
+.fb-footer {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    flex-wrap: wrap;
+}
 
-    .fb-option--used {
-        opacity: 0.35;
-        cursor: default;
-    }
+.fb-help {
+    color: var(--text-secondary);
+    font-size: var(--text-sm);
+}
 
-    .fb-footer {
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        gap: 12px;
-        flex-wrap: wrap;
-    }
-
-    .fb-help {
-        color: var(--text-secondary);
-        font-size: var(--text-sm);
-    }
-
-    .fb-reset {
-        display: inline-flex;
-        align-items: center;
-        gap: 6px;
-        border: none;
-        background: none;
-        color: var(--practiq-violet);
-        font-weight: 700;
-        font-size: var(--text-sm);
-        cursor: pointer;
-    }
+.fb-reset {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    border: none;
+    background: none;
+    color: var(--practiq-violet);
+    font-weight: 700;
+    font-size: var(--text-sm);
+    cursor: pointer;
+}
 </style>

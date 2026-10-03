@@ -1,836 +1,825 @@
 <script setup lang="ts">
-    import { ref, computed, watch, onMounted, onUnmounted, defineAsyncComponent } from 'vue';
-    import { useRoute, useRouter } from 'vue-router';
-    import PractiCoach from '@/components/student/practice/PractiCoach.vue';
-    import { useToast } from '@/composables/useToast';
-    import { useAuthStore } from '@/stores/authStore';
-    import StudentLayout from '@/layouts/StudentLayout.vue';
-    import Skeleton from '@/components/ui/Skeleton.vue';
-    import ConfirmModal from '@/components/ui/ConfirmModal.vue';
-    import XPBubbles from '@/components/ui/XPBubbles.vue';
-    import DrawingCanvas from '@/components/ui/DrawingCanvas.vue';
-    import ColorPalette from '@/components/ui/ColorPalette.vue';
-    import { BASE_COLORS } from '@/utils/palette';
-    import AttachmentAnswer from '@/components/student/exercises/AttachmentAnswer.vue';
-    import ExerciseStepper from '@/components/student/exercises/ExerciseStepper.vue';
-    import ExerciseMedia from '@/components/ui/ExerciseMedia.vue';
-    import FillBlanksAnswer from '@/components/student/exercises/FillBlanksAnswer.vue';
-    import { usePracticeSheet } from '@/composables/usePracticeSheet';
-    import { useLeaveWarning } from '@/composables/useLeaveWarning';
-    import type { PracticeSheet, SubmitResult } from '@/types';
-    import type { UploadedFile } from '@/services/uploads/uploadService';
-    import {
-        composeAssistantWorkImage,
-        extractTeacherImageDataUrl,
-        parseExerciseMetadata,
-        pickBestStudentImage,
-        prepareHandwritingImage,
-        summarizeExerciseMetadata,
-        statementMediaAudioAttachment,
-        statementMediaDocumentAttachment,
-        statementMediaPreviewDataURL,
-    } from '@/utils/assistantExerciseContext';
-    import { statementImageDataURL } from '@/utils/statementImage';
-    import { formatDuration } from '@/utils/formatters';
-    import { renderContent, renderEquation } from '@/composables/useContentRenderer';
-    import { useConfetti } from '@/composables/useConfetti';
-    import { useSound } from '@/composables/useSound';
-    import { useCuriosities } from '@/composables/useCuriosities';
-    import { tuckAssistantFab } from '@/composables/useAssistantFabOffset';
-    import AiLoadingModal from '@/components/student/ai/AiLoadingModal.vue';
-    import UiModal from '@/components/ui/UiModal.vue';
-    import { buildFillBlanksAssistantContext } from '@/utils/fillBlanks';
-    import {
-        loadingMessages,
-        successMessages,
-        encourageMessages,
-        randomMessage,
-    } from '@/utils/motivationalMessages';
+import { ref, computed, watch, onMounted, onUnmounted, defineAsyncComponent } from 'vue';
+import { useRoute, useRouter } from 'vue-router';
+import PractiCoach from '@/components/student/practice/PractiCoach.vue';
+import { useToast } from '@/composables/useToast';
+import { useAuthStore } from '@/stores/authStore';
+import StudentLayout from '@/layouts/StudentLayout.vue';
+import Skeleton from '@/components/ui/Skeleton.vue';
+import ConfirmModal from '@/components/ui/ConfirmModal.vue';
+import XPBubbles from '@/components/ui/XPBubbles.vue';
+import DrawingCanvas from '@/components/ui/DrawingCanvas.vue';
+import ColorPalette from '@/components/ui/ColorPalette.vue';
+import { BASE_COLORS } from '@/utils/palette';
+import AttachmentAnswer from '@/components/student/exercises/AttachmentAnswer.vue';
+import ExerciseStepper from '@/components/student/exercises/ExerciseStepper.vue';
+import ExerciseMedia from '@/components/ui/ExerciseMedia.vue';
+import FillBlanksAnswer from '@/components/student/exercises/FillBlanksAnswer.vue';
+import { usePracticeSheet } from '@/composables/usePracticeSheet';
+import { useLeaveWarning } from '@/composables/useLeaveWarning';
+import type { PracticeSheet, SubmitResult } from '@/types';
+import type { UploadedFile } from '@/types/uploads';
+import {
+    composeAssistantWorkImage,
+    extractTeacherImageDataUrl,
+    parseExerciseMetadata,
+    pickBestStudentImage,
+    prepareHandwritingImage,
+    summarizeExerciseMetadata,
+    statementMediaAudioAttachment,
+    statementMediaDocumentAttachment,
+    statementMediaPreviewDataURL,
+} from '@/utils/assistantExerciseContext';
+import { statementImageDataURL } from '@/utils/statementImage';
+import { formatDuration } from '@/utils/formatters';
+import { renderContent, renderEquation } from '@/composables/useContentRenderer';
+import { useConfetti } from '@/composables/useConfetti';
+import { useSound } from '@/composables/useSound';
+import { useCuriosities } from '@/composables/useCuriosities';
+import { tuckAssistantFab } from '@/composables/useAssistantFabOffset';
+import AiLoadingModal from '@/components/student/ai/AiLoadingModal.vue';
+import UiModal from '@/components/ui/UiModal.vue';
+import { buildFillBlanksAssistantContext } from '@/utils/fillBlanks';
+import {
+    loadingMessages,
+    successMessages,
+    encourageMessages,
+    randomMessage,
+} from '@/utils/motivationalMessages';
 
-    const MathFieldEditor = defineAsyncComponent(
-        () => import('@/components/ui/MathFieldEditor.vue'),
-    );
+const MathFieldEditor = defineAsyncComponent(() => import('@/components/ui/MathFieldEditor.vue'));
 
-    const toast = useToast();
-    const route = useRoute();
-    const router = useRouter();
-    const authStore = useAuthStore();
-    const { leaveConfirmState, onLeaveConfirm, onLeaveCancel } = useLeaveWarning(
-        () => hasPendingWork.value,
-    );
-    const { loadPracticeSheet, submitPracticeSheetAsync, loadSubmitJob } = usePracticeSheet();
-    const { fireSuccess } = useConfetti();
-    const { play: playSound } = useSound();
-    const { curiosities, fetchCuriosities } = useCuriosities();
-    const sheetId = route.params.id as string;
-    const curiosityIndex = ref(0);
+const toast = useToast();
+const route = useRoute();
+const router = useRouter();
+const authStore = useAuthStore();
+const { leaveConfirmState, onLeaveConfirm, onLeaveCancel } = useLeaveWarning(
+    () => hasPendingWork.value,
+);
+const { loadPracticeSheet, submitPracticeSheetAsync, loadSubmitJob } = usePracticeSheet();
+const { fireSuccess } = useConfetti();
+const { play: playSound } = useSound();
+const { curiosities, fetchCuriosities } = useCuriosities();
+const sheetId = route.params.id as string;
+const curiosityIndex = ref(0);
 
-    const sheet = ref<PracticeSheet | null>(null);
-    const loading = ref(true);
-    const currentIdx = ref(0);
+const sheet = ref<PracticeSheet | null>(null);
+const loading = ref(true);
+const currentIdx = ref(0);
 
-    const answers = ref<Record<string, { answer: string; timeStart: number; hints: number }>>({});
-    const keyboardAnswers = ref<Record<string, string>>({});
-    const attachments = ref<Record<string, UploadedFile | null>>({});
+const answers = ref<Record<string, { answer: string; timeStart: number; hints: number }>>({});
+const keyboardAnswers = ref<Record<string, string>>({});
+const attachments = ref<Record<string, UploadedFile | null>>({});
 
-    const uploadingAttachments = ref<Set<string>>(new Set());
+const uploadingAttachments = ref<Set<string>>(new Set());
 
-    function setUploading(exerciseId: string, value: boolean) {
-        const next = new Set(uploadingAttachments.value);
-        if (value) next.add(exerciseId);
-        else next.delete(exerciseId);
-        uploadingAttachments.value = next;
+function setUploading(exerciseId: string, value: boolean) {
+    const next = new Set(uploadingAttachments.value);
+    if (value) next.add(exerciseId);
+    else next.delete(exerciseId);
+    uploadingAttachments.value = next;
+}
+
+function setAttachment(exerciseId: string, value: UploadedFile | null) {
+    attachments.value = { ...attachments.value, [exerciseId]: value };
+}
+const timers = ref<Record<string, number>>({});
+const hints = ref<Record<string, number>>({});
+
+const canvasRefs: Record<string, InstanceType<typeof DrawingCanvas> | null> = {};
+const tool = ref<'pen' | 'eraser'>('pen');
+
+const penColor = ref(BASE_COLORS[0].value);
+const penSize = ref(3);
+const activeCanvasId = ref('');
+
+const showSubmitConfirm = ref(false);
+const showResults = ref(false);
+const submitting = ref(false);
+const result = ref<SubmitResult | null>(null);
+const showAllErrors = ref(false);
+
+const hasPendingWork = computed(
+    () =>
+        !result.value &&
+        (hasDraft.value ||
+            submitting.value ||
+            Object.values(answers.value).some((item) => !!item?.answer) ||
+            Object.values(keyboardAnswers.value).some((answer) => !!answer?.trim()) ||
+            Object.values(attachments.value).some(Boolean) ||
+            uploadingAttachments.value.size > 0),
+);
+
+const incorrectResults = computed(
+    () =>
+        result.value?.exercise_results?.filter(
+            (r) => !r.is_correct && !r.not_graded && !r.needs_teacher_review,
+        ) ?? [],
+);
+
+const ungradedResults = computed(
+    () =>
+        result.value?.exercise_results?.filter((r) => r.not_graded || r.needs_teacher_review) ?? [],
+);
+
+const allUngraded = computed(
+    () =>
+        !!result.value?.exercise_results?.length &&
+        ungradedResults.value.length === result.value.exercise_results.length,
+);
+
+const visibleErrors = computed(() =>
+    showAllErrors.value ? incorrectResults.value : incorrectResults.value.slice(0, 3),
+);
+
+const hiddenErrorsCount = computed(() => Math.max(0, incorrectResults.value.length - 3));
+
+function formatBlanksAnswer(answer: string): string {
+    if (!answer.startsWith('{')) return answer;
+    try {
+        const parsed = JSON.parse(answer);
+        if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return answer;
+        const words = Object.keys(parsed)
+            .sort((a, b) => Number(a) - Number(b))
+            .map((key) => String(parsed[key] ?? '').trim())
+            .filter(Boolean);
+        return words.length ? words.join(' · ') : answer;
+    } catch {
+        return answer;
     }
+}
 
-    function setAttachment(exerciseId: string, value: UploadedFile | null) {
-        attachments.value = { ...attachments.value, [exerciseId]: value };
+function formatStudentAnswer(answer: string): string {
+    if (!answer || answer.trim() === '') return '(vacío)';
+    if (answer.toUpperCase() === 'UNREADABLE') return '(no se pudo leer)';
+    if (answer.startsWith('data:image/')) return '(no se pudo leer)';
+    return formatBlanksAnswer(answer);
+}
+
+const hasDraft = ref(false);
+
+const showDraftSaved = ref(false);
+let draftBadgeTimer: ReturnType<typeof setTimeout> | null = null;
+
+function flashDraftSaved() {
+    if (draftBadgeTimer) clearTimeout(draftBadgeTimer);
+    showDraftSaved.value = true;
+    draftBadgeTimer = setTimeout(() => {
+        showDraftSaved.value = false;
+    }, 2500);
+}
+const showRestoreModal = ref(false);
+const loadingMessage = ref(randomMessage(loadingMessages));
+let loadingMsgInterval: ReturnType<typeof setInterval> | null = null;
+
+let timerInterval: ReturnType<typeof setInterval>;
+
+const hasCanvasExercises = computed(
+    () => !!sheet.value?.exercises?.some((pse) => exerciseUsesCanvas(pse.exercise.type)),
+);
+const isCanvasMode = computed(() => sheet.value?.test_style !== 'keyboard');
+
+const currentExercise = computed(
+    () => sheet.value?.exercises?.[currentIdx.value]?.exercise ?? null,
+);
+
+const visibleExercises = computed(() => {
+    const current = sheet.value?.exercises?.[currentIdx.value];
+    return current ? [current] : [];
+});
+
+const answeredFlags = computed(() =>
+    (sheet.value?.exercises ?? []).map((item) => isAnswered(item.exercise.id)),
+);
+
+const coachMessage = ref('');
+const coachTone = ref<'neutral' | 'good' | 'retry'>('neutral');
+
+const coachBeat = ref(0);
+
+function say(message: string, tone: 'neutral' | 'good' | 'retry' = 'neutral') {
+    coachMessage.value = message;
+    coachTone.value = tone;
+    coachBeat.value += 1;
+}
+
+let introTimer = 0;
+
+function greetThenBrief(brief: string) {
+    say('Soy Quanty. Preguntame lo que quieras.');
+    introTimer = window.setTimeout(() => say(brief), 4000);
+}
+
+function goToExercise(index: number) {
+    if (index < 0 || index >= totalCount.value) return;
+    if (index === currentIdx.value) return;
+    const target = sheet.value?.exercises?.[index];
+    if (!target) return;
+    saveDraft();
+    setActiveExercise(target.exercise.id, index);
+}
+
+const answeredCount = computed(() => {
+    return sheet.value?.exercises?.filter((pse) => isAnswered(pse.exercise.id)).length ?? 0;
+});
+
+const totalCount = computed(() => sheet.value?.exercises?.length ?? 0);
+
+watch(answeredCount, (count, previous) => {
+    if (count <= previous || !totalCount.value) return;
+    if (count === totalCount.value) {
+        say('¡Todas respondidas! Revisá cuando quieras.', 'good');
+        return;
     }
-    const timers = ref<Record<string, number>>({});
-    const hints = ref<Record<string, number>>({});
-
-    const canvasRefs: Record<string, InstanceType<typeof DrawingCanvas> | null> = {};
-    const tool = ref<'pen' | 'eraser'>('pen');
-
-    const penColor = ref(BASE_COLORS[0].value);
-    const penSize = ref(3);
-    const activeCanvasId = ref('');
-
-    const showSubmitConfirm = ref(false);
-    const showResults = ref(false);
-    const submitting = ref(false);
-    const result = ref<SubmitResult | null>(null);
-    const showAllErrors = ref(false);
-
-    const hasPendingWork = computed(
-        () =>
-            !result.value &&
-            (hasDraft.value ||
-                submitting.value ||
-                Object.values(answers.value).some((item) => !!item?.answer) ||
-                Object.values(keyboardAnswers.value).some((answer) => !!answer?.trim()) ||
-                Object.values(attachments.value).some(Boolean) ||
-                uploadingAttachments.value.size > 0),
-    );
-
-    const incorrectResults = computed(
-        () =>
-            result.value?.exercise_results?.filter(
-                (r) => !r.is_correct && !r.not_graded && !r.needs_teacher_review,
-            ) ?? [],
-    );
-
-    const ungradedResults = computed(
-        () =>
-            result.value?.exercise_results?.filter((r) => r.not_graded || r.needs_teacher_review) ??
-            [],
-    );
-
-    const allUngraded = computed(
-        () =>
-            !!result.value?.exercise_results?.length &&
-            ungradedResults.value.length === result.value.exercise_results.length,
-    );
-
-    const visibleErrors = computed(() =>
-        showAllErrors.value ? incorrectResults.value : incorrectResults.value.slice(0, 3),
-    );
-
-    const hiddenErrorsCount = computed(() => Math.max(0, incorrectResults.value.length - 3));
-
-    function formatBlanksAnswer(answer: string): string {
-        if (!answer.startsWith('{')) return answer;
-        try {
-            const parsed = JSON.parse(answer);
-            if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return answer;
-            const words = Object.keys(parsed)
-                .sort((a, b) => Number(a) - Number(b))
-                .map((key) => String(parsed[key] ?? '').trim())
-                .filter(Boolean);
-            return words.length ? words.join(' · ') : answer;
-        } catch {
-            return answer;
-        }
+    if (count === totalCount.value - 1) {
+        say('Queda una.');
+        return;
     }
+    say(`Van ${count} de ${totalCount.value}.`);
+});
 
-    function formatStudentAnswer(answer: string): string {
-        if (!answer || answer.trim() === '') return '(vacío)';
-        if (answer.toUpperCase() === 'UNREADABLE') return '(no se pudo leer)';
-        if (answer.startsWith('data:image/')) return '(no se pudo leer)';
-        return formatBlanksAnswer(answer);
-    }
+const progressPct = computed(() =>
+    totalCount.value ? Math.round((answeredCount.value / totalCount.value) * 100) : 0,
+);
 
-    const hasDraft = ref(false);
+const streakCount = computed(() => sheet.value?.streak_days ?? 0);
+const studentInitial = computed(() => {
+    const name = authStore.profile?.name?.trim() || 'Estudiante';
+    return name.charAt(0).toUpperCase();
+});
 
-    const showDraftSaved = ref(false);
-    let draftBadgeTimer: ReturnType<typeof setTimeout> | null = null;
+const teacherImages = ref<Record<string, string>>({});
 
-    function flashDraftSaved() {
-        if (draftBadgeTimer) clearTimeout(draftBadgeTimer);
-        showDraftSaved.value = true;
-        draftBadgeTimer = setTimeout(() => {
-            showDraftSaved.value = false;
-        }, 2500);
-    }
-    const showRestoreModal = ref(false);
-    const loadingMessage = ref(randomMessage(loadingMessages));
-    let loadingMsgInterval: ReturnType<typeof setInterval> | null = null;
+function teacherImageFor(exercise?: { id?: string; question?: string; metadata?: string } | null) {
+    if (!exercise?.id) return '';
 
-    let timerInterval: ReturnType<typeof setInterval>;
+    return teacherImages.value[exercise.id] || extractTeacherImageDataUrl(exercise as never);
+}
 
-    const hasCanvasExercises = computed(
-        () => !!sheet.value?.exercises?.some((pse) => exerciseUsesCanvas(pse.exercise.type)),
-    );
-    const isCanvasMode = computed(() => sheet.value?.test_style !== 'keyboard');
+async function loadTeacherImages() {
+    const pending = (sheet.value?.exercises ?? [])
+        .map((pse) => pse.exercise)
+        .filter((exercise) => exercise?.has_teacher_image)
+        .map(async (exercise) => {
+            const dataUrl = await statementImageDataURL(exercise);
+            if (dataUrl) teacherImages.value[exercise.id] = dataUrl;
+        });
+    await Promise.all(pending);
+}
 
-    const currentExercise = computed(
-        () => sheet.value?.exercises?.[currentIdx.value]?.exercise ?? null,
-    );
+tuckAssistantFab('.practice-footer');
 
-    const visibleExercises = computed(() => {
-        const current = sheet.value?.exercises?.[currentIdx.value];
-        return current ? [current] : [];
-    });
+onMounted(async () => {
+    try {
+        sheet.value = await loadPracticeSheet(sheetId);
+        window.dispatchEvent(
+            new CustomEvent('practiq:last-practice-changed', { detail: { id: sheetId } }),
+        );
+        loadTeacherImages();
 
-    const answeredFlags = computed(() =>
-        (sheet.value?.exercises ?? []).map((item) => isAnswered(item.exercise.id)),
-    );
-
-    const coachMessage = ref('');
-    const coachTone = ref<'neutral' | 'good' | 'retry'>('neutral');
-
-    const coachBeat = ref(0);
-
-    function say(message: string, tone: 'neutral' | 'good' | 'retry' = 'neutral') {
-        coachMessage.value = message;
-        coachTone.value = tone;
-        coachBeat.value += 1;
-    }
-
-    let introTimer = 0;
-
-    function greetThenBrief(brief: string) {
-        say('Soy Quanty. Preguntame lo que quieras.');
-        introTimer = window.setTimeout(() => say(brief), 4000);
-    }
-
-    function goToExercise(index: number) {
-        if (index < 0 || index >= totalCount.value) return;
-        if (index === currentIdx.value) return;
-        const target = sheet.value?.exercises?.[index];
-        if (!target) return;
-        saveDraft();
-        setActiveExercise(target.exercise.id, index);
-    }
-
-    const answeredCount = computed(() => {
-        return sheet.value?.exercises?.filter((pse) => isAnswered(pse.exercise.id)).length ?? 0;
-    });
-
-    const totalCount = computed(() => sheet.value?.exercises?.length ?? 0);
-
-    watch(answeredCount, (count, previous) => {
-        if (count <= previous || !totalCount.value) return;
-        if (count === totalCount.value) {
-            say('¡Todas respondidas! Revisá cuando quieras.', 'good');
-            return;
-        }
-        if (count === totalCount.value - 1) {
-            say('Queda una.');
-            return;
-        }
-        say(`Van ${count} de ${totalCount.value}.`);
-    });
-
-    const progressPct = computed(() =>
-        totalCount.value ? Math.round((answeredCount.value / totalCount.value) * 100) : 0,
-    );
-
-    const streakCount = computed(() => sheet.value?.streak_days ?? 0);
-    const studentInitial = computed(() => {
-        const name = authStore.profile?.name?.trim() || 'Estudiante';
-        return name.charAt(0).toUpperCase();
-    });
-
-    const teacherImages = ref<Record<string, string>>({});
-
-    function teacherImageFor(
-        exercise?: { id?: string; question?: string; metadata?: string } | null,
-    ) {
-        if (!exercise?.id) return '';
-
-        return teacherImages.value[exercise.id] || extractTeacherImageDataUrl(exercise as never);
-    }
-
-    async function loadTeacherImages() {
-        const pending = (sheet.value?.exercises ?? [])
-            .map((pse) => pse.exercise)
-            .filter((exercise) => exercise?.has_teacher_image)
-            .map(async (exercise) => {
-                const dataUrl = await statementImageDataURL(exercise);
-                if (dataUrl) teacherImages.value[exercise.id] = dataUrl;
-            });
-        await Promise.all(pending);
-    }
-
-    tuckAssistantFab('.practice-footer');
-
-    onMounted(async () => {
-        try {
-            sheet.value = await loadPracticeSheet(sheetId);
-            window.dispatchEvent(
-                new CustomEvent('practiq:last-practice-changed', { detail: { id: sheetId } }),
-            );
-            loadTeacherImages();
-
-            publishAssistantLabel();
-
-            for (const pse of sheet.value.exercises ?? []) {
-                answers.value[pse.exercise.id] = {
-                    answer: '',
-                    timeStart: Date.now(),
-                    hints: 0,
-                };
-                keyboardAnswers.value[pse.exercise.id] = '';
-                timers.value[pse.exercise.id] = 0;
-            }
-
-            startTimer();
-            greetThenBrief(
-                totalCount.value === 1
-                    ? 'Un ejercicio. Tomate tu tiempo.'
-                    : `Son ${totalCount.value} ejercicios. A tu ritmo.`,
-            );
-
-            if (sheet.value.course_id) {
-                fetchCuriosities(sheet.value.course_id);
-            }
-
-            setTimeout(() => {
-                checkForDraft();
-            }, 500);
-        } finally {
-            loading.value = false;
-        }
-    });
-
-    onUnmounted(() => {
-        clearTimeout(introTimer);
-        clearInterval(timerInterval);
-        if (draftBadgeTimer) clearTimeout(draftBadgeTimer);
-        if (loadingMsgInterval) clearInterval(loadingMsgInterval);
-        if ((window as any).__practiqAssistantHookSource === 'practice') {
-            delete window.__practiqAssistantCapture;
-            delete window.__practiqAssistantContext;
-            delete window.__practiqAssistantMediaAttachments;
-            delete (window as any).__practiqAssistantHookSource;
-        }
-    });
-
-    function startTimer() {
-        timerInterval = setInterval(() => {
-            if (currentExercise.value) {
-                timers.value[currentExercise.value.id] =
-                    (timers.value[currentExercise.value.id] ?? 0) + 1;
-            }
-        }, 1000);
-    }
-
-    function isAnswered(exerciseId: string) {
-        const exercise = sheet.value?.exercises?.find(
-            (pse) => pse.exercise.id === exerciseId,
-        )?.exercise;
-
-        if (exercise?.type === 'attachment') {
-            return !!attachments.value[exerciseId];
-        }
-        if (exercise && exerciseUsesCanvas(exercise.type)) {
-            return !!answers.value[exerciseId]?.answer;
-        }
-        return !!keyboardAnswers.value[exerciseId]?.trim();
-    }
-
-    function setActiveExercise(exerciseId: string, idx: number) {
-        currentIdx.value = idx;
-
-        activeCanvasId.value = exerciseUsesCanvas(
-            sheet.value?.exercises?.[idx]?.exercise.type || '',
-        )
-            ? exerciseId
-            : '';
         publishAssistantLabel();
-    }
 
-    function publishAssistantLabel() {
-        const index = getAssistantExerciseIndex(getAssistantExerciseId());
-        window.dispatchEvent(
-            new CustomEvent('practiq:assistant:active-context', {
-                detail: { label: index >= 0 ? `E${index + 1}` : '' },
-            }),
-        );
-    }
-
-    const OWN_INPUT_TYPES = new Set(['multiple_choice', 'fill_blanks', 'attachment', 'equation']);
-
-    function exerciseUsesCanvas(exerciseType: string) {
-        if (OWN_INPUT_TYPES.has(exerciseType)) return false;
-        return isCanvasMode.value || exerciseType === 'handwritten' || exerciseType === 'canvas';
-    }
-
-    function exerciseOptions(metadata?: string) {
-        const options = parseExerciseMetadata(metadata)?.options;
-        return Array.isArray(options)
-            ? options.map((option) => String(option)).filter(Boolean)
-            : [];
-    }
-
-    function getPlaceholder(exerciseType: string) {
-        switch (exerciseType) {
-            case 'equation':
-                return 'Escribe la ecuacion o resultado...';
-            case 'multiple_choice':
-                return 'Escribe la opcion correcta (A, B, C, D)...';
-            default:
-                return 'Escribe tu respuesta aqui...';
-        }
-    }
-
-    function setCanvasRef(id: string, el: InstanceType<typeof DrawingCanvas> | null) {
-        canvasRefs[id] = el;
-    }
-
-    function undoActive() {
-        const id = activeCanvasId.value;
-        if (!id) return;
-        const canvas = canvasRefs[id];
-        if (!canvas) return;
-        canvas.undo();
-    }
-
-    function clearCanvas(id: string) {
-        const canvas = canvasRefs[id];
-        if (!canvas) return;
-        canvas.clear();
-        answers.value[id].answer = '';
-    }
-
-    function requestAssistantHelp() {
-        window.dispatchEvent(
-            new CustomEvent('practiq:assistant:prompt', {
-                detail: {
-                    prompt: 'Ayudame con el ejercicio actual. Dame una pista sin resolverlo.',
-                },
-            }),
-        );
-    }
-
-    function getNextCuriosity(): string {
-        if (curiosities.value.length > 0) {
-            const msg = curiosities.value[curiosityIndex.value % curiosities.value.length];
-            curiosityIndex.value++;
-            return msg;
-        }
-        return randomMessage(loadingMessages);
-    }
-
-    async function submitAnswers() {
-        if (uploadingAttachments.value.size > 0) {
-            toast.add({
-                severity: 'warn',
-                summary: 'Esperá un momento',
-                detail: 'Todavía se está subiendo un archivo. Se enviaría sin él.',
-                life: 3500,
-            });
-            return;
-        }
-
-        submitting.value = true;
-        showSubmitConfirm.value = false;
-        loadingMessage.value = getNextCuriosity();
-        loadingMsgInterval = setInterval(() => {
-            loadingMessage.value = getNextCuriosity();
-        }, 3000);
-
-        try {
-            const attempts = await Promise.all(
-                sheet.value?.exercises.map(async (pse) => {
-                    const exerciseId = pse.exercise.id;
-                    const data = answers.value[exerciseId];
-                    if (pse.exercise.type === 'attachment') {
-                        const uploaded = attachments.value[exerciseId];
-                        return {
-                            exercise_id: exerciseId,
-                            answer_text: '',
-                            canvas_data: '',
-                            attachment_url: uploaded?.url ?? '',
-                            attachment_name: uploaded?.filename ?? '',
-                            attachment_content_type: uploaded?.content_type ?? '',
-                            time_spent_seconds: timers.value[exerciseId] || 0,
-                            hints_used: data?.hints || 0,
-                        };
-                    }
-                    if (exerciseUsesCanvas(pse.exercise.type)) {
-                        return {
-                            exercise_id: exerciseId,
-                            answer_text: '',
-                            canvas_data: data?.answer?.startsWith('data:image/')
-                                ? await buildCanvasDataForOCR(exerciseId)
-                                : '',
-                            time_spent_seconds: timers.value[exerciseId] || 0,
-                            hints_used: data?.hints || 0,
-                        };
-                    } else {
-                        return {
-                            exercise_id: exerciseId,
-                            answer_text: keyboardAnswers.value[exerciseId] || '',
-                            canvas_data: '',
-                            time_spent_seconds: timers.value[exerciseId] || 0,
-                            hints_used: data?.hints || 0,
-                        };
-                    }
-                }) ?? [],
-            );
-            const start = await submitPracticeSheetAsync(sheetId, { attempts });
-            const jobId = start.job_id;
-            let jobDone = false;
-
-            while (!jobDone) {
-                await new Promise((resolve) => setTimeout(resolve, 1200));
-                const job = await loadSubmitJob(jobId);
-                if (job.status === 'processing') {
-                    continue;
-                }
-                if (job.status === 'failed') {
-                    throw new Error(job.message || 'No se pudo evaluar la práctica');
-                }
-                result.value = job.result?.data || null;
-                jobDone = true;
-            }
-
-            if (!result.value) {
-                throw new Error('No se recibió resultado de evaluación');
-            }
-            showSubmitConfirm.value = false;
-            showAllErrors.value = false;
-            showResults.value = true;
-            if (sheet.value) sheet.value.streak_days = result.value.streak_days;
-            clearDraft();
-
-            if (!allUngraded.value) {
-                if (result.value.score >= 70) {
-                    fireSuccess();
-                    playSound('correct');
-                } else {
-                    playSound('incorrect');
-                }
-            }
-        } catch (err) {
-            console.error(err);
-        } finally {
-            submitting.value = false;
-            if (loadingMsgInterval) {
-                clearInterval(loadingMsgInterval);
-                loadingMsgInterval = null;
-            }
-        }
-    }
-
-    function getDraftKey(): string {
-        return `practiq-draft-${authStore.profile?.id ?? 'anon'}-${sheetId}`;
-    }
-
-    function saveDraft() {
-        if (!sheet.value) return;
-
-        const draftData: Record<
-            string,
-            {
-                canvasData: string;
-                keyboardAnswer: string;
-
-                attachment: UploadedFile | null;
-                timestamp: number;
-            }
-        > = {};
-
-        for (const pse of sheet.value.exercises || []) {
-            const exerciseId = pse.exercise.id;
-            draftData[exerciseId] = {
-                canvasData: answers.value[exerciseId]?.answer || '',
-                keyboardAnswer: keyboardAnswers.value[exerciseId] || '',
-                attachment: attachments.value[exerciseId] ?? null,
-                timestamp: Date.now(),
+        for (const pse of sheet.value.exercises ?? []) {
+            answers.value[pse.exercise.id] = {
+                answer: '',
+                timeStart: Date.now(),
+                hints: 0,
             };
+            keyboardAnswers.value[pse.exercise.id] = '';
+            timers.value[pse.exercise.id] = 0;
         }
 
-        localStorage.setItem(
-            getDraftKey(),
-            JSON.stringify({
-                sheetId,
-                data: draftData,
-
-                currentIdx: currentIdx.value,
-                savedAt: Date.now(),
-            }),
+        startTimer();
+        greetThenBrief(
+            totalCount.value === 1
+                ? 'Un ejercicio. Tomate tu tiempo.'
+                : `Son ${totalCount.value} ejercicios. A tu ritmo.`,
         );
 
-        hasDraft.value = true;
-        flashDraftSaved();
-    }
-
-    function checkForDraft() {
-        const key = getDraftKey();
-        const saved = localStorage.getItem(key);
-        if (saved) {
-            try {
-                const parsed = JSON.parse(saved);
-                if (parsed.sheetId === sheetId && parsed.data) {
-                    const hoursSinceSave = (Date.now() - parsed.savedAt) / (1000 * 60 * 60);
-                    if (hoursSinceSave < 24) {
-                        hasDraft.value = true;
-                        showRestoreModal.value = true;
-                        return parsed;
-                    } else {
-                        localStorage.removeItem(key);
-                    }
-                }
-            } catch {
-                localStorage.removeItem(key);
-            }
+        if (sheet.value.course_id) {
+            fetchCuriosities(sheet.value.course_id);
         }
-        return null;
+
+        setTimeout(() => {
+            checkForDraft();
+        }, 500);
+    } finally {
+        loading.value = false;
+    }
+});
+
+onUnmounted(() => {
+    clearTimeout(introTimer);
+    clearInterval(timerInterval);
+    if (draftBadgeTimer) clearTimeout(draftBadgeTimer);
+    if (loadingMsgInterval) clearInterval(loadingMsgInterval);
+    if ((window as any).__practiqAssistantHookSource === 'practice') {
+        delete window.__practiqAssistantCapture;
+        delete window.__practiqAssistantContext;
+        delete window.__practiqAssistantMediaAttachments;
+        delete (window as any).__practiqAssistantHookSource;
+    }
+});
+
+function startTimer() {
+    timerInterval = setInterval(() => {
+        if (currentExercise.value) {
+            timers.value[currentExercise.value.id] =
+                (timers.value[currentExercise.value.id] ?? 0) + 1;
+        }
+    }, 1000);
+}
+
+function isAnswered(exerciseId: string) {
+    const exercise = sheet.value?.exercises?.find(
+        (pse) => pse.exercise.id === exerciseId,
+    )?.exercise;
+
+    if (exercise?.type === 'attachment') {
+        return !!attachments.value[exerciseId];
+    }
+    if (exercise && exerciseUsesCanvas(exercise.type)) {
+        return !!answers.value[exerciseId]?.answer;
+    }
+    return !!keyboardAnswers.value[exerciseId]?.trim();
+}
+
+function setActiveExercise(exerciseId: string, idx: number) {
+    currentIdx.value = idx;
+
+    activeCanvasId.value = exerciseUsesCanvas(sheet.value?.exercises?.[idx]?.exercise.type || '')
+        ? exerciseId
+        : '';
+    publishAssistantLabel();
+}
+
+function publishAssistantLabel() {
+    const index = getAssistantExerciseIndex(getAssistantExerciseId());
+    window.dispatchEvent(
+        new CustomEvent('practiq:assistant:active-context', {
+            detail: { label: index >= 0 ? `E${index + 1}` : '' },
+        }),
+    );
+}
+
+const OWN_INPUT_TYPES = new Set(['multiple_choice', 'fill_blanks', 'attachment', 'equation']);
+
+function exerciseUsesCanvas(exerciseType: string) {
+    if (OWN_INPUT_TYPES.has(exerciseType)) return false;
+    return isCanvasMode.value || exerciseType === 'handwritten' || exerciseType === 'canvas';
+}
+
+function exerciseOptions(metadata?: string) {
+    const options = parseExerciseMetadata(metadata)?.options;
+    return Array.isArray(options) ? options.map((option) => String(option)).filter(Boolean) : [];
+}
+
+function getPlaceholder(exerciseType: string) {
+    switch (exerciseType) {
+        case 'equation':
+            return 'Escribe la ecuacion o resultado...';
+        case 'multiple_choice':
+            return 'Escribe la opcion correcta (A, B, C, D)...';
+        default:
+            return 'Escribe tu respuesta aqui...';
+    }
+}
+
+function setCanvasRef(id: string, el: InstanceType<typeof DrawingCanvas> | null) {
+    canvasRefs[id] = el;
+}
+
+function undoActive() {
+    const id = activeCanvasId.value;
+    if (!id) return;
+    const canvas = canvasRefs[id];
+    if (!canvas) return;
+    canvas.undo();
+}
+
+function clearCanvas(id: string) {
+    const canvas = canvasRefs[id];
+    if (!canvas) return;
+    canvas.clear();
+    answers.value[id].answer = '';
+}
+
+function requestAssistantHelp() {
+    window.dispatchEvent(
+        new CustomEvent('practiq:assistant:prompt', {
+            detail: {
+                prompt: 'Ayudame con el ejercicio actual. Dame una pista sin resolverlo.',
+            },
+        }),
+    );
+}
+
+function getNextCuriosity(): string {
+    if (curiosities.value.length > 0) {
+        const msg = curiosities.value[curiosityIndex.value % curiosities.value.length];
+        curiosityIndex.value++;
+        return msg;
+    }
+    return randomMessage(loadingMessages);
+}
+
+async function submitAnswers() {
+    if (uploadingAttachments.value.size > 0) {
+        toast.add({
+            severity: 'warn',
+            summary: 'Esperá un momento',
+            detail: 'Todavía se está subiendo un archivo. Se enviaría sin él.',
+            life: 3500,
+        });
+        return;
     }
 
-    function restoreDraft() {
-        const key = getDraftKey();
-        const saved = localStorage.getItem(key);
-        if (!saved) return;
+    submitting.value = true;
+    showSubmitConfirm.value = false;
+    loadingMessage.value = getNextCuriosity();
+    loadingMsgInterval = setInterval(() => {
+        loadingMessage.value = getNextCuriosity();
+    }, 3000);
 
-        try {
-            const parsed = JSON.parse(saved);
-            const draftData = parsed.data;
-
-            for (const exerciseId in draftData) {
-                const draft = draftData[exerciseId];
-
-                if (draft.keyboardAnswer) {
-                    keyboardAnswers.value[exerciseId] = draft.keyboardAnswer;
-                }
-
-                if (draft.canvasData) {
-                    answers.value[exerciseId] = {
-                        ...answers.value[exerciseId],
-                        answer: draft.canvasData,
+    try {
+        const attempts = await Promise.all(
+            sheet.value?.exercises.map(async (pse) => {
+                const exerciseId = pse.exercise.id;
+                const data = answers.value[exerciseId];
+                if (pse.exercise.type === 'attachment') {
+                    const uploaded = attachments.value[exerciseId];
+                    return {
+                        exercise_id: exerciseId,
+                        answer_text: '',
+                        canvas_data: '',
+                        attachment_url: uploaded?.url ?? '',
+                        attachment_name: uploaded?.filename ?? '',
+                        attachment_content_type: uploaded?.content_type ?? '',
+                        time_spent_seconds: timers.value[exerciseId] || 0,
+                        hints_used: data?.hints || 0,
                     };
                 }
+                if (exerciseUsesCanvas(pse.exercise.type)) {
+                    return {
+                        exercise_id: exerciseId,
+                        answer_text: '',
+                        canvas_data: data?.answer?.startsWith('data:image/')
+                            ? await buildCanvasDataForOCR(exerciseId)
+                            : '',
+                        time_spent_seconds: timers.value[exerciseId] || 0,
+                        hints_used: data?.hints || 0,
+                    };
+                } else {
+                    return {
+                        exercise_id: exerciseId,
+                        answer_text: keyboardAnswers.value[exerciseId] || '',
+                        canvas_data: '',
+                        time_spent_seconds: timers.value[exerciseId] || 0,
+                        hints_used: data?.hints || 0,
+                    };
+                }
+            }) ?? [],
+        );
+        const start = await submitPracticeSheetAsync(sheetId, { attempts });
+        const jobId = start.job_id;
+        let jobDone = false;
 
-                if (draft.attachment?.url) {
-                    setAttachment(exerciseId, draft.attachment);
+        while (!jobDone) {
+            await new Promise((resolve) => setTimeout(resolve, 1200));
+            const job = await loadSubmitJob(jobId);
+            if (job.status === 'processing') {
+                continue;
+            }
+            if (job.status === 'failed') {
+                throw new Error(job.message || 'No se pudo evaluar la práctica');
+            }
+            result.value = job.result?.data || null;
+            jobDone = true;
+        }
+
+        if (!result.value) {
+            throw new Error('No se recibió resultado de evaluación');
+        }
+        showSubmitConfirm.value = false;
+        showAllErrors.value = false;
+        showResults.value = true;
+        if (sheet.value) sheet.value.streak_days = result.value.streak_days;
+        clearDraft();
+
+        if (!allUngraded.value) {
+            if (result.value.score >= 70) {
+                fireSuccess();
+                playSound('correct');
+            } else {
+                playSound('incorrect');
+            }
+        }
+    } catch (err) {
+        console.error(err);
+    } finally {
+        submitting.value = false;
+        if (loadingMsgInterval) {
+            clearInterval(loadingMsgInterval);
+            loadingMsgInterval = null;
+        }
+    }
+}
+
+function getDraftKey(): string {
+    return `practiq-draft-${authStore.profile?.id ?? 'anon'}-${sheetId}`;
+}
+
+function saveDraft() {
+    if (!sheet.value) return;
+
+    const draftData: Record<
+        string,
+        {
+            canvasData: string;
+            keyboardAnswer: string;
+
+            attachment: UploadedFile | null;
+            timestamp: number;
+        }
+    > = {};
+
+    for (const pse of sheet.value.exercises || []) {
+        const exerciseId = pse.exercise.id;
+        draftData[exerciseId] = {
+            canvasData: answers.value[exerciseId]?.answer || '',
+            keyboardAnswer: keyboardAnswers.value[exerciseId] || '',
+            attachment: attachments.value[exerciseId] ?? null,
+            timestamp: Date.now(),
+        };
+    }
+
+    localStorage.setItem(
+        getDraftKey(),
+        JSON.stringify({
+            sheetId,
+            data: draftData,
+
+            currentIdx: currentIdx.value,
+            savedAt: Date.now(),
+        }),
+    );
+
+    hasDraft.value = true;
+    flashDraftSaved();
+}
+
+function checkForDraft() {
+    const key = getDraftKey();
+    const saved = localStorage.getItem(key);
+    if (saved) {
+        try {
+            const parsed = JSON.parse(saved);
+            if (parsed.sheetId === sheetId && parsed.data) {
+                const hoursSinceSave = (Date.now() - parsed.savedAt) / (1000 * 60 * 60);
+                if (hoursSinceSave < 24) {
+                    hasDraft.value = true;
+                    showRestoreModal.value = true;
+                    return parsed;
+                } else {
+                    localStorage.removeItem(key);
                 }
             }
+        } catch {
+            localStorage.removeItem(key);
+        }
+    }
+    return null;
+}
 
-            const savedIdx = Number(parsed.currentIdx);
-            if (Number.isInteger(savedIdx) && savedIdx >= 0 && savedIdx < totalCount.value) {
-                const target = sheet.value?.exercises?.[savedIdx];
-                if (target) setActiveExercise(target.exercise.id, savedIdx);
+function restoreDraft() {
+    const key = getDraftKey();
+    const saved = localStorage.getItem(key);
+    if (!saved) return;
+
+    try {
+        const parsed = JSON.parse(saved);
+        const draftData = parsed.data;
+
+        for (const exerciseId in draftData) {
+            const draft = draftData[exerciseId];
+
+            if (draft.keyboardAnswer) {
+                keyboardAnswers.value[exerciseId] = draft.keyboardAnswer;
             }
 
-            showRestoreModal.value = false;
-        } catch (err) {
-            console.error('Failed to restore draft:', err);
-        }
-    }
+            if (draft.canvasData) {
+                answers.value[exerciseId] = {
+                    ...answers.value[exerciseId],
+                    answer: draft.canvasData,
+                };
+            }
 
-    function discardDraft() {
-        localStorage.removeItem(getDraftKey());
-        hasDraft.value = false;
+            if (draft.attachment?.url) {
+                setAttachment(exerciseId, draft.attachment);
+            }
+        }
+
+        const savedIdx = Number(parsed.currentIdx);
+        if (Number.isInteger(savedIdx) && savedIdx >= 0 && savedIdx < totalCount.value) {
+            const target = sheet.value?.exercises?.[savedIdx];
+            if (target) setActiveExercise(target.exercise.id, savedIdx);
+        }
+
         showRestoreModal.value = false;
+    } catch (err) {
+        console.error('Failed to restore draft:', err);
+    }
+}
+
+function discardDraft() {
+    localStorage.removeItem(getDraftKey());
+    hasDraft.value = false;
+    showRestoreModal.value = false;
+}
+
+function clearDraft() {
+    localStorage.removeItem(getDraftKey());
+    hasDraft.value = false;
+}
+
+function buildCanvasDataForOCR(exerciseId: string) {
+    return prepareHandwritingImage(answers.value[exerciseId]?.answer || '');
+}
+
+function getAssistantExerciseId() {
+    const selected = sheet.value?.exercises?.[currentIdx.value]?.exercise.id;
+    if (selected) return selected;
+
+    if (activeCanvasId.value) {
+        return activeCanvasId.value;
     }
 
-    function clearDraft() {
-        localStorage.removeItem(getDraftKey());
-        hasDraft.value = false;
-    }
+    return (
+        Object.entries(answers.value).find(([, data]) =>
+            data.answer?.startsWith('data:image/'),
+        )?.[0] || ''
+    );
+}
 
-    function buildCanvasDataForOCR(exerciseId: string) {
-        return prepareHandwritingImage(answers.value[exerciseId]?.answer || '');
-    }
+function getAssistantExerciseIndex(exerciseId: string) {
+    return sheet.value?.exercises.findIndex((pse) => pse.exercise.id === exerciseId) ?? -1;
+}
 
-    function getAssistantExerciseId() {
-        const selected = sheet.value?.exercises?.[currentIdx.value]?.exercise.id;
-        if (selected) return selected;
+function assistantMediaPath(exerciseId: string) {
+    if (!sheet.value?.id || !exerciseId) return '';
+    return `/practice-sheets/${encodeURIComponent(sheet.value.id)}/exercises/${encodeURIComponent(exerciseId)}/assistant-media`;
+}
 
-        if (activeCanvasId.value) {
-            return activeCanvasId.value;
-        }
+(window as any).__practiqAssistantHookSource = 'practice';
 
-        return (
-            Object.entries(answers.value).find(([, data]) =>
-                data.answer?.startsWith('data:image/'),
-            )?.[0] || ''
-        );
-    }
+window.__practiqAssistantContext = () => {
+    if (!sheet.value) return null;
 
-    function getAssistantExerciseIndex(exerciseId: string) {
-        return sheet.value?.exercises.findIndex((pse) => pse.exercise.id === exerciseId) ?? -1;
-    }
+    const activeExerciseId = getAssistantExerciseId();
+    const activeExerciseIndex = getAssistantExerciseIndex(activeExerciseId);
+    const activeExercise =
+        activeExerciseIndex >= 0 ? sheet.value.exercises[activeExerciseIndex]?.exercise : null;
+    const activeTeacherImage = teacherImageFor(activeExercise);
 
-    function assistantMediaPath(exerciseId: string) {
-        if (!sheet.value?.id || !exerciseId) return '';
-        return `/practice-sheets/${encodeURIComponent(sheet.value.id)}/exercises/${encodeURIComponent(exerciseId)}/assistant-media`;
-    }
-
-    (window as any).__practiqAssistantHookSource = 'practice';
-
-    window.__practiqAssistantContext = () => {
-        if (!sheet.value) return null;
-
-        const activeExerciseId = getAssistantExerciseId();
-        const activeExerciseIndex = getAssistantExerciseIndex(activeExerciseId);
-        const activeExercise =
-            activeExerciseIndex >= 0 ? sheet.value.exercises[activeExerciseIndex]?.exercise : null;
-        const activeTeacherImage = teacherImageFor(activeExercise);
-
-        return {
-            current_view: 'student_practice',
-            activity_type: 'practice_sheet',
-            sheet_id: sheet.value.id,
-            sheet_title: sheet.value.title,
-            level: sheet.value.level,
-            response_mode: activeExercise?.type === 'fill_blanks' ? 'fill_blanks' : 'canvas',
-            exercise_count: sheet.value.exercises.length,
-            active_exercise: activeExercise
-                ? {
-                      id: activeExercise.id,
-                      number: activeExerciseIndex + 1,
-                      type: activeExercise.type,
-                      difficulty: activeExercise.difficulty,
-                      question:
-                          activeExercise.type === 'handwritten' && activeTeacherImage
-                              ? '[consigna manuscrita en imagen adjunta]'
-                              : activeExercise.question,
-                      has_teacher_image: !!activeTeacherImage,
-                      has_statement_media: !!activeExercise.media_view_url,
-                      question_source:
-                          activeExercise.type === 'handwritten' && activeTeacherImage
-                              ? 'teacher_image_attachment'
-                              : 'text',
-                      student_answer: (() => {
-                          const canvasAnswer = answers.value[activeExercise.id]?.answer || '';
-                          if (canvasAnswer && !canvasAnswer.startsWith('data:image/'))
-                              return canvasAnswer;
-                          if (activeExercise.type === 'fill_blanks') {
-                              return buildFillBlanksAssistantContext(
-                                  activeExercise,
-                                  keyboardAnswers.value[activeExercise.id] || '',
-                              )
-                                  .blanks.filter((blank) => blank.value)
-                                  .map((blank) => `Hueco ${blank.id}: ${blank.value}`)
-                                  .join(', ');
-                          }
-                          return keyboardAnswers.value[activeExercise.id] || '';
-                      })(),
-                      student_answer_raw:
-                          activeExercise.type === 'fill_blanks'
-                              ? keyboardAnswers.value[activeExercise.id] || ''
-                              : '',
-                      puzzle:
-                          activeExercise.type === 'fill_blanks'
-                              ? buildFillBlanksAssistantContext(
-                                    activeExercise,
-                                    keyboardAnswers.value[activeExercise.id] || '',
-                                )
-                              : null,
-                      has_student_image: (
-                          answers.value[activeExercise.id]?.answer || ''
-                      ).startsWith('data:image/'),
-                      metadata_summary:
-                          activeExercise.type === 'fill_blanks'
-                              ? ''
-                              : JSON.stringify(summarizeExerciseMetadata(activeExercise) || {}),
-                  }
-                : null,
-            exercise_list: sheet.value.exercises.map((pse, idx) => ({
-                id: pse.exercise.id,
-                number: idx + 1,
-                type: pse.exercise.type,
-                difficulty: pse.exercise.difficulty,
-                question:
-                    pse.exercise.type === 'handwritten' && teacherImageFor(pse.exercise)
-                        ? '[consigna manuscrita en imagen adjunta]'
-                        : pse.exercise.question,
-                has_teacher_image: !!teacherImageFor(pse.exercise),
-                question_source:
-                    pse.exercise.type === 'handwritten' && teacherImageFor(pse.exercise)
-                        ? 'teacher_image_attachment'
-                        : 'text',
-            })),
-            answered_exercise_ids: Object.entries(answers.value)
-                .filter(([, data]) => !!data.answer)
-                .map(([exerciseId]) => exerciseId),
-        };
+    return {
+        current_view: 'student_practice',
+        activity_type: 'practice_sheet',
+        sheet_id: sheet.value.id,
+        sheet_title: sheet.value.title,
+        level: sheet.value.level,
+        response_mode: activeExercise?.type === 'fill_blanks' ? 'fill_blanks' : 'canvas',
+        exercise_count: sheet.value.exercises.length,
+        active_exercise: activeExercise
+            ? {
+                  id: activeExercise.id,
+                  number: activeExerciseIndex + 1,
+                  type: activeExercise.type,
+                  difficulty: activeExercise.difficulty,
+                  question:
+                      activeExercise.type === 'handwritten' && activeTeacherImage
+                          ? '[consigna manuscrita en imagen adjunta]'
+                          : activeExercise.question,
+                  has_teacher_image: !!activeTeacherImage,
+                  has_statement_media: !!activeExercise.media_view_url,
+                  question_source:
+                      activeExercise.type === 'handwritten' && activeTeacherImage
+                          ? 'teacher_image_attachment'
+                          : 'text',
+                  student_answer: (() => {
+                      const canvasAnswer = answers.value[activeExercise.id]?.answer || '';
+                      if (canvasAnswer && !canvasAnswer.startsWith('data:image/'))
+                          return canvasAnswer;
+                      if (activeExercise.type === 'fill_blanks') {
+                          return buildFillBlanksAssistantContext(
+                              activeExercise,
+                              keyboardAnswers.value[activeExercise.id] || '',
+                          )
+                              .blanks.filter((blank) => blank.value)
+                              .map((blank) => `Hueco ${blank.id}: ${blank.value}`)
+                              .join(', ');
+                      }
+                      return keyboardAnswers.value[activeExercise.id] || '';
+                  })(),
+                  student_answer_raw:
+                      activeExercise.type === 'fill_blanks'
+                          ? keyboardAnswers.value[activeExercise.id] || ''
+                          : '',
+                  puzzle:
+                      activeExercise.type === 'fill_blanks'
+                          ? buildFillBlanksAssistantContext(
+                                activeExercise,
+                                keyboardAnswers.value[activeExercise.id] || '',
+                            )
+                          : null,
+                  has_student_image: (answers.value[activeExercise.id]?.answer || '').startsWith(
+                      'data:image/',
+                  ),
+                  metadata_summary:
+                      activeExercise.type === 'fill_blanks'
+                          ? ''
+                          : JSON.stringify(summarizeExerciseMetadata(activeExercise) || {}),
+              }
+            : null,
+        exercise_list: sheet.value.exercises.map((pse, idx) => ({
+            id: pse.exercise.id,
+            number: idx + 1,
+            type: pse.exercise.type,
+            difficulty: pse.exercise.difficulty,
+            question:
+                pse.exercise.type === 'handwritten' && teacherImageFor(pse.exercise)
+                    ? '[consigna manuscrita en imagen adjunta]'
+                    : pse.exercise.question,
+            has_teacher_image: !!teacherImageFor(pse.exercise),
+            question_source:
+                pse.exercise.type === 'handwritten' && teacherImageFor(pse.exercise)
+                    ? 'teacher_image_attachment'
+                    : 'text',
+        })),
+        answered_exercise_ids: Object.entries(answers.value)
+            .filter(([, data]) => !!data.answer)
+            .map(([exerciseId]) => exerciseId),
     };
+};
 
-    window.__practiqAssistantCapture = async () => {
-        const exerciseId = getAssistantExerciseId();
-        if (!exerciseId) return null;
-        const exerciseIndex = getAssistantExerciseIndex(exerciseId);
-        const exercise =
-            exerciseIndex >= 0 ? sheet.value?.exercises?.[exerciseIndex]?.exercise : null;
+window.__practiqAssistantCapture = async () => {
+    const exerciseId = getAssistantExerciseId();
+    if (!exerciseId) return null;
+    const exerciseIndex = getAssistantExerciseIndex(exerciseId);
+    const exercise = exerciseIndex >= 0 ? sheet.value?.exercises?.[exerciseIndex]?.exercise : null;
 
-        const studentDataUrl = await pickBestStudentImage([
-            await buildCanvasDataForOCR(exerciseId),
-            answers.value[exerciseId]?.answer,
-        ]);
+    const studentDataUrl = await pickBestStudentImage([
+        await buildCanvasDataForOCR(exerciseId),
+        answers.value[exerciseId]?.answer,
+    ]);
 
-        const teacherDataUrl =
-            (await statementMediaPreviewDataURL(exercise, assistantMediaPath(exerciseId))) ||
-            (await statementImageDataURL(exercise)) ||
-            teacherImageFor(exercise);
-        const dataUrl = await composeAssistantWorkImage({
-            teacherDataUrl,
-            studentDataUrl,
-            teacherLabel: 'Consigna del docente',
-            studentLabel: 'Respuesta del alumno',
-        });
+    const teacherDataUrl =
+        (await statementMediaPreviewDataURL(exercise, assistantMediaPath(exerciseId))) ||
+        (await statementImageDataURL(exercise)) ||
+        teacherImageFor(exercise);
+    const dataUrl = await composeAssistantWorkImage({
+        teacherDataUrl,
+        studentDataUrl,
+        teacherLabel: 'Consigna del docente',
+        studentLabel: 'Respuesta del alumno',
+    });
 
-        if (!dataUrl) return null;
+    if (!dataUrl) return null;
 
-        return {
-            dataUrl,
-            filename: `practice-${exerciseId}.jpg`,
-            contentType: dataUrl.startsWith('data:image/png') ? 'image/png' : 'image/jpeg',
-        };
+    return {
+        dataUrl,
+        filename: `practice-${exerciseId}.jpg`,
+        contentType: dataUrl.startsWith('data:image/png') ? 'image/png' : 'image/jpeg',
     };
+};
 
-    window.__practiqAssistantMediaAttachments = async () => {
-        const exerciseId = getAssistantExerciseId();
-        const exerciseIndex = getAssistantExerciseIndex(exerciseId);
-        const exercise =
-            exerciseIndex >= 0 ? sheet.value?.exercises[exerciseIndex]?.exercise : null;
-        const [audio, document] = await Promise.all([
-            statementMediaAudioAttachment(exercise, assistantMediaPath(exerciseId)),
-            statementMediaDocumentAttachment(exercise, assistantMediaPath(exerciseId)),
-        ]);
+window.__practiqAssistantMediaAttachments = async () => {
+    const exerciseId = getAssistantExerciseId();
+    const exerciseIndex = getAssistantExerciseIndex(exerciseId);
+    const exercise = exerciseIndex >= 0 ? sheet.value?.exercises[exerciseIndex]?.exercise : null;
+    const [audio, document] = await Promise.all([
+        statementMediaAudioAttachment(exercise, assistantMediaPath(exerciseId)),
+        statementMediaDocumentAttachment(exercise, assistantMediaPath(exerciseId)),
+    ]);
 
-        return [audio, document].filter((item) => item !== null);
-    };
+    return [audio, document].filter((item) => item !== null);
+};
 
-    function closeSubmitConfirm() {
-        if (submitting.value) return;
-        showSubmitConfirm.value = false;
-    }
+function closeSubmitConfirm() {
+    if (submitting.value) return;
+    showSubmitConfirm.value = false;
+}
 
-    function diffColor(d: number) {
-        if (d <= 3) return 'var(--color-success)';
-        if (d <= 6) return 'var(--color-warning)';
-        return 'var(--color-error)';
-    }
+function diffColor(d: number) {
+    if (d <= 3) return 'var(--color-success)';
+    if (d <= 6) return 'var(--color-warning)';
+    return 'var(--color-error)';
+}
 
-    function scoreColor(score: number) {
-        if (score >= 90) return 'var(--color-success)';
-        if (score >= 70) return 'var(--color-warning)';
-        return 'var(--color-error)';
-    }
+function scoreColor(score: number) {
+    if (score >= 90) return 'var(--color-success)';
+    if (score >= 70) return 'var(--color-warning)';
+    return 'var(--color-error)';
+}
 </script>
 
 <template>
@@ -1548,1435 +1537,1435 @@
 </template>
 
 <style scoped>
-    .practice-shell {
-        max-width: 1200px;
-        margin: 0 auto;
-        padding: 24px 20px 80px;
-        display: flex;
-        flex-direction: column;
-        gap: 16px;
-        background: transparent;
-    }
-
-    .practice-header {
-        display: flex;
-        align-items: flex-start;
-        gap: 16px;
-        padding: 20px 24px;
-        background: var(--elevation-tint-bg);
-        border-radius: var(--radius-2xl);
-        border: 1.5px solid rgba(var(--practiq-violet-rgb), 0.12);
-        box-shadow: var(--shadow-card);
-    }
-
-    .btn-back {
-        width: 38px;
-        height: 38px;
-        border-radius: 50%;
-        border: 1.5px solid rgba(var(--practiq-violet-rgb), 0.2);
-        background: var(--surface-elevated-strong);
-        cursor: pointer;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        flex-shrink: 0;
-        margin-top: 2px;
-    }
-    .btn-back:hover {
-        background: var(--fill-primary-faint);
-    }
-
-    .practice-header-info {
-        flex: 1;
-    }
-    .practice-header-info--skeleton {
-        display: flex;
-        min-width: 0;
-        flex-direction: column;
-        justify-content: center;
-        gap: 8px;
-    }
-    .practice-subtitle-skeleton {
-        display: block;
-    }
-
-    .level-badges {
-        display: flex;
-        align-items: center;
-        gap: 8px;
-        margin-bottom: 6px;
-        flex-wrap: wrap;
-    }
-
-    .level-badge {
-        display: inline-flex;
-        align-items: center;
-        gap: 4px;
-        padding: 3px 12px;
-        border-radius: var(--radius-2xl);
-        background: var(--gradient-brand);
-        color: var(--color-on-primary);
-        font-size: 0.75rem;
-        font-weight: 700;
-    }
-
-    .level-test-badge {
-        display: inline-flex;
-        align-items: center;
-        gap: 4px;
-        padding: 3px 12px;
-        border-radius: var(--radius-2xl);
-        background: linear-gradient(135deg, var(--color-warning), var(--color-warning-strong));
-        color: var(--color-on-primary);
-        font-size: 0.75rem;
-        font-weight: 700;
-    }
-
-    .input-mode-badge {
-        display: inline-flex;
-        align-items: center;
-        gap: 4px;
-        padding: 3px 12px;
-        border-radius: var(--radius-2xl);
-        background: rgba(var(--practiq-violet-rgb), 0.15);
-        color: var(--practiq-violet);
-        font-size: 0.75rem;
-        font-weight: 700;
-    }
-
-    .practice-title {
-        font-size: 1.3rem;
-        font-weight: 800;
-        color: var(--text-primary);
-        margin: 0 0 4px;
-    }
-
-    .practice-subtitle {
-        font-size: 0.82rem;
-        color: var(--text-secondary);
-    }
-
-    .header-right {
-        display: flex;
-        align-items: center;
-        gap: 12px;
-    }
-    .header-right--skeleton {
-        pointer-events: none;
-    }
-    .streak-skeleton {
-        border-radius: var(--radius-lg);
-    }
-
-    .student-avatar {
-        width: 46px;
-        height: 46px;
-        border-radius: var(--radius-xl);
-        background: var(--gradient-brand);
-        color: var(--color-on-primary);
-        display: grid;
-        place-items: center;
-        font-weight: 800;
-        box-shadow: var(--shadow-indigo);
-        flex-shrink: 0;
-    }
-
-    .streak-chip {
-        display: inline-flex;
-        align-items: center;
-        gap: 8px;
-        padding: 8px 14px;
-        border-radius: var(--radius-lg);
-        background: var(--gradient-brand-soft);
-        border: 1.5px solid rgba(var(--practiq-violet-rgb), 0.1);
-        transition: all 0.3s ease;
-    }
-
-    .streak-chip--active {
-        background: linear-gradient(135deg, #ff6b35, #f7931e);
-        border-color: rgba(255, 107, 53, 0.3);
-        box-shadow: none;
-        animation: none;
-    }
-
-    .streak-chip--active .streak-val {
-        color: white;
-        font-size: 1.15rem;
-    }
-
-    .streak-chip--active .streak-lbl {
-        color: rgba(255, 255, 255, 0.85);
-    }
-
-    .streak-chip--active .streak-icon {
-        animation: flame-dance 0.5s ease-in-out infinite alternate;
-    }
-
-    @keyframes flame-dance {
-        from {
-            transform: scale(1) rotate(-2deg);
-        }
-        to {
-            transform: scale(1.06) rotate(2deg);
-        }
-    }
-
-    .streak-icon {
-        width: 22px;
-        height: 22px;
-        object-fit: contain;
-        flex-shrink: 0;
-
-        transform-origin: 50% 100%;
-    }
-
-    .streak-text {
-        display: flex;
-        flex-direction: column;
-        align-items: flex-start;
-        gap: 1px;
-        line-height: 1;
-    }
-
-    .streak-val {
-        font-size: 1.1rem;
-        font-weight: 800;
-        color: var(--text-primary);
-        line-height: 1;
-    }
-
-    .streak-lbl {
-        font-size: 0.7rem;
-        line-height: 1;
-        color: var(--text-secondary);
-    }
-
-    .practice-progress-bar {
-        height: 6px;
-        background: var(--fill-primary-soft);
-        border-radius: 99px;
-        overflow: hidden;
-    }
-    .practice-progress-fill {
-        height: 100%;
-        background: var(--gradient-brand);
-        border-radius: 99px;
-        transition: width 0.3s ease;
-    }
-
-    .mobile-practice-progress,
-    .mobile-practice-progress-skeleton,
-    .mobile-stepper-status {
-        display: none;
-    }
-
-    .ex-card--skeleton {
-        pointer-events: none;
-    }
-    .ex-num-skel {
-        border-radius: var(--radius-sm);
-    }
-    .canvas-skel {
-        border-radius: var(--radius-md);
-        margin-top: 8px;
-    }
-
-    .practice-body {
-        display: block;
-    }
-
-    .practice-area {
-        display: flex;
-        flex-direction: column;
-        gap: 12px;
-        padding-bottom: 24px;
-    }
-
-    .draw-tools-bar {
-        display: flex;
-        align-items: center;
-        gap: 6px;
-        padding: 10px 16px;
-        background: var(--surface-elevated-strong);
-        border-radius: var(--radius-lg);
-        border: 1.5px solid rgba(var(--practiq-violet-rgb), 0.1);
-        flex-wrap: wrap;
-    }
-
-    .tool-btn {
-        width: 30px;
-        height: 30px;
-        border-radius: var(--radius-sm);
-        border: 1.5px solid rgba(var(--practiq-violet-rgb), 0.15);
-        background: var(--surface-elevated);
-        cursor: pointer;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        font-size: 0.9rem;
-        color: var(--text-secondary);
-        transition: all 0.15s;
-    }
-    .tool-btn:hover:not(.tool-btn--active) {
-        border-color: var(--practiq-violet);
-        color: var(--practiq-violet);
-    }
-    .tool-btn--active:hover {
-        color: var(--color-on-primary);
-    }
-    .tool-btn--pen-active,
-    .tool-btn--pen-active:hover {
-        border-color: transparent;
-        color: #fff;
-        box-shadow: none;
-    }
-    .tool-btn--active {
-        background: var(--practiq-violet);
-        color: var(--color-on-primary);
-        border-color: var(--practiq-violet);
-    }
-
-    .tool-sep {
-        width: 1px;
-        height: 28px;
-        background: rgba(var(--practiq-violet-rgb), 0.15);
-        margin: 0 4px;
-    }
-
-    .size-slider {
-        width: 80px;
-        accent-color: var(--practiq-violet);
-    }
-
-    .size-val {
-        font-size: 0.8rem;
-        color: var(--text-secondary);
-        min-width: 28px;
-    }
-
-    .exercises-list {
-        display: flex;
-        flex-direction: column;
-        gap: 12px;
-    }
-
-    .ex-card {
-        display: flex;
-        gap: 16px;
-        align-items: flex-start;
-        padding: 18px 20px;
-        background: var(--surface-elevated-strong);
-        border-radius: var(--radius-xl);
-        border: 1.5px solid rgba(var(--practiq-violet-rgb), 0.08);
-        transition: border-color 0.15s;
-    }
-
-    .ex-card--answered {
-        border-color: rgba(var(--color-success-rgb), 0.3);
-        background: var(--color-success-bg);
-    }
-
-    .ex-num {
-        width: 32px;
-        height: 32px;
-        border-radius: var(--radius-sm);
-        background: var(--fill-primary-soft);
-        color: var(--practiq-violet);
-        font-weight: 800;
-        font-size: 0.9rem;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        flex-shrink: 0;
-    }
-
-    .ex-num--done {
-        background: rgba(var(--color-success-rgb), 0.15);
-        color: var(--color-success-dark);
-    }
-
-    .ex-body {
-        flex: 1;
-        display: flex;
-        flex-direction: column;
-        gap: 10px;
-    }
-    .ex-body--skeleton {
-        gap: 12px;
-    }
-
-    .ex-meta {
-        display: flex;
-        align-items: center;
-        gap: 12px;
-        flex-wrap: wrap;
-    }
-
-    .difficulty-pill {
-        padding: 3px 8px;
-        border-radius: var(--radius-pill);
-        background: color-mix(in srgb, var(--difficulty-color) 12%, var(--surface-card));
-        color: var(--difficulty-color);
-        font-size: 0.75rem;
-        font-weight: 700;
-    }
-
-    .time-display {
-        display: inline-flex;
-        align-items: center;
-        gap: 4px;
-        font-size: 0.78rem;
-        color: var(--text-muted);
-        font-variant-numeric: tabular-nums;
-    }
-
-    .hint-count {
-        display: inline-flex;
-        align-items: center;
-        gap: 4px;
-        font-size: 0.78rem;
-        color: var(--color-warning-dark);
-    }
-
-    .ex-question {
-        font-size: 1.05rem;
-        font-weight: 800;
-        color: var(--text-primary);
-        line-height: 1.5;
-    }
-
-    .ex-question--math {
-        padding: 10px 12px;
-        border-radius: var(--radius-md);
-        background: var(--surface-bg-soft);
-        border: 1px solid rgba(var(--practiq-violet-rgb), 0.12);
-
-        overflow-x: auto;
-    }
-
-    .teacher-handwritten-image {
-        width: 100%;
-        max-height: 280px;
-        object-fit: contain;
-        border: 1.5px solid rgba(var(--practiq-violet-rgb), 0.15);
-        border-radius: var(--radius-md);
-        background: var(--surface-card);
-        box-shadow: var(--shadow-card);
-    }
-
-    .ex-input {
-        padding: 10px 14px 10px 62px;
-        border-radius: var(--radius-md);
-        border: 1.5px solid rgba(var(--practiq-violet-rgb), 0.15);
-        font-size: 1rem;
-        color: var(--text-primary);
-        outline: none;
-        transition: border-color 0.15s;
-        min-height: 96px;
-        background-color: var(--surface-bg-soft);
-        background-image:
-            linear-gradient(to right, rgba(var(--color-error-rgb), 0.25) 1.5px, transparent 1.5px),
-            repeating-linear-gradient(
-                to bottom,
-                transparent,
-                transparent 31px,
-                rgba(var(--practiq-violet-rgb), 0.1) 31px,
-                rgba(var(--practiq-violet-rgb), 0.1) 32px
-            );
-        background-size: 56px 32px;
-        background-position: 0 0;
-        line-height: 32px;
-        box-shadow: var(--shadow-card);
-    }
-    .ex-input:focus {
-        border-color: var(--practiq-violet);
-    }
-
-    .equation-answer-wrap {
-        width: 100%;
-    }
-    .equation-answer-wrap :deep(.math-field-editor) {
-        min-height: 48px;
-        padding: 10px 14px;
-        font-size: 1.1rem;
-        border-radius: var(--radius-md);
-        border: 1.5px solid rgba(var(--practiq-violet-rgb), 0.15);
-        background: var(--surface-card);
-    }
-    .equation-answer-wrap :deep(.math-field-editor:focus-within) {
-        border-color: var(--practiq-violet);
-        box-shadow: 0 0 0 3px rgba(var(--practiq-violet-rgb), 0.12);
-    }
-
-    .keyboard-input-wrap {
-        width: 100%;
-    }
-
-    .ex-textarea {
-        width: 100%;
-        padding: 14px 16px 14px 62px;
-        border-radius: var(--radius-md);
-        border: 1.5px solid rgba(var(--practiq-violet-rgb), 0.15);
-        font-size: 1rem;
-        color: var(--text-primary);
-        outline: none;
-        transition: border-color 0.15s;
-        min-height: 120px;
-        background-color: var(--surface-bg-soft);
-        background-image:
-            linear-gradient(to right, rgba(var(--color-error-rgb), 0.25) 1.5px, transparent 1.5px),
-            repeating-linear-gradient(
-                to bottom,
-                transparent,
-                transparent 31px,
-                rgba(var(--practiq-violet-rgb), 0.1) 31px,
-                rgba(var(--practiq-violet-rgb), 0.1) 32px
-            );
-        background-size: 56px 32px;
-        background-position: 0 0;
-        line-height: 32px;
-        box-shadow: var(--shadow-card);
-        resize: vertical;
-        font-family: inherit;
-    }
-    .ex-textarea:focus {
-        border-color: var(--practiq-violet);
-    }
-
-    .choice-options {
-        display: grid;
-        gap: 10px;
-    }
-
-    .choice-option {
-        display: flex;
-        align-items: center;
-        gap: 10px;
-        padding: 12px 14px;
-        border: 1.5px solid rgba(var(--practiq-violet-rgb), 0.14);
-        border-radius: var(--radius-md);
-        background: var(--surface-bg-soft);
-        color: var(--text-primary);
-        font-size: 1rem;
-        cursor: pointer;
-        transition:
-            border-color 0.15s,
-            background 0.15s;
-    }
-
-    .choice-option:hover,
-    .choice-option--selected {
-        border-color: rgba(var(--practiq-violet-rgb), 0.36);
-        background: var(--fill-primary-faint);
-    }
-
-    .choice-option input {
-        width: 18px;
-        height: 18px;
-        accent-color: var(--practiq-violet);
-        flex: 0 0 auto;
-    }
-
-    .canvas-wrap {
-        display: flex;
-        flex-direction: column;
-        gap: 8px;
-    }
-
-    .canvas-header {
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-    }
-
-    .canvas-label {
-        font-size: 0.82rem;
-        font-weight: 600;
-        color: var(--text-secondary);
-        text-transform: uppercase;
-        letter-spacing: 0.04em;
-    }
-
-    .btn-clear-canvas {
-        display: flex;
-        align-items: center;
-        gap: 4px;
-        padding: 4px 10px;
-        border-radius: var(--radius-sm);
-        border: 1px solid rgba(var(--color-error-rgb), 0.2);
-        background: var(--surface-elevated-strong);
-        color: var(--color-error);
-        cursor: pointer;
-        font-size: 0.78rem;
-        transition: all 0.15s;
-    }
-    .btn-clear-canvas:hover {
-        background: rgba(var(--color-error-rgb), 0.08);
-    }
-
-    .ex-canvas {
-        width: 100%;
-        height: 240px;
-        border-radius: var(--radius-md);
-        border: 1.5px solid rgba(var(--practiq-violet-rgb), 0.15);
-        display: block;
-        touch-action: none;
-        cursor: crosshair;
-        box-shadow: var(--shadow-card);
-        background-color: var(--surface-bg-soft);
-        background-image:
-            linear-gradient(
-                90deg,
-                transparent 56px,
-                rgba(var(--color-error-rgb), 0.25) 56px,
-                rgba(var(--color-error-rgb), 0.25) 57.5px,
-                transparent 57.5px
-            ),
-            repeating-linear-gradient(
-                transparent,
-                transparent 31px,
-                rgba(var(--practiq-violet-rgb), 0.1) 31px,
-                rgba(var(--practiq-violet-rgb), 0.1) 32px
-            );
-        background-repeat: no-repeat, repeat;
-    }
-
-    .practice-footer {
-        display: grid;
-        grid-template-columns: 1fr auto 1fr;
-        align-items: center;
-        gap: 12px;
-        padding: 14px 20px;
-
-        background: rgb(var(--surface-card-rgb));
-        border-radius: var(--radius-xl);
-        border: 1.5px solid rgba(var(--practiq-violet-rgb), 0.1);
-        position: sticky;
-        bottom: 16px;
-        box-shadow: var(--shadow-card-lg);
-        z-index: 3;
-        scroll-margin-bottom: 24px;
-    }
-
-    .footer-left {
-        display: flex;
-        align-items: center;
-        gap: 14px;
-    }
-
-    .footer-left {
-        display: flex;
-        align-items: center;
-        gap: 12px;
-        flex-wrap: wrap;
-    }
-
-    .footer-hint {
-        font-size: 0.85rem;
-        color: var(--text-secondary);
-    }
-
-    .draft-indicator {
-        display: inline-flex;
-        align-items: center;
-        gap: 4px;
-        padding: 4px 10px;
-        background: rgba(var(--color-success-rgb), 0.12);
-        color: var(--color-success-dark);
-        border-radius: var(--radius-pill);
-        font-size: 0.78rem;
-        font-weight: 600;
-    }
+.practice-shell {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 24px 20px 80px;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    background: transparent;
+}
+
+.practice-header {
+    display: flex;
+    align-items: flex-start;
+    gap: 16px;
+    padding: 20px 24px;
+    background: var(--elevation-tint-bg);
+    border-radius: var(--radius-2xl);
+    border: 1.5px solid rgba(var(--practiq-violet-rgb), 0.12);
+    box-shadow: var(--shadow-card);
+}
+
+.btn-back {
+    width: 38px;
+    height: 38px;
+    border-radius: 50%;
+    border: 1.5px solid rgba(var(--practiq-violet-rgb), 0.2);
+    background: var(--surface-elevated-strong);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    margin-top: 2px;
+}
+.btn-back:hover {
+    background: var(--fill-primary-faint);
+}
+
+.practice-header-info {
+    flex: 1;
+}
+.practice-header-info--skeleton {
+    display: flex;
+    min-width: 0;
+    flex-direction: column;
+    justify-content: center;
+    gap: 8px;
+}
+.practice-subtitle-skeleton {
+    display: block;
+}
+
+.level-badges {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 6px;
+    flex-wrap: wrap;
+}
+
+.level-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 3px 12px;
+    border-radius: var(--radius-2xl);
+    background: var(--gradient-brand);
+    color: var(--color-on-primary);
+    font-size: 0.75rem;
+    font-weight: 700;
+}
+
+.level-test-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 3px 12px;
+    border-radius: var(--radius-2xl);
+    background: linear-gradient(135deg, var(--color-warning), var(--color-warning-strong));
+    color: var(--color-on-primary);
+    font-size: 0.75rem;
+    font-weight: 700;
+}
+
+.input-mode-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 3px 12px;
+    border-radius: var(--radius-2xl);
+    background: rgba(var(--practiq-violet-rgb), 0.15);
+    color: var(--practiq-violet);
+    font-size: 0.75rem;
+    font-weight: 700;
+}
+
+.practice-title {
+    font-size: 1.3rem;
+    font-weight: 800;
+    color: var(--text-primary);
+    margin: 0 0 4px;
+}
+
+.practice-subtitle {
+    font-size: 0.82rem;
+    color: var(--text-secondary);
+}
+
+.header-right {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+.header-right--skeleton {
+    pointer-events: none;
+}
+.streak-skeleton {
+    border-radius: var(--radius-lg);
+}
+
+.student-avatar {
+    width: 46px;
+    height: 46px;
+    border-radius: var(--radius-xl);
+    background: var(--gradient-brand);
+    color: var(--color-on-primary);
+    display: grid;
+    place-items: center;
+    font-weight: 800;
+    box-shadow: var(--shadow-indigo);
+    flex-shrink: 0;
+}
+
+.streak-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 14px;
+    border-radius: var(--radius-lg);
+    background: var(--gradient-brand-soft);
+    border: 1.5px solid rgba(var(--practiq-violet-rgb), 0.1);
+    transition: all 0.3s ease;
+}
+
+.streak-chip--active {
+    background: linear-gradient(135deg, #ff6b35, #f7931e);
+    border-color: rgba(255, 107, 53, 0.3);
+    box-shadow: none;
+    animation: none;
+}
+
+.streak-chip--active .streak-val {
+    color: white;
+    font-size: 1.15rem;
+}
+
+.streak-chip--active .streak-lbl {
+    color: rgba(255, 255, 255, 0.85);
+}
+
+.streak-chip--active .streak-icon {
+    animation: flame-dance 0.5s ease-in-out infinite alternate;
+}
+
+@keyframes flame-dance {
+    from {
+        transform: scale(1) rotate(-2deg);
+    }
+    to {
+        transform: scale(1.06) rotate(2deg);
+    }
+}
+
+.streak-icon {
+    width: 22px;
+    height: 22px;
+    object-fit: contain;
+    flex-shrink: 0;
+
+    transform-origin: 50% 100%;
+}
+
+.streak-text {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 1px;
+    line-height: 1;
+}
+
+.streak-val {
+    font-size: 1.1rem;
+    font-weight: 800;
+    color: var(--text-primary);
+    line-height: 1;
+}
+
+.streak-lbl {
+    font-size: 0.7rem;
+    line-height: 1;
+    color: var(--text-secondary);
+}
+
+.practice-progress-bar {
+    height: 6px;
+    background: var(--fill-primary-soft);
+    border-radius: 99px;
+    overflow: hidden;
+}
+.practice-progress-fill {
+    height: 100%;
+    background: var(--gradient-brand);
+    border-radius: 99px;
+    transition: width 0.3s ease;
+}
+
+.mobile-practice-progress,
+.mobile-practice-progress-skeleton,
+.mobile-stepper-status {
+    display: none;
+}
+
+.ex-card--skeleton {
+    pointer-events: none;
+}
+.ex-num-skel {
+    border-radius: var(--radius-sm);
+}
+.canvas-skel {
+    border-radius: var(--radius-md);
+    margin-top: 8px;
+}
+
+.practice-body {
+    display: block;
+}
+
+.practice-area {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    padding-bottom: 24px;
+}
+
+.draw-tools-bar {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 10px 16px;
+    background: var(--surface-elevated-strong);
+    border-radius: var(--radius-lg);
+    border: 1.5px solid rgba(var(--practiq-violet-rgb), 0.1);
+    flex-wrap: wrap;
+}
+
+.tool-btn {
+    width: 30px;
+    height: 30px;
+    border-radius: var(--radius-sm);
+    border: 1.5px solid rgba(var(--practiq-violet-rgb), 0.15);
+    background: var(--surface-elevated);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.9rem;
+    color: var(--text-secondary);
+    transition: all 0.15s;
+}
+.tool-btn:hover:not(.tool-btn--active) {
+    border-color: var(--practiq-violet);
+    color: var(--practiq-violet);
+}
+.tool-btn--active:hover {
+    color: var(--color-on-primary);
+}
+.tool-btn--pen-active,
+.tool-btn--pen-active:hover {
+    border-color: transparent;
+    color: #fff;
+    box-shadow: none;
+}
+.tool-btn--active {
+    background: var(--practiq-violet);
+    color: var(--color-on-primary);
+    border-color: var(--practiq-violet);
+}
+
+.tool-sep {
+    width: 1px;
+    height: 28px;
+    background: rgba(var(--practiq-violet-rgb), 0.15);
+    margin: 0 4px;
+}
+
+.size-slider {
+    width: 80px;
+    accent-color: var(--practiq-violet);
+}
+
+.size-val {
+    font-size: 0.8rem;
+    color: var(--text-secondary);
+    min-width: 28px;
+}
+
+.exercises-list {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.ex-card {
+    display: flex;
+    gap: 16px;
+    align-items: flex-start;
+    padding: 18px 20px;
+    background: var(--surface-elevated-strong);
+    border-radius: var(--radius-xl);
+    border: 1.5px solid rgba(var(--practiq-violet-rgb), 0.08);
+    transition: border-color 0.15s;
+}
+
+.ex-card--answered {
+    border-color: rgba(var(--color-success-rgb), 0.3);
+    background: var(--color-success-bg);
+}
+
+.ex-num {
+    width: 32px;
+    height: 32px;
+    border-radius: var(--radius-sm);
+    background: var(--fill-primary-soft);
+    color: var(--practiq-violet);
+    font-weight: 800;
+    font-size: 0.9rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+}
+
+.ex-num--done {
+    background: rgba(var(--color-success-rgb), 0.15);
+    color: var(--color-success-dark);
+}
+
+.ex-body {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+.ex-body--skeleton {
+    gap: 12px;
+}
+
+.ex-meta {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex-wrap: wrap;
+}
+
+.difficulty-pill {
+    padding: 3px 8px;
+    border-radius: var(--radius-pill);
+    background: color-mix(in srgb, var(--difficulty-color) 12%, var(--surface-card));
+    color: var(--difficulty-color);
+    font-size: 0.75rem;
+    font-weight: 700;
+}
+
+.time-display {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 0.78rem;
+    color: var(--text-muted);
+    font-variant-numeric: tabular-nums;
+}
+
+.hint-count {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 0.78rem;
+    color: var(--color-warning-dark);
+}
+
+.ex-question {
+    font-size: 1.05rem;
+    font-weight: 800;
+    color: var(--text-primary);
+    line-height: 1.5;
+}
+
+.ex-question--math {
+    padding: 10px 12px;
+    border-radius: var(--radius-md);
+    background: var(--surface-bg-soft);
+    border: 1px solid rgba(var(--practiq-violet-rgb), 0.12);
+
+    overflow-x: auto;
+}
+
+.teacher-handwritten-image {
+    width: 100%;
+    max-height: 280px;
+    object-fit: contain;
+    border: 1.5px solid rgba(var(--practiq-violet-rgb), 0.15);
+    border-radius: var(--radius-md);
+    background: var(--surface-card);
+    box-shadow: var(--shadow-card);
+}
+
+.ex-input {
+    padding: 10px 14px 10px 62px;
+    border-radius: var(--radius-md);
+    border: 1.5px solid rgba(var(--practiq-violet-rgb), 0.15);
+    font-size: 1rem;
+    color: var(--text-primary);
+    outline: none;
+    transition: border-color 0.15s;
+    min-height: 96px;
+    background-color: var(--surface-bg-soft);
+    background-image:
+        linear-gradient(to right, rgba(var(--color-error-rgb), 0.25) 1.5px, transparent 1.5px),
+        repeating-linear-gradient(
+            to bottom,
+            transparent,
+            transparent 31px,
+            rgba(var(--practiq-violet-rgb), 0.1) 31px,
+            rgba(var(--practiq-violet-rgb), 0.1) 32px
+        );
+    background-size: 56px 32px;
+    background-position: 0 0;
+    line-height: 32px;
+    box-shadow: var(--shadow-card);
+}
+.ex-input:focus {
+    border-color: var(--practiq-violet);
+}
+
+.equation-answer-wrap {
+    width: 100%;
+}
+.equation-answer-wrap :deep(.math-field-editor) {
+    min-height: 48px;
+    padding: 10px 14px;
+    font-size: 1.1rem;
+    border-radius: var(--radius-md);
+    border: 1.5px solid rgba(var(--practiq-violet-rgb), 0.15);
+    background: var(--surface-card);
+}
+.equation-answer-wrap :deep(.math-field-editor:focus-within) {
+    border-color: var(--practiq-violet);
+    box-shadow: 0 0 0 3px rgba(var(--practiq-violet-rgb), 0.12);
+}
+
+.keyboard-input-wrap {
+    width: 100%;
+}
+
+.ex-textarea {
+    width: 100%;
+    padding: 14px 16px 14px 62px;
+    border-radius: var(--radius-md);
+    border: 1.5px solid rgba(var(--practiq-violet-rgb), 0.15);
+    font-size: 1rem;
+    color: var(--text-primary);
+    outline: none;
+    transition: border-color 0.15s;
+    min-height: 120px;
+    background-color: var(--surface-bg-soft);
+    background-image:
+        linear-gradient(to right, rgba(var(--color-error-rgb), 0.25) 1.5px, transparent 1.5px),
+        repeating-linear-gradient(
+            to bottom,
+            transparent,
+            transparent 31px,
+            rgba(var(--practiq-violet-rgb), 0.1) 31px,
+            rgba(var(--practiq-violet-rgb), 0.1) 32px
+        );
+    background-size: 56px 32px;
+    background-position: 0 0;
+    line-height: 32px;
+    box-shadow: var(--shadow-card);
+    resize: vertical;
+    font-family: inherit;
+}
+.ex-textarea:focus {
+    border-color: var(--practiq-violet);
+}
+
+.choice-options {
+    display: grid;
+    gap: 10px;
+}
+
+.choice-option {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 12px 14px;
+    border: 1.5px solid rgba(var(--practiq-violet-rgb), 0.14);
+    border-radius: var(--radius-md);
+    background: var(--surface-bg-soft);
+    color: var(--text-primary);
+    font-size: 1rem;
+    cursor: pointer;
+    transition:
+        border-color 0.15s,
+        background 0.15s;
+}
+
+.choice-option:hover,
+.choice-option--selected {
+    border-color: rgba(var(--practiq-violet-rgb), 0.36);
+    background: var(--fill-primary-faint);
+}
+
+.choice-option input {
+    width: 18px;
+    height: 18px;
+    accent-color: var(--practiq-violet);
+    flex: 0 0 auto;
+}
+
+.canvas-wrap {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.canvas-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+
+.canvas-label {
+    font-size: 0.82rem;
+    font-weight: 600;
+    color: var(--text-secondary);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+}
+
+.btn-clear-canvas {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    padding: 4px 10px;
+    border-radius: var(--radius-sm);
+    border: 1px solid rgba(var(--color-error-rgb), 0.2);
+    background: var(--surface-elevated-strong);
+    color: var(--color-error);
+    cursor: pointer;
+    font-size: 0.78rem;
+    transition: all 0.15s;
+}
+.btn-clear-canvas:hover {
+    background: rgba(var(--color-error-rgb), 0.08);
+}
+
+.ex-canvas {
+    width: 100%;
+    height: 240px;
+    border-radius: var(--radius-md);
+    border: 1.5px solid rgba(var(--practiq-violet-rgb), 0.15);
+    display: block;
+    touch-action: none;
+    cursor: crosshair;
+    box-shadow: var(--shadow-card);
+    background-color: var(--surface-bg-soft);
+    background-image:
+        linear-gradient(
+            90deg,
+            transparent 56px,
+            rgba(var(--color-error-rgb), 0.25) 56px,
+            rgba(var(--color-error-rgb), 0.25) 57.5px,
+            transparent 57.5px
+        ),
+        repeating-linear-gradient(
+            transparent,
+            transparent 31px,
+            rgba(var(--practiq-violet-rgb), 0.1) 31px,
+            rgba(var(--practiq-violet-rgb), 0.1) 32px
+        );
+    background-repeat: no-repeat, repeat;
+}
+
+.practice-footer {
+    display: grid;
+    grid-template-columns: 1fr auto 1fr;
+    align-items: center;
+    gap: 12px;
+    padding: 14px 20px;
+
+    background: rgb(var(--surface-card-rgb));
+    border-radius: var(--radius-xl);
+    border: 1.5px solid rgba(var(--practiq-violet-rgb), 0.1);
+    position: sticky;
+    bottom: 16px;
+    box-shadow: var(--shadow-card-lg);
+    z-index: 3;
+    scroll-margin-bottom: 24px;
+}
+
+.footer-left {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+}
+
+.footer-left {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex-wrap: wrap;
+}
+
+.footer-hint {
+    font-size: 0.85rem;
+    color: var(--text-secondary);
+}
+
+.draft-indicator {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 4px 10px;
+    background: rgba(var(--color-success-rgb), 0.12);
+    color: var(--color-success-dark);
+    border-radius: var(--radius-pill);
+    font-size: 0.78rem;
+    font-weight: 600;
+}
+.draft-badge-enter-active,
+.draft-badge-leave-active {
+    transition:
+        opacity 0.18s ease,
+        transform 0.18s ease;
+}
+.draft-badge-enter-from,
+.draft-badge-leave-to {
+    opacity: 0;
+    transform: translateY(3px);
+}
+@media (prefers-reduced-motion: reduce) {
     .draft-badge-enter-active,
     .draft-badge-leave-active {
-        transition:
-            opacity 0.18s ease,
-            transform 0.18s ease;
+        transition: none;
     }
-    .draft-badge-enter-from,
-    .draft-badge-leave-to {
-        opacity: 0;
-        transform: translateY(3px);
-    }
-    @media (prefers-reduced-motion: reduce) {
-        .draft-badge-enter-active,
-        .draft-badge-leave-active {
-            transition: none;
-        }
-    }
+}
 
-    .footer-nav {
-        display: flex;
+.footer-nav {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    justify-content: center;
+}
+
+.footer-actions {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    justify-content: flex-end;
+}
+
+.btn-step {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 10px 18px;
+    border-radius: var(--radius-md);
+    border: 1.5px solid rgba(var(--practiq-violet-rgb), 0.2);
+    background: var(--surface-elevated-strong);
+    color: var(--practiq-violet);
+    font-weight: 600;
+    font-size: 0.9rem;
+    cursor: pointer;
+    transition: all 0.15s;
+}
+.btn-step:hover:not(:disabled) {
+    background: var(--fill-primary-faint);
+    border-color: rgba(var(--practiq-violet-rgb), 0.35);
+}
+.btn-step:disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
+}
+
+.btn-submit {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 12px 28px;
+    border-radius: var(--radius-md);
+    border: none;
+    background: var(--gradient-brand);
+    color: var(--color-on-primary);
+    font-weight: 800;
+    font-size: 0.95rem;
+    cursor: pointer;
+    box-shadow: var(--shadow-indigo);
+    transition: opacity 0.15s;
+}
+.btn-submit:hover {
+    opacity: 0.9;
+}
+
+.submit-copy {
+    color: var(--text-secondary);
+    font-size: 0.88rem;
+    margin-bottom: 20px;
+}
+
+.submit-confirm-box {
+    position: relative;
+}
+
+.submit-confirm-close {
+    position: absolute;
+    top: 16px;
+    right: 16px;
+}
+
+.practice-submit-header {
+    display: grid;
+    gap: 10px;
+    justify-items: start;
+}
+
+.practice-submit-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 5px 12px;
+    border-radius: var(--radius-2xl);
+    background: var(--fill-primary-soft);
+    color: var(--practiq-violet-dark);
+    font-size: 0.75rem;
+    font-weight: 800;
+    letter-spacing: 0.02em;
+}
+
+.practice-submit-badge .pi {
+    font-size: 0.8rem;
+}
+
+.practice-submit-copy {
+    margin-bottom: 0;
+    max-width: 42ch;
+}
+
+.practice-submit-summary {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+}
+
+.practice-submit-summary-item {
+    display: grid;
+    gap: 4px;
+    padding: 14px 12px;
+    border-radius: var(--radius-xl);
+    text-align: center;
+}
+
+.practice-submit-summary-item--done {
+    background: rgba(var(--color-success-rgb), 0.1);
+    color: var(--color-success-dark);
+}
+
+.practice-submit-summary-item--pending {
+    background: rgba(var(--color-warning-rgb), 0.12);
+    color: var(--color-warning-dark);
+}
+
+.practice-submit-summary-item.is-empty {
+    background: var(--surface-bg-soft);
+    color: var(--text-muted);
+}
+
+.practice-submit-summary-value {
+    font-size: 1.6rem;
+    font-weight: 800;
+    color: inherit;
+    line-height: 1;
+}
+
+.practice-submit-summary-label {
+    font-size: 0.72rem;
+    color: inherit;
+    opacity: 0.85;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    font-weight: 700;
+}
+
+.practice-submit-question {
+    margin: 0;
+    color: var(--text-secondary);
+    font-size: 0.92rem;
+}
+
+.results-box {
+    position: relative;
+    max-width: 520px;
+}
+
+.results-close {
+    position: absolute;
+    top: 16px;
+    right: 16px;
+}
+
+@media (max-width: 480px) {
+    .results-box .modal-actions {
+        flex-direction: row;
+    }
+    .results-box .modal-actions > * {
+        width: auto;
+        flex: 1;
+    }
+}
+
+.results-box .modal-actions {
+    position: sticky;
+    bottom: calc(var(--results-actions-inset) * -1);
+    margin: 0 calc(var(--results-actions-inset) * -1) calc(var(--results-actions-inset) * -1);
+    padding: 12px var(--results-actions-inset) var(--results-actions-inset);
+    background: var(--surface-card);
+    border-top: 1px solid var(--surface-glass-border);
+}
+.results-box {
+    --results-actions-inset: 32px;
+}
+@media (max-width: 768px) {
+    .results-box {
+        --results-actions-inset: 24px;
+    }
+}
+
+.results-header {
+    text-align: center;
+    margin-bottom: 16px;
+}
+
+.results-emoji {
+    width: 92px;
+    height: 92px;
+    margin: 0 auto 14px;
+    display: grid;
+    place-items: center;
+    font-size: 40px;
+    line-height: 1;
+    border-radius: 50%;
+    color: var(--practiq-violet);
+    background: radial-gradient(
+        circle at 50% 50%,
+        color-mix(in srgb, currentColor 22%, transparent) 0%,
+        color-mix(in srgb, currentColor 10%, transparent) 55%,
+        transparent 72%
+    );
+}
+.results-emoji::before {
+    content: '';
+    grid-area: 1 / 1;
+    width: 68px;
+    height: 68px;
+    border-radius: 50%;
+    background: color-mix(in srgb, currentColor 16%, transparent);
+}
+.results-emoji > i {
+    grid-area: 1 / 1;
+}
+.results-emoji--good {
+    color: var(--color-warning);
+}
+.results-emoji--try {
+    color: var(--practiq-violet);
+}
+.results-emoji--sent {
+    color: var(--text-secondary);
+}
+.results-title {
+    font-size: 1.4rem;
+}
+
+.results-stats {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 12px;
+    margin-bottom: 16px;
+}
+
+.stat-card {
+    background: var(--gradient-brand-soft);
+    border-radius: var(--radius-xl);
+    padding: 16px 12px;
+    text-align: center;
+}
+.stat-value {
+    font-size: 1.7rem;
+    font-weight: 800;
+}
+
+.stat-card--xp .stat-value {
+    color: var(--practiq-violet-dark);
+}
+.stat-label {
+    font-size: 0.75rem;
+    color: var(--text-secondary);
+}
+
+.results-recommendation {
+    display: flex;
+    gap: 12px;
+    align-items: center;
+    padding: 14px;
+    border-radius: var(--radius-xl);
+    background: var(--surface-subtle);
+}
+.rec-icon {
+    font-size: 20px;
+    line-height: 1;
+    color: var(--practiq-violet);
+}
+
+.results-ai-feedback {
+    margin-top: 10px;
+    padding: 12px 14px;
+    border-radius: var(--radius-lg);
+    background: var(--fill-primary-subtle);
+    color: var(--practiq-violet-dark);
+    font-size: 0.9rem;
+}
+
+.xp-bubbles-slot {
+    margin-top: 16px;
+    margin-bottom: 16px;
+}
+.ungraded-badge {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-top: 16px;
+    padding: 14px 16px;
+    border-radius: var(--radius-lg, 14px);
+    background: var(--color-warning-bg, rgba(245, 158, 11, 0.12));
+    color: var(--text-primary);
+    font-weight: 600;
+}
+.all-correct-badge {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-top: 12px;
+    padding: 14px 16px;
+    border-radius: var(--radius-lg);
+    background: var(--fill-success-subtle);
+    color: var(--color-success-dark, #166534);
+    font-weight: 600;
+    text-align: center;
+}
+
+.exercise-results-section {
+    margin-top: 12px;
+    width: 100%;
+}
+
+.exercise-results-list {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.exercise-results-list--expanded {
+    max-height: 250px;
+    overflow-y: auto;
+}
+
+.exercise-result-item {
+    display: flex;
+    gap: 10px;
+    padding: 12px;
+    border-radius: var(--radius-lg);
+    text-align: left;
+}
+
+.exercise-result--incorrect {
+    background: var(--fill-error-subtle, #fef2f2);
+}
+
+.exercise-result-icon {
+    font-size: 1.15rem;
+    line-height: 1;
+    flex-shrink: 0;
+    color: var(--color-error);
+}
+
+.exercise-result-content {
+    flex: 1;
+    font-size: 0.85rem;
+}
+
+.exercise-result-answers {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px 8px;
+    margin-bottom: 6px;
+}
+
+.answer-label {
+    color: var(--text-muted);
+    font-size: 0.75rem;
+}
+
+.answer-student {
+    color: var(--color-error, #dc2626);
+    font-weight: 600;
+}
+
+.answer-correct {
+    color: var(--color-success, #16a34a);
+    font-weight: 600;
+}
+
+.exercise-result-feedback {
+    color: var(--text-secondary);
+    line-height: 1.4;
+}
+
+.btn-show-more {
+    margin-top: 8px;
+    width: 100%;
+    padding: 10px;
+    border: 1px dashed var(--border-color);
+    border-radius: var(--radius-md);
+    background: transparent;
+    color: var(--text-secondary);
+    font-size: 0.85rem;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.btn-show-more:hover {
+    background: var(--surface-subtle);
+    color: var(--text-primary);
+}
+
+@media (max-width: 1180px) {
+    .practice-shell {
+        padding: 18px 14px 90px;
+    }
+}
+
+@media (min-width: 921px) {
+    :global(.practiq-assistant-focus-target--open .practice-shell) {
+        width: calc(100% - var(--practiq-assistant-rail));
+        max-width: calc(100% - var(--practiq-assistant-rail));
+        margin-left: 0;
+        margin-right: auto;
+    }
+}
+
+@media (max-width: 680px) {
+    .practice-shell {
+        padding: 16px 10px 80px;
+    }
+    .practice-header {
+        display: grid;
+        grid-template-columns: 44px minmax(0, 1fr) 44px;
+        grid-template-rows: 44px 8px;
+        padding: 10px 12px 12px;
+        gap: 10px 8px;
         align-items: center;
-        gap: 10px;
+        border-radius: var(--radius-lg);
+    }
+    .practice-header-info {
+        display: contents;
+    }
+    .practice-header-info--skeleton {
+        display: contents;
+    }
+    .btn-back {
+        grid-column: 1;
+        grid-row: 1;
+        margin: 0;
+    }
+    .practice-title,
+    .practice-subtitle {
+        display: none;
+    }
+    .student-avatar {
+        display: none;
+    }
+    .header-right {
+        grid-column: 3;
+        grid-row: 1;
         justify-content: center;
     }
-
-    .footer-actions {
+    .header-right--skeleton :deep(.skeleton),
+    .header-right--skeleton :deep(.skeleton-wrapper) {
+        display: none;
+    }
+    .level-badges {
+        grid-column: 2;
+        grid-row: 1;
+        justify-content: center;
+        margin: 0;
+    }
+    .practice-header-info--skeleton .level-badges {
         display: flex;
-        align-items: center;
-        gap: 10px;
-        justify-content: flex-end;
     }
-
-    .btn-step {
-        display: flex;
-        align-items: center;
-        gap: 6px;
-        padding: 10px 18px;
-        border-radius: var(--radius-md);
-        border: 1.5px solid rgba(var(--practiq-violet-rgb), 0.2);
-        background: var(--surface-elevated-strong);
-        color: var(--practiq-violet);
-        font-weight: 600;
-        font-size: 0.9rem;
-        cursor: pointer;
-        transition: all 0.15s;
+    .practice-header-info--skeleton > :not(.level-badges) {
+        display: none;
     }
-    .btn-step:hover:not(:disabled) {
-        background: var(--fill-primary-faint);
-        border-color: rgba(var(--practiq-violet-rgb), 0.35);
+    .level-test-badge,
+    .input-mode-badge {
+        display: none;
     }
-    .btn-step:disabled {
-        opacity: 0.45;
-        cursor: not-allowed;
+    .level-badge {
+        padding: 6px 12px;
+        font-size: 0.78rem;
+        line-height: 1;
+        white-space: nowrap;
     }
-
-    .btn-submit {
-        display: flex;
-        align-items: center;
-        gap: 8px;
-        padding: 12px 28px;
-        border-radius: var(--radius-md);
-        border: none;
-        background: var(--gradient-brand);
-        color: var(--color-on-primary);
-        font-weight: 800;
-        font-size: 0.95rem;
-        cursor: pointer;
-        box-shadow: var(--shadow-indigo);
-        transition: opacity 0.15s;
-    }
-    .btn-submit:hover {
-        opacity: 0.9;
-    }
-
-    .submit-copy {
-        color: var(--text-secondary);
-        font-size: 0.88rem;
-        margin-bottom: 20px;
-    }
-
-    .submit-confirm-box {
+    .streak-chip {
         position: relative;
+        width: 44px;
+        height: 44px;
+        justify-content: center;
+        padding: 0;
+        border: 0;
+        border-radius: 50%;
+        background: transparent;
+        box-shadow: none;
     }
-
-    .submit-confirm-close {
+    .mobile-practice-progress-skeleton {
+        display: block;
+        grid-column: 1 / -1;
+        grid-row: 2;
+        border-radius: var(--radius-pill);
+    }
+    .streak-icon {
+        width: 29px;
+        height: 29px;
+    }
+    .streak-text {
         position: absolute;
-        top: 16px;
-        right: 16px;
+        right: 0;
+        bottom: 0;
     }
-
-    .practice-submit-header {
+    .streak-val,
+    .streak-lbl--invite::after {
         display: grid;
-        gap: 10px;
-        justify-items: start;
-    }
-
-    .practice-submit-badge {
-        display: inline-flex;
-        align-items: center;
-        gap: 6px;
-        padding: 5px 12px;
-        border-radius: var(--radius-2xl);
-        background: var(--fill-primary-soft);
-        color: var(--practiq-violet-dark);
-        font-size: 0.75rem;
+        place-items: center;
+        min-width: 18px;
+        height: 18px;
+        padding: 0 3px;
+        border: 2px solid var(--surface-card);
+        border-radius: 50%;
+        background: var(--practiq-violet);
+        color: var(--color-on-primary);
+        font-size: 0.62rem;
         font-weight: 800;
-        letter-spacing: 0.02em;
-    }
-
-    .practice-submit-badge .pi {
-        font-size: 0.8rem;
-    }
-
-    .practice-submit-copy {
-        margin-bottom: 0;
-        max-width: 42ch;
-    }
-
-    .practice-submit-summary {
-        display: grid;
-        grid-template-columns: 1fr 1fr;
-        gap: 10px;
-    }
-
-    .practice-submit-summary-item {
-        display: grid;
-        gap: 4px;
-        padding: 14px 12px;
-        border-radius: var(--radius-xl);
-        text-align: center;
-    }
-
-    .practice-submit-summary-item--done {
-        background: rgba(var(--color-success-rgb), 0.1);
-        color: var(--color-success-dark);
-    }
-
-    .practice-submit-summary-item--pending {
-        background: rgba(var(--color-warning-rgb), 0.12);
-        color: var(--color-warning-dark);
-    }
-
-    .practice-submit-summary-item.is-empty {
-        background: var(--surface-bg-soft);
-        color: var(--text-muted);
-    }
-
-    .practice-submit-summary-value {
-        font-size: 1.6rem;
-        font-weight: 800;
-        color: inherit;
         line-height: 1;
     }
-
-    .practice-submit-summary-label {
-        font-size: 0.72rem;
-        color: inherit;
-        opacity: 0.85;
-        text-transform: uppercase;
-        letter-spacing: 0.04em;
-        font-weight: 700;
+    .streak-chip--active .streak-val {
+        font-size: 0.62rem;
     }
-
-    .practice-submit-question {
-        margin: 0;
-        color: var(--text-secondary);
-        font-size: 0.92rem;
+    .streak-lbl {
+        display: none;
     }
-
-    .results-box {
-        position: relative;
-        max-width: 520px;
+    .streak-lbl--invite::after {
+        content: '0';
     }
-
-    .results-close {
+    .mobile-practice-progress {
+        display: block;
+        grid-column: 1 / -1;
+        grid-row: 2;
+        height: 8px;
+        overflow: hidden;
+        border-radius: 999px;
+        background: var(--fill-primary-soft);
+    }
+    .mobile-practice-progress__fill {
+        height: 100%;
+        border-radius: inherit;
+        background: #8edb32;
+        transition: width 0.3s ease;
+    }
+    :deep(.practice-stepper) {
+        display: none;
+    }
+    .mobile-stepper-status {
         position: absolute;
-        top: 16px;
-        right: 16px;
-    }
-
-    @media (max-width: 480px) {
-        .results-box .modal-actions {
-            flex-direction: row;
-        }
-        .results-box .modal-actions > * {
-            width: auto;
-            flex: 1;
-        }
-    }
-
-    .results-box .modal-actions {
-        position: sticky;
-        bottom: calc(var(--results-actions-inset) * -1);
-        margin: 0 calc(var(--results-actions-inset) * -1) calc(var(--results-actions-inset) * -1);
-        padding: 12px var(--results-actions-inset) var(--results-actions-inset);
-        background: var(--surface-card);
-        border-top: 1px solid var(--surface-glass-border);
-    }
-    .results-box {
-        --results-actions-inset: 32px;
-    }
-    @media (max-width: 768px) {
-        .results-box {
-            --results-actions-inset: 24px;
-        }
-    }
-
-    .results-header {
-        text-align: center;
-        margin-bottom: 16px;
+        width: 1px;
+        height: 1px;
+        padding: 0;
+        margin: -1px;
+        overflow: hidden;
+        clip: rect(0, 0, 0, 0);
+        white-space: nowrap;
+        border: 0;
     }
 
     .results-emoji {
-        width: 92px;
-        height: 92px;
-        margin: 0 auto 14px;
-        display: grid;
-        place-items: center;
-        font-size: 40px;
-        line-height: 1;
-        border-radius: 50%;
-        color: var(--practiq-violet);
-        background: radial-gradient(
-            circle at 50% 50%,
-            color-mix(in srgb, currentColor 22%, transparent) 0%,
-            color-mix(in srgb, currentColor 10%, transparent) 55%,
-            transparent 72%
-        );
-    }
-    .results-emoji::before {
-        content: '';
-        grid-area: 1 / 1;
         width: 68px;
         height: 68px;
-        border-radius: 50%;
-        background: color-mix(in srgb, currentColor 16%, transparent);
+        margin-bottom: 10px;
+        font-size: 30px;
     }
-    .results-emoji > i {
-        grid-area: 1 / 1;
-    }
-    .results-emoji--good {
-        color: var(--color-warning);
-    }
-    .results-emoji--try {
-        color: var(--practiq-violet);
-    }
-    .results-emoji--sent {
-        color: var(--text-secondary);
-    }
-    .results-title {
-        font-size: 1.4rem;
+    .results-emoji::before {
+        width: 50px;
+        height: 50px;
     }
 
     .results-stats {
-        display: grid;
-        grid-template-columns: repeat(2, 1fr);
-        gap: 12px;
-        margin-bottom: 16px;
+        gap: 8px;
     }
-
     .stat-card {
-        background: var(--gradient-brand-soft);
-        border-radius: var(--radius-xl);
-        padding: 16px 12px;
-        text-align: center;
+        padding: 12px 8px;
     }
     .stat-value {
-        font-size: 1.7rem;
-        font-weight: 800;
-    }
-
-    .stat-card--xp .stat-value {
-        color: var(--practiq-violet-dark);
+        font-size: 1.35rem;
     }
     .stat-label {
-        font-size: 0.75rem;
-        color: var(--text-secondary);
+        font-size: 0.68rem;
     }
 
-    .results-recommendation {
-        display: flex;
-        gap: 12px;
+    .ex-card {
+        padding: 14px 12px;
+        display: grid;
+        grid-template-columns: auto 1fr;
+        gap: 10px;
         align-items: center;
-        padding: 14px;
-        border-radius: var(--radius-xl);
-        background: var(--surface-subtle);
-    }
-    .rec-icon {
-        font-size: 20px;
-        line-height: 1;
-        color: var(--practiq-violet);
     }
 
-    .results-ai-feedback {
-        margin-top: 10px;
-        padding: 12px 14px;
-        border-radius: var(--radius-lg);
-        background: var(--fill-primary-subtle);
-        color: var(--practiq-violet-dark);
+    .ex-card > .ex-body {
+        display: contents;
+    }
+
+    .ex-card > .ex-body > :not(.ex-meta) {
+        grid-column: 1 / -1;
+    }
+
+    .ex-num {
+        width: 28px;
+        height: 28px;
+        font-size: 0.82rem;
+    }
+
+    .ex-canvas {
+        height: 320px;
+    }
+
+    .practice-footer {
+        position: fixed;
+        right: 0;
+        bottom: 0;
+        left: 0;
+        grid-template-columns: 1fr;
+        gap: 12px;
+        align-items: stretch;
+        padding: 12px 16px;
+        border-radius: var(--radius-xl) var(--radius-xl) 0 0;
+        border-bottom: 0;
+        padding-bottom: max(12px, env(safe-area-inset-bottom));
+        z-index: 20;
+    }
+
+    .practice-area {
+        padding-bottom: calc(190px + env(safe-area-inset-bottom));
+    }
+
+    .draw-tools-bar {
+        flex-wrap: nowrap;
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+        padding: 10px 12px;
+    }
+
+    .draw-tools-bar > * {
+        flex-shrink: 0;
+    }
+
+    .draw-tools-bar .size-slider {
+        width: 54px;
+    }
+
+    .tool-btn {
+        width: 40px;
+        height: 40px;
+    }
+
+    .draw-tools-bar .size-val {
+        min-width: 26px;
+    }
+
+    .footer-hint {
+        display: none;
+    }
+    .footer-left:not(:has(.draft-indicator)) {
+        display: none;
+    }
+    .footer-left {
+        width: 100%;
+        justify-content: flex-end;
+    }
+
+    .footer-nav,
+    .footer-actions {
+        width: 100%;
+        gap: 8px;
+    }
+
+    .footer-actions .btn-submit {
+        flex: 1;
+    }
+
+    .btn-step {
+        flex: 1;
+        padding: 12px 16px;
+        justify-content: center;
+        font-size: 0.875rem;
+    }
+
+    .btn-submit {
+        flex: 1;
+        padding: 12px 20px;
+        justify-content: center;
         font-size: 0.9rem;
     }
 
-    .xp-bubbles-slot {
-        margin-top: 16px;
-        margin-bottom: 16px;
-    }
-    .ungraded-badge {
-        display: flex;
-        align-items: center;
-        gap: 10px;
-        margin-top: 16px;
-        padding: 14px 16px;
-        border-radius: var(--radius-lg, 14px);
-        background: var(--color-warning-bg, rgba(245, 158, 11, 0.12));
-        color: var(--text-primary);
-        font-weight: 600;
-    }
-    .all-correct-badge {
-        display: flex;
-        align-items: center;
-        gap: 8px;
-        margin-top: 12px;
-        padding: 14px 16px;
-        border-radius: var(--radius-lg);
-        background: var(--fill-success-subtle);
-        color: var(--color-success-dark, #166534);
-        font-weight: 600;
-        text-align: center;
+    .btn-step,
+    .btn-submit {
+        min-height: 50px;
     }
 
-    .exercise-results-section {
-        margin-top: 12px;
-        width: 100%;
+    .btn-back {
+        width: 44px;
+        height: 44px;
     }
 
-    .exercise-results-list {
-        display: flex;
-        flex-direction: column;
-        gap: 10px;
+    .tool-btn {
+        width: 40px;
+        height: 40px;
+        font-size: 1rem;
     }
 
-    .exercise-results-list--expanded {
-        max-height: 250px;
-        overflow-y: auto;
+    .choice-option {
+        min-height: 52px;
+        padding: 12px 14px;
     }
 
-    .exercise-result-item {
-        display: flex;
-        gap: 10px;
-        padding: 12px;
-        border-radius: var(--radius-lg);
-        text-align: left;
+    .choice-option input {
+        width: 22px;
+        height: 22px;
     }
+}
 
-    .exercise-result--incorrect {
-        background: var(--fill-error-subtle, #fef2f2);
+.exercise-assistant-trigger {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    margin-left: auto;
+    border: 1px solid transparent;
+    border-radius: 999px;
+    padding: 4px 11px;
+    background: var(--practiq-violet);
+    color: #fff;
+    cursor: pointer;
+    font: inherit;
+    font-size: 0.75rem;
+    font-weight: 700;
+    line-height: 1.4;
+    transition:
+        background 0.15s,
+        border-color 0.15s,
+        transform 0.15s;
+}
+
+.exercise-assistant-trigger:hover {
+    background: color-mix(in srgb, var(--practiq-violet) 88%, #000);
+}
+
+.exercise-assistant-trigger:active {
+    transform: translateY(1px);
+}
+
+.streak-lbl--invite {
+    line-height: 1.15;
+    max-width: 68px;
+}
+
+.btn-submit--idle {
+    background: var(--surface-hover);
+    color: var(--text-secondary);
+    box-shadow: none;
+}
+
+.streak-lbl--invite {
+    line-height: 1.15;
+    max-width: 68px;
+}
+
+.btn-submit--idle {
+    background: var(--surface-hover);
+    color: var(--text-secondary);
+    box-shadow: none;
+}
+
+.ex-card:not(.ex-card--skeleton) {
+    animation: ex-card-in 0.26s ease both;
+}
+@keyframes ex-card-in {
+    from {
+        opacity: 0;
+        transform: translateY(10px);
     }
-
-    .exercise-result-icon {
-        font-size: 1.15rem;
-        line-height: 1;
-        flex-shrink: 0;
-        color: var(--color-error);
-    }
-
-    .exercise-result-content {
-        flex: 1;
-        font-size: 0.85rem;
-    }
-
-    .exercise-result-answers {
-        display: flex;
-        flex-wrap: wrap;
-        gap: 4px 8px;
-        margin-bottom: 6px;
-    }
-
-    .answer-label {
-        color: var(--text-muted);
-        font-size: 0.75rem;
-    }
-
-    .answer-student {
-        color: var(--color-error, #dc2626);
-        font-weight: 600;
-    }
-
-    .answer-correct {
-        color: var(--color-success, #16a34a);
-        font-weight: 600;
-    }
-
-    .exercise-result-feedback {
-        color: var(--text-secondary);
-        line-height: 1.4;
-    }
-
-    .btn-show-more {
-        margin-top: 8px;
-        width: 100%;
-        padding: 10px;
-        border: 1px dashed var(--border-color);
-        border-radius: var(--radius-md);
-        background: transparent;
-        color: var(--text-secondary);
-        font-size: 0.85rem;
-        cursor: pointer;
-        transition: all 0.2s;
-    }
-
-    .btn-show-more:hover {
-        background: var(--surface-subtle);
-        color: var(--text-primary);
-    }
-
-    @media (max-width: 1180px) {
-        .practice-shell {
-            padding: 18px 14px 90px;
-        }
-    }
-
-    @media (min-width: 921px) {
-        :global(.practiq-assistant-focus-target--open .practice-shell) {
-            width: calc(100% - var(--practiq-assistant-rail));
-            max-width: calc(100% - var(--practiq-assistant-rail));
-            margin-left: 0;
-            margin-right: auto;
-        }
-    }
-
-    @media (max-width: 680px) {
-        .practice-shell {
-            padding: 16px 10px 80px;
-        }
-        .practice-header {
-            display: grid;
-            grid-template-columns: 44px minmax(0, 1fr) 44px;
-            grid-template-rows: 44px 8px;
-            padding: 10px 12px 12px;
-            gap: 10px 8px;
-            align-items: center;
-            border-radius: var(--radius-lg);
-        }
-        .practice-header-info {
-            display: contents;
-        }
-        .practice-header-info--skeleton {
-            display: contents;
-        }
-        .btn-back {
-            grid-column: 1;
-            grid-row: 1;
-            margin: 0;
-        }
-        .practice-title,
-        .practice-subtitle {
-            display: none;
-        }
-        .student-avatar {
-            display: none;
-        }
-        .header-right {
-            grid-column: 3;
-            grid-row: 1;
-            justify-content: center;
-        }
-        .header-right--skeleton :deep(.skeleton),
-        .header-right--skeleton :deep(.skeleton-wrapper) {
-            display: none;
-        }
-        .level-badges {
-            grid-column: 2;
-            grid-row: 1;
-            justify-content: center;
-            margin: 0;
-        }
-        .practice-header-info--skeleton .level-badges {
-            display: flex;
-        }
-        .practice-header-info--skeleton > :not(.level-badges) {
-            display: none;
-        }
-        .level-test-badge,
-        .input-mode-badge {
-            display: none;
-        }
-        .level-badge {
-            padding: 6px 12px;
-            font-size: 0.78rem;
-            line-height: 1;
-            white-space: nowrap;
-        }
-        .streak-chip {
-            position: relative;
-            width: 44px;
-            height: 44px;
-            justify-content: center;
-            padding: 0;
-            border: 0;
-            border-radius: 50%;
-            background: transparent;
-            box-shadow: none;
-        }
-        .mobile-practice-progress-skeleton {
-            display: block;
-            grid-column: 1 / -1;
-            grid-row: 2;
-            border-radius: var(--radius-pill);
-        }
-        .streak-icon {
-            width: 29px;
-            height: 29px;
-        }
-        .streak-text {
-            position: absolute;
-            right: 0;
-            bottom: 0;
-        }
-        .streak-val,
-        .streak-lbl--invite::after {
-            display: grid;
-            place-items: center;
-            min-width: 18px;
-            height: 18px;
-            padding: 0 3px;
-            border: 2px solid var(--surface-card);
-            border-radius: 50%;
-            background: var(--practiq-violet);
-            color: var(--color-on-primary);
-            font-size: 0.62rem;
-            font-weight: 800;
-            line-height: 1;
-        }
-        .streak-chip--active .streak-val {
-            font-size: 0.62rem;
-        }
-        .streak-lbl {
-            display: none;
-        }
-        .streak-lbl--invite::after {
-            content: '0';
-        }
-        .mobile-practice-progress {
-            display: block;
-            grid-column: 1 / -1;
-            grid-row: 2;
-            height: 8px;
-            overflow: hidden;
-            border-radius: 999px;
-            background: var(--fill-primary-soft);
-        }
-        .mobile-practice-progress__fill {
-            height: 100%;
-            border-radius: inherit;
-            background: #8edb32;
-            transition: width 0.3s ease;
-        }
-        :deep(.practice-stepper) {
-            display: none;
-        }
-        .mobile-stepper-status {
-            position: absolute;
-            width: 1px;
-            height: 1px;
-            padding: 0;
-            margin: -1px;
-            overflow: hidden;
-            clip: rect(0, 0, 0, 0);
-            white-space: nowrap;
-            border: 0;
-        }
-
-        .results-emoji {
-            width: 68px;
-            height: 68px;
-            margin-bottom: 10px;
-            font-size: 30px;
-        }
-        .results-emoji::before {
-            width: 50px;
-            height: 50px;
-        }
-
-        .results-stats {
-            gap: 8px;
-        }
-        .stat-card {
-            padding: 12px 8px;
-        }
-        .stat-value {
-            font-size: 1.35rem;
-        }
-        .stat-label {
-            font-size: 0.68rem;
-        }
-
-        .ex-card {
-            padding: 14px 12px;
-            display: grid;
-            grid-template-columns: auto 1fr;
-            gap: 10px;
-            align-items: center;
-        }
-
-        .ex-card > .ex-body {
-            display: contents;
-        }
-
-        .ex-card > .ex-body > :not(.ex-meta) {
-            grid-column: 1 / -1;
-        }
-
-        .ex-num {
-            width: 28px;
-            height: 28px;
-            font-size: 0.82rem;
-        }
-
-        .ex-canvas {
-            height: 320px;
-        }
-
-        .practice-footer {
-            position: fixed;
-            right: 0;
-            bottom: 0;
-            left: 0;
-            grid-template-columns: 1fr;
-            gap: 12px;
-            align-items: stretch;
-            padding: 12px 16px;
-            border-radius: var(--radius-xl) var(--radius-xl) 0 0;
-            border-bottom: 0;
-            padding-bottom: max(12px, env(safe-area-inset-bottom));
-            z-index: 20;
-        }
-
-        .practice-area {
-            padding-bottom: calc(190px + env(safe-area-inset-bottom));
-        }
-
-        .draw-tools-bar {
-            flex-wrap: nowrap;
-            overflow-x: auto;
-            -webkit-overflow-scrolling: touch;
-            padding: 10px 12px;
-        }
-
-        .draw-tools-bar > * {
-            flex-shrink: 0;
-        }
-
-        .draw-tools-bar .size-slider {
-            width: 54px;
-        }
-
-        .tool-btn {
-            width: 40px;
-            height: 40px;
-        }
-
-        .draw-tools-bar .size-val {
-            min-width: 26px;
-        }
-
-        .footer-hint {
-            display: none;
-        }
-        .footer-left:not(:has(.draft-indicator)) {
-            display: none;
-        }
-        .footer-left {
-            width: 100%;
-            justify-content: flex-end;
-        }
-
-        .footer-nav,
-        .footer-actions {
-            width: 100%;
-            gap: 8px;
-        }
-
-        .footer-actions .btn-submit {
-            flex: 1;
-        }
-
-        .btn-step {
-            flex: 1;
-            padding: 12px 16px;
-            justify-content: center;
-            font-size: 0.875rem;
-        }
-
-        .btn-submit {
-            flex: 1;
-            padding: 12px 20px;
-            justify-content: center;
-            font-size: 0.9rem;
-        }
-
-        .btn-step,
-        .btn-submit {
-            min-height: 50px;
-        }
-
-        .btn-back {
-            width: 44px;
-            height: 44px;
-        }
-
-        .tool-btn {
-            width: 40px;
-            height: 40px;
-            font-size: 1rem;
-        }
-
-        .choice-option {
-            min-height: 52px;
-            padding: 12px 14px;
-        }
-
-        .choice-option input {
-            width: 22px;
-            height: 22px;
-        }
-    }
-
-    .exercise-assistant-trigger {
-        display: inline-flex;
-        align-items: center;
-        gap: 5px;
-        margin-left: auto;
-        border: 1px solid transparent;
-        border-radius: 999px;
-        padding: 4px 11px;
-        background: var(--practiq-violet);
-        color: #fff;
-        cursor: pointer;
-        font: inherit;
-        font-size: 0.75rem;
-        font-weight: 700;
-        line-height: 1.4;
-        transition:
-            background 0.15s,
-            border-color 0.15s,
-            transform 0.15s;
-    }
-
-    .exercise-assistant-trigger:hover {
-        background: color-mix(in srgb, var(--practiq-violet) 88%, #000);
-    }
-
-    .exercise-assistant-trigger:active {
-        transform: translateY(1px);
-    }
-
-    .streak-lbl--invite {
-        line-height: 1.15;
-        max-width: 68px;
-    }
-
-    .btn-submit--idle {
-        background: var(--surface-hover);
-        color: var(--text-secondary);
-        box-shadow: none;
-    }
-
-    .streak-lbl--invite {
-        line-height: 1.15;
-        max-width: 68px;
-    }
-
-    .btn-submit--idle {
-        background: var(--surface-hover);
-        color: var(--text-secondary);
-        box-shadow: none;
-    }
-
+}
+@media (prefers-reduced-motion: reduce) {
     .ex-card:not(.ex-card--skeleton) {
-        animation: ex-card-in 0.26s ease both;
+        animation: none;
     }
-    @keyframes ex-card-in {
-        from {
-            opacity: 0;
-            transform: translateY(10px);
-        }
-    }
-    @media (prefers-reduced-motion: reduce) {
-        .ex-card:not(.ex-card--skeleton) {
-            animation: none;
-        }
-    }
+}
 </style>

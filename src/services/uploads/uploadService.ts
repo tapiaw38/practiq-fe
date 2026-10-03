@@ -1,14 +1,5 @@
 import type { AxiosInstance } from 'axios';
-
-export interface UploadedFile {
-    url: string;
-
-    preview_url?: string;
-    filename: string;
-    content_type: string;
-    kind: string;
-    size: number;
-}
+import type { UploadedFile } from '@/types/uploads';
 
 export interface IUploadService {
     upload(file: File | Blob, filename?: string, folder?: string): Promise<UploadedFile>;

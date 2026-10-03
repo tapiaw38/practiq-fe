@@ -1,12 +1,15 @@
 import { defineStore } from 'pinia';
 import { ref } from 'vue';
 import { useAuthStore } from '@/stores/authStore';
-import type { IDashboardService, StudentDashboard } from '@/services/dashboard/dashboardService';
+import type { IDashboardService } from '@/services/dashboard/dashboardService';
+import type { CourseLeaderboard, StudentDashboard } from '@/types/dashboard';
 
 export const useDashboardStore = (service: IDashboardService) =>
     defineStore('dashboard', () => {
         const data = ref<StudentDashboard | null>(null);
         const loading = ref(false);
+        const leaderboards = ref<Record<string, CourseLeaderboard>>({});
+        const leaderboardLoading = ref<Record<string, boolean>>({});
 
         let inFlight: {
             ownerId: string | null;
@@ -23,6 +26,8 @@ export const useDashboardStore = (service: IDashboardService) =>
             const currentId = currentOwnerId();
             if (ownerId !== currentId) {
                 data.value = null;
+                leaderboards.value = {};
+                leaderboardLoading.value = {};
                 ownerId = currentId;
             }
         };
@@ -56,5 +61,25 @@ export const useDashboardStore = (service: IDashboardService) =>
             return data.value ? Promise.resolve(data.value) : refreshDashboard();
         };
 
-        return { data, loading, fetchDashboard, refreshDashboard };
+        const fetchLeaderboard = async (courseID: string) => {
+            if (leaderboards.value[courseID]) return leaderboards.value[courseID];
+            leaderboardLoading.value[courseID] = true;
+            try {
+                const leaderboard = await service.leaderboard(courseID);
+                leaderboards.value[courseID] = leaderboard;
+                return leaderboard;
+            } finally {
+                leaderboardLoading.value[courseID] = false;
+            }
+        };
+
+        return {
+            data,
+            loading,
+            leaderboards,
+            leaderboardLoading,
+            fetchDashboard,
+            refreshDashboard,
+            fetchLeaderboard,
+        };
     });

@@ -486,633 +486,532 @@
 </template>
 
 <script setup lang="ts">
-    import { ref, computed, watch, nextTick, onMounted, onBeforeUnmount } from 'vue';
-    import { useAuthStore } from '@/stores/authStore';
-    import { renderContent } from '@/composables/useContentRenderer';
-    import { parseAssistantReply, type AssistantReply } from '@/utils/assistantReply';
-    import ColorPalette from '@/components/ui/ColorPalette.vue';
-    import ConfirmModal from '@/components/ui/ConfirmModal.vue';
-    import { useLeaveWarning } from '@/composables/useLeaveWarning';
-    import { BASE_COLORS } from '@/utils/palette';
-    import AiLoadingModal from '@/components/student/ai/AiLoadingModal.vue';
-    import { getToken, refreshAssistantToken } from '@/api/request/server';
-    import type {
-        AssistantChatModalEmits,
-        AssistantChatModalProps,
-        AssistantStudentCourseContext,
-    } from './AssistantChatModal.types';
-    import type { AssistantMode, AssistantMessage, PizarronState, Topic } from '@/types';
-    import { assistantVoiceEnabled, setAssistantVoiceEnabled } from '@/utils/assistantPreferences';
+import { ref, computed, watch, nextTick, onMounted, onBeforeUnmount } from 'vue';
+import { useAuthStore } from '@/stores/authStore';
+import { renderContent } from '@/composables/useContentRenderer';
+import { parseAssistantReply, type AssistantReply } from '@/utils/assistantReply';
+import ColorPalette from '@/components/ui/ColorPalette.vue';
+import ConfirmModal from '@/components/ui/ConfirmModal.vue';
+import { useLeaveWarning } from '@/composables/useLeaveWarning';
+import { BASE_COLORS } from '@/utils/palette';
+import AiLoadingModal from '@/components/student/ai/AiLoadingModal.vue';
+import { getToken, refreshAssistantToken } from '@/api/request/server';
+import type {
+    AssistantChatModalEmits,
+    AssistantChatModalProps,
+    AssistantStudentCourseContext,
+} from './AssistantChatModal.types';
+import type { AssistantMode, AssistantMessage, PizarronState, Topic } from '@/types';
+import { assistantVoiceEnabled, setAssistantVoiceEnabled } from '@/utils/assistantPreferences';
 
-    const props = defineProps<AssistantChatModalProps>();
-    const emit = defineEmits<AssistantChatModalEmits>();
+const props = defineProps<AssistantChatModalProps>();
+const emit = defineEmits<AssistantChatModalEmits>();
 
-    const authStore = useAuthStore();
-    const API_BASE = `${import.meta.env.VITE_PRACTIQ_API_URL || 'http://localhost:8083'}/api/assistant-proxy`;
-    const PRACTIQ_API_BASE = `${import.meta.env.VITE_PRACTIQ_API_URL || 'http://localhost:8083'}/api`;
-    const STORAGE_KEY = 'ai-client-id';
+const authStore = useAuthStore();
+const API_BASE = `${import.meta.env.VITE_PRACTIQ_API_URL || 'http://localhost:8083'}/api/assistant-proxy`;
+const PRACTIQ_API_BASE = `${import.meta.env.VITE_PRACTIQ_API_URL || 'http://localhost:8083'}/api`;
+const STORAGE_KEY = 'ai-client-id';
 
-    const mode = ref<AssistantMode>('escrita');
-    const showModes = ref(false);
-    const isMobile = ref(false);
-    const mobileViewportHeight = ref(0);
-    const mobileViewportTop = ref(0);
+const mode = ref<AssistantMode>('escrita');
+const showModes = ref(false);
+const isMobile = ref(false);
+const mobileViewportHeight = ref(0);
+const mobileViewportTop = ref(0);
 
-    const messages = ref<AssistantMessage[]>([]);
-    const draft = ref('');
-    const responding = ref(false);
-    const isRecording = ref(false);
-    const messagesEl = ref<HTMLElement | null>(null);
-    const inputEl = ref<HTMLTextAreaElement | null>(null);
-    let conversationId: string | null = null;
-    let msgCounter = 0;
+const messages = ref<AssistantMessage[]>([]);
+const draft = ref('');
+const responding = ref(false);
+const isRecording = ref(false);
+const messagesEl = ref<HTMLElement | null>(null);
+const inputEl = ref<HTMLTextAreaElement | null>(null);
+let conversationId: string | null = null;
+let msgCounter = 0;
 
-    type GuidedPractice = {
-        course: AssistantStudentCourseContext;
-        topic: Topic;
-    };
+type GuidedPractice = {
+    course: AssistantStudentCourseContext;
+    topic: Topic;
+};
 
-    const selectedCourseId = ref('');
-    const selectedTopicId = ref('');
-    const topics = ref<Topic[]>([]);
-    const topicsLoading = ref(false);
-    const activeGuidedPractice = ref<GuidedPractice | null>(null);
-    const selectedPracticeMode = ref<AssistantMode>('pizarron');
-    let topicRequest = 0;
+const selectedCourseId = ref('');
+const selectedTopicId = ref('');
+const topics = ref<Topic[]>([]);
+const topicsLoading = ref(false);
+const activeGuidedPractice = ref<GuidedPractice | null>(null);
+const selectedPracticeMode = ref<AssistantMode>('pizarron');
+let topicRequest = 0;
 
-    const voiceReplies = ref(assistantVoiceEnabled());
+const voiceReplies = ref(assistantVoiceEnabled());
 
-    function toggleVoiceReplies() {
-        voiceReplies.value = !voiceReplies.value;
-        setAssistantVoiceEnabled(voiceReplies.value);
+function toggleVoiceReplies() {
+    voiceReplies.value = !voiceReplies.value;
+    setAssistantVoiceEnabled(voiceReplies.value);
+}
+
+function playIncomingAudio(event: Event) {
+    const audio = event.currentTarget as HTMLAudioElement;
+    void audio.play().catch(() => {});
+}
+
+const pizState = ref<PizarronState>('idle');
+const exerciseHtml = ref('');
+const exerciseAudio = ref('');
+const feedbackHtml = ref('');
+const feedbackAudio = ref('');
+const pizarronTopic = ref('');
+let exerciseGeneration = 0;
+const recordingError = ref('');
+
+const hasDrawing = ref(false);
+
+const canvasEl = ref<HTMLCanvasElement | null>(null);
+const activeTool = ref<'pen' | 'eraser'>('pen');
+const activeColor = ref(BASE_COLORS[0].value);
+let isDrawing = false;
+let lastX = 0;
+let lastY = 0;
+let canvasResizeObserver: ResizeObserver | null = null;
+let canvasInitialized = false;
+
+let mediaRecorder: MediaRecorder | null = null;
+let audioChunks: Blob[] = [];
+let recordingStream: MediaStream | null = null;
+
+const modes = [
+    { value: 'escrita' as AssistantMode, label: 'Conversar', icon: 'pi-comments' },
+    { value: 'pizarron' as AssistantMode, label: 'Pizarrón', icon: 'pi-pencil' },
+];
+
+const modeLabel = computed(() => modes.find((m) => m.value === mode.value)?.label ?? '');
+
+const isBusy = computed(
+    () =>
+        responding.value ||
+        isRecording.value ||
+        pizState.value === 'generating' ||
+        pizState.value === 'evaluating',
+);
+
+const mobileViewportStyle = computed(() =>
+    isMobile.value && mobileViewportHeight.value
+        ? {
+              height: `${mobileViewportHeight.value}px`,
+              top: `${mobileViewportTop.value}px`,
+              bottom: 'auto',
+          }
+        : undefined,
+);
+
+const needsPracticeSetup = computed(() =>
+    Boolean(props.requirePracticeContext && !activeGuidedPractice.value),
+);
+
+const selectedCourse = computed(() =>
+    (props.studentContext?.courses ?? []).find((course) => course.id === selectedCourseId.value),
+);
+
+const selectedTopic = computed(() =>
+    topics.value.find((topic) => topic.id === selectedTopicId.value),
+);
+
+const statusLabel = computed(() => {
+    if (isRecording.value) return 'Grabando…';
+    if (pizState.value === 'generating') return 'Generando ejercicio…';
+    if (pizState.value === 'evaluating') return 'Evaluando…';
+    if (responding.value) return 'Escribiendo…';
+    return 'En línea';
+});
+
+const inputPlaceholder = computed(() =>
+    mode.value === 'pizarron'
+        ? isMobile.value
+            ? 'Tema a practicar…'
+            : '¿Qué tema quieres practicar? (ej: ecuaciones de segundo grado)'
+        : isMobile.value
+          ? 'Escribí o mantené el micrófono…'
+          : 'Escribe o mantén el micrófono para hablar…',
+);
+
+const AI_TIMEOUT_MS = 300000;
+
+function authHeaders(contentType?: string): Record<string, string> {
+    const h: Record<string, string> = {};
+    if (contentType) h['Content-Type'] = contentType;
+
+    const token = getToken() || authStore.token;
+    if (token) h['Authorization'] = `Bearer ${token}`;
+    return h;
+}
+
+async function fetchWithTimeout(
+    url: string,
+    options: RequestInit,
+    timeoutMs = AI_TIMEOUT_MS,
+): Promise<Response> {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+    try {
+        return await fetch(url, { ...options, signal: controller.signal });
+    } finally {
+        clearTimeout(timeoutId);
     }
+}
 
-    function playIncomingAudio(event: Event) {
-        const audio = event.currentTarget as HTMLAudioElement;
-        void audio.play().catch(() => {});
-    }
-
-    const pizState = ref<PizarronState>('idle');
-    const exerciseHtml = ref('');
-    const exerciseAudio = ref('');
-    const feedbackHtml = ref('');
-    const feedbackAudio = ref('');
-    const pizarronTopic = ref('');
-    let exerciseGeneration = 0;
-    const recordingError = ref('');
-
-    const hasDrawing = ref(false);
-
-    const canvasEl = ref<HTMLCanvasElement | null>(null);
-    const activeTool = ref<'pen' | 'eraser'>('pen');
-    const activeColor = ref(BASE_COLORS[0].value);
-    let isDrawing = false;
-    let lastX = 0;
-    let lastY = 0;
-    let canvasResizeObserver: ResizeObserver | null = null;
-    let canvasInitialized = false;
-
-    let mediaRecorder: MediaRecorder | null = null;
-    let audioChunks: Blob[] = [];
-    let recordingStream: MediaStream | null = null;
-
-    const modes = [
-        { value: 'escrita' as AssistantMode, label: 'Conversar', icon: 'pi-comments' },
-        { value: 'pizarron' as AssistantMode, label: 'Pizarrón', icon: 'pi-pencil' },
-    ];
-
-    const modeLabel = computed(() => modes.find((m) => m.value === mode.value)?.label ?? '');
-
-    const isBusy = computed(
-        () =>
-            responding.value ||
-            isRecording.value ||
-            pizState.value === 'generating' ||
-            pizState.value === 'evaluating',
-    );
-
-    const mobileViewportStyle = computed(() =>
-        isMobile.value && mobileViewportHeight.value
-            ? {
-                  height: `${mobileViewportHeight.value}px`,
-                  top: `${mobileViewportTop.value}px`,
-                  bottom: 'auto',
-              }
-            : undefined,
-    );
-
-    const needsPracticeSetup = computed(() =>
-        Boolean(props.requirePracticeContext && !activeGuidedPractice.value),
-    );
-
-    const selectedCourse = computed(() =>
-        (props.studentContext?.courses ?? []).find(
-            (course) => course.id === selectedCourseId.value,
-        ),
-    );
-
-    const selectedTopic = computed(() =>
-        topics.value.find((topic) => topic.id === selectedTopicId.value),
-    );
-
-    const statusLabel = computed(() => {
-        if (isRecording.value) return 'Grabando…';
-        if (pizState.value === 'generating') return 'Generando ejercicio…';
-        if (pizState.value === 'evaluating') return 'Evaluando…';
-        if (responding.value) return 'Escribiendo…';
-        return 'En línea';
+async function fetchAssistant(url: string, options: RequestInit): Promise<Response> {
+    const response = await fetchWithTimeout(url, {
+        ...options,
+        headers: options.headers ?? authHeaders(),
     });
+    if (response.status !== 401) return response;
 
-    const inputPlaceholder = computed(() =>
-        mode.value === 'pizarron'
-            ? isMobile.value
-                ? 'Tema a practicar…'
-                : '¿Qué tema quieres practicar? (ej: ecuaciones de segundo grado)'
-            : isMobile.value
-              ? 'Escribí o mantené el micrófono…'
-              : 'Escribe o mantén el micrófono para hablar…',
-    );
+    const token = await refreshAssistantToken();
+    if (!token) return response;
+    const headers = new Headers(options.headers);
+    headers.set('Authorization', `Bearer ${token}`);
+    return fetchWithTimeout(url, { ...options, headers });
+}
 
-    const AI_TIMEOUT_MS = 300000;
+function escapeHtml(s: string) {
+    return s
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/\n/g, '<br>');
+}
 
-    function authHeaders(contentType?: string): Record<string, string> {
-        const h: Record<string, string> = {};
-        if (contentType) h['Content-Type'] = contentType;
+function dataUrlToBlob(dataUrl: string): Blob {
+    const [meta, data] = dataUrl.split(',', 2);
+    const mimeMatch = meta.match(/^data:(.*?)(;base64)?$/);
+    const contentType = mimeMatch?.[1] || 'image/png';
+    const binary = atob(data);
+    const bytes = new Uint8Array(binary.length);
+    for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+    return new Blob([bytes], { type: contentType });
+}
 
-        const token = getToken() || authStore.token;
-        if (token) h['Authorization'] = `Bearer ${token}`;
-        return h;
+function addMsg(
+    sender: AssistantMessage['sender'],
+    content: string,
+    html = false,
+    audio?: { src: string },
+) {
+    messages.value.push({
+        id: ++msgCounter,
+        sender,
+        content,
+        html,
+        isAudio: !!audio,
+        audioSrc: audio?.src,
+    });
+    nextTick(scrollBottom);
+}
+
+function notify(message: string) {
+    if (mode.value === 'pizarron') {
+        recordingError.value = message;
+        return;
     }
+    addMsg('assistant', message);
+}
 
-    async function fetchWithTimeout(
-        url: string,
-        options: RequestInit,
-        timeoutMs = AI_TIMEOUT_MS,
-    ): Promise<Response> {
-        const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
-        try {
-            return await fetch(url, { ...options, signal: controller.signal });
-        } finally {
-            clearTimeout(timeoutId);
-        }
+function scrollBottom() {
+    if (messagesEl.value) messagesEl.value.scrollTop = messagesEl.value.scrollHeight;
+}
+
+function autoResize() {
+    if (!inputEl.value) return;
+    inputEl.value.style.height = 'auto';
+    inputEl.value.style.height = Math.min(inputEl.value.scrollHeight, 140) + 'px';
+}
+
+function cssVar(name: string, fallback: string, el?: Element | null, depth = 0) {
+    if (typeof window === 'undefined') return fallback;
+    const target = el ?? canvasEl.value ?? document.documentElement;
+    const value = getComputedStyle(target).getPropertyValue(name).trim();
+    if (!value) return fallback;
+    const varMatch = value.match(/^var\((--[^,\s)]+)(?:,\s*(.+))?\)$/);
+    if (varMatch && depth < 4) {
+        return cssVar(varMatch[1], varMatch[2]?.trim() || fallback, target, depth + 1);
     }
+    return value;
+}
 
-    async function fetchAssistant(url: string, options: RequestInit): Promise<Response> {
-        const response = await fetchWithTimeout(url, {
-            ...options,
-            headers: options.headers ?? authHeaders(),
-        });
-        if (response.status !== 401) return response;
-
-        const token = await refreshAssistantToken();
-        if (!token) return response;
-        const headers = new Headers(options.headers);
-        headers.set('Authorization', `Bearer ${token}`);
-        return fetchWithTimeout(url, { ...options, headers });
-    }
-
-    function escapeHtml(s: string) {
-        return s
-            .replace(/&/g, '&amp;')
-            .replace(/</g, '&lt;')
-            .replace(/>/g, '&gt;')
-            .replace(/\n/g, '<br>');
-    }
-
-    function dataUrlToBlob(dataUrl: string): Blob {
-        const [meta, data] = dataUrl.split(',', 2);
-        const mimeMatch = meta.match(/^data:(.*?)(;base64)?$/);
-        const contentType = mimeMatch?.[1] || 'image/png';
-        const binary = atob(data);
-        const bytes = new Uint8Array(binary.length);
-        for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
-        return new Blob([bytes], { type: contentType });
-    }
-
-    function addMsg(
-        sender: AssistantMessage['sender'],
-        content: string,
-        html = false,
-        audio?: { src: string },
-    ) {
-        messages.value.push({
-            id: ++msgCounter,
-            sender,
-            content,
-            html,
-            isAudio: !!audio,
-            audioSrc: audio?.src,
-        });
-        nextTick(scrollBottom);
-    }
-
-    function notify(message: string) {
-        if (mode.value === 'pizarron') {
-            recordingError.value = message;
-            return;
-        }
-        addMsg('assistant', message);
-    }
-
-    function scrollBottom() {
-        if (messagesEl.value) messagesEl.value.scrollTop = messagesEl.value.scrollHeight;
-    }
-
-    function autoResize() {
-        if (!inputEl.value) return;
-        inputEl.value.style.height = 'auto';
-        inputEl.value.style.height = Math.min(inputEl.value.scrollHeight, 140) + 'px';
-    }
-
-    function cssVar(name: string, fallback: string, el?: Element | null, depth = 0) {
-        if (typeof window === 'undefined') return fallback;
-        const target = el ?? canvasEl.value ?? document.documentElement;
-        const value = getComputedStyle(target).getPropertyValue(name).trim();
-        if (!value) return fallback;
-        const varMatch = value.match(/^var\((--[^,\s)]+)(?:,\s*(.+))?\)$/);
-        if (varMatch && depth < 4) {
-            return cssVar(varMatch[1], varMatch[2]?.trim() || fallback, target, depth + 1);
-        }
-        return value;
-    }
-
-    function getCanvasDebugStats(canvas: HTMLCanvasElement) {
-        const ctx = canvas.getContext('2d');
-        if (!ctx || canvas.width <= 0 || canvas.height <= 0) {
-            return {
-                width: canvas.width,
-                height: canvas.height,
-                inkPixels: 0,
-                sampledPixels: 0,
-                inkRatio: 0,
-            };
-        }
-
-        const maxSide = 320;
-        const scale = Math.min(1, maxSide / Math.max(canvas.width, canvas.height));
-        const sampleW = Math.max(1, Math.floor(canvas.width * scale));
-        const sampleH = Math.max(1, Math.floor(canvas.height * scale));
-        const sample = document.createElement('canvas');
-        sample.width = sampleW;
-        sample.height = sampleH;
-        const sampleCtx = sample.getContext('2d');
-        if (!sampleCtx) {
-            return {
-                width: canvas.width,
-                height: canvas.height,
-                inkPixels: 0,
-                sampledPixels: 0,
-                inkRatio: 0,
-            };
-        }
-
-        sampleCtx.drawImage(canvas, 0, 0, sampleW, sampleH);
-        const pixels = sampleCtx.getImageData(0, 0, sampleW, sampleH).data;
-        let inkPixels = 0;
-        for (let i = 0; i < pixels.length; i += 4) {
-            const alpha = pixels[i + 3];
-            if (alpha < 20) continue;
-            const r = pixels[i];
-            const g = pixels[i + 1];
-            const b = pixels[i + 2];
-            const max = Math.max(r, g, b);
-            const min = Math.min(r, g, b);
-            const gray = 0.299 * r + 0.587 * g + 0.114 * b;
-            if (gray < 210 || max - min > 25) inkPixels++;
-        }
-
-        const sampledPixels = sampleW * sampleH;
+function getCanvasDebugStats(canvas: HTMLCanvasElement) {
+    const ctx = canvas.getContext('2d');
+    if (!ctx || canvas.width <= 0 || canvas.height <= 0) {
         return {
             width: canvas.width,
             height: canvas.height,
-            cssWidth: Math.round(canvas.getBoundingClientRect().width),
-            cssHeight: Math.round(canvas.getBoundingClientRect().height),
-            inkPixels,
-            sampledPixels,
-            inkRatio: sampledPixels ? Number((inkPixels / sampledPixels).toFixed(4)) : 0,
+            inkPixels: 0,
+            sampledPixels: 0,
+            inkRatio: 0,
         };
     }
 
-    function getStudentGrade(): string {
-        const grades = new Set(
-            (props.studentContext?.courses ?? []).map((course) => course.grade).filter(Boolean),
+    const maxSide = 320;
+    const scale = Math.min(1, maxSide / Math.max(canvas.width, canvas.height));
+    const sampleW = Math.max(1, Math.floor(canvas.width * scale));
+    const sampleH = Math.max(1, Math.floor(canvas.height * scale));
+    const sample = document.createElement('canvas');
+    sample.width = sampleW;
+    sample.height = sampleH;
+    const sampleCtx = sample.getContext('2d');
+    if (!sampleCtx) {
+        return {
+            width: canvas.width,
+            height: canvas.height,
+            inkPixels: 0,
+            sampledPixels: 0,
+            inkRatio: 0,
+        };
+    }
+
+    sampleCtx.drawImage(canvas, 0, 0, sampleW, sampleH);
+    const pixels = sampleCtx.getImageData(0, 0, sampleW, sampleH).data;
+    let inkPixels = 0;
+    for (let i = 0; i < pixels.length; i += 4) {
+        const alpha = pixels[i + 3];
+        if (alpha < 20) continue;
+        const r = pixels[i];
+        const g = pixels[i + 1];
+        const b = pixels[i + 2];
+        const max = Math.max(r, g, b);
+        const min = Math.min(r, g, b);
+        const gray = 0.299 * r + 0.587 * g + 0.114 * b;
+        if (gray < 210 || max - min > 25) inkPixels++;
+    }
+
+    const sampledPixels = sampleW * sampleH;
+    return {
+        width: canvas.width,
+        height: canvas.height,
+        cssWidth: Math.round(canvas.getBoundingClientRect().width),
+        cssHeight: Math.round(canvas.getBoundingClientRect().height),
+        inkPixels,
+        sampledPixels,
+        inkRatio: sampledPixels ? Number((inkPixels / sampledPixels).toFixed(4)) : 0,
+    };
+}
+
+function getStudentGrade(): string {
+    const grades = new Set(
+        (props.studentContext?.courses ?? []).map((course) => course.grade).filter(Boolean),
+    );
+    return grades.size === 1 ? [...grades][0] : '';
+}
+
+function buildContext(): string {
+    const ctx = props.studentContext;
+    const lines: string[] = [];
+    if (ctx?.studentName) lines.push(`Estudiante: ${ctx.studentName}`);
+    if (ctx?.courses?.length) {
+        lines.push('Cursos:');
+        ctx.courses.forEach((c) =>
+            lines.push(`  - ${c.title} (${c.subject}, ${c.grade}) Nivel ${c.currentLevel}`),
         );
-        return grades.size === 1 ? [...grades][0] : '';
     }
-
-    function buildContext(): string {
-        const ctx = props.studentContext;
-        const lines: string[] = [];
-        if (ctx?.studentName) lines.push(`Estudiante: ${ctx.studentName}`);
-        if (ctx?.courses?.length) {
-            lines.push('Cursos:');
-            ctx.courses.forEach((c) =>
-                lines.push(`  - ${c.title} (${c.subject}, ${c.grade}) Nivel ${c.currentLevel}`),
-            );
-        }
-        if (ctx?.topicProgress?.length) {
-            lines.push('Progreso:');
-            ctx.topicProgress.forEach((p) =>
-                lines.push(`  - ${p.topic}: ${Math.round(p.mastery)}% dominio, Nivel ${p.level}`),
-            );
-        }
-        if (activeGuidedPractice.value) {
-            const { course, topic } = activeGuidedPractice.value;
-            lines.push('Práctica guiada elegida (obligatoria):');
-            lines.push(`  - Curso: ${course.title} (id: ${course.id})`);
-            lines.push(`  - Tema: ${topic.title} (id: ${topic.id})`);
-            lines.push(`  - Nivel actual: ${course.currentLevel}`);
-            lines.push('Genera y explica contenido únicamente de este tema.');
-        }
-        const activityContext = getActivityContext();
-        if (activityContext) {
-            lines.push('Contexto de la actividad actual:');
-            lines.push(JSON.stringify(activityContext));
-        }
-        return lines.join('\n');
+    if (ctx?.topicProgress?.length) {
+        lines.push('Progreso:');
+        ctx.topicProgress.forEach((p) =>
+            lines.push(`  - ${p.topic}: ${Math.round(p.mastery)}% dominio, Nivel ${p.level}`),
+        );
     }
-
-    function getActivityContext(): unknown {
-        try {
-            return window.__practiqAssistantContext?.() || null;
-        } catch (error) {
-            console.warn('[assistant-modal] failed to read activity context', error);
-            return null;
-        }
+    if (activeGuidedPractice.value) {
+        const { course, topic } = activeGuidedPractice.value;
+        lines.push('Práctica guiada elegida (obligatoria):');
+        lines.push(`  - Curso: ${course.title} (id: ${course.id})`);
+        lines.push(`  - Tema: ${topic.title} (id: ${topic.id})`);
+        lines.push(`  - Nivel actual: ${course.currentLevel}`);
+        lines.push('Genera y explica contenido únicamente de este tema.');
     }
-
-    async function attachActivityCapture(fd: FormData): Promise<boolean> {
-        try {
-            const capture = await window.__practiqAssistantCapture?.();
-            if (!capture?.dataUrl) return false;
-            fd.append(
-                'image_content',
-                dataUrlToBlob(capture.dataUrl),
-                capture.filename || 'activity-work.jpg',
-            );
-            console.info('[assistant-modal] attached activity capture', {
-                filename: capture.filename,
-                contentType: capture.contentType,
-                dataUrlLength: capture.dataUrl.length,
-            });
-            return true;
-        } catch (error) {
-            console.warn('[assistant-modal] failed to attach activity capture', error);
-            return false;
-        }
+    const activityContext = getActivityContext();
+    if (activityContext) {
+        lines.push('Contexto de la actividad actual:');
+        lines.push(JSON.stringify(activityContext));
     }
+    return lines.join('\n');
+}
 
-    function buildInstructionWrappedContent(message: string, hasImageAttachment: boolean): string {
-        const trimmedMessage = message.trim();
-        const grade = getStudentGrade();
-        const gradeInstruction = grade
-            ? `El estudiante es de ${grade}. Usa los contenidos de los documentos de ${grade} para responder.`
-            : '';
-        return [
-            'POLITICA OBLIGATORIA:',
-            'No des respuestas finales ni resuelvas completamente ejercicios evaluables.',
-            'Da solo pistas, explicaciones breves, preguntas guia o el siguiente paso.',
-            gradeInstruction,
-            'Si existe contexto estructurado de Practiq, usalo para ubicar curso, hoja y numero de ejercicio.',
-            'El contexto puede traer \'exercise_list\' con todos los ejercicios de la hoja y \'active_exercise\' con el que el alumno tiene abierto ahora. Cuando el alumno pregunta de forma generica ("este ejercicio", "el ejercicio actual", sin numero), respondele solo sobre active_exercise. Usa exercise_list unicamente si el alumno pide explicitamente otro ejercicio por numero.',
-            hasImageAttachment
-                ? [
-                      'Hay una imagen adjunta de la actividad actual.',
-                      'Si la imagen tiene secciones rotuladas, lee directamente cada seccion.',
-                      "La seccion 'Consigna del docente' puede contener el enunciado manuscrito; usala como fuente principal del ejercicio.",
-                      "La seccion 'Respuesta del alumno' contiene el trabajo manuscrito del alumno.",
-                      "Si el contexto textual trae una pregunta generica como 'Suma correctamente' o similar, NO infieras otros numeros desde ejercicios anteriores: lee la consigna manuscrita en la imagen.",
-                      'Si no puedes leer la consigna o la respuesta con claridad, dilo y pide una imagen mas clara.',
-                  ].join('\n')
-                : 'Si el alumno menciona trabajo manuscrito pero no hay imagen legible, pide que lo describa.',
-            'Si detectas la respuesta del alumno en la imagen, confirma que escribio y guia con una pista sin revelar la solucion final.',
-            '',
-            `Mensaje del alumno: ${trimmedMessage || '[sin texto, usa contexto e imagen adjunta]'}`,
-            '',
-            'Responde en espanol.',
-        ].join('\n');
+function getActivityContext(): unknown {
+    try {
+        return window.__practiqAssistantContext?.() || null;
+    } catch (error) {
+        console.warn('[assistant-modal] failed to read activity context', error);
+        return null;
     }
+}
 
-    async function createConversation(title: string) {
-        const res = await fetchAssistant(`${API_BASE}/conversation/`, {
-            method: 'POST',
-            headers: authHeaders('application/json'),
-            body: JSON.stringify({ title }),
+async function attachActivityCapture(fd: FormData): Promise<boolean> {
+    try {
+        const capture = await window.__practiqAssistantCapture?.();
+        if (!capture?.dataUrl) return false;
+        fd.append(
+            'image_content',
+            dataUrlToBlob(capture.dataUrl),
+            capture.filename || 'activity-work.jpg',
+        );
+        console.info('[assistant-modal] attached activity capture', {
+            filename: capture.filename,
+            contentType: capture.contentType,
+            dataUrlLength: capture.dataUrl.length,
         });
-        if (!res.ok) throw new Error(`create conversation ${res.status}`);
-        const data = await res.json();
-        conversationId = data.data.id;
-        const clientId = data.data.client_id;
-        if (clientId) localStorage.setItem(STORAGE_KEY, clientId);
+        return true;
+    } catch (error) {
+        console.warn('[assistant-modal] failed to attach activity capture', error);
+        return false;
     }
+}
 
-    async function selectCourse(courseId: string) {
-        selectedCourseId.value = courseId;
-        selectedTopicId.value = '';
-        topics.value = [];
-        topicsLoading.value = true;
-        const request = ++topicRequest;
-        try {
-            const res = await fetchAssistant(
-                `${PRACTIQ_API_BASE}/courses/${encodeURIComponent(courseId)}/topics`,
-                { headers: authHeaders() },
-            );
-            if (!res.ok) throw new Error(`list topics ${res.status}`);
-            const payload = await res.json();
-            if (request !== topicRequest) return;
-            topics.value = (payload?.data ?? []).sort(
-                (a: Topic, b: Topic) => a.order_index - b.order_index,
-            );
-        } catch {
-            if (request === topicRequest) topics.value = [];
-        } finally {
-            if (request === topicRequest) topicsLoading.value = false;
-        }
-    }
+function buildInstructionWrappedContent(message: string, hasImageAttachment: boolean): string {
+    const trimmedMessage = message.trim();
+    const grade = getStudentGrade();
+    const gradeInstruction = grade
+        ? `El estudiante es de ${grade}. Usa los contenidos de los documentos de ${grade} para responder.`
+        : '';
+    return [
+        'POLITICA OBLIGATORIA:',
+        'No des respuestas finales ni resuelvas completamente ejercicios evaluables.',
+        'Da solo pistas, explicaciones breves, preguntas guia o el siguiente paso.',
+        gradeInstruction,
+        'Si existe contexto estructurado de Practiq, usalo para ubicar curso, hoja y numero de ejercicio.',
+        'El contexto puede traer \'exercise_list\' con todos los ejercicios de la hoja y \'active_exercise\' con el que el alumno tiene abierto ahora. Cuando el alumno pregunta de forma generica ("este ejercicio", "el ejercicio actual", sin numero), respondele solo sobre active_exercise. Usa exercise_list unicamente si el alumno pide explicitamente otro ejercicio por numero.',
+        hasImageAttachment
+            ? [
+                  'Hay una imagen adjunta de la actividad actual.',
+                  'Si la imagen tiene secciones rotuladas, lee directamente cada seccion.',
+                  "La seccion 'Consigna del docente' puede contener el enunciado manuscrito; usala como fuente principal del ejercicio.",
+                  "La seccion 'Respuesta del alumno' contiene el trabajo manuscrito del alumno.",
+                  "Si el contexto textual trae una pregunta generica como 'Suma correctamente' o similar, NO infieras otros numeros desde ejercicios anteriores: lee la consigna manuscrita en la imagen.",
+                  'Si no puedes leer la consigna o la respuesta con claridad, dilo y pide una imagen mas clara.',
+              ].join('\n')
+            : 'Si el alumno menciona trabajo manuscrito pero no hay imagen legible, pide que lo describa.',
+        'Si detectas la respuesta del alumno en la imagen, confirma que escribio y guia con una pista sin revelar la solucion final.',
+        '',
+        `Mensaje del alumno: ${trimmedMessage || '[sin texto, usa contexto e imagen adjunta]'}`,
+        '',
+        'Responde en espanol.',
+    ].join('\n');
+}
 
-    async function startGuidedPractice() {
-        if (!selectedCourse.value || !selectedTopic.value || topicsLoading.value) return;
-        activeGuidedPractice.value = {
-            course: selectedCourse.value,
-            topic: selectedTopic.value,
-        };
-        conversationId = null;
-        messages.value = [];
-        msgCounter = 0;
-        mode.value = selectedPracticeMode.value;
-        resetPizarron();
-        if (mode.value === 'pizarron') {
-            await generateExercise(selectedTopic.value.title);
-            return;
-        }
-        addMsg(
-            'assistant',
-            `Perfecto. Vamos a practicar ${selectedTopic.value.title}. ¿Qué parte querés repasar primero?`,
+async function createConversation(title: string) {
+    const res = await fetchAssistant(`${API_BASE}/conversation/`, {
+        method: 'POST',
+        headers: authHeaders('application/json'),
+        body: JSON.stringify({ title }),
+    });
+    if (!res.ok) throw new Error(`create conversation ${res.status}`);
+    const data = await res.json();
+    conversationId = data.data.id;
+    const clientId = data.data.client_id;
+    if (clientId) localStorage.setItem(STORAGE_KEY, clientId);
+}
+
+async function selectCourse(courseId: string) {
+    selectedCourseId.value = courseId;
+    selectedTopicId.value = '';
+    topics.value = [];
+    topicsLoading.value = true;
+    const request = ++topicRequest;
+    try {
+        const res = await fetchAssistant(
+            `${PRACTIQ_API_BASE}/courses/${encodeURIComponent(courseId)}/topics`,
+            { headers: authHeaders() },
         );
-    }
-
-    function resetGuidedPractice() {
-        activeGuidedPractice.value = null;
-        selectedCourseId.value = '';
-        selectedTopicId.value = '';
-        selectedPracticeMode.value = 'pizarron';
-        topics.value = [];
-        topicsLoading.value = false;
-        topicRequest++;
-    }
-
-    async function postFormData(fd: FormData, imageProcessor = false): Promise<AssistantReply> {
-        if (!conversationId) {
-            const text = (fd.get('content') as string) || 'Nueva conversación';
-            await createConversation(text.substring(0, 30));
-        }
-        const imgParam = imageProcessor ? 'activate' : 'deactivate';
-        const voiceParam = voiceReplies.value ? 'activate' : 'deactivate';
-        const url = `${API_BASE}/conversation/${conversationId}/message?has_image_processor=${imgParam}&has_text_to_voice=${voiceParam}`;
-        fd.set(
-            'content',
-            buildInstructionWrappedContent(
-                ((fd.get('content') as string) || '').trim(),
-                fd.has('image_content'),
-            ),
+        if (!res.ok) throw new Error(`list topics ${res.status}`);
+        const payload = await res.json();
+        if (request !== topicRequest) return;
+        topics.value = (payload?.data ?? []).sort(
+            (a: Topic, b: Topic) => a.order_index - b.order_index,
         );
-        const res = await fetchAssistant(url, {
-            method: 'POST',
+    } catch {
+        if (request === topicRequest) topics.value = [];
+    } finally {
+        if (request === topicRequest) topicsLoading.value = false;
+    }
+}
+
+async function startGuidedPractice() {
+    if (!selectedCourse.value || !selectedTopic.value || topicsLoading.value) return;
+    activeGuidedPractice.value = {
+        course: selectedCourse.value,
+        topic: selectedTopic.value,
+    };
+    conversationId = null;
+    messages.value = [];
+    msgCounter = 0;
+    mode.value = selectedPracticeMode.value;
+    resetPizarron();
+    if (mode.value === 'pizarron') {
+        await generateExercise(selectedTopic.value.title);
+        return;
+    }
+    addMsg(
+        'assistant',
+        `Perfecto. Vamos a practicar ${selectedTopic.value.title}. ¿Qué parte querés repasar primero?`,
+    );
+}
+
+function resetGuidedPractice() {
+    activeGuidedPractice.value = null;
+    selectedCourseId.value = '';
+    selectedTopicId.value = '';
+    selectedPracticeMode.value = 'pizarron';
+    topics.value = [];
+    topicsLoading.value = false;
+    topicRequest++;
+}
+
+async function postFormData(fd: FormData, imageProcessor = false): Promise<AssistantReply> {
+    if (!conversationId) {
+        const text = (fd.get('content') as string) || 'Nueva conversación';
+        await createConversation(text.substring(0, 30));
+    }
+    const imgParam = imageProcessor ? 'activate' : 'deactivate';
+    const voiceParam = voiceReplies.value ? 'activate' : 'deactivate';
+    const url = `${API_BASE}/conversation/${conversationId}/message?has_image_processor=${imgParam}&has_text_to_voice=${voiceParam}`;
+    fd.set(
+        'content',
+        buildInstructionWrappedContent(
+            ((fd.get('content') as string) || '').trim(),
+            fd.has('image_content'),
+        ),
+    );
+    const res = await fetchAssistant(url, {
+        method: 'POST',
+        headers: authHeaders(),
+        body: fd,
+    });
+    if (!res.ok) throw new Error(`send message ${res.status}`);
+    const data = await res.json();
+    const msgs: any[] = data?.data || [];
+    const assistantMsg = [...msgs].reverse().find((m: any) => m.sender === 'assistant');
+    return parseAssistantReply(assistantMsg?.content || '', assistantMsg?.audio_url);
+}
+
+async function loadHistory() {
+    const storedClientId = localStorage.getItem(STORAGE_KEY);
+    if (!storedClientId) return;
+    try {
+        const res = await fetchAssistant(`${API_BASE}/conversation/user`, {
             headers: authHeaders(),
-            body: fd,
         });
-        if (!res.ok) throw new Error(`send message ${res.status}`);
+        if (!res.ok) return;
         const data = await res.json();
-        const msgs: any[] = data?.data || [];
-        const assistantMsg = [...msgs].reverse().find((m: any) => m.sender === 'assistant');
-        return parseAssistantReply(assistantMsg?.content || '', assistantMsg?.audio_url);
-    }
-
-    async function loadHistory() {
-        const storedClientId = localStorage.getItem(STORAGE_KEY);
-        if (!storedClientId) return;
-        try {
-            const res = await fetchAssistant(`${API_BASE}/conversation/user`, {
-                headers: authHeaders(),
-            });
-            if (!res.ok) return;
-            const data = await res.json();
-            const convs: any[] = data?.data || data || [];
-            const match = convs.find((c: any) => c.client_id === storedClientId);
-            if (!match) return;
-            conversationId = match.id;
-            const msgRes = await fetchAssistant(`${API_BASE}/conversation/${conversationId}`, {
-                headers: authHeaders(),
-            });
-            if (!msgRes.ok) return;
-            const msgData = await msgRes.json();
-            const rawMsgs: any[] = msgData?.data || [];
-            rawMsgs.forEach((m: any) => {
-                if (m.sender === 'user') {
-                    addMsg('user', m.content || '');
-                    return;
-                }
-                const reply = parseAssistantReply(m.content || '', m.audio_url);
-                if (reply.text || reply.audioUrl) {
-                    addMsg(
-                        'assistant',
-                        reply.text,
-                        true,
-                        reply.audioUrl ? { src: reply.audioUrl } : undefined,
-                    );
-                }
-            });
-        } catch {}
-    }
-
-    async function sendText() {
-        const text = draft.value.trim();
-        if (!text || responding.value) return;
-        draft.value = '';
-        if (inputEl.value) inputEl.value.style.height = 'auto';
-
-        if (mode.value === 'pizarron') {
-            await generateExercise(text);
-            return;
-        }
-
-        addMsg('user', text);
-        responding.value = true;
-        try {
-            const fd = new FormData();
-            fd.append('content', text);
-            fd.append('context', buildContext());
-            const hasImage = await attachActivityCapture(fd);
-            const reply = await postFormData(fd, hasImage);
-            if (reply.text || reply.audioUrl) {
-                addMsg(
-                    'assistant',
-                    reply.text,
-                    true,
-                    reply.audioUrl ? { src: reply.audioUrl } : undefined,
-                );
-            }
-        } catch {
-            addMsg('assistant', 'Ocurrió un error. Por favor intenta de nuevo.');
-        } finally {
-            responding.value = false;
-            nextTick(() => inputEl.value?.focus());
-        }
-    }
-
-    async function startRecording() {
-        if (responding.value || isRecording.value) return;
-        recordingError.value = '';
-        try {
-            if (!navigator.mediaDevices?.getUserMedia || typeof MediaRecorder === 'undefined') {
-                notify('Tu navegador no soporta grabación de audio desde este modal.');
-                return;
-            }
-            const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-            recordingStream = stream;
-            audioChunks = [];
-            mediaRecorder = new MediaRecorder(stream);
-            mediaRecorder.ondataavailable = (e) => {
-                if (e.data.size > 0) audioChunks.push(e.data);
-            };
-            mediaRecorder.start();
-            isRecording.value = true;
-        } catch {
-            notify('No se pudo acceder al micrófono. Revisa los permisos del navegador.');
-        }
-    }
-
-    async function stopRecording() {
-        if (!isRecording.value || !mediaRecorder) return;
-        isRecording.value = false;
-        await new Promise<void>((resolve) => {
-            mediaRecorder!.onstop = () => resolve();
-            mediaRecorder!.stop();
-            stopRecordingStream();
+        const convs: any[] = data?.data || data || [];
+        const match = convs.find((c: any) => c.client_id === storedClientId);
+        if (!match) return;
+        conversationId = match.id;
+        const msgRes = await fetchAssistant(`${API_BASE}/conversation/${conversationId}`, {
+            headers: authHeaders(),
         });
-        if (audioChunks.length === 0) return;
-        try {
-            const webmBlob = new Blob(audioChunks, { type: 'audio/webm' });
-            const wavBlob = await convertToWav(webmBlob);
-            if (wavBlob.size <= 44) {
-                notify('No se detectó audio. Mantén presionado y vuelve a intentar.');
+        if (!msgRes.ok) return;
+        const msgData = await msgRes.json();
+        const rawMsgs: any[] = msgData?.data || [];
+        rawMsgs.forEach((m: any) => {
+            if (m.sender === 'user') {
+                addMsg('user', m.content || '');
                 return;
             }
-            if (mode.value === 'pizarron') {
-                await generateExercise('', wavBlob);
-                return;
-            }
-
-            const localUrl = URL.createObjectURL(wavBlob);
-            addMsg('user', '', false, { src: localUrl });
-            responding.value = true;
-            const fd = new FormData();
-            fd.append('content', '');
-            fd.append('voice_content', wavBlob, 'audio.wav');
-            fd.append('context', buildContext());
-            const hasImage = await attachActivityCapture(fd);
-            const reply = await postFormData(fd, hasImage);
+            const reply = parseAssistantReply(m.content || '', m.audio_url);
             if (reply.text || reply.audioUrl) {
                 addMsg(
                     'assistant',
@@ -1121,1519 +1020,1613 @@
                     reply.audioUrl ? { src: reply.audioUrl } : undefined,
                 );
             }
-        } catch (error) {
-            console.error('Error processing audio:', error);
+        });
+    } catch {}
+}
+
+async function sendText() {
+    const text = draft.value.trim();
+    if (!text || responding.value) return;
+    draft.value = '';
+    if (inputEl.value) inputEl.value.style.height = 'auto';
+
+    if (mode.value === 'pizarron') {
+        await generateExercise(text);
+        return;
+    }
+
+    addMsg('user', text);
+    responding.value = true;
+    try {
+        const fd = new FormData();
+        fd.append('content', text);
+        fd.append('context', buildContext());
+        const hasImage = await attachActivityCapture(fd);
+        const reply = await postFormData(fd, hasImage);
+        if (reply.text || reply.audioUrl) {
             addMsg(
                 'assistant',
-                'Ocurrió un error procesando el audio. Por favor intenta de nuevo.',
+                reply.text,
+                true,
+                reply.audioUrl ? { src: reply.audioUrl } : undefined,
             );
-        } finally {
-            responding.value = false;
-            mediaRecorder = null;
-            audioChunks = [];
         }
+    } catch {
+        addMsg('assistant', 'Ocurrió un error. Por favor intenta de nuevo.');
+    } finally {
+        responding.value = false;
+        nextTick(() => inputEl.value?.focus());
     }
+}
 
-    function stopRecordingStream() {
-        recordingStream?.getTracks().forEach((track) => track.stop());
-        recordingStream = null;
-    }
-
-    async function convertToWav(audioBlob: Blob): Promise<Blob> {
-        const AudioContextCtor = window.AudioContext || (window as any).webkitAudioContext;
-        const audioContext = new AudioContextCtor();
-        try {
-            const arrayBuffer = await audioBlob.arrayBuffer();
-            const audioBuffer = await audioContext.decodeAudioData(arrayBuffer);
-            return audioBufferToWav(audioBuffer);
-        } finally {
-            await audioContext.close().catch(() => undefined);
+async function startRecording() {
+    if (responding.value || isRecording.value) return;
+    recordingError.value = '';
+    try {
+        if (!navigator.mediaDevices?.getUserMedia || typeof MediaRecorder === 'undefined') {
+            notify('Tu navegador no soporta grabación de audio desde este modal.');
+            return;
         }
-    }
-
-    function audioBufferToWav(buffer: AudioBuffer): Blob {
-        const length = buffer.length;
-        const numberOfChannels = buffer.numberOfChannels;
-        const sampleRate = buffer.sampleRate;
-        const bytesPerSample = 2;
-        const blockAlign = numberOfChannels * bytesPerSample;
-        const byteRate = sampleRate * blockAlign;
-        const dataSize = length * blockAlign;
-        const bufferSize = 44 + dataSize;
-        const arrayBuffer = new ArrayBuffer(bufferSize);
-        const view = new DataView(arrayBuffer);
-
-        const writeString = (offset: number, value: string) => {
-            for (let i = 0; i < value.length; i++) {
-                view.setUint8(offset + i, value.charCodeAt(i));
-            }
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        recordingStream = stream;
+        audioChunks = [];
+        mediaRecorder = new MediaRecorder(stream);
+        mediaRecorder.ondataavailable = (e) => {
+            if (e.data.size > 0) audioChunks.push(e.data);
         };
+        mediaRecorder.start();
+        isRecording.value = true;
+    } catch {
+        notify('No se pudo acceder al micrófono. Revisa los permisos del navegador.');
+    }
+}
 
-        writeString(0, 'RIFF');
-        view.setUint32(4, bufferSize - 8, true);
-        writeString(8, 'WAVE');
-        writeString(12, 'fmt ');
-        view.setUint32(16, 16, true);
-        view.setUint16(20, 1, true);
-        view.setUint16(22, numberOfChannels, true);
-        view.setUint32(24, sampleRate, true);
-        view.setUint32(28, byteRate, true);
-        view.setUint16(32, blockAlign, true);
-        view.setUint16(34, 16, true);
-        writeString(36, 'data');
-        view.setUint32(40, dataSize, true);
-
-        let offset = 44;
-        for (let i = 0; i < length; i++) {
-            for (let channel = 0; channel < numberOfChannels; channel++) {
-                const sample = Math.max(-1, Math.min(1, buffer.getChannelData(channel)[i]));
-                view.setInt16(offset, sample < 0 ? sample * 0x8000 : sample * 0x7fff, true);
-                offset += 2;
-            }
+async function stopRecording() {
+    if (!isRecording.value || !mediaRecorder) return;
+    isRecording.value = false;
+    await new Promise<void>((resolve) => {
+        mediaRecorder!.onstop = () => resolve();
+        mediaRecorder!.stop();
+        stopRecordingStream();
+    });
+    if (audioChunks.length === 0) return;
+    try {
+        const webmBlob = new Blob(audioChunks, { type: 'audio/webm' });
+        const wavBlob = await convertToWav(webmBlob);
+        if (wavBlob.size <= 44) {
+            notify('No se detectó audio. Mantén presionado y vuelve a intentar.');
+            return;
+        }
+        if (mode.value === 'pizarron') {
+            await generateExercise('', wavBlob);
+            return;
         }
 
-        return new Blob([arrayBuffer], { type: 'audio/wav' });
+        const localUrl = URL.createObjectURL(wavBlob);
+        addMsg('user', '', false, { src: localUrl });
+        responding.value = true;
+        const fd = new FormData();
+        fd.append('content', '');
+        fd.append('voice_content', wavBlob, 'audio.wav');
+        fd.append('context', buildContext());
+        const hasImage = await attachActivityCapture(fd);
+        const reply = await postFormData(fd, hasImage);
+        if (reply.text || reply.audioUrl) {
+            addMsg(
+                'assistant',
+                reply.text,
+                true,
+                reply.audioUrl ? { src: reply.audioUrl } : undefined,
+            );
+        }
+    } catch (error) {
+        console.error('Error processing audio:', error);
+        addMsg('assistant', 'Ocurrió un error procesando el audio. Por favor intenta de nuevo.');
+    } finally {
+        responding.value = false;
+        mediaRecorder = null;
+        audioChunks = [];
+    }
+}
+
+function stopRecordingStream() {
+    recordingStream?.getTracks().forEach((track) => track.stop());
+    recordingStream = null;
+}
+
+async function convertToWav(audioBlob: Blob): Promise<Blob> {
+    const AudioContextCtor = window.AudioContext || (window as any).webkitAudioContext;
+    const audioContext = new AudioContextCtor();
+    try {
+        const arrayBuffer = await audioBlob.arrayBuffer();
+        const audioBuffer = await audioContext.decodeAudioData(arrayBuffer);
+        return audioBufferToWav(audioBuffer);
+    } finally {
+        await audioContext.close().catch(() => undefined);
+    }
+}
+
+function audioBufferToWav(buffer: AudioBuffer): Blob {
+    const length = buffer.length;
+    const numberOfChannels = buffer.numberOfChannels;
+    const sampleRate = buffer.sampleRate;
+    const bytesPerSample = 2;
+    const blockAlign = numberOfChannels * bytesPerSample;
+    const byteRate = sampleRate * blockAlign;
+    const dataSize = length * blockAlign;
+    const bufferSize = 44 + dataSize;
+    const arrayBuffer = new ArrayBuffer(bufferSize);
+    const view = new DataView(arrayBuffer);
+
+    const writeString = (offset: number, value: string) => {
+        for (let i = 0; i < value.length; i++) {
+            view.setUint8(offset + i, value.charCodeAt(i));
+        }
+    };
+
+    writeString(0, 'RIFF');
+    view.setUint32(4, bufferSize - 8, true);
+    writeString(8, 'WAVE');
+    writeString(12, 'fmt ');
+    view.setUint32(16, 16, true);
+    view.setUint16(20, 1, true);
+    view.setUint16(22, numberOfChannels, true);
+    view.setUint32(24, sampleRate, true);
+    view.setUint32(28, byteRate, true);
+    view.setUint16(32, blockAlign, true);
+    view.setUint16(34, 16, true);
+    writeString(36, 'data');
+    view.setUint32(40, dataSize, true);
+
+    let offset = 44;
+    for (let i = 0; i < length; i++) {
+        for (let channel = 0; channel < numberOfChannels; channel++) {
+            const sample = Math.max(-1, Math.min(1, buffer.getChannelData(channel)[i]));
+            view.setInt16(offset, sample < 0 ? sample * 0x8000 : sample * 0x7fff, true);
+            offset += 2;
+        }
     }
 
-    async function generateExercise(topic: string, voice?: Blob) {
-        const generation = ++exerciseGeneration;
-        pizarronTopic.value = topic;
-        pizState.value = 'generating';
-        const grade = getStudentGrade();
-        const gradeContext = grade
-            ? `El estudiante es de ${grade}. Usa los contenidos de los documentos de ${grade} para generar el ejercicio.`
-            : '';
-        try {
-            const prompt = [
-                'MODO PIZARRÓN - GENERACIÓN DE EJERCICIO:',
-                gradeContext,
-                voice
-                    ? 'El alumno dijo el tema en el audio adjunto. Escuchalo y genera un ejercicio sobre ese tema.'
-                    : `Genera un ejercicio claro, bien estructurado y resolvible manualmente sobre el tema: "${topic}".`,
-                'Requisitos:',
-                '- Máximo 1 ejercicios numerados',
-                '- Enunciado claro con todos los datos necesarios',
-                '- Adecuado para resolver en un lienzo de dibujo a mano',
-                '- NO incluyas la solución',
-                '- Formato limpio, fácil de leer',
-                '- Incluye una instrucción breve al inicio indicando qué debe hacer el alumno (ej: "Resolvé cada ejercicio en el lienzo")',
-                '- Adapta la dificultad al nivel del alumno según el contexto enviado',
-                '- Usa lenguaje simple, adecuado para niños',
-                'Responde solo con los ejercicios, sin introducciones.',
-            ]
-                .filter(Boolean)
-                .join('\n');
+    return new Blob([arrayBuffer], { type: 'audio/wav' });
+}
 
-            const fd = new FormData();
-            fd.append('content', prompt);
-            fd.append('context', buildContext());
-            if (voice) fd.append('voice_content', voice, 'audio.wav');
-            const reply = await postFormData(fd);
-            if (reply.text || reply.audioUrl) {
-                if (generation !== exerciseGeneration) return;
-                exerciseHtml.value = reply.text;
-                exerciseAudio.value = reply.audioUrl;
-                pizState.value = 'drawing';
-                nextTick(scheduleCanvasInit);
-            } else {
-                if (generation === exerciseGeneration) pizState.value = 'idle';
-            }
-        } catch {
+async function generateExercise(topic: string, voice?: Blob) {
+    const generation = ++exerciseGeneration;
+    pizarronTopic.value = topic;
+    pizState.value = 'generating';
+    const grade = getStudentGrade();
+    const gradeContext = grade
+        ? `El estudiante es de ${grade}. Usa los contenidos de los documentos de ${grade} para generar el ejercicio.`
+        : '';
+    try {
+        const prompt = [
+            'MODO PIZARRÓN - GENERACIÓN DE EJERCICIO:',
+            gradeContext,
+            voice
+                ? 'El alumno dijo el tema en el audio adjunto. Escuchalo y genera un ejercicio sobre ese tema.'
+                : `Genera un ejercicio claro, bien estructurado y resolvible manualmente sobre el tema: "${topic}".`,
+            'Requisitos:',
+            '- Máximo 1 ejercicios numerados',
+            '- Enunciado claro con todos los datos necesarios',
+            '- Adecuado para resolver en un lienzo de dibujo a mano',
+            '- NO incluyas la solución',
+            '- Formato limpio, fácil de leer',
+            '- Incluye una instrucción breve al inicio indicando qué debe hacer el alumno (ej: "Resolvé cada ejercicio en el lienzo")',
+            '- Adapta la dificultad al nivel del alumno según el contexto enviado',
+            '- Usa lenguaje simple, adecuado para niños',
+            'Responde solo con los ejercicios, sin introducciones.',
+        ]
+            .filter(Boolean)
+            .join('\n');
+
+        const fd = new FormData();
+        fd.append('content', prompt);
+        fd.append('context', buildContext());
+        if (voice) fd.append('voice_content', voice, 'audio.wav');
+        const reply = await postFormData(fd);
+        if (reply.text || reply.audioUrl) {
+            if (generation !== exerciseGeneration) return;
+            exerciseHtml.value = reply.text;
+            exerciseAudio.value = reply.audioUrl;
+            pizState.value = 'drawing';
+            nextTick(scheduleCanvasInit);
+        } else {
             if (generation === exerciseGeneration) pizState.value = 'idle';
         }
+    } catch {
+        if (generation === exerciseGeneration) pizState.value = 'idle';
+    }
+}
+
+async function evaluateCanvas() {
+    if (!canvasEl.value || pizState.value === 'evaluating') return;
+    pizState.value = 'evaluating';
+    try {
+        await ensureCanvasReady();
+        const dataUrl = canvasEl.value.toDataURL('image/png');
+        const blob = dataUrlToBlob(dataUrl);
+        console.info('[assistant-modal] canvas capture', {
+            ...getCanvasDebugStats(canvasEl.value),
+            dataUrlLength: dataUrl.length,
+            blobSize: blob.size,
+            blobType: blob.type,
+        });
+        const grade = getStudentGrade();
+        const gradeContext = grade
+            ? `El estudiante es de ${grade}. Evalúa considerando los contenidos de los documentos de ${grade}.`
+            : '';
+        const prompt = [
+            'MODO PIZARRÓN - EVALUACIÓN DE RESPUESTA:',
+            gradeContext,
+            'El alumno ha resuelto el ejercicio anterior en su lienzo. Analiza la imagen adjunta y:',
+            '1. Identifica lo que escribió o dibujó',
+            '2. Evalúa si la respuesta es correcta o no',
+            '3. Da retroalimentación constructiva (sin revelar la solución completa si está incompleta)',
+            '4. Si está bien resuelto, felicítalo brevemente',
+            'Responde en español con un tono amigable y educativo.',
+            'IMPORTANTE: La retroalimentación es para un niño. Sé breve, claro y usa palabras simples y fáciles de entender.',
+        ]
+            .filter(Boolean)
+            .join('\n');
+
+        const fd = new FormData();
+        fd.append('content', prompt);
+        fd.append('context', buildContext());
+        fd.append('image_content', blob, 'student_canvas.png');
+
+        const reply = await postFormData(fd, false);
+        feedbackHtml.value = reply.text;
+        feedbackAudio.value = reply.audioUrl;
+        pizState.value = 'feedback';
+    } catch {
+        feedbackHtml.value = 'Ocurrió un error al evaluar. Por favor intenta de nuevo.';
+        pizState.value = 'feedback';
+    }
+}
+
+function resetPizarron() {
+    exerciseGeneration++;
+    pizState.value = 'idle';
+    hasDrawing.value = false;
+    exerciseHtml.value = '';
+    exerciseAudio.value = '';
+    feedbackHtml.value = '';
+    feedbackAudio.value = '';
+    pizarronTopic.value = '';
+    draft.value = '';
+    if (canvasEl.value) {
+        const ctx = canvasEl.value.getContext('2d');
+        if (ctx) ctx.clearRect(0, 0, canvasEl.value.width, canvasEl.value.height);
+    }
+    canvasInitialized = false;
+}
+
+async function nextPizarronExercise() {
+    const guidedTopic = activeGuidedPractice.value?.topic.title;
+    resetPizarron();
+    if (guidedTopic) {
+        await generateExercise(guidedTopic);
+    }
+}
+
+function setMode(m: AssistantMode) {
+    mode.value = m;
+    showModes.value = false;
+    if (m === 'pizarron') resetPizarron();
+}
+
+function initCanvas() {
+    const canvas = canvasEl.value;
+    if (!canvas) return;
+
+    const dpr = window.devicePixelRatio || 1;
+    const { width, height } = canvas.getBoundingClientRect();
+    if (width <= 0 || height <= 0) return;
+
+    const previous =
+        canvasInitialized && canvas.width > 0 && canvas.height > 0
+            ? canvas.toDataURL('image/png')
+            : '';
+
+    canvas.width = width * dpr;
+    canvas.height = height * dpr;
+    const ctx = canvas.getContext('2d')!;
+    ctx.scale(dpr, dpr);
+
+    ctx.globalCompositeOperation = 'source-over';
+    ctx.fillStyle = cssVar('--acm-canvas-bg', 'Canvas', canvas);
+    ctx.fillRect(0, 0, width, height);
+
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+    canvasInitialized = true;
+
+    if (previous) {
+        const img = new Image();
+        img.onload = () => {
+            ctx.drawImage(img, 0, 0, width, height);
+        };
+        img.src = previous;
     }
 
-    async function evaluateCanvas() {
-        if (!canvasEl.value || pizState.value === 'evaluating') return;
-        pizState.value = 'evaluating';
-        try {
-            await ensureCanvasReady();
-            const dataUrl = canvasEl.value.toDataURL('image/png');
-            const blob = dataUrlToBlob(dataUrl);
-            console.info('[assistant-modal] canvas capture', {
-                ...getCanvasDebugStats(canvasEl.value),
-                dataUrlLength: dataUrl.length,
-                blobSize: blob.size,
-                blobType: blob.type,
-            });
-            const grade = getStudentGrade();
-            const gradeContext = grade
-                ? `El estudiante es de ${grade}. Evalúa considerando los contenidos de los documentos de ${grade}.`
-                : '';
-            const prompt = [
-                'MODO PIZARRÓN - EVALUACIÓN DE RESPUESTA:',
-                gradeContext,
-                'El alumno ha resuelto el ejercicio anterior en su lienzo. Analiza la imagen adjunta y:',
-                '1. Identifica lo que escribió o dibujó',
-                '2. Evalúa si la respuesta es correcta o no',
-                '3. Da retroalimentación constructiva (sin revelar la solución completa si está incompleta)',
-                '4. Si está bien resuelto, felicítalo brevemente',
-                'Responde en español con un tono amigable y educativo.',
-                'IMPORTANTE: La retroalimentación es para un niño. Sé breve, claro y usa palabras simples y fáciles de entender.',
-            ]
-                .filter(Boolean)
-                .join('\n');
-
-            const fd = new FormData();
-            fd.append('content', prompt);
-            fd.append('context', buildContext());
-            fd.append('image_content', blob, 'student_canvas.png');
-
-            const reply = await postFormData(fd, false);
-            feedbackHtml.value = reply.text;
-            feedbackAudio.value = reply.audioUrl;
-            pizState.value = 'feedback';
-        } catch {
-            feedbackHtml.value = 'Ocurrió un error al evaluar. Por favor intenta de nuevo.';
-            pizState.value = 'feedback';
-        }
+    if (!canvasResizeObserver) {
+        canvasResizeObserver = new ResizeObserver(() => {
+            scheduleCanvasInit();
+        });
+        canvasResizeObserver.observe(canvas);
     }
+}
 
-    function resetPizarron() {
-        exerciseGeneration++;
-        pizState.value = 'idle';
-        hasDrawing.value = false;
-        exerciseHtml.value = '';
-        exerciseAudio.value = '';
-        feedbackHtml.value = '';
-        feedbackAudio.value = '';
-        pizarronTopic.value = '';
-        draft.value = '';
-        if (canvasEl.value) {
-            const ctx = canvasEl.value.getContext('2d');
-            if (ctx) ctx.clearRect(0, 0, canvasEl.value.width, canvasEl.value.height);
-        }
-        canvasInitialized = false;
+function scheduleCanvasInit() {
+    requestAnimationFrame(() => {
+        requestAnimationFrame(initCanvas);
+    });
+}
+
+async function ensureCanvasReady() {
+    if (!canvasEl.value) return;
+    const rect = canvasEl.value.getBoundingClientRect();
+    if (canvasInitialized && rect.width > 0 && rect.height > 0) return;
+    await nextTick();
+    await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
+    initCanvas();
+}
+
+function getPos(e: MouseEvent | Touch, canvas: HTMLCanvasElement): [number, number] {
+    const rect = canvas.getBoundingClientRect();
+    return [e.clientX - rect.left, e.clientY - rect.top];
+}
+
+function getCtx(): CanvasRenderingContext2D | null {
+    return canvasEl.value?.getContext('2d') ?? null;
+}
+
+function applyTool(ctx: CanvasRenderingContext2D) {
+    if (activeTool.value === 'eraser') {
+        ctx.globalCompositeOperation = 'destination-out';
+        ctx.lineWidth = 24;
+    } else {
+        ctx.globalCompositeOperation = 'source-over';
+        ctx.strokeStyle = activeColor.value;
+        ctx.lineWidth = 2.5;
     }
+}
 
-    async function nextPizarronExercise() {
-        const guidedTopic = activeGuidedPractice.value?.topic.title;
+function selectCanvasColor(color: string) {
+    activeColor.value = color;
+    activeTool.value = 'pen';
+}
+
+function onCanvasDown(e: MouseEvent) {
+    const canvas = canvasEl.value;
+    if (!canvas) return;
+    isDrawing = true;
+    [lastX, lastY] = getPos(e, canvas);
+}
+
+function onCanvasMove(e: MouseEvent) {
+    if (!isDrawing || !canvasEl.value) return;
+    const ctx = getCtx();
+    if (!ctx) return;
+    const [x, y] = getPos(e, canvasEl.value);
+    applyTool(ctx);
+    ctx.beginPath();
+    ctx.moveTo(lastX, lastY);
+    ctx.lineTo(x, y);
+    ctx.stroke();
+    hasDrawing.value = true;
+    [lastX, lastY] = [x, y];
+}
+
+function onCanvasUp() {
+    isDrawing = false;
+}
+
+const hasPendingWork = computed(
+    () =>
+        (pizState.value === 'drawing' && hasDrawing.value) ||
+        pizState.value === 'generating' ||
+        pizState.value === 'evaluating' ||
+        responding.value,
+);
+
+const { leaveConfirmState, onLeaveConfirm, onLeaveCancel, discard } = useLeaveWarning(
+    () => hasPendingWork.value,
+);
+
+function requestClose() {
+    discard(() => {
         resetPizarron();
-        if (guidedTopic) {
-            await generateExercise(guidedTopic);
-        }
-    }
+        emit('close');
+    });
+}
 
-    function setMode(m: AssistantMode) {
-        mode.value = m;
-        showModes.value = false;
-        if (m === 'pizarron') resetPizarron();
-    }
+function onTouchStart(e: TouchEvent) {
+    const canvas = canvasEl.value;
+    if (!canvas || !e.touches[0]) return;
+    isDrawing = true;
+    [lastX, lastY] = getPos(e.touches[0], canvas);
+}
 
-    function initCanvas() {
-        const canvas = canvasEl.value;
-        if (!canvas) return;
+function onTouchMove(e: TouchEvent) {
+    if (!isDrawing || !canvasEl.value || !e.touches[0]) return;
+    const ctx = getCtx();
+    if (!ctx) return;
+    const [x, y] = getPos(e.touches[0], canvasEl.value);
+    applyTool(ctx);
+    ctx.beginPath();
+    ctx.moveTo(lastX, lastY);
+    ctx.lineTo(x, y);
+    ctx.stroke();
+    hasDrawing.value = true;
+    [lastX, lastY] = [x, y];
+}
 
-        const dpr = window.devicePixelRatio || 1;
-        const { width, height } = canvas.getBoundingClientRect();
-        if (width <= 0 || height <= 0) return;
+function onTouchEnd() {
+    isDrawing = false;
+}
 
-        const previous =
-            canvasInitialized && canvas.width > 0 && canvas.height > 0
-                ? canvas.toDataURL('image/png')
-                : '';
+function clearCanvas() {
+    hasDrawing.value = false;
+    const canvas = canvasEl.value;
+    if (!canvas) return;
+    const ctx = getCtx();
+    if (!ctx) return;
+    ctx.globalCompositeOperation = 'source-over';
+    ctx.fillStyle = cssVar('--acm-canvas-bg', 'Canvas', canvas);
+    ctx.fillRect(
+        0,
+        0,
+        canvas.width / (window.devicePixelRatio || 1),
+        canvas.height / (window.devicePixelRatio || 1),
+    );
+}
 
-        canvas.width = width * dpr;
-        canvas.height = height * dpr;
-        const ctx = canvas.getContext('2d')!;
-        ctx.scale(dpr, dpr);
+let initialized = false;
 
-        ctx.globalCompositeOperation = 'source-over';
-        ctx.fillStyle = cssVar('--acm-canvas-bg', 'Canvas', canvas);
-        ctx.fillRect(0, 0, width, height);
+function updateMobile() {
+    isMobile.value = window.matchMedia('(max-width: 640px)').matches;
 
-        ctx.lineCap = 'round';
-        ctx.lineJoin = 'round';
-        canvasInitialized = true;
+    mobileViewportTop.value = Math.round(window.visualViewport?.offsetTop ?? 0);
+    mobileViewportHeight.value = Math.round(window.visualViewport?.height ?? window.innerHeight);
+}
 
-        if (previous) {
-            const img = new Image();
-            img.onload = () => {
-                ctx.drawImage(img, 0, 0, width, height);
-            };
-            img.src = previous;
-        }
+onMounted(() => {
+    updateMobile();
+    window.addEventListener('resize', updateMobile);
+    window.visualViewport?.addEventListener('resize', updateMobile);
+    window.visualViewport?.addEventListener('scroll', updateMobile);
+});
 
-        if (!canvasResizeObserver) {
-            canvasResizeObserver = new ResizeObserver(() => {
-                scheduleCanvasInit();
-            });
-            canvasResizeObserver.observe(canvas);
-        }
-    }
+watch(
+    () => authStore.token,
+    async (token) => {
+        if (!token || initialized) return;
+        initialized = true;
+        messages.value = [];
+        conversationId = null;
+        addMsg('assistant', '¡Hola! Soy Quanty. ¿Qué hacemos hoy?');
+        await loadHistory();
+    },
+    { immediate: true },
+);
 
-    function scheduleCanvasInit() {
-        requestAnimationFrame(() => {
-            requestAnimationFrame(initCanvas);
-        });
-    }
-
-    async function ensureCanvasReady() {
-        if (!canvasEl.value) return;
-        const rect = canvasEl.value.getBoundingClientRect();
-        if (canvasInitialized && rect.width > 0 && rect.height > 0) return;
-        await nextTick();
-        await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
-        initCanvas();
-    }
-
-    function getPos(e: MouseEvent | Touch, canvas: HTMLCanvasElement): [number, number] {
-        const rect = canvas.getBoundingClientRect();
-        return [e.clientX - rect.left, e.clientY - rect.top];
-    }
-
-    function getCtx(): CanvasRenderingContext2D | null {
-        return canvasEl.value?.getContext('2d') ?? null;
-    }
-
-    function applyTool(ctx: CanvasRenderingContext2D) {
-        if (activeTool.value === 'eraser') {
-            ctx.globalCompositeOperation = 'destination-out';
-            ctx.lineWidth = 24;
+watch(
+    () => props.show,
+    (visible) => {
+        if (visible) {
+            document.body.classList.add('assistant-modal-open');
         } else {
-            ctx.globalCompositeOperation = 'source-over';
-            ctx.strokeStyle = activeColor.value;
-            ctx.lineWidth = 2.5;
+            document.body.classList.remove('assistant-modal-open');
+            resetGuidedPractice();
         }
-    }
+    },
+    { immediate: true },
+);
 
-    function selectCanvasColor(color: string) {
-        activeColor.value = color;
-        activeTool.value = 'pen';
-    }
-
-    function onCanvasDown(e: MouseEvent) {
-        const canvas = canvasEl.value;
-        if (!canvas) return;
-        isDrawing = true;
-        [lastX, lastY] = getPos(e, canvas);
-    }
-
-    function onCanvasMove(e: MouseEvent) {
-        if (!isDrawing || !canvasEl.value) return;
-        const ctx = getCtx();
-        if (!ctx) return;
-        const [x, y] = getPos(e, canvasEl.value);
-        applyTool(ctx);
-        ctx.beginPath();
-        ctx.moveTo(lastX, lastY);
-        ctx.lineTo(x, y);
-        ctx.stroke();
-        hasDrawing.value = true;
-        [lastX, lastY] = [x, y];
-    }
-
-    function onCanvasUp() {
-        isDrawing = false;
-    }
-
-    const hasPendingWork = computed(
-        () =>
-            (pizState.value === 'drawing' && hasDrawing.value) ||
-            pizState.value === 'generating' ||
-            pizState.value === 'evaluating' ||
-            responding.value,
-    );
-
-    const { leaveConfirmState, onLeaveConfirm, onLeaveCancel, discard } = useLeaveWarning(
-        () => hasPendingWork.value,
-    );
-
-    function requestClose() {
-        discard(() => {
-            resetPizarron();
-            emit('close');
-        });
-    }
-
-    function onTouchStart(e: TouchEvent) {
-        const canvas = canvasEl.value;
-        if (!canvas || !e.touches[0]) return;
-        isDrawing = true;
-        [lastX, lastY] = getPos(e.touches[0], canvas);
-    }
-
-    function onTouchMove(e: TouchEvent) {
-        if (!isDrawing || !canvasEl.value || !e.touches[0]) return;
-        const ctx = getCtx();
-        if (!ctx) return;
-        const [x, y] = getPos(e.touches[0], canvasEl.value);
-        applyTool(ctx);
-        ctx.beginPath();
-        ctx.moveTo(lastX, lastY);
-        ctx.lineTo(x, y);
-        ctx.stroke();
-        hasDrawing.value = true;
-        [lastX, lastY] = [x, y];
-    }
-
-    function onTouchEnd() {
-        isDrawing = false;
-    }
-
-    function clearCanvas() {
-        hasDrawing.value = false;
-        const canvas = canvasEl.value;
-        if (!canvas) return;
-        const ctx = getCtx();
-        if (!ctx) return;
-        ctx.globalCompositeOperation = 'source-over';
-        ctx.fillStyle = cssVar('--acm-canvas-bg', 'Canvas', canvas);
-        ctx.fillRect(
-            0,
-            0,
-            canvas.width / (window.devicePixelRatio || 1),
-            canvas.height / (window.devicePixelRatio || 1),
-        );
-    }
-
-    let initialized = false;
-
-    function updateMobile() {
-        isMobile.value = window.matchMedia('(max-width: 640px)').matches;
-
-        mobileViewportTop.value = Math.round(window.visualViewport?.offsetTop ?? 0);
-        mobileViewportHeight.value = Math.round(
-            window.visualViewport?.height ?? window.innerHeight,
-        );
-    }
-
-    onMounted(() => {
-        updateMobile();
-        window.addEventListener('resize', updateMobile);
-        window.visualViewport?.addEventListener('resize', updateMobile);
-        window.visualViewport?.addEventListener('scroll', updateMobile);
-    });
-
-    watch(
-        () => authStore.token,
-        async (token) => {
-            if (!token || initialized) return;
-            initialized = true;
-            messages.value = [];
-            conversationId = null;
-            addMsg('assistant', '¡Hola! Soy Quanty. ¿Qué hacemos hoy?');
-            await loadHistory();
-        },
-        { immediate: true },
-    );
-
-    watch(
-        () => props.show,
-        (visible) => {
-            if (visible) {
-                document.body.classList.add('assistant-modal-open');
-            } else {
-                document.body.classList.remove('assistant-modal-open');
-                resetGuidedPractice();
-            }
-        },
-        { immediate: true },
-    );
-
-    onBeforeUnmount(() => {
-        document.body.classList.remove('assistant-modal-open');
-        canvasResizeObserver?.disconnect();
-        window.removeEventListener('resize', updateMobile);
-        window.visualViewport?.removeEventListener('resize', updateMobile);
-        window.visualViewport?.removeEventListener('scroll', updateMobile);
-    });
+onBeforeUnmount(() => {
+    document.body.classList.remove('assistant-modal-open');
+    canvasResizeObserver?.disconnect();
+    window.removeEventListener('resize', updateMobile);
+    window.visualViewport?.removeEventListener('resize', updateMobile);
+    window.visualViewport?.removeEventListener('scroll', updateMobile);
+});
 </script>
 
 <style scoped>
-    .acm-overlay {
-        position: fixed;
-        inset: 0;
-        background: rgba(var(--text-primary-rgb), 0.5);
-        backdrop-filter: blur(5px);
-        z-index: 200;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        padding: 5vh 5vw;
-    }
+.acm-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(var(--text-primary-rgb), 0.5);
+    backdrop-filter: blur(5px);
+    z-index: 200;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 5vh 5vw;
+}
 
-    .acm-modal {
-        --acm-canvas-bg: var(--surface-card);
-        --acm-canvas-ink: var(--text-primary);
-        background: var(--surface-card);
-        border-radius: var(--radius-xl);
-        box-shadow: var(--shadow-lg);
-        width: 90vw;
-        height: 90vh;
-        max-width: 1200px;
-        display: flex;
-        flex-direction: column;
-        overflow: hidden;
-    }
+.acm-modal {
+    --acm-canvas-bg: var(--surface-card);
+    --acm-canvas-ink: var(--text-primary);
+    background: var(--surface-card);
+    border-radius: var(--radius-xl);
+    box-shadow: var(--shadow-lg);
+    width: 90vw;
+    height: 90vh;
+    max-width: 1200px;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
 
-    .acm-fade-enter-active,
-    .acm-fade-leave-active {
-        transition: opacity 0.2s ease;
-    }
-    .acm-fade-enter-from,
-    .acm-fade-leave-to {
-        opacity: 0;
-    }
-    .acm-fade-enter-active .acm-modal,
-    .acm-fade-leave-active .acm-modal {
-        transition: transform 0.22s ease;
-    }
-    .acm-fade-enter-from .acm-modal,
-    .acm-fade-leave-to .acm-modal {
-        transform: translateY(18px);
-    }
+.acm-fade-enter-active,
+.acm-fade-leave-active {
+    transition: opacity 0.2s ease;
+}
+.acm-fade-enter-from,
+.acm-fade-leave-to {
+    opacity: 0;
+}
+.acm-fade-enter-active .acm-modal,
+.acm-fade-leave-active .acm-modal {
+    transition: transform 0.22s ease;
+}
+.acm-fade-enter-from .acm-modal,
+.acm-fade-leave-to .acm-modal {
+    transform: translateY(18px);
+}
 
-    .acm-header {
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        padding: 16px 24px;
-        background: var(--gradient-brand);
-        color: var(--color-on-primary);
-        flex-shrink: 0;
-    }
+.acm-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 16px 24px;
+    background: var(--gradient-brand);
+    color: var(--color-on-primary);
+    flex-shrink: 0;
+}
 
-    .acm-header-info {
-        display: flex;
-        align-items: center;
-        gap: 14px;
-        min-width: 0;
-    }
+.acm-header-info {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    min-width: 0;
+}
 
-    .acm-avatar {
-        width: 44px;
-        height: 44px;
-        min-width: 44px;
-        overflow: hidden;
-        border-radius: 50%;
-        background: var(--fill-primary-soft);
-        border: none;
-        color: var(--color-on-primary);
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        font-size: 21px;
-        flex: 0 0 auto;
-        box-shadow: none;
-    }
+.acm-avatar {
+    width: 44px;
+    height: 44px;
+    min-width: 44px;
+    overflow: hidden;
+    border-radius: 50%;
+    background: var(--fill-primary-soft);
+    border: none;
+    color: var(--color-on-primary);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 21px;
+    flex: 0 0 auto;
+    box-shadow: none;
+}
 
-    .acm-avatar img {
-        display: block;
-        width: 100%;
-        height: 100%;
-        object-fit: cover;
-        object-position: 50% 22%;
-        transform: scale(1.65);
-        filter: drop-shadow(0 3px 6px rgba(var(--text-primary-rgb), 0.16));
-    }
+.acm-avatar img {
+    display: block;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    object-position: 50% 22%;
+    transform: scale(1.65);
+    filter: drop-shadow(0 3px 6px rgba(var(--text-primary-rgb), 0.16));
+}
 
-    .acm-title {
-        font-size: 16px;
-        font-weight: 700;
-    }
+.acm-title {
+    font-size: 16px;
+    font-weight: 700;
+}
 
-    .acm-status {
-        display: flex;
-        align-items: center;
-        gap: 6px;
-        font-size: 12px;
-        opacity: 0.85;
-    }
+.acm-status {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 12px;
+    opacity: 0.85;
+}
 
-    .acm-dot {
-        width: 7px;
-        height: 7px;
-        border-radius: 50%;
-        background: var(--color-success);
-        flex-shrink: 0;
-    }
+.acm-dot {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: var(--color-success);
+    flex-shrink: 0;
+}
 
-    .acm-dot--busy {
-        background: var(--color-warning);
-        animation: acm-pulse 1s infinite;
-    }
+.acm-dot--busy {
+    background: var(--color-warning);
+    animation: acm-pulse 1s infinite;
+}
 
-    .acm-close {
-        background: rgba(var(--surface-card-rgb), 0.15);
-        border: none;
-        color: var(--color-on-primary);
-        width: 34px;
-        height: 34px;
-        border-radius: 50%;
-        cursor: pointer;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        font-size: 14px;
-        transition: var(--transition-fast);
-    }
-    .acm-close:hover {
-        background: rgba(var(--surface-card-rgb), 0.3);
-    }
+.acm-close {
+    background: rgba(var(--surface-card-rgb), 0.15);
+    border: none;
+    color: var(--color-on-primary);
+    width: 34px;
+    height: 34px;
+    border-radius: 50%;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 14px;
+    transition: var(--transition-fast);
+}
+.acm-close:hover {
+    background: rgba(var(--surface-card-rgb), 0.3);
+}
 
-    .acm-messages {
-        flex: 1;
-        min-height: 0;
-        overflow-y: auto;
-        padding: 24px 28px;
-        display: flex;
-        flex-direction: column;
-        gap: 12px;
-        scroll-behavior: smooth;
-    }
+.acm-messages {
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+    padding: 24px 28px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    scroll-behavior: smooth;
+}
 
-    .acm-msg {
-        display: flex;
-    }
-    .acm-msg--user {
-        justify-content: flex-end;
-    }
-    .acm-msg--assistant {
-        justify-content: flex-start;
-    }
+.acm-msg {
+    display: flex;
+}
+.acm-msg--user {
+    justify-content: flex-end;
+}
+.acm-msg--assistant {
+    justify-content: flex-start;
+}
 
-    .acm-bubble {
-        max-width: 68%;
-        padding: 11px 16px;
-        border-radius: var(--radius-md);
-        font-size: var(--font-body);
-        line-height: 1.6;
-    }
+.acm-bubble {
+    max-width: 68%;
+    padding: 11px 16px;
+    border-radius: var(--radius-md);
+    font-size: var(--font-body);
+    line-height: 1.6;
+}
 
-    .acm-msg--user .acm-bubble {
-        background: var(--practiq-violet);
-        color: var(--color-on-primary);
-        border-bottom-right-radius: var(--radius-xs);
-    }
+.acm-msg--user .acm-bubble {
+    background: var(--practiq-violet);
+    color: var(--color-on-primary);
+    border-bottom-right-radius: var(--radius-xs);
+}
 
-    .acm-msg--assistant .acm-bubble {
-        background: var(--practiq-violet-bg);
-        color: var(--text-primary);
-        border-bottom-left-radius: var(--radius-xs);
-    }
+.acm-msg--assistant .acm-bubble {
+    background: var(--practiq-violet-bg);
+    color: var(--text-primary);
+    border-bottom-left-radius: var(--radius-xs);
+}
 
-    .acm-bubble--audio {
-        display: flex;
-        align-items: center;
-        gap: 10px;
-        padding: 10px 14px;
-        background: var(--practiq-violet);
-        color: var(--color-on-primary);
-        border-bottom-right-radius: var(--radius-xs);
-    }
+.acm-bubble--audio {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 14px;
+    background: var(--practiq-violet);
+    color: var(--color-on-primary);
+    border-bottom-right-radius: var(--radius-xs);
+}
 
-    .acm-audio-player {
-        height: 32px;
-        max-width: 240px;
-    }
+.acm-audio-player {
+    height: 32px;
+    max-width: 240px;
+}
 
-    .acm-msg--user .acm-bubble--audio .acm-audio-player {
-        filter: invert(1);
-    }
+.acm-msg--user .acm-bubble--audio .acm-audio-player {
+    filter: invert(1);
+}
 
-    .acm-audio-player--block {
-        display: block;
-        width: 100%;
-        max-width: none;
-        margin-top: 10px;
-    }
+.acm-audio-player--block {
+    display: block;
+    width: 100%;
+    max-width: none;
+    margin-top: 10px;
+}
 
-    .acm-header-actions {
-        display: flex;
-        align-items: center;
-        gap: 8px;
-    }
+.acm-header-actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
 
-    .acm-practice-context {
-        display: flex;
-        align-items: center;
-        gap: 6px;
-        min-height: 38px;
-        padding: 8px 20px;
-        overflow-x: auto;
-        background: var(--fill-primary-faint);
-        border-bottom: 1px solid rgba(var(--practiq-violet-rgb), 0.1);
-        color: var(--text-secondary);
-        font-size: 0.8rem;
-        white-space: nowrap;
-    }
+.acm-practice-context {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    min-height: 38px;
+    padding: 8px 20px;
+    overflow-x: auto;
+    background: var(--fill-primary-faint);
+    border-bottom: 1px solid rgba(var(--practiq-violet-rgb), 0.1);
+    color: var(--text-secondary);
+    font-size: 0.8rem;
+    white-space: nowrap;
+}
 
-    .acm-practice-context > :first-child {
-        color: var(--practiq-violet);
-    }
+.acm-practice-context > :first-child {
+    color: var(--practiq-violet);
+}
 
-    .acm-practice-context strong {
-        color: var(--text-primary);
-    }
+.acm-practice-context strong {
+    color: var(--text-primary);
+}
 
-    .acm-practice-context__mode {
-        margin-left: auto;
-        padding: 3px 8px;
-        border-radius: var(--radius-pill);
-        background: var(--surface-card);
-        color: var(--practiq-violet-dark);
-        font-weight: 700;
-    }
+.acm-practice-context__mode {
+    margin-left: auto;
+    padding: 3px 8px;
+    border-radius: var(--radius-pill);
+    background: var(--surface-card);
+    color: var(--practiq-violet-dark);
+    font-weight: 700;
+}
 
-    .acm-voice-on {
-        background: rgba(var(--surface-card-rgb), 0.35);
-    }
+.acm-voice-on {
+    background: rgba(var(--surface-card-rgb), 0.35);
+}
 
-    .acm-send--mic {
-        background: var(--surface-elevated-strong);
-        color: var(--practiq-violet);
-    }
+.acm-send--mic {
+    background: var(--surface-elevated-strong);
+    color: var(--practiq-violet);
+}
 
-    .acm-send--recording {
-        background: var(--color-error, #dc2626);
-        color: var(--color-on-primary);
-    }
+.acm-send--recording {
+    background: var(--color-error, #dc2626);
+    color: var(--color-on-primary);
+}
 
-    .acm-piz-error {
-        margin-top: 8px;
-        color: var(--color-error-dark, #b91c1c);
-        font-size: var(--text-sm);
-    }
+.acm-piz-error {
+    margin-top: 8px;
+    color: var(--color-error-dark, #b91c1c);
+    font-size: var(--text-sm);
+}
 
-    .acm-bubble--typing {
-        display: flex;
-        align-items: center;
-        gap: 5px;
-        padding: 14px 18px;
-        min-width: 60px;
-    }
+.acm-bubble--typing {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    padding: 14px 18px;
+    min-width: 60px;
+}
 
-    .acm-bubble--typing span {
-        width: 7px;
-        height: 7px;
-        border-radius: 50%;
-        background: var(--practiq-violet);
+.acm-bubble--typing span {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: var(--practiq-violet);
+    opacity: 0.45;
+    animation: acm-bounce 1.1s infinite;
+}
+
+.acm-bubble--typing span:nth-child(2) {
+    animation-delay: 0.18s;
+}
+.acm-bubble--typing span:nth-child(3) {
+    animation-delay: 0.36s;
+}
+
+.acm-oral-hint {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    flex: 1;
+    gap: 16px;
+    color: var(--text-muted);
+    text-align: center;
+    padding: 40px;
+}
+
+.acm-oral-hint-icon {
+    font-size: 48px;
+}
+
+.acm-practice-picker {
+    flex: 1;
+    overflow-y: auto;
+    padding: 32px;
+    display: flex;
+    flex-direction: column;
+    gap: 24px;
+}
+
+.acm-practice-picker__intro h3 {
+    margin: 4px 0 8px;
+    color: var(--text-primary);
+    font-size: 1.3rem;
+}
+
+.acm-practice-picker__intro p,
+.acm-practice-picker__empty {
+    margin: 0;
+    color: var(--text-secondary);
+    line-height: 1.45;
+}
+
+.acm-practice-picker__eyebrow,
+.acm-practice-picker__label {
+    display: block;
+    color: var(--practiq-violet);
+    font-size: 0.78rem;
+    font-weight: 800;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+}
+
+.acm-practice-picker__group {
+    display: grid;
+    gap: 10px;
+}
+
+.acm-practice-picker__chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+.acm-practice-picker__modes {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+}
+
+.acm-practice-mode {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    min-height: 64px;
+    padding: 10px 12px;
+    border: 1.5px solid var(--surface-border);
+    border-radius: var(--radius-lg);
+    background: var(--surface-card);
+    color: var(--text-primary);
+    text-align: left;
+    cursor: pointer;
+    transition: var(--transition-fast);
+}
+
+.acm-practice-mode > i {
+    color: var(--practiq-violet);
+    font-size: 1.1rem;
+}
+
+.acm-practice-mode span {
+    display: grid;
+    gap: 2px;
+}
+
+.acm-practice-mode small {
+    color: var(--text-secondary);
+    font-size: 0.72rem;
+}
+
+.acm-practice-mode--selected {
+    border-color: var(--practiq-violet);
+    background: var(--fill-primary-subtle);
+    box-shadow: var(--shadow-violet);
+    color: var(--practiq-violet-dark);
+    transform: translateY(-1px);
+}
+
+.acm-practice-chip {
+    min-height: 40px;
+    padding: 8px 13px;
+    border: 0;
+    border-radius: var(--radius-pill);
+    background: var(--elevation-tint-bg);
+    box-shadow: var(--elevation-tint-shadow);
+    color: var(--text-primary);
+    font-family: var(--font-ui-family);
+    font-size: 0.9rem;
+    font-weight: 700;
+    cursor: pointer;
+    transition: var(--transition-fast);
+}
+
+.acm-practice-chip--selected {
+    background: var(--fill-primary-subtle);
+    color: var(--practiq-violet-dark);
+    box-shadow: var(--shadow-violet);
+    transform: translateY(-1px);
+}
+.acm-practice-chip:hover:not(.acm-practice-chip--selected),
+.acm-practice-mode:hover:not(.acm-practice-mode--selected) {
+    color: var(--practiq-violet-dark);
+}
+.acm-practice-chip:focus-visible,
+.acm-practice-mode:focus-visible {
+    outline: 3px solid rgba(var(--practiq-violet-rgb), 0.28);
+    outline-offset: 2px;
+}
+
+.acm-practice-picker__loading {
+    color: var(--text-secondary);
+    font-size: 0.9rem;
+}
+
+.acm-practice-picker__start {
+    align-self: flex-start;
+    min-height: 46px;
+    padding-inline: 20px;
+}
+
+.acm-piz-idle {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 40px;
+    text-align: center;
+    gap: 16px;
+}
+
+.acm-piz-intro-icon {
+    font-size: 46px;
+    line-height: 1;
+    color: var(--practiq-violet);
+}
+.acm-mode-icon {
+    display: inline-flex;
+    align-items: center;
+    font-size: 0.95em;
+}
+
+.acm-piz-intro-title {
+    font-size: 22px;
+    font-weight: 700;
+    color: var(--text-heading);
+}
+
+.acm-piz-intro-desc {
+    font-size: var(--font-body);
+    color: var(--text-secondary);
+    max-width: 440px;
+    line-height: 1.7;
+}
+
+.acm-piz-loading {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 16px;
+    color: var(--text-secondary);
+}
+
+.acm-piz-split {
+    flex: 1;
+    display: flex;
+    overflow: hidden;
+}
+
+.acm-piz-exercise {
+    flex: 0 0 42%;
+    display: flex;
+    flex-direction: column;
+    border-right: 1px solid var(--surface-border);
+    overflow: hidden;
+}
+
+.acm-piz-panel-label {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 16px;
+    background: var(--surface-bg);
+    border-bottom: 1px solid var(--surface-border);
+    font-size: var(--text-sm);
+    font-weight: 700;
+    color: var(--text-secondary);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    flex-shrink: 0;
+}
+
+.acm-piz-exercise-content {
+    flex: 1;
+    overflow-y: auto;
+    padding: 20px;
+    font-size: var(--font-body);
+    line-height: 1.7;
+    color: var(--text-primary);
+}
+
+.acm-piz-canvas-area {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+
+.acm-piz-canvas-area .acm-piz-panel-label {
+    justify-content: space-between;
+}
+
+.acm-canvas-tools {
+    display: flex;
+    gap: 4px;
+    margin-left: auto;
+    align-items: center;
+}
+
+.acm-tool-btn {
+    width: 30px;
+    height: 30px;
+    border-radius: var(--radius-xs);
+    border: 1px solid var(--surface-border);
+    background: var(--surface-card);
+    color: var(--text-secondary);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 13px;
+    transition: var(--transition-fast);
+}
+
+.acm-tool-btn:hover {
+    background: var(--practiq-violet-bg);
+    color: var(--practiq-violet);
+}
+
+.acm-tool-btn--active {
+    background: var(--practiq-violet-bg);
+    color: var(--practiq-violet);
+    border-color: var(--practiq-violet-light);
+}
+
+.acm-canvas {
+    flex: 1;
+    display: block;
+    cursor: crosshair;
+    background: var(--surface-card);
+    touch-action: none;
+    width: 100%;
+    height: 100%;
+}
+
+.acm-evaluar-btn {
+    margin: 12px 16px;
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    justify-content: center;
+}
+
+.acm-piz-feedback {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    padding: 32px 36px;
+    overflow-y: auto;
+    gap: 20px;
+}
+
+.acm-piz-feedback-header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 16px;
+    font-weight: 700;
+    color: var(--text-heading);
+}
+
+.acm-piz-feedback-content {
+    flex: 1;
+    font-size: var(--font-body);
+    line-height: 1.75;
+    color: var(--text-primary);
+    background: var(--practiq-violet-bg);
+    border-radius: var(--radius-md);
+    padding: 20px;
+}
+
+.acm-next-btn {
+    align-self: flex-start;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.acm-footer {
+    flex-shrink: 0;
+    border-top: 1px solid var(--surface-border);
+    background: var(--surface-card);
+}
+
+.acm-mode-toggle-row {
+    display: flex;
+    align-items: center;
+    padding: 6px 16px 0;
+}
+
+.acm-mode-toggle-btn {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 12px;
+    color: var(--text-secondary);
+    background: none;
+    border: none;
+    cursor: pointer;
+    padding: 4px 8px;
+    border-radius: var(--radius-xs);
+    transition: var(--transition-fast);
+}
+
+.acm-mode-toggle-btn:hover {
+    background: var(--surface-hover);
+    color: var(--text-primary);
+}
+
+.acm-mode-strip {
+    display: flex;
+    gap: 8px;
+    padding: 8px 16px;
+    border-bottom: 1px solid var(--surface-border);
+}
+
+.acm-mode-btn {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 14px;
+    border-radius: var(--radius-pill);
+    border: 1.5px solid var(--surface-border);
+    background: var(--surface-card);
+    cursor: pointer;
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--text-secondary);
+    transition: var(--transition-fast);
+}
+
+.acm-mode-btn:hover {
+    border-color: var(--practiq-violet-light);
+    color: var(--practiq-violet);
+    background: var(--practiq-violet-bg);
+}
+
+.acm-mode-btn--active {
+    background: var(--practiq-violet);
+    color: var(--color-on-primary);
+    border-color: var(--practiq-violet);
+}
+
+.acm-input-area {
+    display: flex;
+    align-items: flex-end;
+    gap: 10px;
+    padding: 12px 16px 14px;
+}
+
+.acm-textarea {
+    flex: 1;
+    resize: none;
+    border: 1.5px solid var(--surface-border);
+    border-radius: var(--radius-md);
+    padding: 10px 14px;
+    font-size: var(--font-body);
+    font-family: inherit;
+    color: var(--text-primary);
+    background: var(--surface-bg);
+    outline: none;
+    line-height: 1.5;
+    transition: var(--transition-fast);
+    max-height: 140px;
+    overflow-y: auto;
+}
+
+.acm-textarea:focus {
+    border-color: var(--practiq-violet-light);
+    box-shadow: 0 0 0 3px rgba(var(--practiq-violet-light-rgb), 0.1);
+    background: var(--surface-card);
+}
+
+.acm-textarea:disabled {
+    opacity: 0.55;
+    cursor: not-allowed;
+}
+.acm-textarea::placeholder {
+    color: var(--text-muted);
+}
+
+.acm-send {
+    width: 42px;
+    height: 42px;
+    border-radius: 50%;
+    background: var(--practiq-violet);
+    color: var(--color-on-primary);
+    border: none;
+    cursor: pointer;
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 16px;
+    transition: var(--transition-fast);
+}
+
+.acm-send:hover:not(:disabled) {
+    background: var(--practiq-violet-dark);
+    transform: scale(1.07);
+    box-shadow: var(--shadow-violet);
+}
+
+.acm-send:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+}
+
+.acm-oral-input {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 10px;
+    padding: 6px 0;
+}
+
+.acm-mic-big {
+    width: 64px;
+    height: 64px;
+    border-radius: 50%;
+    background: var(--practiq-violet);
+    color: var(--color-on-primary);
+    border: none;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 26px;
+    transition: var(--transition-fast);
+    box-shadow: var(--shadow-violet);
+    user-select: none;
+    -webkit-user-select: none;
+}
+
+.acm-mic-big:hover:not(:disabled) {
+    background: var(--practiq-violet-dark);
+    transform: scale(1.06);
+}
+
+.acm-mic-big--recording {
+    background: var(--color-error) !important;
+    animation: acm-pulse 0.7s infinite;
+    box-shadow: 0 0 0 8px rgba(var(--color-error-rgb), 0.15);
+}
+
+.acm-mic-big:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.acm-oral-tip {
+    font-size: 12px;
+    color: var(--text-muted);
+    text-align: center;
+    max-width: 260px;
+}
+
+.acm-recording-bar {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 7px 16px;
+    background: var(--color-error-bg);
+    border-top: 1px solid rgba(var(--color-error-rgb), 0.25);
+    font-size: var(--text-sm);
+    color: var(--color-error-dark);
+}
+
+.acm-recording-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--color-error);
+    animation: acm-pulse 0.7s infinite;
+}
+
+.acm-slide-enter-active,
+.acm-slide-leave-active {
+    transition: all 0.18s ease;
+    overflow: hidden;
+}
+.acm-slide-enter-from,
+.acm-slide-leave-to {
+    opacity: 0;
+    max-height: 0;
+}
+.acm-slide-enter-to,
+.acm-slide-leave-from {
+    opacity: 1;
+    max-height: 80px;
+}
+
+@keyframes acm-pulse {
+    0%,
+    100% {
+        opacity: 1;
+    }
+    50% {
+        opacity: 0.35;
+    }
+}
+
+@keyframes acm-bounce {
+    0%,
+    80%,
+    100% {
+        transform: translateY(0);
         opacity: 0.45;
-        animation: acm-bounce 1.1s infinite;
     }
+    40% {
+        transform: translateY(-6px);
+        opacity: 1;
+    }
+}
 
-    .acm-bubble--typing span:nth-child(2) {
-        animation-delay: 0.18s;
-    }
-    .acm-bubble--typing span:nth-child(3) {
-        animation-delay: 0.36s;
-    }
-
-    .acm-oral-hint {
-        display: flex;
-        flex-direction: column;
-        align-items: center;
-        justify-content: center;
-        flex: 1;
-        gap: 16px;
-        color: var(--text-muted);
-        text-align: center;
-        padding: 40px;
-    }
-
-    .acm-oral-hint-icon {
-        font-size: 48px;
-    }
-
-    .acm-practice-picker {
-        flex: 1;
-        overflow-y: auto;
-        padding: 32px;
-        display: flex;
-        flex-direction: column;
-        gap: 24px;
-    }
-
-    .acm-practice-picker__intro h3 {
-        margin: 4px 0 8px;
-        color: var(--text-primary);
-        font-size: 1.3rem;
-    }
-
-    .acm-practice-picker__intro p,
-    .acm-practice-picker__empty {
-        margin: 0;
-        color: var(--text-secondary);
-        line-height: 1.45;
-    }
-
-    .acm-practice-picker__eyebrow,
-    .acm-practice-picker__label {
-        display: block;
-        color: var(--practiq-violet);
-        font-size: 0.78rem;
-        font-weight: 800;
-        letter-spacing: 0.04em;
-        text-transform: uppercase;
-    }
-
-    .acm-practice-picker__group {
-        display: grid;
-        gap: 10px;
-    }
-
-    .acm-practice-picker__chips {
-        display: flex;
-        flex-wrap: wrap;
-        gap: 8px;
-    }
-
-    .acm-practice-picker__modes {
-        display: grid;
-        grid-template-columns: repeat(2, minmax(0, 1fr));
-        gap: 10px;
-    }
-
-    .acm-practice-mode {
-        display: flex;
-        align-items: center;
-        gap: 10px;
-        min-height: 64px;
-        padding: 10px 12px;
-        border: 1.5px solid var(--surface-border);
-        border-radius: var(--radius-lg);
-        background: var(--surface-card);
-        color: var(--text-primary);
-        text-align: left;
-        cursor: pointer;
-        transition: var(--transition-fast);
-    }
-
-    .acm-practice-mode > i {
-        color: var(--practiq-violet);
-        font-size: 1.1rem;
-    }
-
-    .acm-practice-mode span {
-        display: grid;
-        gap: 2px;
-    }
-
-    .acm-practice-mode small {
-        color: var(--text-secondary);
-        font-size: 0.72rem;
-    }
-
-    .acm-practice-mode--selected {
-        border-color: var(--practiq-violet);
-        background: var(--fill-primary-subtle);
-        box-shadow: var(--shadow-violet);
-        color: var(--practiq-violet-dark);
-        transform: translateY(-1px);
-    }
-
-    .acm-practice-chip {
-        min-height: 40px;
-        padding: 8px 13px;
-        border: 0;
-        border-radius: var(--radius-pill);
-        background: var(--elevation-tint-bg);
-        box-shadow: var(--elevation-tint-shadow);
-        color: var(--text-primary);
-        font-family: var(--font-ui-family);
-        font-size: 0.9rem;
-        font-weight: 700;
-        cursor: pointer;
-        transition: var(--transition-fast);
-    }
-
-    .acm-practice-chip--selected {
-        background: var(--fill-primary-subtle);
-        color: var(--practiq-violet-dark);
-        box-shadow: var(--shadow-violet);
-        transform: translateY(-1px);
-    }
-    .acm-practice-chip:hover:not(.acm-practice-chip--selected),
-    .acm-practice-mode:hover:not(.acm-practice-mode--selected) {
-        color: var(--practiq-violet-dark);
-    }
-    .acm-practice-chip:focus-visible,
-    .acm-practice-mode:focus-visible {
-        outline: 3px solid rgba(var(--practiq-violet-rgb), 0.28);
-        outline-offset: 2px;
-    }
-
-    .acm-practice-picker__loading {
-        color: var(--text-secondary);
-        font-size: 0.9rem;
-    }
-
-    .acm-practice-picker__start {
-        align-self: flex-start;
-        min-height: 46px;
-        padding-inline: 20px;
-    }
-
-    .acm-piz-idle {
-        flex: 1;
-        display: flex;
-        flex-direction: column;
-        align-items: center;
-        justify-content: center;
-        padding: 40px;
-        text-align: center;
-        gap: 16px;
-    }
-
-    .acm-piz-intro-icon {
-        font-size: 46px;
-        line-height: 1;
-        color: var(--practiq-violet);
-    }
-    .acm-mode-icon {
-        display: inline-flex;
-        align-items: center;
-        font-size: 0.95em;
-    }
-
-    .acm-piz-intro-title {
-        font-size: 22px;
-        font-weight: 700;
-        color: var(--text-heading);
-    }
-
-    .acm-piz-intro-desc {
-        font-size: var(--font-body);
-        color: var(--text-secondary);
-        max-width: 440px;
-        line-height: 1.7;
-    }
-
-    .acm-piz-loading {
-        flex: 1;
-        display: flex;
-        flex-direction: column;
-        align-items: center;
-        justify-content: center;
-        gap: 16px;
-        color: var(--text-secondary);
+@media (max-width: 768px) {
+    .acm-modal {
+        width: 96vw;
+        height: 92vh;
     }
 
     .acm-piz-split {
-        flex: 1;
-        display: flex;
-        overflow: hidden;
+        flex-direction: column;
     }
 
     .acm-piz-exercise {
-        flex: 0 0 42%;
-        display: flex;
-        flex-direction: column;
-        border-right: 1px solid var(--surface-border);
-        overflow: hidden;
-    }
-
-    .acm-piz-panel-label {
-        display: flex;
-        align-items: center;
-        gap: 8px;
-        padding: 10px 16px;
-        background: var(--surface-bg);
-        border-bottom: 1px solid var(--surface-border);
-        font-size: var(--text-sm);
-        font-weight: 700;
-        color: var(--text-secondary);
-        text-transform: uppercase;
-        letter-spacing: 0.05em;
-        flex-shrink: 0;
-    }
-
-    .acm-piz-exercise-content {
-        flex: 1;
-        overflow-y: auto;
-        padding: 20px;
-        font-size: var(--font-body);
-        line-height: 1.7;
-        color: var(--text-primary);
-    }
-
-    .acm-piz-canvas-area {
-        flex: 1;
-        display: flex;
-        flex-direction: column;
-        overflow: hidden;
-    }
-
-    .acm-piz-canvas-area .acm-piz-panel-label {
-        justify-content: space-between;
-    }
-
-    .acm-canvas-tools {
-        display: flex;
-        gap: 4px;
-        margin-left: auto;
-        align-items: center;
-    }
-
-    .acm-tool-btn {
-        width: 30px;
-        height: 30px;
-        border-radius: var(--radius-xs);
-        border: 1px solid var(--surface-border);
-        background: var(--surface-card);
-        color: var(--text-secondary);
-        cursor: pointer;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        font-size: 13px;
-        transition: var(--transition-fast);
-    }
-
-    .acm-tool-btn:hover {
-        background: var(--practiq-violet-bg);
-        color: var(--practiq-violet);
-    }
-
-    .acm-tool-btn--active {
-        background: var(--practiq-violet-bg);
-        color: var(--practiq-violet);
-        border-color: var(--practiq-violet-light);
-    }
-
-    .acm-canvas {
-        flex: 1;
-        display: block;
-        cursor: crosshair;
-        background: var(--surface-card);
-        touch-action: none;
-        width: 100%;
-        height: 100%;
-    }
-
-    .acm-evaluar-btn {
-        margin: 12px 16px;
-        flex-shrink: 0;
-        display: flex;
-        align-items: center;
-        gap: 8px;
-        justify-content: center;
-    }
-
-    .acm-piz-feedback {
-        flex: 1;
-        display: flex;
-        flex-direction: column;
-        padding: 32px 36px;
-        overflow-y: auto;
-        gap: 20px;
-    }
-
-    .acm-piz-feedback-header {
-        display: flex;
-        align-items: center;
-        gap: 10px;
-        font-size: 16px;
-        font-weight: 700;
-        color: var(--text-heading);
-    }
-
-    .acm-piz-feedback-content {
-        flex: 1;
-        font-size: var(--font-body);
-        line-height: 1.75;
-        color: var(--text-primary);
-        background: var(--practiq-violet-bg);
-        border-radius: var(--radius-md);
-        padding: 20px;
-    }
-
-    .acm-next-btn {
-        align-self: flex-start;
-        display: flex;
-        align-items: center;
-        gap: 8px;
-    }
-
-    .acm-footer {
-        flex-shrink: 0;
-        border-top: 1px solid var(--surface-border);
-        background: var(--surface-card);
-    }
-
-    .acm-mode-toggle-row {
-        display: flex;
-        align-items: center;
-        padding: 6px 16px 0;
-    }
-
-    .acm-mode-toggle-btn {
-        display: flex;
-        align-items: center;
-        gap: 6px;
-        font-size: 12px;
-        color: var(--text-secondary);
-        background: none;
-        border: none;
-        cursor: pointer;
-        padding: 4px 8px;
-        border-radius: var(--radius-xs);
-        transition: var(--transition-fast);
-    }
-
-    .acm-mode-toggle-btn:hover {
-        background: var(--surface-hover);
-        color: var(--text-primary);
-    }
-
-    .acm-mode-strip {
-        display: flex;
-        gap: 8px;
-        padding: 8px 16px;
+        flex: 0 0 45%;
+        border-right: none;
         border-bottom: 1px solid var(--surface-border);
     }
 
-    .acm-mode-btn {
-        display: flex;
-        align-items: center;
-        gap: 6px;
-        padding: 6px 14px;
-        border-radius: var(--radius-pill);
-        border: 1.5px solid var(--surface-border);
-        background: var(--surface-card);
-        cursor: pointer;
-        font-size: 13px;
-        font-weight: 500;
-        color: var(--text-secondary);
-        transition: var(--transition-fast);
+    .acm-bubble {
+        max-width: 80%;
     }
 
-    .acm-mode-btn:hover {
-        border-color: var(--practiq-violet-light);
-        color: var(--practiq-violet);
-        background: var(--practiq-violet-bg);
+    .acm-messages {
+        padding: 16px;
     }
+}
 
-    .acm-mode-btn--active {
-        background: var(--practiq-violet);
-        color: var(--color-on-primary);
-        border-color: var(--practiq-violet);
-    }
-
-    .acm-input-area {
-        display: flex;
-        align-items: flex-end;
-        gap: 10px;
-        padding: 12px 16px 14px;
-    }
-
-    .acm-textarea {
-        flex: 1;
-        resize: none;
-        border: 1.5px solid var(--surface-border);
-        border-radius: var(--radius-md);
-        padding: 10px 14px;
-        font-size: var(--font-body);
-        font-family: inherit;
-        color: var(--text-primary);
-        background: var(--surface-bg);
-        outline: none;
-        line-height: 1.5;
-        transition: var(--transition-fast);
-        max-height: 140px;
-        overflow-y: auto;
-    }
-
-    .acm-textarea:focus {
-        border-color: var(--practiq-violet-light);
-        box-shadow: 0 0 0 3px rgba(var(--practiq-violet-light-rgb), 0.1);
-        background: var(--surface-card);
-    }
-
-    .acm-textarea:disabled {
-        opacity: 0.55;
-        cursor: not-allowed;
-    }
-    .acm-textarea::placeholder {
-        color: var(--text-muted);
-    }
-
-    .acm-send {
-        width: 42px;
-        height: 42px;
-        border-radius: 50%;
-        background: var(--practiq-violet);
-        color: var(--color-on-primary);
-        border: none;
-        cursor: pointer;
-        flex-shrink: 0;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        font-size: 16px;
-        transition: var(--transition-fast);
-    }
-
-    .acm-send:hover:not(:disabled) {
-        background: var(--practiq-violet-dark);
-        transform: scale(1.07);
-        box-shadow: var(--shadow-violet);
-    }
-
-    .acm-send:disabled {
-        opacity: 0.4;
-        cursor: not-allowed;
-    }
-
-    .acm-oral-input {
-        flex: 1;
-        display: flex;
-        flex-direction: column;
-        align-items: center;
-        gap: 10px;
-        padding: 6px 0;
-    }
-
-    .acm-mic-big {
-        width: 64px;
-        height: 64px;
-        border-radius: 50%;
-        background: var(--practiq-violet);
-        color: var(--color-on-primary);
-        border: none;
-        cursor: pointer;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        font-size: 26px;
-        transition: var(--transition-fast);
-        box-shadow: var(--shadow-violet);
-        user-select: none;
-        -webkit-user-select: none;
-    }
-
-    .acm-mic-big:hover:not(:disabled) {
-        background: var(--practiq-violet-dark);
-        transform: scale(1.06);
-    }
-
-    .acm-mic-big--recording {
-        background: var(--color-error) !important;
-        animation: acm-pulse 0.7s infinite;
-        box-shadow: 0 0 0 8px rgba(var(--color-error-rgb), 0.15);
-    }
-
-    .acm-mic-big:disabled {
-        opacity: 0.5;
-        cursor: not-allowed;
-    }
-
-    .acm-oral-tip {
-        font-size: 12px;
-        color: var(--text-muted);
-        text-align: center;
-        max-width: 260px;
-    }
-
-    .acm-recording-bar {
-        display: flex;
-        align-items: center;
-        gap: 8px;
-        padding: 7px 16px;
-        background: var(--color-error-bg);
-        border-top: 1px solid rgba(var(--color-error-rgb), 0.25);
-        font-size: var(--text-sm);
-        color: var(--color-error-dark);
-    }
-
-    .acm-recording-dot {
-        width: 8px;
-        height: 8px;
-        border-radius: 50%;
-        background: var(--color-error);
-        animation: acm-pulse 0.7s infinite;
-    }
-
-    .acm-slide-enter-active,
-    .acm-slide-leave-active {
-        transition: all 0.18s ease;
-        overflow: hidden;
-    }
-    .acm-slide-enter-from,
-    .acm-slide-leave-to {
-        opacity: 0;
-        max-height: 0;
-    }
-    .acm-slide-enter-to,
-    .acm-slide-leave-from {
-        opacity: 1;
-        max-height: 80px;
-    }
-
-    @keyframes acm-pulse {
-        0%,
-        100% {
-            opacity: 1;
-        }
-        50% {
-            opacity: 0.35;
-        }
-    }
-
-    @keyframes acm-bounce {
-        0%,
-        80%,
-        100% {
-            transform: translateY(0);
-            opacity: 0.45;
-        }
-        40% {
-            transform: translateY(-6px);
-            opacity: 1;
-        }
-    }
-
-    @media (max-width: 768px) {
-        .acm-modal {
-            width: 96vw;
-            height: 92vh;
-        }
-
-        .acm-piz-split {
-            flex-direction: column;
-        }
-
-        .acm-piz-exercise {
-            flex: 0 0 45%;
-            border-right: none;
-            border-bottom: 1px solid var(--surface-border);
-        }
-
-        .acm-bubble {
-            max-width: 80%;
-        }
-
-        .acm-messages {
-            padding: 16px;
-        }
-    }
-
-    @media (max-width: 600px) {
-        .acm-overlay {
-            padding: 0;
-            align-items: stretch;
-            justify-content: stretch;
-            overflow: hidden;
-        }
-        .acm-modal {
-            width: 100vw;
-            height: 100%;
-            min-height: 0;
-            border-radius: 0;
-        }
-        .acm-header {
-            padding: 10px 16px;
-        }
-        .acm-avatar,
-        .acm-avatar img {
-            width: 36px;
-            height: 36px;
-            min-width: 36px;
-        }
-        .acm-title {
-            font-size: 0.98rem;
-        }
-        .acm-status {
-            font-size: 0.72rem;
-        }
-        .acm-bubble {
-            max-width: 85%;
-        }
-
-        .acm-piz-split {
-            flex-direction: column;
-        }
-        .acm-piz-exercise {
-            flex: 0 0 40%;
-            border-right: none;
-            border-bottom: 1px solid var(--surface-border);
-        }
-
-        .acm-practice-picker {
-            padding: 18px 16px;
-            gap: 14px;
-        }
-        .acm-practice-picker__intro h3 {
-            margin: 2px 0 5px;
-            font-size: 1.12rem;
-        }
-        .acm-practice-picker__intro p {
-            font-size: 0.9rem;
-            line-height: 1.35;
-        }
-        .acm-practice-picker__eyebrow,
-        .acm-practice-picker__label {
-            font-size: 0.7rem;
-        }
-        .acm-practice-picker__group {
-            gap: 7px;
-        }
-        .acm-practice-picker__chips {
-            flex-wrap: nowrap;
-            gap: 7px;
-            overflow-x: auto;
-            padding-bottom: 2px;
-            scrollbar-width: none;
-        }
-        .acm-practice-picker__chips::-webkit-scrollbar {
-            display: none;
-        }
-        .acm-practice-context {
-            padding-inline: 14px;
-        }
-        .acm-practice-picker__modes {
-            grid-template-columns: repeat(2, minmax(0, 1fr));
-            gap: 8px;
-        }
-        .acm-practice-chip {
-            flex: 0 0 auto;
-            min-height: 40px;
-            padding: 6px 11px;
-            font-size: 0.82rem;
-        }
-        .acm-practice-mode {
-            min-height: 58px;
-            gap: 7px;
-            padding: 8px;
-        }
-        .acm-practice-mode > i {
-            font-size: 0.95rem;
-        }
-        .acm-practice-mode strong {
-            font-size: 0.84rem;
-        }
-        .acm-practice-mode small {
-            font-size: 0.64rem;
-            line-height: 1.15;
-        }
-        .acm-practice-picker__start {
-            min-height: 44px;
-            font-size: 0.9rem;
-        }
-        .acm-practice-picker__start {
-            width: 100%;
-            justify-content: center;
-        }
-
-        .acm-close,
-        .acm-tool-btn {
-            width: 44px;
-            height: 44px;
-        }
-    }
-
-    :deep(.acm-bubble--md) {
-        line-height: 1.7;
-        overflow-wrap: break-word;
-    }
-
-    :deep(.acm-bubble--md p) {
-        margin: 0 0 10px;
-    }
-    :deep(.acm-bubble--md p:last-child) {
-        margin-bottom: 0;
-    }
-
-    :deep(.acm-bubble--md strong) {
-        font-weight: 700;
-    }
-    :deep(.acm-bubble--md em) {
-        font-style: italic;
-    }
-
-    :deep(.acm-bubble--md h1),
-    :deep(.acm-bubble--md h2),
-    :deep(.acm-bubble--md h3) {
-        font-weight: 700;
-        margin: 14px 0 6px;
-        line-height: 1.3;
-    }
-    :deep(.acm-bubble--md h1) {
-        font-size: 1.15em;
-    }
-    :deep(.acm-bubble--md h2) {
-        font-size: 1.05em;
-    }
-    :deep(.acm-bubble--md h3) {
-        font-size: 1em;
-    }
-
-    :deep(.acm-bubble--md ul),
-    :deep(.acm-bubble--md ol) {
-        padding-left: 20px;
-        margin: 6px 0 10px;
-    }
-    :deep(.acm-bubble--md li) {
-        margin-bottom: 4px;
-    }
-
-    :deep(.acm-bubble--md code) {
-        background: rgba(var(--practiq-violet-rgb), 0.08);
-        border-radius: 4px;
-        padding: 1px 5px;
-        font-family: 'JetBrains Mono', 'Fira Code', monospace;
-        font-size: 0.88em;
-    }
-
-    :deep(.acm-bubble--md pre) {
-        background: #1e1e2e;
-        color: #cdd6f4;
-        border-radius: 8px;
-        padding: 14px 16px;
-        overflow-x: auto;
-        margin: 8px 0;
-        font-size: 0.85em;
-        line-height: 1.5;
-    }
-
-    :deep(.acm-bubble--md pre code) {
-        background: none;
+@media (max-width: 600px) {
+    .acm-overlay {
         padding: 0;
-        color: inherit;
-        font-size: inherit;
+        align-items: stretch;
+        justify-content: stretch;
+        overflow: hidden;
+    }
+    .acm-modal {
+        width: 100vw;
+        height: 100%;
+        min-height: 0;
+        border-radius: 0;
+    }
+    .acm-header {
+        padding: 10px 16px;
+    }
+    .acm-avatar,
+    .acm-avatar img {
+        width: 36px;
+        height: 36px;
+        min-width: 36px;
+    }
+    .acm-title {
+        font-size: 0.98rem;
+    }
+    .acm-status {
+        font-size: 0.72rem;
+    }
+    .acm-bubble {
+        max-width: 85%;
     }
 
-    :deep(.acm-bubble--md blockquote) {
-        border-left: 3px solid var(--practiq-violet-light);
-        padding: 4px 12px;
-        margin: 8px 0;
-        color: var(--text-secondary);
-        background: var(--practiq-violet-bg);
-        border-radius: 0 6px 6px 0;
+    .acm-piz-split {
+        flex-direction: column;
+    }
+    .acm-piz-exercise {
+        flex: 0 0 40%;
+        border-right: none;
+        border-bottom: 1px solid var(--surface-border);
     }
 
-    :deep(.acm-bubble--md table) {
-        border-collapse: collapse;
-        width: 100%;
-        margin: 10px 0;
-        font-size: 0.9em;
+    .acm-practice-picker {
+        padding: 18px 16px;
+        gap: 14px;
     }
-
-    :deep(.acm-bubble--md th),
-    :deep(.acm-bubble--md td) {
-        border: 1px solid var(--surface-border);
-        padding: 6px 10px;
-        text-align: left;
+    .acm-practice-picker__intro h3 {
+        margin: 2px 0 5px;
+        font-size: 1.12rem;
     }
-
-    :deep(.acm-bubble--md th) {
-        background: var(--practiq-violet-bg);
-        font-weight: 700;
+    .acm-practice-picker__intro p {
+        font-size: 0.9rem;
+        line-height: 1.35;
     }
-
-    :deep(.acm-bubble--md hr) {
-        border: none;
-        border-top: 1px solid var(--surface-border);
-        margin: 12px 0;
+    .acm-practice-picker__eyebrow,
+    .acm-practice-picker__label {
+        font-size: 0.7rem;
     }
-
-    :deep(.acm-bubble--md .katex-display) {
-        margin: 10px 0;
+    .acm-practice-picker__group {
+        gap: 7px;
+    }
+    .acm-practice-picker__chips {
+        flex-wrap: nowrap;
+        gap: 7px;
         overflow-x: auto;
+        padding-bottom: 2px;
+        scrollbar-width: none;
+    }
+    .acm-practice-picker__chips::-webkit-scrollbar {
+        display: none;
+    }
+    .acm-practice-context {
+        padding-inline: 14px;
+    }
+    .acm-practice-picker__modes {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 8px;
+    }
+    .acm-practice-chip {
+        flex: 0 0 auto;
+        min-height: 40px;
+        padding: 6px 11px;
+        font-size: 0.82rem;
+    }
+    .acm-practice-mode {
+        min-height: 58px;
+        gap: 7px;
+        padding: 8px;
+    }
+    .acm-practice-mode > i {
+        font-size: 0.95rem;
+    }
+    .acm-practice-mode strong {
+        font-size: 0.84rem;
+    }
+    .acm-practice-mode small {
+        font-size: 0.64rem;
+        line-height: 1.15;
+    }
+    .acm-practice-picker__start {
+        min-height: 44px;
+        font-size: 0.9rem;
+    }
+    .acm-practice-picker__start {
+        width: 100%;
+        justify-content: center;
     }
 
-    :deep(.acm-bubble--md .katex) {
-        font-size: 1.05em;
+    .acm-close,
+    .acm-tool-btn {
+        width: 44px;
+        height: 44px;
     }
+}
+
+:deep(.acm-bubble--md) {
+    line-height: 1.7;
+    overflow-wrap: break-word;
+}
+
+:deep(.acm-bubble--md p) {
+    margin: 0 0 10px;
+}
+:deep(.acm-bubble--md p:last-child) {
+    margin-bottom: 0;
+}
+
+:deep(.acm-bubble--md strong) {
+    font-weight: 700;
+}
+:deep(.acm-bubble--md em) {
+    font-style: italic;
+}
+
+:deep(.acm-bubble--md h1),
+:deep(.acm-bubble--md h2),
+:deep(.acm-bubble--md h3) {
+    font-weight: 700;
+    margin: 14px 0 6px;
+    line-height: 1.3;
+}
+:deep(.acm-bubble--md h1) {
+    font-size: 1.15em;
+}
+:deep(.acm-bubble--md h2) {
+    font-size: 1.05em;
+}
+:deep(.acm-bubble--md h3) {
+    font-size: 1em;
+}
+
+:deep(.acm-bubble--md ul),
+:deep(.acm-bubble--md ol) {
+    padding-left: 20px;
+    margin: 6px 0 10px;
+}
+:deep(.acm-bubble--md li) {
+    margin-bottom: 4px;
+}
+
+:deep(.acm-bubble--md code) {
+    background: rgba(var(--practiq-violet-rgb), 0.08);
+    border-radius: 4px;
+    padding: 1px 5px;
+    font-family: 'JetBrains Mono', 'Fira Code', monospace;
+    font-size: 0.88em;
+}
+
+:deep(.acm-bubble--md pre) {
+    background: #1e1e2e;
+    color: #cdd6f4;
+    border-radius: 8px;
+    padding: 14px 16px;
+    overflow-x: auto;
+    margin: 8px 0;
+    font-size: 0.85em;
+    line-height: 1.5;
+}
+
+:deep(.acm-bubble--md pre code) {
+    background: none;
+    padding: 0;
+    color: inherit;
+    font-size: inherit;
+}
+
+:deep(.acm-bubble--md blockquote) {
+    border-left: 3px solid var(--practiq-violet-light);
+    padding: 4px 12px;
+    margin: 8px 0;
+    color: var(--text-secondary);
+    background: var(--practiq-violet-bg);
+    border-radius: 0 6px 6px 0;
+}
+
+:deep(.acm-bubble--md table) {
+    border-collapse: collapse;
+    width: 100%;
+    margin: 10px 0;
+    font-size: 0.9em;
+}
+
+:deep(.acm-bubble--md th),
+:deep(.acm-bubble--md td) {
+    border: 1px solid var(--surface-border);
+    padding: 6px 10px;
+    text-align: left;
+}
+
+:deep(.acm-bubble--md th) {
+    background: var(--practiq-violet-bg);
+    font-weight: 700;
+}
+
+:deep(.acm-bubble--md hr) {
+    border: none;
+    border-top: 1px solid var(--surface-border);
+    margin: 12px 0;
+}
+
+:deep(.acm-bubble--md .katex-display) {
+    margin: 10px 0;
+    overflow-x: auto;
+}
+
+:deep(.acm-bubble--md .katex) {
+    font-size: 1.05em;
+}
 </style>

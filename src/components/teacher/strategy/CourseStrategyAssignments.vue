@@ -1,23 +1,23 @@
 <script setup lang="ts">
-    import type {
-        CourseStrategyAssignmentsEmits,
-        CourseStrategyAssignmentsProps,
-    } from './CourseStrategyAssignments.types';
+import type {
+    CourseStrategyAssignmentsEmits,
+    CourseStrategyAssignmentsProps,
+} from './CourseStrategyAssignments.types';
 
-    const props = defineProps<CourseStrategyAssignmentsProps>();
-    const emit = defineEmits<CourseStrategyAssignmentsEmits>();
+const props = defineProps<CourseStrategyAssignmentsProps>();
+const emit = defineEmits<CourseStrategyAssignmentsEmits>();
 
-    const getCourseAssignments = (courseId: string) => props.courseAssignments[courseId] || [];
-    const getAvailableStrategies = (courseId: string) => {
-        const assigned = getCourseAssignments(courseId).map((assignment) => assignment.strategy_id);
-        return props.strategies.filter((strategy) => !assigned.includes(strategy.id));
-    };
-    const selectStrategy = (courseId: string, strategyId: string) => {
-        emit('update:selectedStrategyForCourse', {
-            ...props.selectedStrategyForCourse,
-            [courseId]: strategyId,
-        });
-    };
+const getCourseAssignments = (courseId: string) => props.courseAssignments[courseId] || [];
+const getAvailableStrategies = (courseId: string) => {
+    const assigned = getCourseAssignments(courseId).map((assignment) => assignment.strategy_id);
+    return props.strategies.filter((strategy) => !assigned.includes(strategy.id));
+};
+const selectStrategy = (courseId: string, strategyId: string) => {
+    emit('update:selectedStrategyForCourse', {
+        ...props.selectedStrategyForCourse,
+        [courseId]: strategyId,
+    });
+};
 </script>
 
 <template>
@@ -97,114 +97,114 @@
 </template>
 
 <style scoped>
-    .content-section {
-        margin-bottom: 28px;
-    }
-    .section-header {
-        display: flex;
-        justify-content: space-between;
-        gap: 16px;
-        margin-bottom: 16px;
-    }
-    .section-title {
-        margin: 0;
-        font-size: 1.15rem;
-        font-weight: 800;
-        color: var(--text-heading);
-    }
-    .section-subtitle {
-        margin: 4px 0 0;
-        color: var(--text-secondary);
-        font-size: var(--text-sm);
-    }
-    .empty-state,
-    .course-assignment-card {
-        background: var(--surface-elevated);
-        border: 1px solid var(--surface-elevated-strong);
-        border-radius: var(--radius-xl);
-        box-shadow: var(--shadow-card);
-        padding: 16px;
-    }
-    .courses-assignments {
-        display: grid;
-        gap: 12px;
-    }
-    .course-assignment-card {
-        display: grid;
-        gap: 12px;
-    }
+.content-section {
+    margin-bottom: 28px;
+}
+.section-header {
+    display: flex;
+    justify-content: space-between;
+    gap: 16px;
+    margin-bottom: 16px;
+}
+.section-title {
+    margin: 0;
+    font-size: 1.15rem;
+    font-weight: 800;
+    color: var(--text-heading);
+}
+.section-subtitle {
+    margin: 4px 0 0;
+    color: var(--text-secondary);
+    font-size: var(--text-sm);
+}
+.empty-state,
+.course-assignment-card {
+    background: var(--surface-elevated);
+    border: 1px solid var(--surface-elevated-strong);
+    border-radius: var(--radius-xl);
+    box-shadow: var(--shadow-card);
+    padding: 16px;
+}
+.courses-assignments {
+    display: grid;
+    gap: 12px;
+}
+.course-assignment-card {
+    display: grid;
+    gap: 12px;
+}
+.course-info,
+.assigned-strategy,
+.strategy-tag,
+.assignment-actions {
+    display: flex;
+    align-items: center;
+}
+.course-info {
+    justify-content: space-between;
+    gap: 12px;
+}
+.course-name {
+    margin: 0;
+    color: var(--text-heading);
+    font-size: 1rem;
+    font-weight: 800;
+}
+.course-subject-badge,
+.strategy-tag {
+    border-radius: var(--radius-pill);
+    padding: 5px 9px;
+    font-size: var(--text-xs);
+    font-weight: 800;
+    background: var(--fill-primary-soft);
+    color: var(--practiq-violet);
+}
+.assigned-strategies {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+.assigned-strategy {
+    gap: 4px;
+}
+.strategy-tag {
+    gap: 5px;
+}
+.btn-remove {
+    width: 24px;
+    height: 24px;
+    border: 0;
+    border-radius: 50%;
+    background: var(--color-error-bg);
+    color: var(--color-error-dark);
+    cursor: pointer;
+}
+.no-strategies {
+    color: var(--text-secondary);
+    font-size: var(--text-sm);
+}
+.assignment-actions {
+    gap: 8px;
+}
+.strategy-select {
+    flex: 1;
+    min-width: 180px;
+    border: 1px solid var(--surface-border);
+    border-radius: var(--radius-md);
+    background: var(--surface-card);
+    color: var(--text-primary);
+    padding: 9px 10px;
+}
+@media (max-width: 700px) {
     .course-info,
-    .assigned-strategy,
-    .strategy-tag,
     .assignment-actions {
-        display: flex;
-        align-items: center;
+        flex-direction: column;
+        align-items: stretch;
     }
-    .course-info {
-        justify-content: space-between;
-        gap: 12px;
-    }
-    .course-name {
-        margin: 0;
-        color: var(--text-heading);
-        font-size: 1rem;
-        font-weight: 800;
-    }
-    .course-subject-badge,
-    .strategy-tag {
-        border-radius: var(--radius-pill);
-        padding: 5px 9px;
-        font-size: var(--text-xs);
-        font-weight: 800;
-        background: var(--fill-primary-soft);
-        color: var(--practiq-violet);
-    }
-    .assigned-strategies {
-        display: flex;
-        gap: 8px;
-        flex-wrap: wrap;
-    }
-    .assigned-strategy {
-        gap: 4px;
-    }
-    .strategy-tag {
-        gap: 5px;
-    }
-    .btn-remove {
-        width: 24px;
-        height: 24px;
-        border: 0;
-        border-radius: 50%;
-        background: var(--color-error-bg);
-        color: var(--color-error-dark);
-        cursor: pointer;
-    }
-    .no-strategies {
-        color: var(--text-secondary);
-        font-size: var(--text-sm);
-    }
-    .assignment-actions {
-        gap: 8px;
-    }
-    .strategy-select {
-        flex: 1;
-        min-width: 180px;
-        border: 1px solid var(--surface-border);
-        border-radius: var(--radius-md);
-        background: var(--surface-card);
-        color: var(--text-primary);
-        padding: 9px 10px;
-    }
-    @media (max-width: 700px) {
-        .course-info,
-        .assignment-actions {
-            flex-direction: column;
-            align-items: stretch;
-        }
 
-        .btn-remove {
-            width: 44px;
-            height: 44px;
-        }
+    .btn-remove {
+        width: 44px;
+        height: 44px;
     }
+}
 </style>

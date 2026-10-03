@@ -12,5 +12,7 @@ export const useDashboard = () => {
         loadDashboard: store.fetchDashboard,
 
         refreshDashboard: store.refreshDashboard,
+
+        loadLeaderboard: store.fetchLeaderboard,
     };
 };

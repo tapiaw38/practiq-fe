@@ -1,279 +1,273 @@
 <script setup lang="ts">
-    import { computed, onMounted, reactive, ref } from 'vue';
-    import { useRouter } from 'vue-router';
-    import { useToast } from '@/composables/useToast';
-    import { practiqApi } from '@/api/request/server';
-    import { authApi } from '@/api/request/server';
-    import TeacherLayout from '@/layouts/TeacherLayout.vue';
-    import Skeleton from '@/components/ui/Skeleton.vue';
-    import { useSchools } from '@/composables/useSchools';
-    import {
-        SchoolService,
-        type School,
-        type SchoolArchive,
-    } from '@/services/schools/schoolService';
-    import { AuthAdminService } from '@/services/auth/authAdminService';
-    import type { AuthApiUser } from '@/types';
+import { computed, onMounted, reactive, ref } from 'vue';
+import { useRouter } from 'vue-router';
+import { useToast } from '@/composables/useToast';
+import { practiqApi } from '@/api/request/server';
+import { authApi } from '@/api/request/server';
+import TeacherLayout from '@/layouts/TeacherLayout.vue';
+import Skeleton from '@/components/ui/Skeleton.vue';
+import { useSchools } from '@/composables/useSchools';
+import { SchoolService, type School, type SchoolArchive } from '@/services/schools/schoolService';
+import { AuthAdminService } from '@/services/auth/authAdminService';
+import type { AuthApiUser } from '@/types';
 
-    const toast = useToast();
-    const router = useRouter();
-    const { loadSchools, setActive } = useSchools();
-    const service = new SchoolService(practiqApi);
+const toast = useToast();
+const router = useRouter();
+const { loadSchools, setActive } = useSchools();
+const service = new SchoolService(practiqApi);
 
-    const schools = ref<School[]>([]);
-    const loading = ref(true);
-    const saving = ref(false);
-    const showCreateForm = ref(false);
-    const closeTarget = ref<School | null>(null);
-    const closeConfirmation = ref('');
-    const closeReason = ref('');
-    const archive = ref<SchoolArchive | null>(null);
-    const loadingArchive = ref(false);
-    const editingSchool = ref<School | null>(null);
-    const adminQuery = ref('');
-    const adminUserId = ref('');
-    const adminMatches = ref<AuthApiUser[]>([]);
-    const authAdmin = new AuthAdminService(authApi);
+const schools = ref<School[]>([]);
+const loading = ref(true);
+const saving = ref(false);
+const showCreateForm = ref(false);
+const closeTarget = ref<School | null>(null);
+const closeConfirmation = ref('');
+const closeReason = ref('');
+const archive = ref<SchoolArchive | null>(null);
+const loadingArchive = ref(false);
+const editingSchool = ref<School | null>(null);
+const adminQuery = ref('');
+const adminUserId = ref('');
+const adminMatches = ref<AuthApiUser[]>([]);
+const authAdmin = new AuthAdminService(authApi);
 
-    const form = reactive({ name: '', billing: 'direct' as School['billing'] });
-    const editForm = reactive({ name: '', billing: 'direct' as School['billing'] });
+const form = reactive({ name: '', billing: 'direct' as School['billing'] });
+const editForm = reactive({ name: '', billing: 'direct' as School['billing'] });
 
-    const activeSchools = computed(() => schools.value.filter((s) => s.status === 'active'));
-    const institutions = computed(() =>
-        activeSchools.value.filter((s) => s.kind === 'institution'),
-    );
-    const personals = computed(() => activeSchools.value.filter((s) => s.kind === 'personal'));
-    const closedSchools = computed(() => schools.value.filter((s) => s.status === 'closed'));
-    const suspendedSchools = computed(() => schools.value.filter((s) => s.status === 'suspended'));
+const activeSchools = computed(() => schools.value.filter((s) => s.status === 'active'));
+const institutions = computed(() => activeSchools.value.filter((s) => s.kind === 'institution'));
+const personals = computed(() => activeSchools.value.filter((s) => s.kind === 'personal'));
+const closedSchools = computed(() => schools.value.filter((s) => s.status === 'closed'));
+const suspendedSchools = computed(() => schools.value.filter((s) => s.status === 'suspended'));
 
-    function fail(detail: string) {
-        toast.add({ severity: 'error', summary: 'Error', detail, life: 3000 });
+function fail(detail: string) {
+    toast.add({ severity: 'error', summary: 'Error', detail, life: 3000 });
+}
+
+async function load() {
+    try {
+        const { data } = await service.list();
+        schools.value = data;
+    } catch {
+        fail('No se pudieron cargar las escuelas');
+    } finally {
+        loading.value = false;
     }
+}
 
-    async function load() {
-        try {
-            const { data } = await service.list();
-            schools.value = data;
-        } catch {
-            fail('No se pudieron cargar las escuelas');
-        } finally {
-            loading.value = false;
-        }
+async function createSchool() {
+    if (saving.value) return;
+    if (!form.name.trim()) {
+        toast.add({ severity: 'warn', summary: 'Poné un nombre', life: 2500 });
+        return;
     }
-
-    async function createSchool() {
-        if (saving.value) return;
-        if (!form.name.trim()) {
-            toast.add({ severity: 'warn', summary: 'Poné un nombre', life: 2500 });
-            return;
-        }
-        if (!adminUserId.value) {
-            toast.add({ severity: 'warn', summary: 'Elegí administrador inicial', life: 2500 });
-            return;
-        }
-        saving.value = true;
-        try {
-            await service.create({
-                name: form.name.trim(),
-                kind: 'institution',
-                billing: form.billing,
-                admin_user_id: adminUserId.value,
-            });
-            form.name = '';
-            adminQuery.value = '';
-            adminUserId.value = '';
-            showCreateForm.value = false;
-            await load();
-            toast.add({ severity: 'success', summary: 'Institución creada', life: 2500 });
-        } catch (error: any) {
-            fail(error.response?.data?.message || 'No se pudo crear la institución');
-        } finally {
-            saving.value = false;
-        }
+    if (!adminUserId.value) {
+        toast.add({ severity: 'warn', summary: 'Elegí administrador inicial', life: 2500 });
+        return;
     }
-
-    function practiqUserId(user: AuthApiUser) {
-        return user.username || user.id;
-    }
-
-    async function searchAdmins() {
-        adminUserId.value = '';
-        const query = adminQuery.value.trim().toLowerCase();
-        if (query.length < 2) {
-            adminMatches.value = [];
-            return;
-        }
-        try {
-            const { data } = await authAdmin.listUsers({ limit: 100 });
-            adminMatches.value = data
-                .filter((user) =>
-                    [user.username, user.first_name, user.last_name, user.email]
-                        .join(' ')
-                        .toLowerCase()
-                        .includes(query),
-                )
-                .slice(0, 8);
-        } catch {
-            adminMatches.value = [];
-        }
-    }
-
-    function selectAdmin(user: AuthApiUser) {
-        adminUserId.value = practiqUserId(user);
-        adminQuery.value = user.email || `${user.first_name} ${user.last_name}`.trim();
-        adminMatches.value = [];
-    }
-
-    function clearAdminMatchesSoon() {
-        window.setTimeout(() => (adminMatches.value = []), 150);
-    }
-
-    function openCreateForm() {
+    saving.value = true;
+    try {
+        await service.create({
+            name: form.name.trim(),
+            kind: 'institution',
+            billing: form.billing,
+            admin_user_id: adminUserId.value,
+        });
         form.name = '';
-        form.billing = 'direct';
         adminQuery.value = '';
         adminUserId.value = '';
-        adminMatches.value = [];
-        showCreateForm.value = true;
-    }
-
-    function closeCreateForm() {
         showCreateForm.value = false;
+        await load();
+        toast.add({ severity: 'success', summary: 'Institución creada', life: 2500 });
+    } catch (error: any) {
+        fail(error.response?.data?.message || 'No se pudo crear la institución');
+    } finally {
+        saving.value = false;
+    }
+}
+
+function practiqUserId(user: AuthApiUser) {
+    return user.username || user.id;
+}
+
+async function searchAdmins() {
+    adminUserId.value = '';
+    const query = adminQuery.value.trim().toLowerCase();
+    if (query.length < 2) {
+        adminMatches.value = [];
+        return;
+    }
+    try {
+        const { data } = await authAdmin.listUsers({ limit: 100 });
+        adminMatches.value = data
+            .filter((user) =>
+                [user.username, user.first_name, user.last_name, user.email]
+                    .join(' ')
+                    .toLowerCase()
+                    .includes(query),
+            )
+            .slice(0, 8);
+    } catch {
         adminMatches.value = [];
     }
+}
 
-    function openEdit(school: School) {
-        editingSchool.value = school;
-        editForm.name = school.name;
-        editForm.billing = school.billing;
-    }
+function selectAdmin(user: AuthApiUser) {
+    adminUserId.value = practiqUserId(user);
+    adminQuery.value = user.email || `${user.first_name} ${user.last_name}`.trim();
+    adminMatches.value = [];
+}
 
-    function cancelEdit() {
-        editingSchool.value = null;
-    }
+function clearAdminMatchesSoon() {
+    window.setTimeout(() => (adminMatches.value = []), 150);
+}
 
-    async function saveEdit() {
-        const school = editingSchool.value;
-        if (!school || saving.value || !editForm.name.trim()) return;
-        saving.value = true;
-        try {
-            await service.update(school.id, {
-                name: editForm.name.trim(),
-                kind: 'institution',
-                billing: editForm.billing,
-            });
-            cancelEdit();
-            await loadSchools(true, true);
-            await load();
-            toast.add({ severity: 'success', summary: 'Institución actualizada', life: 2500 });
-        } catch {
-            fail('No se pudo actualizar la institución');
-        } finally {
-            saving.value = false;
-        }
-    }
+function openCreateForm() {
+    form.name = '';
+    form.billing = 'direct';
+    adminQuery.value = '';
+    adminUserId.value = '';
+    adminMatches.value = [];
+    showCreateForm.value = true;
+}
 
-    async function suspendSchool(school: School) {
-        if (
-            saving.value ||
-            !window.confirm(
-                `¿Suspender ${school.name}? Sus miembros perderán acceso hasta reactivarla.`,
-            )
-        )
-            return;
-        saving.value = true;
-        try {
-            await service.suspend(school.id);
-            await loadSchools(true, true);
-            await load();
-            toast.add({ severity: 'success', summary: 'Institución suspendida', life: 2500 });
-        } catch {
-            fail('No se pudo suspender la institución');
-        } finally {
-            saving.value = false;
-        }
-    }
+function closeCreateForm() {
+    showCreateForm.value = false;
+    adminMatches.value = [];
+}
 
-    async function openSchool(school: School) {
+function openEdit(school: School) {
+    editingSchool.value = school;
+    editForm.name = school.name;
+    editForm.billing = school.billing;
+}
+
+function cancelEdit() {
+    editingSchool.value = null;
+}
+
+async function saveEdit() {
+    const school = editingSchool.value;
+    if (!school || saving.value || !editForm.name.trim()) return;
+    saving.value = true;
+    try {
+        await service.update(school.id, {
+            name: editForm.name.trim(),
+            kind: 'institution',
+            billing: editForm.billing,
+        });
+        cancelEdit();
         await loadSchools(true, true);
-        setActive(school.id);
-        router.push('/teacher/admin/school-users');
+        await load();
+        toast.add({ severity: 'success', summary: 'Institución actualizada', life: 2500 });
+    } catch {
+        fail('No se pudo actualizar la institución');
+    } finally {
+        saving.value = false;
     }
+}
 
-    function askToClose(school: School) {
-        closeTarget.value = school;
-        closeConfirmation.value = '';
-        closeReason.value = '';
+async function suspendSchool(school: School) {
+    if (
+        saving.value ||
+        !window.confirm(
+            `¿Suspender ${school.name}? Sus miembros perderán acceso hasta reactivarla.`,
+        )
+    )
+        return;
+    saving.value = true;
+    try {
+        await service.suspend(school.id);
+        await loadSchools(true, true);
+        await load();
+        toast.add({ severity: 'success', summary: 'Institución suspendida', life: 2500 });
+    } catch {
+        fail('No se pudo suspender la institución');
+    } finally {
+        saving.value = false;
     }
+}
 
-    function cancelClose() {
-        closeTarget.value = null;
-        closeConfirmation.value = '';
-        closeReason.value = '';
+async function openSchool(school: School) {
+    await loadSchools(true, true);
+    setActive(school.id);
+    router.push('/teacher/admin/school-users');
+}
+
+function askToClose(school: School) {
+    closeTarget.value = school;
+    closeConfirmation.value = '';
+    closeReason.value = '';
+}
+
+function cancelClose() {
+    closeTarget.value = null;
+    closeConfirmation.value = '';
+    closeReason.value = '';
+}
+
+async function closeSchool() {
+    const school = closeTarget.value;
+    if (!school || saving.value) return;
+    if (closeConfirmation.value.trim() !== school.name) {
+        toast.add({
+            severity: 'warn',
+            summary: 'El nombre no coincide',
+            detail: 'Escribí el nombre exacto de la escuela.',
+            life: 3000,
+        });
+        return;
     }
-
-    async function closeSchool() {
-        const school = closeTarget.value;
-        if (!school || saving.value) return;
-        if (closeConfirmation.value.trim() !== school.name) {
-            toast.add({
-                severity: 'warn',
-                summary: 'El nombre no coincide',
-                detail: 'Escribí el nombre exacto de la escuela.',
-                life: 3000,
-            });
-            return;
-        }
-        saving.value = true;
-        try {
-            await service.close(school.id, {
-                confirm_name: closeConfirmation.value.trim(),
-                reason: closeReason.value.trim() || undefined,
-            });
-            cancelClose();
-            await loadSchools(true, true);
-            await load();
-            toast.add({
-                severity: 'success',
-                summary: 'Escuela cerrada',
-                detail: 'Sus datos se conservaron y el acceso fue bloqueado.',
-                life: 3500,
-            });
-        } catch {
-            fail('No se pudo cerrar la escuela');
-        } finally {
-            saving.value = false;
-        }
+    saving.value = true;
+    try {
+        await service.close(school.id, {
+            confirm_name: closeConfirmation.value.trim(),
+            reason: closeReason.value.trim() || undefined,
+        });
+        cancelClose();
+        await loadSchools(true, true);
+        await load();
+        toast.add({
+            severity: 'success',
+            summary: 'Escuela cerrada',
+            detail: 'Sus datos se conservaron y el acceso fue bloqueado.',
+            life: 3500,
+        });
+    } catch {
+        fail('No se pudo cerrar la escuela');
+    } finally {
+        saving.value = false;
     }
+}
 
-    async function reopenSchool(school: School) {
-        if (saving.value) return;
-        saving.value = true;
-        try {
-            await service.reopen(school.id);
-            await loadSchools(true, true);
-            await load();
-            toast.add({ severity: 'success', summary: 'Escuela reabierta', life: 2500 });
-        } catch {
-            fail('No se pudo reabrir la escuela');
-        } finally {
-            saving.value = false;
-        }
+async function reopenSchool(school: School) {
+    if (saving.value) return;
+    saving.value = true;
+    try {
+        await service.reopen(school.id);
+        await loadSchools(true, true);
+        await load();
+        toast.add({ severity: 'success', summary: 'Escuela reabierta', life: 2500 });
+    } catch {
+        fail('No se pudo reabrir la escuela');
+    } finally {
+        saving.value = false;
     }
+}
 
-    async function openArchive(school: School) {
-        loadingArchive.value = true;
-        try {
-            const { data } = await service.archive(school.id);
-            archive.value = data;
-        } catch {
-            fail('No se pudo abrir el archivo de la escuela');
-        } finally {
-            loadingArchive.value = false;
-        }
+async function openArchive(school: School) {
+    loadingArchive.value = true;
+    try {
+        const { data } = await service.archive(school.id);
+        archive.value = data;
+    } catch {
+        fail('No se pudo abrir el archivo de la escuela');
+    } finally {
+        loadingArchive.value = false;
     }
+}
 
-    onMounted(load);
+onMounted(load);
 </script>
 
 <template>
@@ -625,448 +619,448 @@
 </template>
 
 <style scoped>
+.schools-shell {
+    display: flex;
+    flex-direction: column;
+    gap: 1.5rem;
+    padding: 1.25rem;
+    max-width: 820px;
+}
+
+.page-header h1,
+.section-title {
+    margin: 0;
+    color: var(--text-heading);
+}
+
+.page-header h1 {
+    font-size: clamp(1.55rem, 2.5vw, 2rem);
+}
+
+.page-header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 1rem;
+}
+.eyebrow {
+    margin: 0 0 0.35rem;
+    color: var(--practiq-violet);
+    font-size: 0.72rem;
+    font-weight: 800;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+}
+
+.section-title {
+    font-size: 1.05rem;
+    margin-bottom: 0.5rem;
+}
+
+.page-sub,
+.section-sub,
+.empty {
+    margin: 0.25rem 0 0.6rem;
+    color: var(--text-secondary);
+    font-size: 0.88rem;
+}
+
+.school-form {
+    display: flex;
+    flex-direction: column;
+    gap: 0.8rem;
+    padding: 1.25rem;
+    background: var(--surface-card);
+    border: 1px solid var(--surface-border);
+    border-radius: var(--radius-xl);
+}
+
+.form-title {
+    margin: 0;
+    font-size: 1.05rem;
+    color: var(--text-heading);
+}
+
+.form-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 0.75rem;
+}
+
+.field {
+    display: flex;
+    flex-direction: column;
+    gap: 0.3rem;
+    font-size: 0.82rem;
+    color: var(--text-secondary);
+}
+
+.field--wide {
+    grid-column: 1 / -1;
+}
+
+.field input,
+.field select,
+.member-form input,
+.member-form select {
+    padding: 0.55rem 0.7rem;
+    border-radius: var(--radius-md);
+    border: 1px solid var(--surface-border);
+    background: var(--surface-card);
+    color: var(--text-primary);
+    font-size: 0.9rem;
+}
+
+.form-note {
+    margin: 0;
+    font-size: 0.8rem;
+    color: var(--text-secondary);
+}
+.admin-picker {
+    position: relative;
+}
+.admin-picker small {
+    color: var(--text-secondary);
+    font-size: 0.75rem;
+}
+.user-matches {
+    position: absolute;
+    z-index: 3;
+    top: calc(100% - 0.2rem);
+    right: 0;
+    left: 0;
+    overflow: hidden;
+    margin: 0;
+    padding: 0.25rem;
+    list-style: none;
+    border: 1px solid var(--surface-border);
+    border-radius: var(--radius-md);
+    background: var(--surface-card);
+    box-shadow: var(--shadow-card);
+}
+.user-matches button {
+    display: grid;
+    width: 100%;
+    gap: 0.1rem;
+    padding: 0.55rem 0.65rem;
+    border: 0;
+    border-radius: 0.35rem;
+    background: transparent;
+    color: var(--text-primary);
+    cursor: pointer;
+    text-align: left;
+}
+.user-matches button:hover {
+    background: var(--surface-subtle);
+}
+.user-matches span {
+    color: var(--text-secondary);
+    font-size: 0.76rem;
+}
+.form-actions {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 0.5rem;
+}
+
+.school-list,
+.member-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+
+.school-row,
+.member-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    padding: 0.75rem 1rem;
+    background: var(--surface-card);
+    border: 1px solid var(--surface-border);
+    border-radius: var(--radius-lg);
+}
+
+.school-row--muted {
+    opacity: 0.75;
+}
+
+.school-row--closed {
+    opacity: 0.78;
+}
+.row-actions {
+    display: flex;
+    align-items: center;
+    gap: 0.25rem;
+    flex: 0 0 auto;
+}
+.status-pill {
+    display: inline-block;
+    margin-right: 0.3rem;
+    padding: 0.1rem 0.4rem;
+    border-radius: 999px;
+    background: var(--surface-subtle, #f1f5f9);
+    color: var(--text-secondary);
+    font-size: 0.7rem;
+    font-weight: 800;
+    text-transform: uppercase;
+}
+
+.school-main,
+.member-main {
+    display: flex;
+    flex-direction: column;
+    gap: 0.15rem;
+    min-width: 0;
+}
+
+.school-owner {
+    margin-top: 0.15rem;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 0.35rem;
+    font-size: 0.8rem;
+    color: var(--text-secondary);
+}
+
+.school-email {
+    color: var(--practiq-violet);
+    text-decoration: none;
+    overflow-wrap: anywhere;
+}
+
+.plan-pill {
+    display: inline-flex;
+    align-items: center;
+    padding: 0.1rem 0.5rem;
+    border-radius: var(--radius-pill);
+    background: var(--surface-sunken);
+    font-size: 0.72rem;
+    font-weight: 700;
+    color: var(--text-secondary);
+}
+
+.plan-pill--paid {
+    background: var(--color-success-bg);
+    color: var(--color-success-dark);
+}
+
+.school-name,
+.member-id {
+    font-weight: 600;
+    color: var(--text-primary);
+    overflow-wrap: anywhere;
+}
+
+.school-meta,
+.member-role {
+    font-size: 0.8rem;
+    color: var(--text-secondary);
+}
+
+.btn-primary,
+.btn-quiet,
+.btn-danger {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0.55rem 1rem;
+    border-radius: var(--radius-md);
+    font-size: 0.88rem;
+    font-weight: 600;
+    cursor: pointer;
+    border: 1px solid transparent;
+    flex: 0 0 auto;
+}
+
+.btn-primary {
+    background: var(--practiq-violet);
+    color: #fff;
+    align-self: flex-start;
+}
+
+.btn-quiet {
+    background: transparent;
+    color: var(--text-secondary);
+}
+
+.btn-quiet--danger {
+    color: var(--color-error-dark, #b91c1c);
+}
+
+.btn-danger {
+    background: var(--color-error, #dc2626);
+    color: #fff;
+}
+
+.btn-primary:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+
+.members-backdrop {
+    position: fixed;
+    inset: 0;
+    background: rgba(15, 23, 42, 0.45);
+    display: grid;
+    place-items: center;
+    padding: 1rem;
+    z-index: 1000;
+    overflow-y: auto;
+}
+
+.members-card {
+    width: min(520px, 100%);
+    background: var(--surface-card);
+    border-radius: var(--radius-xl);
+    padding: 1.5rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+}
+
+.close-backdrop {
+    position: fixed;
+    inset: 0;
+    z-index: 1000;
+    display: grid;
+    place-items: center;
+    padding: 1rem;
+    overflow-y: auto;
+    background: rgba(15, 23, 42, 0.55);
+}
+.close-card {
+    width: min(480px, 100%);
+    display: flex;
+    flex-direction: column;
+    gap: 0.9rem;
+    padding: 1.5rem;
+    border-radius: var(--radius-xl);
+    background: var(--surface-card);
+    box-shadow: var(--shadow-panel);
+}
+.close-card h2,
+.close-card p {
+    margin: 0;
+    color: var(--text-heading);
+}
+.close-card p {
+    color: var(--text-secondary);
+    font-size: 0.9rem;
+    line-height: 1.5;
+}
+.close-card textarea {
+    resize: vertical;
+    padding: 0.55rem 0.7rem;
+    border: 1px solid var(--surface-border);
+    border-radius: var(--radius-md);
+    background: var(--surface-card);
+    color: var(--text-primary);
+    font: inherit;
+}
+.archive-card {
+    max-height: min(720px, 90vh);
+    overflow: auto;
+}
+.archive-section {
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
+    color: var(--text-primary);
+}
+.archive-section ul {
+    margin: 0;
+    padding-left: 1.1rem;
+    color: var(--text-secondary);
+    font-size: 0.88rem;
+}
+.archive-section li {
+    margin: 0.25rem 0;
+}
+.archive-section span {
+    color: var(--text-muted);
+}
+
+.members-title {
+    margin: 0;
+    font-size: 1.1rem;
+    color: var(--text-heading);
+}
+
+.member-form {
+    display: grid;
+    grid-template-columns: 1fr auto auto;
+    gap: 0.5rem;
+}
+
+@media (max-width: 640px) {
     .schools-shell {
-        display: flex;
-        flex-direction: column;
-        gap: 1.5rem;
-        padding: 1.25rem;
-        max-width: 820px;
-    }
-
-    .page-header h1,
-    .section-title {
-        margin: 0;
-        color: var(--text-heading);
-    }
-
-    .page-header h1 {
-        font-size: clamp(1.55rem, 2.5vw, 2rem);
+        padding: 0.9rem;
     }
 
     .page-header {
-        display: flex;
-        align-items: flex-start;
-        justify-content: space-between;
-        gap: 1rem;
-    }
-    .eyebrow {
-        margin: 0 0 0.35rem;
-        color: var(--practiq-violet);
-        font-size: 0.72rem;
-        font-weight: 800;
-        letter-spacing: 0.1em;
-        text-transform: uppercase;
-    }
-
-    .section-title {
-        font-size: 1.05rem;
-        margin-bottom: 0.5rem;
-    }
-
-    .page-sub,
-    .section-sub,
-    .empty {
-        margin: 0.25rem 0 0.6rem;
-        color: var(--text-secondary);
-        font-size: 0.88rem;
-    }
-
-    .school-form {
-        display: flex;
         flex-direction: column;
-        gap: 0.8rem;
-        padding: 1.25rem;
-        background: var(--surface-card);
-        border: 1px solid var(--surface-border);
-        border-radius: var(--radius-xl);
-    }
-
-    .form-title {
-        margin: 0;
-        font-size: 1.05rem;
-        color: var(--text-heading);
-    }
-
-    .form-grid {
-        display: grid;
-        grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
-        gap: 0.75rem;
-    }
-
-    .field {
-        display: flex;
-        flex-direction: column;
-        gap: 0.3rem;
-        font-size: 0.82rem;
-        color: var(--text-secondary);
-    }
-
-    .field--wide {
-        grid-column: 1 / -1;
-    }
-
-    .field input,
-    .field select,
-    .member-form input,
-    .member-form select {
-        padding: 0.55rem 0.7rem;
-        border-radius: var(--radius-md);
-        border: 1px solid var(--surface-border);
-        background: var(--surface-card);
-        color: var(--text-primary);
-        font-size: 0.9rem;
-    }
-
-    .form-note {
-        margin: 0;
-        font-size: 0.8rem;
-        color: var(--text-secondary);
-    }
-    .admin-picker {
-        position: relative;
-    }
-    .admin-picker small {
-        color: var(--text-secondary);
-        font-size: 0.75rem;
-    }
-    .user-matches {
-        position: absolute;
-        z-index: 3;
-        top: calc(100% - 0.2rem);
-        right: 0;
-        left: 0;
-        overflow: hidden;
-        margin: 0;
-        padding: 0.25rem;
-        list-style: none;
-        border: 1px solid var(--surface-border);
-        border-radius: var(--radius-md);
-        background: var(--surface-card);
-        box-shadow: var(--shadow-card);
-    }
-    .user-matches button {
-        display: grid;
-        width: 100%;
-        gap: 0.1rem;
-        padding: 0.55rem 0.65rem;
-        border: 0;
-        border-radius: 0.35rem;
-        background: transparent;
-        color: var(--text-primary);
-        cursor: pointer;
-        text-align: left;
-    }
-    .user-matches button:hover {
-        background: var(--surface-subtle);
-    }
-    .user-matches span {
-        color: var(--text-secondary);
-        font-size: 0.76rem;
-    }
-    .form-actions {
-        display: flex;
-        align-items: center;
-        justify-content: flex-end;
-        gap: 0.5rem;
-    }
-
-    .school-list,
-    .member-list {
-        list-style: none;
-        margin: 0;
-        padding: 0;
-        display: flex;
-        flex-direction: column;
-        gap: 0.5rem;
-    }
-
-    .school-row,
-    .member-row {
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        gap: 1rem;
-        padding: 0.75rem 1rem;
-        background: var(--surface-card);
-        border: 1px solid var(--surface-border);
-        border-radius: var(--radius-lg);
-    }
-
-    .school-row--muted {
-        opacity: 0.75;
-    }
-
-    .school-row--closed {
-        opacity: 0.78;
-    }
-    .row-actions {
-        display: flex;
-        align-items: center;
-        gap: 0.25rem;
-        flex: 0 0 auto;
-    }
-    .status-pill {
-        display: inline-block;
-        margin-right: 0.3rem;
-        padding: 0.1rem 0.4rem;
-        border-radius: 999px;
-        background: var(--surface-subtle, #f1f5f9);
-        color: var(--text-secondary);
-        font-size: 0.7rem;
-        font-weight: 800;
-        text-transform: uppercase;
-    }
-
-    .school-main,
-    .member-main {
-        display: flex;
-        flex-direction: column;
-        gap: 0.15rem;
-        min-width: 0;
-    }
-
-    .school-owner {
-        margin-top: 0.15rem;
-        display: flex;
-        flex-wrap: wrap;
-        align-items: baseline;
-        gap: 0.35rem;
-        font-size: 0.8rem;
-        color: var(--text-secondary);
-    }
-
-    .school-email {
-        color: var(--practiq-violet);
-        text-decoration: none;
-        overflow-wrap: anywhere;
-    }
-
-    .plan-pill {
-        display: inline-flex;
-        align-items: center;
-        padding: 0.1rem 0.5rem;
-        border-radius: var(--radius-pill);
-        background: var(--surface-sunken);
-        font-size: 0.72rem;
-        font-weight: 700;
-        color: var(--text-secondary);
-    }
-
-    .plan-pill--paid {
-        background: var(--color-success-bg);
-        color: var(--color-success-dark);
-    }
-
-    .school-name,
-    .member-id {
-        font-weight: 600;
-        color: var(--text-primary);
-        overflow-wrap: anywhere;
-    }
-
-    .school-meta,
-    .member-role {
-        font-size: 0.8rem;
-        color: var(--text-secondary);
-    }
-
-    .btn-primary,
-    .btn-quiet,
-    .btn-danger {
-        display: inline-flex;
-        align-items: center;
-        justify-content: center;
-        padding: 0.55rem 1rem;
-        border-radius: var(--radius-md);
-        font-size: 0.88rem;
-        font-weight: 600;
-        cursor: pointer;
-        border: 1px solid transparent;
-        flex: 0 0 auto;
-    }
-
-    .btn-primary {
-        background: var(--practiq-violet);
-        color: #fff;
-        align-self: flex-start;
-    }
-
-    .btn-quiet {
-        background: transparent;
-        color: var(--text-secondary);
-    }
-
-    .btn-quiet--danger {
-        color: var(--color-error-dark, #b91c1c);
-    }
-
-    .btn-danger {
-        background: var(--color-error, #dc2626);
-        color: #fff;
-    }
-
-    .btn-primary:disabled {
-        opacity: 0.6;
-        cursor: not-allowed;
-    }
-
-    .members-backdrop {
-        position: fixed;
-        inset: 0;
-        background: rgba(15, 23, 42, 0.45);
-        display: grid;
-        place-items: center;
-        padding: 1rem;
-        z-index: 1000;
-        overflow-y: auto;
-    }
-
-    .members-card {
-        width: min(520px, 100%);
-        background: var(--surface-card);
-        border-radius: var(--radius-xl);
-        padding: 1.5rem;
-        display: flex;
-        flex-direction: column;
-        gap: 0.75rem;
-    }
-
-    .close-backdrop {
-        position: fixed;
-        inset: 0;
-        z-index: 1000;
-        display: grid;
-        place-items: center;
-        padding: 1rem;
-        overflow-y: auto;
-        background: rgba(15, 23, 42, 0.55);
-    }
-    .close-card {
-        width: min(480px, 100%);
-        display: flex;
-        flex-direction: column;
-        gap: 0.9rem;
-        padding: 1.5rem;
-        border-radius: var(--radius-xl);
-        background: var(--surface-card);
-        box-shadow: var(--shadow-panel);
-    }
-    .close-card h2,
-    .close-card p {
-        margin: 0;
-        color: var(--text-heading);
-    }
-    .close-card p {
-        color: var(--text-secondary);
-        font-size: 0.9rem;
-        line-height: 1.5;
-    }
-    .close-card textarea {
-        resize: vertical;
-        padding: 0.55rem 0.7rem;
-        border: 1px solid var(--surface-border);
-        border-radius: var(--radius-md);
-        background: var(--surface-card);
-        color: var(--text-primary);
-        font: inherit;
-    }
-    .archive-card {
-        max-height: min(720px, 90vh);
-        overflow: auto;
-    }
-    .archive-section {
-        display: flex;
-        flex-direction: column;
-        gap: 0.35rem;
-        color: var(--text-primary);
-    }
-    .archive-section ul {
-        margin: 0;
-        padding-left: 1.1rem;
-        color: var(--text-secondary);
-        font-size: 0.88rem;
-    }
-    .archive-section li {
-        margin: 0.25rem 0;
-    }
-    .archive-section span {
-        color: var(--text-muted);
-    }
-
-    .members-title {
-        margin: 0;
-        font-size: 1.1rem;
-        color: var(--text-heading);
     }
 
     .member-form {
+        grid-template-columns: 1fr;
+    }
+
+    .page-header > .btn-primary {
+        min-height: 44px;
+        width: 100%;
+    }
+
+    .school-row {
+        align-items: flex-start;
+        flex-direction: column;
+        gap: 0.65rem;
+        padding: 0.9rem;
+    }
+    .school-main {
+        width: 100%;
+    }
+    .row-actions {
         display: grid;
-        grid-template-columns: 1fr auto auto;
-        gap: 0.5rem;
+        grid-template-columns: 1fr 1fr;
+        width: 100%;
+        gap: 0.4rem;
     }
-
-    @media (max-width: 640px) {
-        .schools-shell {
-            padding: 0.9rem;
-        }
-
-        .page-header {
-            flex-direction: column;
-        }
-
-        .member-form {
-            grid-template-columns: 1fr;
-        }
-
-        .page-header > .btn-primary {
-            min-height: 44px;
-            width: 100%;
-        }
-
-        .school-row {
-            align-items: flex-start;
-            flex-direction: column;
-            gap: 0.65rem;
-            padding: 0.9rem;
-        }
-        .school-main {
-            width: 100%;
-        }
-        .row-actions {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            width: 100%;
-            gap: 0.4rem;
-        }
-        .row-actions .btn-quiet {
-            min-height: 38px;
-            width: 100%;
-            padding: 0.4rem 0.5rem;
-            border: 1px solid var(--surface-border);
-            background: var(--surface-subtle);
-        }
-        .row-actions .btn-quiet--danger {
-            color: var(--color-error-dark, #b91c1c);
-            background: var(--color-error-bg, #fef2f2);
-        }
-        .close-backdrop {
-            align-items: end;
-            padding: 0;
-        }
-        .close-card {
-            width: 100%;
-            max-height: 92dvh;
-            overflow-y: auto;
-            padding: 1.25rem 1rem max(1.25rem, env(safe-area-inset-bottom));
-            border-radius: var(--radius-xl) var(--radius-xl) 0 0;
-        }
-        .school-form .form-actions {
-            flex-direction: column-reverse;
-            align-items: stretch;
-        }
-        .school-form .form-actions button {
-            min-height: 44px;
-            width: 100%;
-        }
+    .row-actions .btn-quiet {
+        min-height: 38px;
+        width: 100%;
+        padding: 0.4rem 0.5rem;
+        border: 1px solid var(--surface-border);
+        background: var(--surface-subtle);
     }
+    .row-actions .btn-quiet--danger {
+        color: var(--color-error-dark, #b91c1c);
+        background: var(--color-error-bg, #fef2f2);
+    }
+    .close-backdrop {
+        align-items: end;
+        padding: 0;
+    }
+    .close-card {
+        width: 100%;
+        max-height: 92dvh;
+        overflow-y: auto;
+        padding: 1.25rem 1rem max(1.25rem, env(safe-area-inset-bottom));
+        border-radius: var(--radius-xl) var(--radius-xl) 0 0;
+    }
+    .school-form .form-actions {
+        flex-direction: column-reverse;
+        align-items: stretch;
+    }
+    .school-form .form-actions button {
+        min-height: 44px;
+        width: 100%;
+    }
+}
 </style>

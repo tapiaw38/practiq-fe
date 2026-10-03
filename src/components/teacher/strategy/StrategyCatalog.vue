@@ -1,9 +1,9 @@
 <script setup lang="ts">
-    import type { StrategyCatalogEmits, StrategyCatalogProps } from './StrategyCatalog.types';
-    import { formatDate } from '@/utils/formatters';
+import type { StrategyCatalogEmits, StrategyCatalogProps } from './StrategyCatalog.types';
+import { formatDate } from '@/utils/formatters';
 
-    defineProps<StrategyCatalogProps>();
-    const emit = defineEmits<StrategyCatalogEmits>();
+defineProps<StrategyCatalogProps>();
+const emit = defineEmits<StrategyCatalogEmits>();
 </script>
 
 <template>
@@ -59,99 +59,99 @@
 </template>
 
 <style scoped>
-    .content-section {
-        margin-bottom: 28px;
-    }
-    .section-header {
-        display: flex;
-        justify-content: space-between;
-        gap: 16px;
-        margin-bottom: 16px;
-    }
-    .section-title {
-        margin: 0;
-        font-size: 1.15rem;
-        font-weight: 800;
-        color: var(--text-heading);
-    }
-    .section-subtitle {
-        margin: 4px 0 0;
-        color: var(--text-secondary);
-        font-size: var(--text-sm);
-    }
-    .strategies-grid {
-        display: grid;
-        grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
-        gap: 14px;
-    }
-    .strategy-card,
-    .empty-state {
-        background: var(--surface-elevated);
-        border: 1px solid var(--surface-elevated-strong);
-        border-radius: var(--radius-xl);
-        box-shadow: var(--shadow-card);
-        padding: 16px;
-    }
-    .strategy-header,
-    .strategy-actions-mini,
-    .strategy-meta,
-    .meta-item {
-        display: flex;
-        align-items: center;
-    }
-    .strategy-header {
-        justify-content: space-between;
-        gap: 12px;
-    }
-    .strategy-name {
-        margin: 0;
-        font-size: 1rem;
-        font-weight: 800;
-        color: var(--text-heading);
-    }
-    .strategy-actions-mini {
-        gap: 6px;
-    }
-    .icon-btn {
-        width: 30px;
-        height: 30px;
-        border: 1px solid var(--surface-border);
-        border-radius: var(--radius-md);
-        background: var(--surface-card);
-        color: var(--text-secondary);
-        cursor: pointer;
-    }
-    .icon-btn--danger {
-        color: var(--color-error-dark);
-    }
-    .strategy-description {
-        color: var(--text-secondary);
-        font-size: var(--text-sm);
-        min-height: 38px;
-    }
-    .strategy-meta {
-        gap: 10px;
-        flex-wrap: wrap;
-        color: var(--text-muted);
-        font-size: var(--text-xs);
-    }
-    .meta-item {
-        gap: 4px;
-    }
-    .empty-state {
-        text-align: center;
-        color: var(--text-secondary);
-    }
-    .empty-icon {
-        font-size: 24px;
-        color: var(--practiq-violet);
-        margin-bottom: 8px;
-    }
+.content-section {
+    margin-bottom: 28px;
+}
+.section-header {
+    display: flex;
+    justify-content: space-between;
+    gap: 16px;
+    margin-bottom: 16px;
+}
+.section-title {
+    margin: 0;
+    font-size: 1.15rem;
+    font-weight: 800;
+    color: var(--text-heading);
+}
+.section-subtitle {
+    margin: 4px 0 0;
+    color: var(--text-secondary);
+    font-size: var(--text-sm);
+}
+.strategies-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+    gap: 14px;
+}
+.strategy-card,
+.empty-state {
+    background: var(--surface-elevated);
+    border: 1px solid var(--surface-elevated-strong);
+    border-radius: var(--radius-xl);
+    box-shadow: var(--shadow-card);
+    padding: 16px;
+}
+.strategy-header,
+.strategy-actions-mini,
+.strategy-meta,
+.meta-item {
+    display: flex;
+    align-items: center;
+}
+.strategy-header {
+    justify-content: space-between;
+    gap: 12px;
+}
+.strategy-name {
+    margin: 0;
+    font-size: 1rem;
+    font-weight: 800;
+    color: var(--text-heading);
+}
+.strategy-actions-mini {
+    gap: 6px;
+}
+.icon-btn {
+    width: 30px;
+    height: 30px;
+    border: 1px solid var(--surface-border);
+    border-radius: var(--radius-md);
+    background: var(--surface-card);
+    color: var(--text-secondary);
+    cursor: pointer;
+}
+.icon-btn--danger {
+    color: var(--color-error-dark);
+}
+.strategy-description {
+    color: var(--text-secondary);
+    font-size: var(--text-sm);
+    min-height: 38px;
+}
+.strategy-meta {
+    gap: 10px;
+    flex-wrap: wrap;
+    color: var(--text-muted);
+    font-size: var(--text-xs);
+}
+.meta-item {
+    gap: 4px;
+}
+.empty-state {
+    text-align: center;
+    color: var(--text-secondary);
+}
+.empty-icon {
+    font-size: 24px;
+    color: var(--practiq-violet);
+    margin-bottom: 8px;
+}
 
-    @media (max-width: 600px) {
-        .icon-btn {
-            width: 44px;
-            height: 44px;
-        }
+@media (max-width: 600px) {
+    .icon-btn {
+        width: 44px;
+        height: 44px;
     }
+}
 </style>

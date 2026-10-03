@@ -1,4 +1,4 @@
-import type { CourseSummary } from '@/services/dashboard/dashboardService';
+import type { CourseSummary } from '@/types/dashboard';
 import type { TopicProgress } from '@/types';
 
 export interface StudentCoursesGridProps {

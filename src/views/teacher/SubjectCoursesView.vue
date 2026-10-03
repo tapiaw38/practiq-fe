@@ -1,104 +1,100 @@
 <script setup lang="ts">
-    import UiModal from '@/components/ui/UiModal.vue';
-    import { computed, onMounted, reactive, ref } from 'vue';
-    import { useRoute, useRouter } from 'vue-router';
-    import TeacherLayout from '@/layouts/TeacherLayout.vue';
-    import Skeleton from '@/components/ui/Skeleton.vue';
-    import { useCourse } from '@/composables/useCourse';
-    import { useGrade } from '@/composables/useGrade';
-    import { useSubject } from '@/composables/useSubject';
-    import { formatDate } from '@/utils/formatters';
-    import type { Grade, Subject } from '@/types';
+import UiModal from '@/components/ui/UiModal.vue';
+import { computed, onMounted, reactive, ref } from 'vue';
+import { useRoute, useRouter } from 'vue-router';
+import TeacherLayout from '@/layouts/TeacherLayout.vue';
+import Skeleton from '@/components/ui/Skeleton.vue';
+import { useCourse } from '@/composables/useCourse';
+import { useGrade } from '@/composables/useGrade';
+import { useSubject } from '@/composables/useSubject';
+import { formatDate } from '@/utils/formatters';
+import type { Grade, Subject } from '@/types';
 
-    const route = useRoute();
-    const router = useRouter();
-    const subjectId = route.params.subjectId as string;
+const route = useRoute();
+const router = useRouter();
+const subjectId = route.params.subjectId as string;
 
-    const {
-        courses,
-        loadCourses: loadCoursesService,
-        createCourse: createCourseService,
-    } = useCourse();
-    const { grades, loadGrades: loadGradesService } = useGrade();
-    const { subjects, loadSubjects } = useSubject();
-    const loading = ref(true);
-    const showCreateModal = ref(false);
-    const creating = ref(false);
-    const subject = ref<Subject | null>(null);
+const { courses, loadCourses: loadCoursesService, createCourse: createCourseService } = useCourse();
+const { grades, loadGrades: loadGradesService } = useGrade();
+const { subjects, loadSubjects } = useSubject();
+const loading = ref(true);
+const showCreateModal = ref(false);
+const creating = ref(false);
+const subject = ref<Subject | null>(null);
 
-    const newCourse = reactive({
-        title: '',
-        description: '',
-        grade_id: '',
-        level: '',
-    });
+const newCourse = reactive({
+    title: '',
+    description: '',
+    grade_id: '',
+    level: '',
+});
 
-    const filteredCourses = computed(() =>
-        courses.value.filter((course) => course.subject_id === subjectId),
-    );
-    const gradesInUse = computed(
-        () => new Set(filteredCourses.value.map((course) => course.grade_id).filter(Boolean)).size,
-    );
+const filteredCourses = computed(() =>
+    courses.value.filter((course) => course.subject_id === subjectId),
+);
+const gradesInUse = computed(
+    () => new Set(filteredCourses.value.map((course) => course.grade_id).filter(Boolean)).size,
+);
 
-    onMounted(async () => {
-        await Promise.all([loadSubject(), loadCourses(), loadGrades()]);
-    });
+onMounted(async () => {
+    await Promise.all([loadSubject(), loadCourses(), loadGrades()]);
+});
 
-    async function loadSubject() {
-        try {
-            const data = await loadSubjects();
-            subject.value = (data || []).find((item) => item.id === subjectId) || null;
-        } catch (error) {
-            console.error(error);
-        }
+async function loadSubject() {
+    try {
+        const data = await loadSubjects();
+        subject.value = (data || []).find((item) => item.id === subjectId) || null;
+    } catch (error) {
+        console.error(error);
     }
+}
 
-    async function loadCourses() {
-        loading.value = true;
-        try {
-            await loadCoursesService('teacher');
-        } catch (error) {
-            console.error(error);
-        } finally {
-            loading.value = false;
-        }
+async function loadCourses() {
+    loading.value = true;
+    try {
+        await loadCoursesService('teacher');
+    } catch (error) {
+        console.error(error);
+    } finally {
+        loading.value = false;
     }
+}
 
-    async function loadGrades() {
-        try {
-            await loadGradesService();
-        } catch (error) {
-            console.error(error);
-        }
+async function loadGrades() {
+    try {
+        await loadGradesService();
+    } catch (error) {
+        console.error(error);
     }
+}
 
-    async function createCourse() {
-        if (!subject.value) return;
-        creating.value = true;
-        try {
-            await createCourseService({
-                title: newCourse.title,
-                description: newCourse.description,
-                subject_id: subject.value.id,
-                subject: subject.value.name,
-                grade_id: newCourse.grade_id,
-                level: newCourse.level,
-            });
-            newCourse.title = '';
-            newCourse.description = '';
-            newCourse.grade_id = '';
-            newCourse.level = '';
-            showCreateModal.value = false;
-        } catch (error) {
-            console.error(error);
-        } finally {
-            creating.value = false;
-        }
+async function createCourse() {
+    if (!subject.value) return;
+    creating.value = true;
+    try {
+        await createCourseService({
+            title: newCourse.title,
+            description: newCourse.description,
+            subject_id: subject.value.id,
+            subject: subject.value.name,
+            grade_id: newCourse.grade_id,
+            level: newCourse.level,
+        });
+        newCourse.title = '';
+        newCourse.description = '';
+        newCourse.grade_id = '';
+        newCourse.level = '';
+        showCreateModal.value = false;
+    } catch (error) {
+        console.error(error);
+    } finally {
+        creating.value = false;
     }
+}
 
-    function goBack() {
-        router.push('/teacher/admin/academic');
-    }
+function goBack() {
+    router.push('/teacher/admin/academic');
+}
 </script>
 
 <template>
@@ -324,333 +320,333 @@
 </template>
 
 <style scoped>
+.courses-page {
+    padding: 24px 28px 40px;
+    max-width: 1180px;
+}
+
+.hero-card {
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 24px;
+    padding: 22px 24px;
+    border-radius: var(--radius-2xl);
+    background: linear-gradient(115deg, var(--surface-elevated), var(--surface-card));
+    border: 1px solid var(--surface-elevated-strong);
+    box-shadow: var(--shadow-soft);
+    backdrop-filter: blur(18px);
+    margin-bottom: 16px;
+    overflow: hidden;
+}
+.hero-card > * {
+    position: relative;
+    z-index: 1;
+}
+
+.hero-kicker {
+    font-size: var(--text-xs);
+    text-transform: uppercase;
+    letter-spacing: 0.16em;
+    font-weight: 700;
+    color: var(--practiq-violet);
+    margin-bottom: 3px;
+}
+
+.hero-title {
+    margin: 0 0 4px;
+    font-size: var(--font-hero);
+    color: var(--text-primary);
+}
+
+.hero-copy {
+    margin: 0;
+    font-size: var(--text-base);
+    max-width: 640px;
+    color: var(--text-secondary);
+    line-height: 1.6;
+}
+
+.hero-actions {
+    display: flex;
+    gap: 12px;
+    flex-shrink: 0;
+}
+
+.stats-row {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 12px;
+    margin-bottom: 20px;
+}
+
+.stat-card {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 14px 16px;
+    border-radius: var(--radius-xl);
+    background: var(--surface-elevated);
+    border: 1px solid var(--surface-elevated-strong);
+    box-shadow: var(--shadow-card);
+}
+
+.stat-icon {
+    width: 36px;
+    height: 36px;
+    display: grid;
+    place-items: center;
+    border-radius: var(--radius-sm);
+    font-size: 17px;
+    flex-shrink: 0;
+}
+.stat-icon--violet {
+    background: var(--fill-primary-soft);
+    color: var(--practiq-violet);
+}
+.stat-icon--green {
+    background: var(--color-success-bg);
+    color: var(--color-success-dark);
+}
+
+.stat-value {
+    font-size: 17px;
+    font-weight: 800;
+    color: var(--text-primary);
+}
+
+.stat-label {
+    font-size: var(--text-sm);
+    color: var(--text-secondary);
+}
+
+.loading-state {
+    display: flex;
+    justify-content: center;
+    padding: 80px;
+}
+
+.empty-state {
+    padding: 44px 24px;
+    border: 1px dashed var(--surface-border);
+    border-radius: var(--radius-xl);
+}
+
+.empty-icon {
+    width: 64px;
+    height: 64px;
+    border-radius: var(--radius-2xl);
+    background: var(--fill-primary-subtle);
+    color: var(--practiq-violet);
+    font-size: 28px;
+    display: grid;
+    place-items: center;
+    margin: 0 auto 16px;
+}
+
+.empty-state h3 {
+    margin: 0 0 8px;
+    font-size: var(--text-lg);
+    color: var(--text-primary);
+}
+
+.empty-state p {
+    margin: 0 auto 16px;
+    max-width: 420px;
+    color: var(--text-secondary);
+}
+
+.courses-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+    gap: 16px;
+}
+
+.course-card {
+    position: relative;
+    border-radius: var(--radius-2xl);
+    background: var(--surface-elevated);
+    border: 1px solid var(--surface-elevated-strong);
+    box-shadow: var(--shadow-card);
+    overflow: hidden;
+    cursor: pointer;
+    transition: var(--transition);
+}
+
+.course-title__link {
+    color: inherit;
+    text-decoration: none;
+}
+
+.course-title__link::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+}
+
+.course-card:focus-within {
+    border-color: var(--practiq-violet-light);
+}
+
+.course-cta {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    color: var(--practiq-violet);
+    font-size: var(--text-sm);
+    font-weight: 700;
+}
+
+.course-card:hover {
+    transform: translateY(-3px);
+    box-shadow: var(--shadow-card-lg);
+    border-color: rgba(var(--practiq-violet-rgb), 0.22);
+}
+
+.course-card__accent {
+    height: 3px;
+    background: var(--gradient-brand);
+}
+
+.course-card__body {
+    padding: 16px 18px 14px;
+    display: flex;
+    flex-direction: column;
+    gap: 7px;
+}
+
+.course-card__top {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+.course-grade-badge,
+.course-level-badge {
+    display: inline-flex;
+    padding: 4px 10px;
+    border-radius: var(--radius-pill);
+    font-size: var(--text-xs);
+    font-weight: 600;
+}
+
+.course-grade-badge {
+    background: var(--color-success-bg);
+    color: var(--color-success-dark);
+}
+
+.course-level-badge {
+    background: var(--surface-hover);
+    color: var(--text-secondary);
+}
+
+.course-title {
+    margin: 0;
+    font-size: var(--text-md);
+    font-weight: 700;
+    color: var(--text-primary);
+}
+
+.course-desc {
+    margin: 0;
+    font-size: var(--text-base);
+    color: var(--text-secondary);
+    line-height: 1.5;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+}
+
+.course-card__footer {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding-top: 8px;
+    margin-top: auto;
+    border-top: 1px solid rgba(var(--surface-border-rgb), 0.12);
+}
+
+.course-date {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    font-size: var(--text-sm);
+    color: var(--text-muted);
+}
+
+.form-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 14px;
+}
+
+.setup-notice {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    padding: 12px 14px;
+    background: var(--fill-warning-subtle);
+    border: 1px solid rgba(var(--color-warning-rgb), 0.2);
+    border-radius: var(--radius-md);
+    font-size: var(--text-base);
+    color: var(--color-warning-dark);
+    margin-bottom: 16px;
+}
+
+.setup-link {
+    color: var(--practiq-violet);
+    font-weight: 600;
+    text-decoration: none;
+}
+
+.setup-link:hover {
+    text-decoration: underline;
+}
+
+.modal-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 12px;
+    margin-top: 24px;
+}
+
+@media (max-width: 1024px) {
+    .courses-grid {
+        grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    }
+    .stats-row {
+        grid-template-columns: repeat(2, 1fr);
+    }
+    .form-row {
+        grid-template-columns: 1fr 1fr;
+    }
+}
+
+@media (max-width: 768px) {
     .courses-page {
-        padding: 24px 28px 40px;
-        max-width: 1180px;
+        padding: 16px 14px 32px;
     }
 
     .hero-card {
-        position: relative;
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        gap: 24px;
-        padding: 22px 24px;
-        border-radius: var(--radius-2xl);
-        background: linear-gradient(115deg, var(--surface-elevated), var(--surface-card));
-        border: 1px solid var(--surface-elevated-strong);
-        box-shadow: var(--shadow-soft);
-        backdrop-filter: blur(18px);
-        margin-bottom: 16px;
-        overflow: hidden;
-    }
-    .hero-card > * {
-        position: relative;
-        z-index: 1;
-    }
-
-    .hero-kicker {
-        font-size: var(--text-xs);
-        text-transform: uppercase;
-        letter-spacing: 0.16em;
-        font-weight: 700;
-        color: var(--practiq-violet);
-        margin-bottom: 3px;
-    }
-
-    .hero-title {
-        margin: 0 0 4px;
-        font-size: var(--font-hero);
-        color: var(--text-primary);
-    }
-
-    .hero-copy {
-        margin: 0;
-        font-size: var(--text-base);
-        max-width: 640px;
-        color: var(--text-secondary);
-        line-height: 1.6;
+        flex-direction: column;
+        align-items: flex-start;
+        padding: 22px 18px;
+        border-radius: 22px;
     }
 
     .hero-actions {
-        display: flex;
-        gap: 12px;
-        flex-shrink: 0;
-    }
-
-    .stats-row {
-        display: grid;
-        grid-template-columns: repeat(2, 1fr);
-        gap: 12px;
-        margin-bottom: 20px;
-    }
-
-    .stat-card {
-        display: flex;
-        align-items: center;
-        gap: 10px;
-        padding: 14px 16px;
-        border-radius: var(--radius-xl);
-        background: var(--surface-elevated);
-        border: 1px solid var(--surface-elevated-strong);
-        box-shadow: var(--shadow-card);
-    }
-
-    .stat-icon {
-        width: 36px;
-        height: 36px;
-        display: grid;
-        place-items: center;
-        border-radius: var(--radius-sm);
-        font-size: 17px;
-        flex-shrink: 0;
-    }
-    .stat-icon--violet {
-        background: var(--fill-primary-soft);
-        color: var(--practiq-violet);
-    }
-    .stat-icon--green {
-        background: var(--color-success-bg);
-        color: var(--color-success-dark);
-    }
-
-    .stat-value {
-        font-size: 17px;
-        font-weight: 800;
-        color: var(--text-primary);
-    }
-
-    .stat-label {
-        font-size: var(--text-sm);
-        color: var(--text-secondary);
-    }
-
-    .loading-state {
-        display: flex;
-        justify-content: center;
-        padding: 80px;
-    }
-
-    .empty-state {
-        padding: 44px 24px;
-        border: 1px dashed var(--surface-border);
-        border-radius: var(--radius-xl);
-    }
-
-    .empty-icon {
-        width: 64px;
-        height: 64px;
-        border-radius: var(--radius-2xl);
-        background: var(--fill-primary-subtle);
-        color: var(--practiq-violet);
-        font-size: 28px;
-        display: grid;
-        place-items: center;
-        margin: 0 auto 16px;
-    }
-
-    .empty-state h3 {
-        margin: 0 0 8px;
-        font-size: var(--text-lg);
-        color: var(--text-primary);
-    }
-
-    .empty-state p {
-        margin: 0 auto 16px;
-        max-width: 420px;
-        color: var(--text-secondary);
-    }
-
-    .courses-grid {
-        display: grid;
-        grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
-        gap: 16px;
-    }
-
-    .course-card {
-        position: relative;
-        border-radius: var(--radius-2xl);
-        background: var(--surface-elevated);
-        border: 1px solid var(--surface-elevated-strong);
-        box-shadow: var(--shadow-card);
-        overflow: hidden;
-        cursor: pointer;
-        transition: var(--transition);
-    }
-
-    .course-title__link {
-        color: inherit;
-        text-decoration: none;
-    }
-
-    .course-title__link::after {
-        content: '';
-        position: absolute;
-        inset: 0;
-    }
-
-    .course-card:focus-within {
-        border-color: var(--practiq-violet-light);
-    }
-
-    .course-cta {
-        display: inline-flex;
-        align-items: center;
-        gap: 6px;
-        color: var(--practiq-violet);
-        font-size: var(--text-sm);
-        font-weight: 700;
-    }
-
-    .course-card:hover {
-        transform: translateY(-3px);
-        box-shadow: var(--shadow-card-lg);
-        border-color: rgba(var(--practiq-violet-rgb), 0.22);
-    }
-
-    .course-card__accent {
-        height: 3px;
-        background: var(--gradient-brand);
-    }
-
-    .course-card__body {
-        padding: 16px 18px 14px;
-        display: flex;
+        width: 100%;
         flex-direction: column;
-        gap: 7px;
     }
 
-    .course-card__top {
-        display: flex;
-        align-items: center;
-        gap: 8px;
-        flex-wrap: wrap;
+    .stats-row,
+    .form-row,
+    .courses-grid {
+        grid-template-columns: 1fr;
     }
-
-    .course-grade-badge,
-    .course-level-badge {
-        display: inline-flex;
-        padding: 4px 10px;
-        border-radius: var(--radius-pill);
-        font-size: var(--text-xs);
-        font-weight: 600;
-    }
-
-    .course-grade-badge {
-        background: var(--color-success-bg);
-        color: var(--color-success-dark);
-    }
-
-    .course-level-badge {
-        background: var(--surface-hover);
-        color: var(--text-secondary);
-    }
-
-    .course-title {
-        margin: 0;
-        font-size: var(--text-md);
-        font-weight: 700;
-        color: var(--text-primary);
-    }
-
-    .course-desc {
-        margin: 0;
-        font-size: var(--text-base);
-        color: var(--text-secondary);
-        line-height: 1.5;
-        display: -webkit-box;
-        -webkit-line-clamp: 2;
-        -webkit-box-orient: vertical;
-        overflow: hidden;
-    }
-
-    .course-card__footer {
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        gap: 12px;
-        padding-top: 8px;
-        margin-top: auto;
-        border-top: 1px solid rgba(var(--surface-border-rgb), 0.12);
-    }
-
-    .course-date {
-        display: inline-flex;
-        align-items: center;
-        gap: 5px;
-        font-size: var(--text-sm);
-        color: var(--text-muted);
-    }
-
-    .form-row {
-        display: grid;
-        grid-template-columns: 1fr 1fr;
-        gap: 14px;
-    }
-
-    .setup-notice {
-        display: flex;
-        align-items: flex-start;
-        gap: 10px;
-        padding: 12px 14px;
-        background: var(--fill-warning-subtle);
-        border: 1px solid rgba(var(--color-warning-rgb), 0.2);
-        border-radius: var(--radius-md);
-        font-size: var(--text-base);
-        color: var(--color-warning-dark);
-        margin-bottom: 16px;
-    }
-
-    .setup-link {
-        color: var(--practiq-violet);
-        font-weight: 600;
-        text-decoration: none;
-    }
-
-    .setup-link:hover {
-        text-decoration: underline;
-    }
-
-    .modal-actions {
-        display: flex;
-        justify-content: flex-end;
-        gap: 12px;
-        margin-top: 24px;
-    }
-
-    @media (max-width: 1024px) {
-        .courses-grid {
-            grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
-        }
-        .stats-row {
-            grid-template-columns: repeat(2, 1fr);
-        }
-        .form-row {
-            grid-template-columns: 1fr 1fr;
-        }
-    }
-
-    @media (max-width: 768px) {
-        .courses-page {
-            padding: 16px 14px 32px;
-        }
-
-        .hero-card {
-            flex-direction: column;
-            align-items: flex-start;
-            padding: 22px 18px;
-            border-radius: 22px;
-        }
-
-        .hero-actions {
-            width: 100%;
-            flex-direction: column;
-        }
-
-        .stats-row,
-        .form-row,
-        .courses-grid {
-            grid-template-columns: 1fr;
-        }
-    }
+}
 </style>

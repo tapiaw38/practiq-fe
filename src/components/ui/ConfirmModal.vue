@@ -1,9 +1,9 @@
 <script setup lang="ts">
-    import type { ConfirmModalEmits, ConfirmModalProps } from './ConfirmModal.types';
-    import UiModal from './UiModal.vue';
+import type { ConfirmModalEmits, ConfirmModalProps } from './ConfirmModal.types';
+import UiModal from './UiModal.vue';
 
-    defineProps<ConfirmModalProps>();
-    defineEmits<ConfirmModalEmits>();
+defineProps<ConfirmModalProps>();
+defineEmits<ConfirmModalEmits>();
 </script>
 
 <template>
@@ -40,100 +40,100 @@
 </template>
 
 <style scoped>
-    .confirm-card {
-        background: var(--surface-card);
-        border-radius: var(--radius-2xl);
-        width: min(400px, 100%);
-        padding: 28px 28px 24px;
-        box-shadow: var(--shadow-lg);
-        display: flex;
-        flex-direction: column;
-        align-items: center;
-        gap: 16px;
-        text-align: center;
-    }
+.confirm-card {
+    background: var(--surface-card);
+    border-radius: var(--radius-2xl);
+    width: min(400px, 100%);
+    padding: 28px 28px 24px;
+    box-shadow: var(--shadow-lg);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 16px;
+    text-align: center;
+}
 
-    .confirm-icon {
-        width: 52px;
-        height: 52px;
-        border-radius: 50%;
-        display: grid;
-        place-items: center;
-        font-size: 22px;
-        flex-shrink: 0;
-    }
+.confirm-icon {
+    width: 52px;
+    height: 52px;
+    border-radius: 50%;
+    display: grid;
+    place-items: center;
+    font-size: 22px;
+    flex-shrink: 0;
+}
 
-    .confirm-icon--danger {
-        background: var(--color-error-bg);
-        color: var(--color-error);
-    }
+.confirm-icon--danger {
+    background: var(--color-error-bg);
+    color: var(--color-error);
+}
 
-    .confirm-icon--info {
-        background: var(--color-info-bg);
-        color: var(--color-info);
-    }
+.confirm-icon--info {
+    background: var(--color-info-bg);
+    color: var(--color-info);
+}
 
-    .confirm-body {
-        display: flex;
-        flex-direction: column;
-        gap: 6px;
-    }
+.confirm-body {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
 
-    .confirm-message {
-        font-size: 16px;
-        font-weight: 700;
-        color: var(--text-heading);
-        margin: 0;
-        line-height: 1.4;
-    }
+.confirm-message {
+    font-size: 16px;
+    font-weight: 700;
+    color: var(--text-heading);
+    margin: 0;
+    line-height: 1.4;
+}
 
-    .confirm-description {
-        font-size: var(--text-base);
-        color: var(--text-secondary);
-        margin: 0;
-        line-height: 1.5;
-    }
+.confirm-description {
+    font-size: var(--text-base);
+    color: var(--text-secondary);
+    margin: 0;
+    line-height: 1.5;
+}
 
-    .confirm-actions {
-        display: flex;
-        gap: 10px;
-        width: 100%;
-        margin-top: 4px;
-    }
+.confirm-actions {
+    display: flex;
+    gap: 10px;
+    width: 100%;
+    margin-top: 4px;
+}
 
-    .confirm-btn {
-        flex: 1;
-        padding: 10px 16px;
-        border-radius: var(--radius-sm);
-        font-size: var(--text-md);
-        font-weight: 700;
-        cursor: pointer;
-        border: none;
-        transition: opacity 0.15s;
-    }
+.confirm-btn {
+    flex: 1;
+    padding: 10px 16px;
+    border-radius: var(--radius-sm);
+    font-size: var(--text-md);
+    font-weight: 700;
+    cursor: pointer;
+    border: none;
+    transition: opacity 0.15s;
+}
 
-    .confirm-btn--cancel {
-        background: var(--surface-hover);
-        color: var(--text-primary);
-        border: 1.5px solid var(--surface-border);
-    }
-    .confirm-btn--cancel:hover {
-        background: var(--surface-border);
-    }
+.confirm-btn--cancel {
+    background: var(--surface-hover);
+    color: var(--text-primary);
+    border: 1.5px solid var(--surface-border);
+}
+.confirm-btn--cancel:hover {
+    background: var(--surface-border);
+}
 
-    .confirm-btn--danger {
-        background: var(--color-error);
-        color: var(--color-on-primary);
-    }
-    .confirm-btn--danger:hover {
-        opacity: 0.88;
-    }
+.confirm-btn--danger {
+    background: var(--color-error);
+    color: var(--color-on-primary);
+}
+.confirm-btn--danger:hover {
+    opacity: 0.88;
+}
 
-    .confirm-btn--primary {
-        background: var(--practiq-violet);
-        color: var(--color-on-primary);
-    }
-    .confirm-btn--primary:hover {
-        opacity: 0.88;
-    }
+.confirm-btn--primary {
+    background: var(--practiq-violet);
+    color: var(--color-on-primary);
+}
+.confirm-btn--primary:hover {
+    opacity: 0.88;
+}
 </style>

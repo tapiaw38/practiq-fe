@@ -1,825 +1,801 @@
 <script setup lang="ts">
-    import UiModal from '@/components/ui/UiModal.vue';
-    import { computed, ref, reactive, onMounted, watch, nextTick, defineAsyncComponent } from 'vue';
-    import { useRoute, useRouter } from 'vue-router';
-    import { useToast } from '@/composables/useToast';
-    import TeacherLayout from '@/layouts/TeacherLayout.vue';
-    import ConfirmModal from '@/components/ui/ConfirmModal.vue';
-    import FileUploadField from '@/components/ui/FileUploadField.vue';
-    import ExercisesList from '@/components/teacher/exercises/ExercisesList.vue';
-    import CourseLevelsPanel from '@/components/teacher/levels/CourseLevelsPanel.vue';
-    import MaterialsList from '@/components/teacher/materials/MaterialsList.vue';
-    import NotebooksList from '@/components/teacher/notebooks/NotebooksList.vue';
-    import PracticeSheetsList from '@/components/teacher/practiceSheets/PracticeSheetsList.vue';
-    import StudentsList from '@/components/teacher/students/StudentsList.vue';
-    import TopicModal from '@/components/teacher/topics/TopicModal.vue';
-    import TopicsList from '@/components/teacher/topics/TopicsList.vue';
-    import { useConfirm } from '@/composables/useConfirm';
-    import { useCourse } from '@/composables/useCourse';
-    import { useTopic } from '@/composables/useTopic';
-    import { useExercise } from '@/composables/useExercise';
-    import { usePracticeSheet } from '@/composables/usePracticeSheet';
-    import { useMaterial } from '@/composables/useMaterial';
-    import { useNotebook } from '@/composables/useNotebook';
-    import { useLevel } from '@/composables/useLevel';
-    import type {
-        Topic,
-        AttachmentKind,
-        Exercise,
-        Material,
-        PracticeSheet,
-        Notebook,
-        CourseLevelsResponse,
-    } from '@/types';
-    import { parseExerciseMetadata } from '@/utils/assistantExerciseContext';
-    import { statementImageDataURL, forgetStatementImage } from '@/utils/statementImage';
-    import { ATTACHMENT_KINDS, acceptedKinds } from '@/utils/attachments';
-    import {
-        buildCorrectAnswer,
-        buildOptions,
-        pruneFillBlanks,
-        parseFillBlanksConfig,
-        validateFillBlanks,
-        type FillBlanksConfig,
-    } from '@/utils/fillBlanks';
-    import FillBlanksEditor from '@/components/teacher/exercises/FillBlanksEditor.vue';
-    import { renderContent } from '@/composables/useContentRenderer';
-    import { practiqApi } from '@/api/request/server';
-    import { STATEMENT_MEDIA_ACCEPT } from '@/utils/fileKind';
-    import { ExerciseService } from '@/services/exercises/exerciseService';
+import UiModal from '@/components/ui/UiModal.vue';
+import { computed, ref, reactive, onMounted, watch, nextTick, defineAsyncComponent } from 'vue';
+import { useRoute, useRouter } from 'vue-router';
+import { useToast } from '@/composables/useToast';
+import TeacherLayout from '@/layouts/TeacherLayout.vue';
+import ConfirmModal from '@/components/ui/ConfirmModal.vue';
+import FileUploadField from '@/components/ui/FileUploadField.vue';
+import ExercisesList from '@/components/teacher/exercises/ExercisesList.vue';
+import CourseLevelsPanel from '@/components/teacher/levels/CourseLevelsPanel.vue';
+import MaterialsList from '@/components/teacher/materials/MaterialsList.vue';
+import NotebooksList from '@/components/teacher/notebooks/NotebooksList.vue';
+import PracticeSheetsList from '@/components/teacher/practiceSheets/PracticeSheetsList.vue';
+import StudentsList from '@/components/teacher/students/StudentsList.vue';
+import TopicModal from '@/components/teacher/topics/TopicModal.vue';
+import TopicsList from '@/components/teacher/topics/TopicsList.vue';
+import { useConfirm } from '@/composables/useConfirm';
+import { useCourse } from '@/composables/useCourse';
+import { useTopic } from '@/composables/useTopic';
+import { useExercise } from '@/composables/useExercise';
+import { usePracticeSheet } from '@/composables/usePracticeSheet';
+import { useMaterial } from '@/composables/useMaterial';
+import { useNotebook } from '@/composables/useNotebook';
+import { useLevel } from '@/composables/useLevel';
+import type {
+    Topic,
+    AttachmentKind,
+    Exercise,
+    Material,
+    PracticeSheet,
+    Notebook,
+    CourseLevelsResponse,
+} from '@/types';
+import { parseExerciseMetadata } from '@/utils/assistantExerciseContext';
+import { statementImageDataURL, forgetStatementImage } from '@/utils/statementImage';
+import { ATTACHMENT_KINDS, acceptedKinds } from '@/utils/attachments';
+import {
+    buildCorrectAnswer,
+    buildOptions,
+    pruneFillBlanks,
+    parseFillBlanksConfig,
+    validateFillBlanks,
+} from '@/utils/fillBlanks';
+import type { FillBlanksConfig } from '@/types/fillBlanks';
+import FillBlanksEditor from '@/components/teacher/exercises/FillBlanksEditor.vue';
+import { renderContent } from '@/composables/useContentRenderer';
+import { STATEMENT_MEDIA_ACCEPT } from '@/utils/fileKind';
 
-    const MathFieldEditor = defineAsyncComponent(
-        () => import('@/components/ui/MathFieldEditor.vue'),
-    );
+const MathFieldEditor = defineAsyncComponent(() => import('@/components/ui/MathFieldEditor.vue'));
 
-    const route = useRoute();
-    const router = useRouter();
-    const toast = useToast();
-    const courseId = route.params.id as string;
-    const { confirmState, showConfirm, onConfirm, onCancel } = useConfirm();
-    const {
-        currentCourse: course,
-        students,
-        loadCourse,
-        loadStudents,
-        setCourseStatus,
-        loadingCourse,
-    } = useCourse();
+const route = useRoute();
+const router = useRouter();
+const toast = useToast();
+const courseId = route.params.id as string;
+const { confirmState, showConfirm, onConfirm, onCancel } = useConfirm();
+const {
+    currentCourse: course,
+    students,
+    loadCourse,
+    loadStudents,
+    setCourseStatus,
+    loadingCourse,
+} = useCourse();
 
-    type CourseStatus = 'draft' | 'published' | 'archived';
+type CourseStatus = 'draft' | 'published' | 'archived';
 
-    const savingStatus = ref('');
-    const statusError = ref('');
+const savingStatus = ref('');
+const statusError = ref('');
 
-    const STATUS_OPTIONS: {
-        value: CourseStatus;
-        label: string;
-        hint: string;
-        icon: string;
-    }[] = [
-        {
-            value: 'draft',
-            label: 'Borrador',
-            hint: 'Solo vos. Los alumnos no lo ven.',
-            icon: 'pi-pencil',
-        },
-        {
-            value: 'published',
-            label: 'Publicado',
-            hint: 'Visible, y se puede entregar.',
-            icon: 'pi-check-circle',
-        },
-        {
-            value: 'archived',
-            label: 'Archivado',
-            hint: 'Los matriculados leen; nadie entrega ni se suma.',
-            icon: 'pi-inbox',
-        },
-    ];
+const STATUS_OPTIONS: {
+    value: CourseStatus;
+    label: string;
+    hint: string;
+    icon: string;
+}[] = [
+    {
+        value: 'draft',
+        label: 'Borrador',
+        hint: 'Solo vos. Los alumnos no lo ven.',
+        icon: 'pi-pencil',
+    },
+    {
+        value: 'published',
+        label: 'Publicado',
+        hint: 'Visible, y se puede entregar.',
+        icon: 'pi-check-circle',
+    },
+    {
+        value: 'archived',
+        label: 'Archivado',
+        hint: 'Los matriculados leen; nadie entrega ni se suma.',
+        icon: 'pi-inbox',
+    },
+];
 
-    const STATUS_LABELS: Record<string, string> = Object.fromEntries(
-        STATUS_OPTIONS.map((option) => [option.value, option.label]),
-    );
-    function statusLabel(status: string) {
-        return STATUS_LABELS[status] ?? status;
-    }
+const STATUS_LABELS: Record<string, string> = Object.fromEntries(
+    STATUS_OPTIONS.map((option) => [option.value, option.label]),
+);
+function statusLabel(status: string) {
+    return STATUS_LABELS[status] ?? status;
+}
 
-    const pendingArchive = ref(false);
+const pendingArchive = ref(false);
 
-    async function chooseStatus(next: CourseStatus) {
-        if (!course.value || savingStatus.value) return;
-        if (next === course.value.status) {
-            pendingArchive.value = false;
-            return;
-        }
-
-        if (next === 'archived' && !pendingArchive.value) {
-            pendingArchive.value = true;
-            return;
-        }
+async function chooseStatus(next: CourseStatus) {
+    if (!course.value || savingStatus.value) return;
+    if (next === course.value.status) {
         pendingArchive.value = false;
-        statusError.value = '';
-        savingStatus.value = next;
-        try {
-            await setCourseStatus(course.value.id, next);
-        } catch {
-            statusError.value = 'No pudimos cambiar el estado. Probá de nuevo.';
-        } finally {
-            savingStatus.value = '';
-        }
-    }
-    const {
-        topics,
-        loadTopics,
-        createTopic: createTopicService,
-        updateTopic: updateTopicService,
-        deleteTopic: deleteTopicService,
-    } = useTopic();
-    const {
-        exercises,
-        loadExercises,
-        createExercise: createExerciseService,
-        updateExercise: updateExerciseService,
-        deleteExercise: deleteExerciseService,
-    } = useExercise();
-    const {
-        practiceSheets,
-        currentPage: sheetsPage,
-        pageSize: sheetsPageSize,
-        hasMore: sheetsHasMore,
-        loadPracticeSheets,
-        loadPracticeSheet,
-        loadPage: loadSheetsPage,
-        nextPage: nextSheetsPage,
-        prevPage: prevSheetsPage,
-        createPracticeSheet,
-        updatePracticeSheet,
-        deletePracticeSheet: deletePracticeSheetService,
-    } = usePracticeSheet();
-    const {
-        loadMaterials,
-        loadMaterial,
-        createMaterial: createMaterialService,
-        updateMaterial: updateMaterialService,
-        deleteMaterial: deleteMaterialService,
-    } = useMaterial();
-    const {
-        loadNotebooks,
-        createNotebook: createNotebookService,
-        updateNotebook: updateNotebookService,
-        deleteNotebook: deleteNotebookService,
-    } = useNotebook();
-    const { loadCourseLevels } = useLevel();
-    const materials = ref<Material[]>([]);
-    const notebooks = ref<Notebook[]>([]);
-    const courseLevels = ref<CourseLevelsResponse | null>(null);
-    const selectedTopicId = ref('');
-    const sheetExercises = ref<Exercise[]>([]);
-
-    const activeTab = ref('levels');
-    const tabsElement = ref<HTMLElement | null>(null);
-    const tabs = [
-        { id: 'levels', label: 'Niveles', icon: 'pi pi-sitemap' },
-        { id: 'topics', label: 'Temas', icon: 'pi pi-list' },
-        { id: 'exercises', label: 'Ejercicios', icon: 'pi pi-pencil' },
-        { id: 'materials', label: 'Materiales', icon: 'pi pi-file' },
-        { id: 'students', label: 'Alumnos', icon: 'pi pi-users' },
-        { id: 'sheets', label: 'Hojas de Práctica', icon: 'pi pi-copy' },
-        { id: 'notebooks', label: 'Cuadernos', icon: 'pi pi-book' },
-    ];
-
-    function focusTab(index: number) {
-        const tab = tabs[(index + tabs.length) % tabs.length];
-        activeTab.value = tab.id;
-        document.getElementById(`tab-${tab.id}`)?.focus();
+        return;
     }
 
-    function revealActiveTab() {
-        const tabsRoot = tabsElement.value;
-        const selected = tabsRoot?.querySelector<HTMLElement>('.tab-active');
-        if (!tabsRoot || !selected || window.innerWidth > 600) return;
-        tabsRoot.scrollTo({ left: Math.max(0, selected.offsetLeft - 8), behavior: 'smooth' });
+    if (next === 'archived' && !pendingArchive.value) {
+        pendingArchive.value = true;
+        return;
     }
+    pendingArchive.value = false;
+    statusError.value = '';
+    savingStatus.value = next;
+    try {
+        await setCourseStatus(course.value.id, next);
+    } catch {
+        statusError.value = 'No pudimos cambiar el estado. Probá de nuevo.';
+    } finally {
+        savingStatus.value = '';
+    }
+}
+const {
+    topics,
+    loadTopics,
+    createTopic: createTopicService,
+    updateTopic: updateTopicService,
+    deleteTopic: deleteTopicService,
+} = useTopic();
+const {
+    exercises,
+    loadExercises,
+    createExercise: createExerciseService,
+    requestExerciseDrafts,
+    updateExercise: updateExerciseService,
+    deleteExercise: deleteExerciseService,
+} = useExercise();
+const {
+    practiceSheets,
+    currentPage: sheetsPage,
+    pageSize: sheetsPageSize,
+    hasMore: sheetsHasMore,
+    loadPracticeSheets,
+    loadPracticeSheet,
+    loadPage: loadSheetsPage,
+    nextPage: nextSheetsPage,
+    prevPage: prevSheetsPage,
+    createPracticeSheet,
+    updatePracticeSheet,
+    deletePracticeSheet: deletePracticeSheetService,
+} = usePracticeSheet();
+const {
+    loadMaterials,
+    loadMaterial,
+    createMaterial: createMaterialService,
+    updateMaterial: updateMaterialService,
+    deleteMaterial: deleteMaterialService,
+} = useMaterial();
+const {
+    loadNotebooks,
+    createNotebook: createNotebookService,
+    updateNotebook: updateNotebookService,
+    deleteNotebook: deleteNotebookService,
+} = useNotebook();
+const { loadCourseLevels } = useLevel();
+const materials = ref<Material[]>([]);
+const notebooks = ref<Notebook[]>([]);
+const courseLevels = ref<CourseLevelsResponse | null>(null);
+const selectedTopicId = ref('');
+const sheetExercises = ref<Exercise[]>([]);
 
-    watch(activeTab, () => nextTick(revealActiveTab));
+const activeTab = ref('levels');
+const tabsElement = ref<HTMLElement | null>(null);
+const tabs = [
+    { id: 'levels', label: 'Niveles', icon: 'pi pi-sitemap' },
+    { id: 'topics', label: 'Temas', icon: 'pi pi-list' },
+    { id: 'exercises', label: 'Ejercicios', icon: 'pi pi-pencil' },
+    { id: 'materials', label: 'Materiales', icon: 'pi pi-file' },
+    { id: 'students', label: 'Alumnos', icon: 'pi pi-users' },
+    { id: 'sheets', label: 'Hojas de Práctica', icon: 'pi pi-copy' },
+    { id: 'notebooks', label: 'Cuadernos', icon: 'pi pi-book' },
+];
 
-    const showTopicModal = ref(false);
-    const showExerciseModal = ref(false);
-    const showMaterialModal = ref(false);
-    const showSheetModal = ref(false);
-    const showNotebookModal = ref(false);
-    const showEditSheetModal = ref(false);
-    const showEditNotebookModal = ref(false);
-    const showEditExerciseModal = ref(false);
+function focusTab(index: number) {
+    const tab = tabs[(index + tabs.length) % tabs.length];
+    activeTab.value = tab.id;
+    document.getElementById(`tab-${tab.id}`)?.focus();
+}
 
-    const editingTopicId = ref<string | null>(null);
-    const editTopicTitle = ref('');
+function revealActiveTab() {
+    const tabsRoot = tabsElement.value;
+    const selected = tabsRoot?.querySelector<HTMLElement>('.tab-active');
+    if (!tabsRoot || !selected || window.innerWidth > 600) return;
+    tabsRoot.scrollTo({ left: Math.max(0, selected.offsetLeft - 8), behavior: 'smooth' });
+}
 
-    const editingSheetId = ref<string | null>(null);
-    const editSheet = reactive({
-        title: '',
-        topic_id: '',
-        level: 1,
-        sheet_type: 'practice',
-        test_style: 'keyboard',
-        scheduled_at: '',
-        available_until: '',
+watch(activeTab, () => nextTick(revealActiveTab));
 
-        max_attempts: null as number | null,
-        time_limit_minutes: null as number | null,
-        exercise_ids: [] as string[],
-    });
-    const editSheetExercises = ref<Exercise[]>([]);
+const showTopicModal = ref(false);
+const showExerciseModal = ref(false);
+const showMaterialModal = ref(false);
+const showSheetModal = ref(false);
+const showNotebookModal = ref(false);
+const showEditSheetModal = ref(false);
+const showEditNotebookModal = ref(false);
+const showEditExerciseModal = ref(false);
 
-    const editingNotebookId = ref<string | null>(null);
-    const editNotebook = reactive({ title: '', description: '', topic_id: '' });
+const editingTopicId = ref<string | null>(null);
+const editTopicTitle = ref('');
 
-    const editingExerciseId = ref<string | null>(null);
-    const editExercise = reactive({
-        question: '',
-        type: 'open_text' as Exercise['type'],
-        correct_answer: '',
-        explanation: '',
-        difficulty: 1,
-        metadata: '{}',
-        teacher_image: '',
+const editingSheetId = ref<string | null>(null);
+const editSheet = reactive({
+    title: '',
+    topic_id: '',
+    level: 1,
+    sheet_type: 'practice',
+    test_style: 'keyboard',
+    scheduled_at: '',
+    available_until: '',
 
-        media_url: '',
-        options: ['', '', '', ''],
+    max_attempts: null as number | null,
+    time_limit_minutes: null as number | null,
+    exercise_ids: [] as string[],
+});
+const editSheetExercises = ref<Exercise[]>([]);
 
-        accept: [] as AttachmentKind[],
+const editingNotebookId = ref<string | null>(null);
+const editNotebook = reactive({ title: '', description: '', topic_id: '' });
 
-        fillBlanks: { blanks: [], distractors: [], layout: 'text' } as FillBlanksConfig,
-    });
+const editingExerciseId = ref<string | null>(null);
+const editExercise = reactive({
+    question: '',
+    type: 'open_text' as Exercise['type'],
+    correct_answer: '',
+    explanation: '',
+    difficulty: 1,
+    metadata: '{}',
+    teacher_image: '',
 
-    const newTopic = reactive({ title: '', description: '', order_index: 1 });
-    const newExercise = reactive({
-        question: '',
-        type: 'open_text' as Exercise['type'],
-        correct_answer: '',
-        explanation: '',
-        difficulty: 1,
-        metadata: '{}',
-        teacher_image: '',
+    media_url: '',
+    options: ['', '', '', ''],
 
-        media_url: '',
-        options: ['', '', '', ''],
+    accept: [] as AttachmentKind[],
 
-        accept: [] as AttachmentKind[],
+    fillBlanks: { blanks: [], distractors: [], layout: 'text' } as FillBlanksConfig,
+});
 
-        fillBlanks: { blanks: [], distractors: [], layout: 'text' } as FillBlanksConfig,
-    });
+const newTopic = reactive({ title: '', description: '', order_index: 1 });
+const newExercise = reactive({
+    question: '',
+    type: 'open_text' as Exercise['type'],
+    correct_answer: '',
+    explanation: '',
+    difficulty: 1,
+    metadata: '{}',
+    teacher_image: '',
 
-    type AIDraft = {
-        draft_id: string;
-        type:
-            | 'open_text'
-            | 'multiple_choice'
-            | 'equation'
-            | 'canvas'
-            | 'attachment'
-            | 'fill_blanks'
-            | 'handwritten';
-        question: string;
-        correct_answer: string;
-        explanation: string;
-        difficulty: number;
-        metadata?: {
-            options?: string[];
-            blanks?: { id: number; answer: string }[];
-            distractors?: string[];
-            layout?: string;
-            accept?: AttachmentKind[];
-        };
-        teacher_image: string;
+    media_url: '',
+    options: ['', '', '', ''],
 
-        fillBlanks: FillBlanksConfig;
+    accept: [] as AttachmentKind[],
+
+    fillBlanks: { blanks: [], distractors: [], layout: 'text' } as FillBlanksConfig,
+});
+
+type AIDraft = {
+    draft_id: string;
+    type:
+        | 'open_text'
+        | 'multiple_choice'
+        | 'equation'
+        | 'canvas'
+        | 'attachment'
+        | 'fill_blanks'
+        | 'handwritten';
+    question: string;
+    correct_answer: string;
+    explanation: string;
+    difficulty: number;
+    metadata?: {
+        options?: string[];
+        blanks?: { id: number; answer: string }[];
+        distractors?: string[];
+        layout?: string;
+        accept?: AttachmentKind[];
     };
+    teacher_image: string;
 
-    const exerciseService = new ExerciseService(practiqApi);
-    const showAIDraftsModal = ref(false);
-    const aiSource = ref<File | null>(null);
-    const aiDrafts = ref<AIDraft[]>([]);
-    const aiCount = ref(1);
-    const aiDifficulty = ref(1);
-    const aiInstruction = ref('');
-    const aiType = ref('');
-    const aiGenerating = ref(false);
-    const aiSaving = ref(false);
-    let aiDraftCounter = 0;
-    const aiDraftCanvasRefs = new Map<string, HTMLCanvasElement>();
-    const aiDraftDrawing = new Set<string>();
+    fillBlanks: FillBlanksConfig;
+};
 
-    const canGenerateDrafts = computed(
-        () =>
-            Boolean(selectedTopicId.value) && Boolean(aiSource.value || aiInstruction.value.trim()),
+const showAIDraftsModal = ref(false);
+const aiSource = ref<File | null>(null);
+const aiDrafts = ref<AIDraft[]>([]);
+const aiCount = ref(1);
+const aiDifficulty = ref(1);
+const aiInstruction = ref('');
+const aiType = ref('');
+const aiGenerating = ref(false);
+const aiSaving = ref(false);
+let aiDraftCounter = 0;
+const aiDraftCanvasRefs = new Map<string, HTMLCanvasElement>();
+const aiDraftDrawing = new Set<string>();
+
+const canGenerateDrafts = computed(
+    () => Boolean(selectedTopicId.value) && Boolean(aiSource.value || aiInstruction.value.trim()),
+);
+
+function normalizeDraft(draft: AIDraft): AIDraft {
+    const options = [...(draft.metadata?.options || [])];
+    while (options.length < 4) options.push('');
+
+    const fillBlanks: FillBlanksConfig = {
+        blanks: (draft.metadata?.blanks || [])
+            .map((blank) => ({ id: Number(blank?.id), answer: String(blank?.answer ?? '') }))
+            .filter((blank) => Number.isFinite(blank.id)),
+        distractors: (draft.metadata?.distractors || [])
+            .map((option) => String(option))
+            .filter(Boolean),
+        layout: draft.metadata?.layout === 'code' ? 'code' : 'text',
+    };
+    const accept = (draft.metadata?.accept || []).filter((kind): kind is AttachmentKind =>
+        ATTACHMENT_KINDS.some((option) => option.value === kind),
     );
+    return {
+        ...draft,
+        draft_id: draft.draft_id || `ai-draft-${++aiDraftCounter}`,
+        teacher_image: draft.teacher_image || '',
+        metadata: { ...draft.metadata, options, accept },
+        fillBlanks: pruneFillBlanks(fillBlanks, draft.question || ''),
+    };
+}
 
-    function normalizeDraft(draft: AIDraft): AIDraft {
-        const options = [...(draft.metadata?.options || [])];
-        while (options.length < 4) options.push('');
+function setDraftOption(draft: AIDraft, position: number, value: string) {
+    const options = draft.metadata?.options;
+    if (!options) return;
+    const previous = (options[position] || '').trim();
+    options[position] = value;
+    if (previous && draft.correct_answer.trim() === previous) {
+        draft.correct_answer = value.trim();
+    }
+}
 
-        const fillBlanks: FillBlanksConfig = {
-            blanks: (draft.metadata?.blanks || [])
-                .map((blank) => ({ id: Number(blank?.id), answer: String(blank?.answer ?? '') }))
-                .filter((blank) => Number.isFinite(blank.id)),
-            distractors: (draft.metadata?.distractors || [])
-                .map((option) => String(option))
-                .filter(Boolean),
-            layout: draft.metadata?.layout === 'code' ? 'code' : 'text',
-        };
-        const accept = (draft.metadata?.accept || []).filter((kind): kind is AttachmentKind =>
-            ATTACHMENT_KINDS.some((option) => option.value === kind),
+function draftProblem(draft: AIDraft): string {
+    if (!draft.question.trim()) return 'Falta la consigna.';
+    if (draft.type === 'fill_blanks') return validateFillBlanks(draft.question, draft.fillBlanks);
+    if (draft.type === 'handwritten' && !draft.teacher_image)
+        return 'Generá o dibujá la consigna manuscrita.';
+
+    if (draft.type === 'attachment') return '';
+    if (!draft.correct_answer.trim()) return 'Falta la respuesta correcta.';
+    if (draft.type !== 'multiple_choice') return '';
+    const options = (draft.metadata?.options || []).map((o) => o.trim()).filter(Boolean);
+    if (options.length < 2) return 'Cargá al menos dos opciones.';
+    if (!options.includes(draft.correct_answer.trim()))
+        return 'Marcá cuál de las opciones es la correcta.';
+    return '';
+}
+
+function draftIsComplete(draft: AIDraft) {
+    return draftProblem(draft) === '';
+}
+
+const openDrafts = ref<Set<string>>(new Set());
+const excludedDrafts = ref<Set<string>>(new Set());
+
+const includedDrafts = computed(() =>
+    aiDrafts.value.filter((d) => !excludedDrafts.value.has(d.draft_id)),
+);
+const incompleteDrafts = computed(
+    () => includedDrafts.value.filter((d) => !draftIsComplete(d)).length,
+);
+
+function isOpen(draft: AIDraft) {
+    return openDrafts.value.has(draft.draft_id);
+}
+
+function toggleDraft(draft: AIDraft) {
+    const next = new Set(openDrafts.value);
+    if (next.has(draft.draft_id)) next.delete(draft.draft_id);
+    else next.add(draft.draft_id);
+    openDrafts.value = next;
+}
+
+function isExcluded(draft: AIDraft) {
+    return excludedDrafts.value.has(draft.draft_id);
+}
+
+function toggleExcluded(draft: AIDraft) {
+    const next = new Set(excludedDrafts.value);
+    if (next.has(draft.draft_id)) next.delete(draft.draft_id);
+    else {
+        next.add(draft.draft_id);
+        const open = new Set(openDrafts.value);
+        open.delete(draft.draft_id);
+        openDrafts.value = open;
+    }
+    excludedDrafts.value = next;
+}
+
+async function discardAllDrafts() {
+    const total = aiDrafts.value.length;
+    if (total) {
+        const ok = await showConfirm(
+            total === 1 ? '¿Descartar el borrador?' : `¿Descartar los ${total} borradores?`,
+            {
+                description: 'Se pierde lo que editaste. Para volver más tarde, cerrá con la ✕.',
+                confirmLabel: 'Descartar',
+            },
         );
-        return {
-            ...draft,
-            draft_id: draft.draft_id || `ai-draft-${++aiDraftCounter}`,
-            teacher_image: draft.teacher_image || '',
-            metadata: { ...draft.metadata, options, accept },
-            fillBlanks: pruneFillBlanks(fillBlanks, draft.question || ''),
-        };
+        if (!ok) return;
     }
+    aiDrafts.value = [];
+    openDrafts.value = new Set();
+    excludedDrafts.value = new Set();
+}
 
-    function setDraftOption(draft: AIDraft, position: number, value: string) {
-        const options = draft.metadata?.options;
-        if (!options) return;
-        const previous = (options[position] || '').trim();
-        options[position] = value;
-        if (previous && draft.correct_answer.trim() === previous) {
-            draft.correct_answer = value.trim();
-        }
-    }
+function goToFirstIncomplete() {
+    const target = includedDrafts.value.find((d) => !draftIsComplete(d));
+    if (!target) return;
+    openDrafts.value = new Set(openDrafts.value).add(target.draft_id);
+    requestAnimationFrame(() => {
+        document
+            .getElementById(`ai-draft-${target.draft_id}`)
+            ?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    });
+}
 
-    function draftProblem(draft: AIDraft): string {
-        if (!draft.question.trim()) return 'Falta la consigna.';
-        if (draft.type === 'fill_blanks')
-            return validateFillBlanks(draft.question, draft.fillBlanks);
-        if (draft.type === 'handwritten' && !draft.teacher_image)
-            return 'Generá o dibujá la consigna manuscrita.';
+const DRAFT_TYPE_LABELS: Record<AIDraft['type'], string> = {
+    open_text: 'Texto abierto',
+    multiple_choice: 'Opción múltiple',
+    equation: 'Ecuación',
+    canvas: 'Canvas/Dibujo',
+    attachment: 'Entrega de archivo',
+    fill_blanks: 'Completar huecos',
+    handwritten: 'Manuscrito',
+};
 
-        if (draft.type === 'attachment') return '';
-        if (!draft.correct_answer.trim()) return 'Falta la respuesta correcta.';
-        if (draft.type !== 'multiple_choice') return '';
-        const options = (draft.metadata?.options || []).map((o) => o.trim()).filter(Boolean);
-        if (options.length < 2) return 'Cargá al menos dos opciones.';
-        if (!options.includes(draft.correct_answer.trim()))
-            return 'Marcá cuál de las opciones es la correcta.';
-        return '';
-    }
+function draftSummary(draft: AIDraft) {
+    const text = draft.question.replace(/\s+/g, ' ').trim();
+    if (!text) return 'Sin consigna';
+    return text.length > 80 ? `${text.slice(0, 80)}…` : text;
+}
 
-    function draftIsComplete(draft: AIDraft) {
-        return draftProblem(draft) === '';
-    }
+function apiMessage(error: unknown, fallback: string) {
+    const response = (error as { response?: { data?: { message?: string } } })?.response;
+    return response?.data?.message || fallback;
+}
 
-    const openDrafts = ref<Set<string>>(new Set());
-    const excludedDrafts = ref<Set<string>>(new Set());
-
-    const includedDrafts = computed(() =>
-        aiDrafts.value.filter((d) => !excludedDrafts.value.has(d.draft_id)),
-    );
-    const incompleteDrafts = computed(
-        () => includedDrafts.value.filter((d) => !draftIsComplete(d)).length,
-    );
-
-    function isOpen(draft: AIDraft) {
-        return openDrafts.value.has(draft.draft_id);
-    }
-
-    function toggleDraft(draft: AIDraft) {
-        const next = new Set(openDrafts.value);
-        if (next.has(draft.draft_id)) next.delete(draft.draft_id);
-        else next.add(draft.draft_id);
-        openDrafts.value = next;
-    }
-
-    function isExcluded(draft: AIDraft) {
-        return excludedDrafts.value.has(draft.draft_id);
-    }
-
-    function toggleExcluded(draft: AIDraft) {
-        const next = new Set(excludedDrafts.value);
-        if (next.has(draft.draft_id)) next.delete(draft.draft_id);
-        else {
-            next.add(draft.draft_id);
-            const open = new Set(openDrafts.value);
-            open.delete(draft.draft_id);
-            openDrafts.value = open;
-        }
-        excludedDrafts.value = next;
-    }
-
-    async function discardAllDrafts() {
-        const total = aiDrafts.value.length;
-        if (total) {
-            const ok = await showConfirm(
-                total === 1 ? '¿Descartar el borrador?' : `¿Descartar los ${total} borradores?`,
-                {
-                    description:
-                        'Se pierde lo que editaste. Para volver más tarde, cerrá con la ✕.',
-                    confirmLabel: 'Descartar',
-                },
-            );
-            if (!ok) return;
-        }
-        aiDrafts.value = [];
-        openDrafts.value = new Set();
+async function generateExerciseDrafts() {
+    if (!canGenerateDrafts.value) return;
+    aiGenerating.value = true;
+    try {
+        const form = new FormData();
+        if (aiSource.value) form.append('source', aiSource.value);
+        form.append('count', String(aiCount.value));
+        form.append('difficulty', String(aiDifficulty.value));
+        form.append('instruction', aiInstruction.value);
+        form.append('exercise_type', aiType.value);
+        const { data } = await requestExerciseDrafts(selectedTopicId.value, form);
+        aiDrafts.value = data.map((draft) => normalizeDraft(draft as AIDraft));
         excludedDrafts.value = new Set();
-    }
-
-    function goToFirstIncomplete() {
-        const target = includedDrafts.value.find((d) => !draftIsComplete(d));
-        if (!target) return;
-        openDrafts.value = new Set(openDrafts.value).add(target.draft_id);
-        requestAnimationFrame(() => {
-            document
-                .getElementById(`ai-draft-${target.draft_id}`)
-                ?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        openDrafts.value = new Set(
+            aiDrafts.value.filter((d) => !draftIsComplete(d)).map((d) => d.draft_id),
+        );
+    } catch (error) {
+        toast.add({
+            severity: 'error',
+            summary: 'No se pudo generar',
+            detail: apiMessage(error, 'Revisá el archivo o el tema e intentá de nuevo.'),
+            life: 4500,
         });
+    } finally {
+        aiGenerating.value = false;
     }
+}
 
-    const DRAFT_TYPE_LABELS: Record<AIDraft['type'], string> = {
-        open_text: 'Texto abierto',
-        multiple_choice: 'Opción múltiple',
-        equation: 'Ecuación',
-        canvas: 'Canvas/Dibujo',
-        attachment: 'Entrega de archivo',
-        fill_blanks: 'Completar huecos',
-        handwritten: 'Manuscrito',
-    };
+async function saveAIDrafts() {
+    if (!selectedTopicId.value || !aiDrafts.value.length || incompleteDrafts.value) return;
+    aiSaving.value = true;
 
-    function draftSummary(draft: AIDraft) {
-        const text = draft.question.replace(/\s+/g, ' ').trim();
-        if (!text) return 'Sin consigna';
-        return text.length > 80 ? `${text.slice(0, 80)}…` : text;
-    }
-
-    function apiMessage(error: unknown, fallback: string) {
-        const response = (error as { response?: { data?: { message?: string } } })?.response;
-        return response?.data?.message || fallback;
-    }
-
-    async function generateExerciseDrafts() {
-        if (!canGenerateDrafts.value) return;
-        aiGenerating.value = true;
-        try {
-            const form = new FormData();
-            if (aiSource.value) form.append('source', aiSource.value);
-            form.append('count', String(aiCount.value));
-            form.append('difficulty', String(aiDifficulty.value));
-            form.append('instruction', aiInstruction.value);
-            form.append('exercise_type', aiType.value);
-            const { data } = await practiqApi.post(
-                `/topics/${selectedTopicId.value}/exercise-drafts/ai`,
-                form,
-                { headers: { 'Content-Type': 'multipart/form-data' } },
-            );
-            aiDrafts.value = (data.data || []).map(normalizeDraft);
-            excludedDrafts.value = new Set();
-            openDrafts.value = new Set(
-                aiDrafts.value.filter((d) => !draftIsComplete(d)).map((d) => d.draft_id),
-            );
-        } catch (error) {
-            toast.add({
-                severity: 'error',
-                summary: 'No se pudo generar',
-                detail: apiMessage(error, 'Revisá el archivo o el tema e intentá de nuevo.'),
-                life: 4500,
-            });
-        } finally {
-            aiGenerating.value = false;
-        }
-    }
-
-    async function saveAIDrafts() {
-        if (!selectedTopicId.value || !aiDrafts.value.length || incompleteDrafts.value) return;
-        aiSaving.value = true;
-
-        const pending: AIDraft[] = [];
-        let saved = 0;
-        let failure: unknown = null;
-        try {
-            for (const draft of includedDrafts.value) {
-                if (failure) {
-                    pending.push(draft);
-                    continue;
-                }
-                try {
-                    await exerciseService.create(selectedTopicId.value, {
-                        type: draft.type,
-                        question: draft.question,
-                        correct_answer: draftCorrectAnswer(draft),
-                        explanation: draft.explanation,
-                        difficulty: draft.difficulty,
-                        metadata: JSON.stringify(draftMetadata(draft)),
-                    } as Partial<Exercise>);
-                    saved += 1;
-                } catch (error) {
-                    failure = error;
-                    pending.push(draft);
-                }
+    const pending: AIDraft[] = [];
+    let saved = 0;
+    let failure: unknown = null;
+    try {
+        for (const draft of includedDrafts.value) {
+            if (failure) {
+                pending.push(draft);
+                continue;
             }
-            aiDrafts.value = pending;
-            if (saved) await loadExercises(selectedTopicId.value);
-
-            if (!failure) {
-                showAIDraftsModal.value = false;
-                toast.add({
-                    severity: 'success',
-                    summary: 'Ejercicios creados',
-                    detail: `${saved} ${saved === 1 ? 'ejercicio agregado' : 'ejercicios agregados'} al tema.`,
-                    life: 3500,
-                });
-                return;
+            try {
+                await createExerciseService(selectedTopicId.value, {
+                    type: draft.type,
+                    question: draft.question,
+                    correct_answer: draftCorrectAnswer(draft),
+                    explanation: draft.explanation,
+                    difficulty: draft.difficulty,
+                    metadata: JSON.stringify(draftMetadata(draft)),
+                } as Partial<Exercise>);
+                saved += 1;
+            } catch (error) {
+                failure = error;
+                pending.push(draft);
             }
+        }
+        aiDrafts.value = pending;
+        if (saved) await loadExercises(selectedTopicId.value);
+
+        if (!failure) {
+            showAIDraftsModal.value = false;
             toast.add({
-                severity: 'warn',
-                summary: 'Guardado incompleto',
-                detail: `${saved} de ${saved + pending.length} se guardaron. Quedan ${pending.length} en la lista: ${apiMessage(failure, 'volvé a intentar.')}`,
-                life: 6000,
+                severity: 'success',
+                summary: 'Ejercicios creados',
+                detail: `${saved} ${saved === 1 ? 'ejercicio agregado' : 'ejercicios agregados'} al tema.`,
+                life: 3500,
             });
-        } finally {
-            aiSaving.value = false;
-        }
-    }
-
-    function draftMetadata(draft: AIDraft) {
-        if (draft.type === 'handwritten') return { teacher_image: draft.teacher_image };
-        if (draft.type === 'multiple_choice') {
-            return {
-                options: (draft.metadata?.options || []).map((o) => o.trim()).filter(Boolean),
-            };
-        }
-        if (draft.type === 'fill_blanks') {
-            const config = pruneFillBlanks(draft.fillBlanks, draft.question);
-            return { blanks: config.blanks, options: buildOptions(config), layout: config.layout };
-        }
-        if (draft.type === 'attachment') {
-            return { accept: draft.metadata?.accept || [] };
-        }
-        return {};
-    }
-
-    function draftCorrectAnswer(draft: AIDraft) {
-        if (draft.type !== 'fill_blanks') return draft.correct_answer;
-        return buildCorrectAnswer(pruneFillBlanks(draft.fillBlanks, draft.question).blanks);
-    }
-
-    function setAIDraftCanvasRef(draft: AIDraft, canvas: HTMLCanvasElement | null) {
-        if (!canvas) {
-            aiDraftCanvasRefs.delete(draft.draft_id);
             return;
         }
-        aiDraftCanvasRefs.set(draft.draft_id, canvas);
-        nextTick(() => initAIDraftCanvas(draft, draft.teacher_image));
+        toast.add({
+            severity: 'warn',
+            summary: 'Guardado incompleto',
+            detail: `${saved} de ${saved + pending.length} se guardaron. Quedan ${pending.length} en la lista: ${apiMessage(failure, 'volvé a intentar.')}`,
+            life: 6000,
+        });
+    } finally {
+        aiSaving.value = false;
     }
+}
 
-    function initAIDraftCanvas(draft: AIDraft, imageData = '') {
-        const canvas = aiDraftCanvasRefs.get(draft.draft_id);
-        if (!canvas) return;
-        const width = canvas.offsetWidth || 720;
-        const height = canvas.offsetHeight || 240;
-        canvas.width = width;
-        canvas.height = height;
-        const ctx = canvas.getContext('2d');
-        if (!ctx) return;
-        drawTeacherCanvasBackground(ctx, width, height);
-        if (imageData) {
-            const image = new Image();
-            image.onload = () => ctx.drawImage(image, 0, 0, width, height);
-            image.src = imageData;
-        }
-    }
-
-    function seedAIDraftHandwriting(draft: AIDraft) {
-        const canvas = aiDraftCanvasRefs.get(draft.draft_id);
-        if (!canvas) return;
-        initAIDraftCanvas(draft);
-        const ctx = canvas.getContext('2d');
-        if (!ctx) return;
-        const words = (draft.question.trim() || 'Escribí tu respuesta.').split(/\s+/);
-        const maxWidth = canvas.width - 44;
-        const lines: string[] = [];
-        let line = '';
-        ctx.font = 'italic 24px "Segoe Print", "Comic Sans MS", cursive';
-        for (const word of words) {
-            const candidate = line ? `${line} ${word}` : word;
-            if (line && ctx.measureText(candidate).width > maxWidth) {
-                lines.push(line);
-                line = word;
-            } else line = candidate;
-        }
-        if (line) lines.push(line);
-        ctx.fillStyle = '#1f2937';
-        ctx.textBaseline = 'top';
-        lines.slice(0, 5).forEach((text, index) => ctx.fillText(text, 22, 12 + index * 34));
-        if (lines.length > 5) ctx.fillText('…', 22, 12 + 5 * 34);
-        draft.teacher_image = canvas.toDataURL('image/png');
-    }
-
-    function enableAIDraftHandwriting(draft: AIDraft) {
-        draft.type = 'handwritten';
-
-        nextTick(() => nextTick(() => seedAIDraftHandwriting(draft)));
-    }
-
-    function aiDraftCanvasPosition(event: MouseEvent, draft: AIDraft) {
-        const canvas = aiDraftCanvasRefs.get(draft.draft_id);
-        if (!canvas) return { x: 0, y: 0 };
-        const rect = canvas.getBoundingClientRect();
+function draftMetadata(draft: AIDraft) {
+    if (draft.type === 'handwritten') return { teacher_image: draft.teacher_image };
+    if (draft.type === 'multiple_choice') {
         return {
-            x: (event.clientX - rect.left) * (canvas.width / rect.width),
-            y: (event.clientY - rect.top) * (canvas.height / rect.height),
+            options: (draft.metadata?.options || []).map((o) => o.trim()).filter(Boolean),
         };
     }
-
-    function startAIDraftDraw(event: MouseEvent, draft: AIDraft) {
-        const canvas = aiDraftCanvasRefs.get(draft.draft_id);
-        const ctx = canvas?.getContext('2d');
-        if (!canvas || !ctx) return;
-        aiDraftDrawing.add(draft.draft_id);
-        const pos = aiDraftCanvasPosition(event, draft);
-        ctx.beginPath();
-        ctx.moveTo(pos.x, pos.y);
+    if (draft.type === 'fill_blanks') {
+        const config = pruneFillBlanks(draft.fillBlanks, draft.question);
+        return { blanks: config.blanks, options: buildOptions(config), layout: config.layout };
     }
-
-    function drawAIDraftCanvas(event: MouseEvent, draft: AIDraft) {
-        if (!aiDraftDrawing.has(draft.draft_id)) return;
-        const canvas = aiDraftCanvasRefs.get(draft.draft_id);
-        const ctx = canvas?.getContext('2d');
-        if (!canvas || !ctx) return;
-        const pos = aiDraftCanvasPosition(event, draft);
-        ctx.strokeStyle = '#111827';
-        ctx.lineWidth = 3;
-        ctx.lineCap = 'round';
-        ctx.lineJoin = 'round';
-        ctx.lineTo(pos.x, pos.y);
-        ctx.stroke();
+    if (draft.type === 'attachment') {
+        return { accept: draft.metadata?.accept || [] };
     }
+    return {};
+}
 
-    function stopAIDraftDraw(draft: AIDraft) {
-        aiDraftDrawing.delete(draft.draft_id);
-        draft.teacher_image =
-            aiDraftCanvasRefs.get(draft.draft_id)?.toDataURL('image/png') || draft.teacher_image;
+function draftCorrectAnswer(draft: AIDraft) {
+    if (draft.type !== 'fill_blanks') return draft.correct_answer;
+    return buildCorrectAnswer(pruneFillBlanks(draft.fillBlanks, draft.question).blanks);
+}
+
+function setAIDraftCanvasRef(draft: AIDraft, canvas: HTMLCanvasElement | null) {
+    if (!canvas) {
+        aiDraftCanvasRefs.delete(draft.draft_id);
+        return;
     }
+    aiDraftCanvasRefs.set(draft.draft_id, canvas);
+    nextTick(() => initAIDraftCanvas(draft, draft.teacher_image));
+}
 
-    function startAIDraftDrawTouch(event: TouchEvent, draft: AIDraft) {
-        const touch = event.touches[0];
-        if (touch)
-            startAIDraftDraw(
-                { clientX: touch.clientX, clientY: touch.clientY } as MouseEvent,
-                draft,
-            );
+function initAIDraftCanvas(draft: AIDraft, imageData = '') {
+    const canvas = aiDraftCanvasRefs.get(draft.draft_id);
+    if (!canvas) return;
+    const width = canvas.offsetWidth || 720;
+    const height = canvas.offsetHeight || 240;
+    canvas.width = width;
+    canvas.height = height;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+    drawTeacherCanvasBackground(ctx, width, height);
+    if (imageData) {
+        const image = new Image();
+        image.onload = () => ctx.drawImage(image, 0, 0, width, height);
+        image.src = imageData;
     }
+}
 
-    function drawAIDraftCanvasTouch(event: TouchEvent, draft: AIDraft) {
-        const touch = event.touches[0];
-        if (touch)
-            drawAIDraftCanvas(
-                { clientX: touch.clientX, clientY: touch.clientY } as MouseEvent,
-                draft,
-            );
+function seedAIDraftHandwriting(draft: AIDraft) {
+    const canvas = aiDraftCanvasRefs.get(draft.draft_id);
+    if (!canvas) return;
+    initAIDraftCanvas(draft);
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+    const words = (draft.question.trim() || 'Escribí tu respuesta.').split(/\s+/);
+    const maxWidth = canvas.width - 44;
+    const lines: string[] = [];
+    let line = '';
+    ctx.font = 'italic 24px "Segoe Print", "Comic Sans MS", cursive';
+    for (const word of words) {
+        const candidate = line ? `${line} ${word}` : word;
+        if (line && ctx.measureText(candidate).width > maxWidth) {
+            lines.push(line);
+            line = word;
+        } else line = candidate;
     }
-    const newMaterial = reactive({
-        title: '',
-        type: 'text' as Material['type'],
-        extracted_text: '',
+    if (line) lines.push(line);
+    ctx.fillStyle = '#1f2937';
+    ctx.textBaseline = 'top';
+    lines.slice(0, 5).forEach((text, index) => ctx.fillText(text, 22, 12 + index * 34));
+    if (lines.length > 5) ctx.fillText('…', 22, 12 + 5 * 34);
+    draft.teacher_image = canvas.toDataURL('image/png');
+}
 
-        file_url: '',
-    });
+function enableAIDraftHandwriting(draft: AIDraft) {
+    draft.type = 'handwritten';
 
-    const MATERIAL_ACCEPT: Record<string, string> = {
-        pdf: 'application/pdf',
-        image: 'image/*',
-        video: 'video/mp4,video/webm,video/ogg,video/quicktime',
+    nextTick(() => nextTick(() => seedAIDraftHandwriting(draft)));
+}
+
+function aiDraftCanvasPosition(event: MouseEvent, draft: AIDraft) {
+    const canvas = aiDraftCanvasRefs.get(draft.draft_id);
+    if (!canvas) return { x: 0, y: 0 };
+    const rect = canvas.getBoundingClientRect();
+    return {
+        x: (event.clientX - rect.left) * (canvas.width / rect.width),
+        y: (event.clientY - rect.top) * (canvas.height / rect.height),
     };
+}
 
-    function materialAccept(type: Material['type']) {
-        return MATERIAL_ACCEPT[type] ?? '';
-    }
+function startAIDraftDraw(event: MouseEvent, draft: AIDraft) {
+    const canvas = aiDraftCanvasRefs.get(draft.draft_id);
+    const ctx = canvas?.getContext('2d');
+    if (!canvas || !ctx) return;
+    aiDraftDrawing.add(draft.draft_id);
+    const pos = aiDraftCanvasPosition(event, draft);
+    ctx.beginPath();
+    ctx.moveTo(pos.x, pos.y);
+}
 
-    function missingMaterialFile(form: { type: Material['type']; file_url: string }) {
-        return form.type !== 'text' && !form.file_url;
-    }
+function drawAIDraftCanvas(event: MouseEvent, draft: AIDraft) {
+    if (!aiDraftDrawing.has(draft.draft_id)) return;
+    const canvas = aiDraftCanvasRefs.get(draft.draft_id);
+    const ctx = canvas?.getContext('2d');
+    if (!canvas || !ctx) return;
+    const pos = aiDraftCanvasPosition(event, draft);
+    ctx.strokeStyle = '#111827';
+    ctx.lineWidth = 3;
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+    ctx.lineTo(pos.x, pos.y);
+    ctx.stroke();
+}
 
-    const showEditMaterialModal = ref(false);
-    const editMaterialReady = ref(true);
+function stopAIDraftDraw(draft: AIDraft) {
+    aiDraftDrawing.delete(draft.draft_id);
+    draft.teacher_image =
+        aiDraftCanvasRefs.get(draft.draft_id)?.toDataURL('image/png') || draft.teacher_image;
+}
 
-    const editMaterial = reactive({
-        id: '',
-        title: '',
-        type: 'text' as Material['type'],
-        extracted_text: '',
-        file_url: '',
-    });
+function startAIDraftDrawTouch(event: TouchEvent, draft: AIDraft) {
+    const touch = event.touches[0];
+    if (touch)
+        startAIDraftDraw({ clientX: touch.clientX, clientY: touch.clientY } as MouseEvent, draft);
+}
 
-    async function openEditMaterial(material: Material) {
-        editMaterial.id = material.id;
-        editMaterial.title = material.title;
-        editMaterial.type = material.type;
-        editMaterial.extracted_text = material.extracted_text || '';
-        editMaterial.file_url = material.file_url || '';
-        editMaterialReady.value = !material.extracted_text_truncated;
-        showEditMaterialModal.value = true;
+function drawAIDraftCanvasTouch(event: TouchEvent, draft: AIDraft) {
+    const touch = event.touches[0];
+    if (touch)
+        drawAIDraftCanvas({ clientX: touch.clientX, clientY: touch.clientY } as MouseEvent, draft);
+}
+const newMaterial = reactive({
+    title: '',
+    type: 'text' as Material['type'],
+    extracted_text: '',
 
-        if (material.extracted_text_truncated) {
-            const full = await loadMaterial(material.id);
-            if (full && editMaterial.id === material.id) {
-                editMaterial.extracted_text = full.extracted_text || '';
-                editMaterialReady.value = true;
-            }
+    file_url: '',
+});
+
+const MATERIAL_ACCEPT: Record<string, string> = {
+    pdf: 'application/pdf',
+    image: 'image/*',
+    video: 'video/mp4,video/webm,video/ogg,video/quicktime',
+};
+
+function materialAccept(type: Material['type']) {
+    return MATERIAL_ACCEPT[type] ?? '';
+}
+
+function missingMaterialFile(form: { type: Material['type']; file_url: string }) {
+    return form.type !== 'text' && !form.file_url;
+}
+
+const showEditMaterialModal = ref(false);
+const editMaterialReady = ref(true);
+
+const editMaterial = reactive({
+    id: '',
+    title: '',
+    type: 'text' as Material['type'],
+    extracted_text: '',
+    file_url: '',
+});
+
+async function openEditMaterial(material: Material) {
+    editMaterial.id = material.id;
+    editMaterial.title = material.title;
+    editMaterial.type = material.type;
+    editMaterial.extracted_text = material.extracted_text || '';
+    editMaterial.file_url = material.file_url || '';
+    editMaterialReady.value = !material.extracted_text_truncated;
+    showEditMaterialModal.value = true;
+
+    if (material.extracted_text_truncated) {
+        const full = await loadMaterial(material.id);
+        if (full && editMaterial.id === material.id) {
+            editMaterial.extracted_text = full.extracted_text || '';
+            editMaterialReady.value = true;
         }
     }
+}
 
-    async function saveMaterial() {
-        if (!editMaterialReady.value) return;
-        if (uploadInFlight(editMaterialUpload)) return;
-        await updateMaterialService(editMaterial.id, {
-            title: editMaterial.title,
-            extracted_text: editMaterial.extracted_text,
-            file_url: editMaterial.file_url,
-        });
-        showEditMaterialModal.value = false;
-        const res = await loadMaterials(courseId);
-        materials.value = res || [];
+async function saveMaterial() {
+    if (!editMaterialReady.value) return;
+    if (uploadInFlight(editMaterialUpload)) return;
+    await updateMaterialService(editMaterial.id, {
+        title: editMaterial.title,
+        extracted_text: editMaterial.extracted_text,
+        file_url: editMaterial.file_url,
+    });
+    showEditMaterialModal.value = false;
+    const res = await loadMaterials(courseId);
+    materials.value = res || [];
+}
+const newSheet = reactive({
+    title: '',
+    topic_id: '',
+    level: 1,
+    sheet_type: 'practice',
+    test_style: 'keyboard',
+
+    scheduled_at: '',
+    available_until: '',
+
+    max_attempts: null as number | null,
+    time_limit_minutes: null as number | null,
+    exercise_ids: [] as string[],
+});
+const newNotebook = reactive({ title: '', description: '', level: 1, topic_id: '' });
+
+const teacherLevels = computed(() => {
+    if (courseLevels.value?.levels?.length) {
+        return courseLevels.value.levels.map((ld) => ({
+            level: ld.level,
+            practices: ld.practices,
+            levelTest: ld.level_test,
+            notebooks: ld.notebooks,
+        }));
     }
-    const newSheet = reactive({
-        title: '',
-        topic_id: '',
-        level: 1,
-        sheet_type: 'practice',
-        test_style: 'keyboard',
+    const maxFromSheets = practiceSheets.value.reduce(
+        (max, sheet) => Math.max(max, sheet.level || 1),
+        1,
+    );
+    const maxFromNotebooks = notebooks.value.reduce(
+        (max, notebook) => Math.max(max, notebook.level || 1),
+        1,
+    );
+    const maxLevel = Math.max(maxFromSheets, maxFromNotebooks, 1);
 
-        scheduled_at: '',
-        available_until: '',
-
-        max_attempts: null as number | null,
-        time_limit_minutes: null as number | null,
-        exercise_ids: [] as string[],
+    return Array.from({ length: maxLevel }, (_, index) => {
+        const level = index + 1;
+        return {
+            level,
+            practices: practiceSheets.value.filter(
+                (sheet) => sheet.level === level && sheet.sheet_type !== 'level_test',
+            ),
+            levelTest:
+                practiceSheets.value.find(
+                    (sheet) => sheet.level === level && sheet.sheet_type === 'level_test',
+                ) || null,
+            notebooks: notebooks.value.filter((notebook) => (notebook.level || 1) === level),
+        };
     });
-    const newNotebook = reactive({ title: '', description: '', level: 1, topic_id: '' });
+});
 
-    const teacherLevels = computed(() => {
-        if (courseLevels.value?.levels?.length) {
-            return courseLevels.value.levels.map((ld) => ({
-                level: ld.level,
-                practices: ld.practices,
-                levelTest: ld.level_test,
-                notebooks: ld.notebooks,
-            }));
-        }
-        const maxFromSheets = practiceSheets.value.reduce(
-            (max, sheet) => Math.max(max, sheet.level || 1),
-            1,
-        );
-        const maxFromNotebooks = notebooks.value.reduce(
-            (max, notebook) => Math.max(max, notebook.level || 1),
-            1,
-        );
-        const maxLevel = Math.max(maxFromSheets, maxFromNotebooks, 1);
+type TeacherCanvasKind = 'new' | 'edit';
+const teacherCanvasRefs: Record<TeacherCanvasKind, HTMLCanvasElement | null> = {
+    new: null,
+    edit: null,
+};
+const teacherDrawing: Record<TeacherCanvasKind, boolean> = {
+    new: false,
+    edit: false,
+};
+const teacherLastPos: Record<TeacherCanvasKind, { x: number; y: number }> = {
+    new: { x: 0, y: 0 },
+    edit: { x: 0, y: 0 },
+};
 
-        return Array.from({ length: maxLevel }, (_, index) => {
-            const level = index + 1;
-            return {
-                level,
-                practices: practiceSheets.value.filter(
-                    (sheet) => sheet.level === level && sheet.sheet_type !== 'level_test',
-                ),
-                levelTest:
-                    practiceSheets.value.find(
-                        (sheet) => sheet.level === level && sheet.sheet_type === 'level_test',
-                    ) || null,
-                notebooks: notebooks.value.filter((notebook) => (notebook.level || 1) === level),
-            };
-        });
-    });
+const courseFailed = ref(false);
 
-    type TeacherCanvasKind = 'new' | 'edit';
-    const teacherCanvasRefs: Record<TeacherCanvasKind, HTMLCanvasElement | null> = {
-        new: null,
-        edit: null,
-    };
-    const teacherDrawing: Record<TeacherCanvasKind, boolean> = {
-        new: false,
-        edit: false,
-    };
-    const teacherLastPos: Record<TeacherCanvasKind, { x: number; y: number }> = {
-        new: { x: 0, y: 0 },
-        edit: { x: 0, y: 0 },
-    };
-
-    const courseFailed = ref(false);
-
-    async function loadCourseData() {
-        courseFailed.value = false;
-        const [
-            courseRes,
-            topicsRes,
-            materialsRes,
-            studentsRes,
-            sheetsRes,
-            notebooksRes,
-            levelsRes,
-        ] = await Promise.allSettled([
+async function loadCourseData() {
+    courseFailed.value = false;
+    const [courseRes, topicsRes, materialsRes, studentsRes, sheetsRes, notebooksRes, levelsRes] =
+        await Promise.allSettled([
             loadCourse(courseId),
             loadTopics(courseId),
             loadMaterials(courseId),
@@ -829,877 +805,865 @@
             loadCourseLevels(courseId),
         ]);
 
-        if (materialsRes.status === 'fulfilled') materials.value = materialsRes.value || [];
-        if (notebooksRes.status === 'fulfilled') notebooks.value = notebooksRes.value || [];
-        if (levelsRes.status === 'fulfilled') courseLevels.value = levelsRes.value;
-        courseFailed.value = courseRes.status === 'rejected' || !course.value;
+    if (materialsRes.status === 'fulfilled') materials.value = materialsRes.value || [];
+    if (notebooksRes.status === 'fulfilled') notebooks.value = notebooksRes.value || [];
+    if (levelsRes.status === 'fulfilled') courseLevels.value = levelsRes.value;
+    courseFailed.value = courseRes.status === 'rejected' || !course.value;
 
-        const degraded = [topicsRes, studentsRes, sheetsRes, notebooksRes, levelsRes].some(
-            (result) => result.status === 'rejected',
-        );
-        if (!courseFailed.value && degraded) {
-            toast.add({
-                severity: 'warn',
-                summary: 'Algunas secciones no cargaron',
-                detail: 'Actualizá la página para volver a intentar.',
-                life: 4500,
-            });
-        }
-    }
-
-    onMounted(loadCourseData);
-
-    watch(selectedTopicId, async (id) => {
-        if (!id) return;
-        try {
-            await loadExercises(id);
-        } catch {}
-    });
-
-    watch(
-        () => newSheet.topic_id,
-        (id) => loadSheetExercises(id),
+    const degraded = [topicsRes, studentsRes, sheetsRes, notebooksRes, levelsRes].some(
+        (result) => result.status === 'rejected',
     );
-
-    watch(
-        () => editSheet.topic_id,
-        async (id) => {
-            editSheet.exercise_ids = [];
-            await loadEditSheetExercises(id);
-        },
-    );
-
-    watch(
-        () => newExercise.type,
-        async (type) => {
-            if (type === 'handwritten' && showExerciseModal.value) {
-                await nextTick();
-                initTeacherCanvas('new', newExercise.teacher_image);
-            }
-        },
-    );
-
-    watch(
-        () => editExercise.type,
-        async (type) => {
-            if (type === 'handwritten' && showEditExerciseModal.value) {
-                await nextTick();
-                initTeacherCanvas('edit', editExercise.teacher_image);
-            }
-        },
-    );
-
-    async function loadSheetExercises(topicId: string) {
-        newSheet.exercise_ids = [];
-        if (!topicId) {
-            sheetExercises.value = [];
-            return;
-        }
-        try {
-            const res = await loadExercises(topicId);
-            sheetExercises.value = res || [];
-        } catch {
-            sheetExercises.value = [];
-        }
-    }
-
-    async function createTopic() {
-        await createTopicService(courseId, {
-            ...newTopic,
-            order_index: newTopic.order_index - 1,
-        });
-        showTopicModal.value = false;
-        newTopic.title = '';
-        newTopic.description = '';
-        newTopic.order_index = 1;
-    }
-
-    async function createExercise() {
-        if (uploadInFlight(newExerciseUpload)) return;
-        if (!ensureExerciseIsValid(newExercise)) return;
-        await createExerciseService(
-            selectedTopicId.value,
-            buildExercisePayload(newExercise, 'new'),
-        );
-        showExerciseModal.value = false;
-        resetExerciseForm(newExercise);
-    }
-
-    const newExerciseUpload = ref<InstanceType<typeof FileUploadField> | null>(null);
-    const editExerciseUpload = ref<InstanceType<typeof FileUploadField> | null>(null);
-    const newMaterialUpload = ref<InstanceType<typeof FileUploadField> | null>(null);
-    const editMaterialUpload = ref<InstanceType<typeof FileUploadField> | null>(null);
-
-    function uploadInFlight(field: typeof newMaterialUpload) {
-        if (!field.value?.uploading) return false;
+    if (!courseFailed.value && degraded) {
         toast.add({
             severity: 'warn',
-            summary: 'Esperá un momento',
-            detail: 'El archivo se está subiendo todavía.',
-            life: 3500,
+            summary: 'Algunas secciones no cargaron',
+            detail: 'Actualizá la página para volver a intentar.',
+            life: 4500,
         });
-        return true;
     }
+}
 
-    watch(
-        () => newMaterial.type,
-        () => {
-            newMaterial.file_url = '';
+onMounted(loadCourseData);
 
-            newMaterialUpload.value?.cancelUpload();
-        },
-    );
+watch(selectedTopicId, async (id) => {
+    if (!id) return;
+    try {
+        await loadExercises(id);
+    } catch {}
+});
 
-    async function createMaterial() {
-        if (uploadInFlight(newMaterialUpload)) return;
-        await createMaterialService(courseId, { ...newMaterial });
-        showMaterialModal.value = false;
-        newMaterial.title = '';
-        newMaterial.type = 'text';
-        newMaterial.extracted_text = '';
-        newMaterial.file_url = '';
-        const res = await loadMaterials(courseId);
-        materials.value = res || [];
-    }
+watch(
+    () => newSheet.topic_id,
+    (id) => loadSheetExercises(id),
+);
 
-    function toUtcISO(localValue: string, sheetType: string) {
-        if (sheetType !== 'level_test' || !localValue) return '';
-        const parsed = new Date(localValue);
-        return Number.isNaN(parsed.getTime()) ? '' : parsed.toISOString();
-    }
+watch(
+    () => editSheet.topic_id,
+    async (id) => {
+        editSheet.exercise_ids = [];
+        await loadEditSheetExercises(id);
+    },
+);
 
-    function sheetLimit(value: number | null, sheetType: string) {
-        if (sheetType !== 'level_test') return null;
-        return typeof value === 'number' && value > 0 ? value : null;
-    }
-
-    function closingUtcISO(form: {
-        scheduled_at: string;
-        available_until: string;
-        sheet_type: string;
-    }) {
-        if (!form.scheduled_at) return '';
-        return toUtcISO(form.available_until, form.sheet_type);
-    }
-
-    function toLocalInput(isoValue?: string) {
-        if (!isoValue) return '';
-        const date = new Date(isoValue);
-        if (Number.isNaN(date.getTime())) return '';
-        const pad = (n: number) => String(n).padStart(2, '0');
-        return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
-    }
-
-    async function createSheet() {
-        if (newSheet.sheet_type === 'level_test') {
-            const existing = teacherLevels.value.find(
-                (item) => item.level === newSheet.level,
-            )?.levelTest;
-            if (existing) {
-                toast.add({
-                    severity: 'info',
-                    summary: 'Este nivel ya tiene una prueba',
-                    detail: 'Podés editarla o eliminarla antes de crear otra.',
-                    life: 4000,
-                });
-                return;
-            }
+watch(
+    () => newExercise.type,
+    async (type) => {
+        if (type === 'handwritten' && showExerciseModal.value) {
+            await nextTick();
+            initTeacherCanvas('new', newExercise.teacher_image);
         }
-        await createPracticeSheet(courseId, {
-            ...newSheet,
-            scheduled_at: toUtcISO(newSheet.scheduled_at, newSheet.sheet_type),
-            available_until: closingUtcISO(newSheet),
-            max_attempts: sheetLimit(newSheet.max_attempts, newSheet.sheet_type),
-            time_limit_minutes: sheetLimit(newSheet.time_limit_minutes, newSheet.sheet_type),
-        });
-        showSheetModal.value = false;
-        newSheet.title = '';
-        newSheet.topic_id = '';
-        newSheet.level = 1;
-        newSheet.sheet_type = 'practice';
-        newSheet.test_style = 'keyboard';
-        newSheet.scheduled_at = '';
-        newSheet.available_until = '';
-        newSheet.exercise_ids = [];
+    },
+);
+
+watch(
+    () => editExercise.type,
+    async (type) => {
+        if (type === 'handwritten' && showEditExerciseModal.value) {
+            await nextTick();
+            initTeacherCanvas('edit', editExercise.teacher_image);
+        }
+    },
+);
+
+async function loadSheetExercises(topicId: string) {
+    newSheet.exercise_ids = [];
+    if (!topicId) {
         sheetExercises.value = [];
-        await loadSheetsPage(courseId, 1);
+        return;
     }
-
-    async function createNotebook() {
-        const res = await createNotebookService(courseId, { ...newNotebook });
-        showNotebookModal.value = false;
-        newNotebook.title = '';
-        newNotebook.description = '';
-        newNotebook.level = 1;
-        newNotebook.topic_id = '';
-        router.push(`/teacher/courses/${courseId}/notebooks/${res.id}`);
+    try {
+        const res = await loadExercises(topicId);
+        sheetExercises.value = res || [];
+    } catch {
+        sheetExercises.value = [];
     }
+}
 
-    async function deleteExercise(id: string) {
-        const ok = await showConfirm('¿Eliminar este ejercicio?');
-        if (!ok) return;
-        await deleteExerciseService(id);
-    }
+async function createTopic() {
+    await createTopicService(courseId, {
+        ...newTopic,
+        order_index: newTopic.order_index - 1,
+    });
+    showTopicModal.value = false;
+    newTopic.title = '';
+    newTopic.description = '';
+    newTopic.order_index = 1;
+}
 
-    const showExportModal = ref(false);
-    const exportSelectedIds = ref<Set<string>>(new Set());
-    const exportAllSelected = computed(
-        () => exercises.value.length > 0 && exportSelectedIds.value.size === exercises.value.length,
-    );
+async function createExercise() {
+    if (uploadInFlight(newExerciseUpload)) return;
+    if (!ensureExerciseIsValid(newExercise)) return;
+    await createExerciseService(selectedTopicId.value, buildExercisePayload(newExercise, 'new'));
+    showExerciseModal.value = false;
+    resetExerciseForm(newExercise);
+}
 
-    function openExportModal() {
-        exportSelectedIds.value = new Set(exercises.value.map((e) => e.id));
-        showExportModal.value = true;
-    }
+const newExerciseUpload = ref<InstanceType<typeof FileUploadField> | null>(null);
+const editExerciseUpload = ref<InstanceType<typeof FileUploadField> | null>(null);
+const newMaterialUpload = ref<InstanceType<typeof FileUploadField> | null>(null);
+const editMaterialUpload = ref<InstanceType<typeof FileUploadField> | null>(null);
 
-    function toggleExportExercise(id: string) {
-        const next = new Set(exportSelectedIds.value);
-        if (next.has(id)) next.delete(id);
-        else next.add(id);
-        exportSelectedIds.value = next;
-    }
+function uploadInFlight(field: typeof newMaterialUpload) {
+    if (!field.value?.uploading) return false;
+    toast.add({
+        severity: 'warn',
+        summary: 'Esperá un momento',
+        detail: 'El archivo se está subiendo todavía.',
+        life: 3500,
+    });
+    return true;
+}
 
-    function toggleExportAll() {
-        exportSelectedIds.value = exportAllSelected.value
-            ? new Set()
-            : new Set(exercises.value.map((e) => e.id));
-    }
+watch(
+    () => newMaterial.type,
+    () => {
+        newMaterial.file_url = '';
 
-    function confirmExport() {
-        const selected = exercises.value.filter((e) => exportSelectedIds.value.has(e.id));
-        const payload = selected.map((ex) => ({
-            type: ex.type,
-            question: ex.question,
-            correct_answer: ex.correct_answer,
-            explanation: ex.explanation,
-            difficulty: ex.difficulty,
-            metadata: ex.metadata,
-        }));
-        const topic = topics.value.find((t) => t.id === selectedTopicId.value);
-        const blob = new Blob([JSON.stringify(payload, null, 2)], {
-            type: 'application/json',
-        });
-        const url = URL.createObjectURL(blob);
-        const link = document.createElement('a');
-        link.href = url;
-        link.download = `ejercicios-${topic?.title || selectedTopicId.value}.json`;
-        link.click();
-        URL.revokeObjectURL(url);
-        showExportModal.value = false;
-    }
+        newMaterialUpload.value?.cancelUpload();
+    },
+);
 
-    interface ImportDraft extends Partial<Exercise> {
-        selected: boolean;
-    }
+async function createMaterial() {
+    if (uploadInFlight(newMaterialUpload)) return;
+    await createMaterialService(courseId, { ...newMaterial });
+    showMaterialModal.value = false;
+    newMaterial.title = '';
+    newMaterial.type = 'text';
+    newMaterial.extracted_text = '';
+    newMaterial.file_url = '';
+    const res = await loadMaterials(courseId);
+    materials.value = res || [];
+}
 
-    const showImportModal = ref(false);
-    const importDrafts = ref<ImportDraft[]>([]);
-    const importFileError = ref('');
-    const importSaving = ref(false);
-    const importSelectedCount = computed(() => importDrafts.value.filter((d) => d.selected).length);
-    const importAllSelected = computed(
-        () =>
-            importDrafts.value.length > 0 &&
-            importSelectedCount.value === importDrafts.value.length,
-    );
+function toUtcISO(localValue: string, sheetType: string) {
+    if (sheetType !== 'level_test' || !localValue) return '';
+    const parsed = new Date(localValue);
+    return Number.isNaN(parsed.getTime()) ? '' : parsed.toISOString();
+}
 
-    function openImportModal() {
-        importDrafts.value = [];
-        importFileError.value = '';
-        showImportModal.value = true;
-    }
+function sheetLimit(value: number | null, sheetType: string) {
+    if (sheetType !== 'level_test') return null;
+    return typeof value === 'number' && value > 0 ? value : null;
+}
 
-    async function onImportFileChange(event: Event) {
-        const file = (event.target as HTMLInputElement).files?.[0];
-        (event.target as HTMLInputElement).value = '';
-        if (!file) return;
-        importFileError.value = '';
-        try {
-            const parsed = JSON.parse(await file.text());
-            if (!Array.isArray(parsed) || !parsed.length) throw new Error('empty or not an array');
-            importDrafts.value = parsed.map((d) => ({ ...d, selected: true }));
-        } catch {
-            importDrafts.value = [];
-            importFileError.value = 'El archivo debe ser un JSON con una lista de ejercicios.';
-        }
-    }
+function closingUtcISO(form: {
+    scheduled_at: string;
+    available_until: string;
+    sheet_type: string;
+}) {
+    if (!form.scheduled_at) return '';
+    return toUtcISO(form.available_until, form.sheet_type);
+}
 
-    function toggleImportDraft(index: number) {
-        importDrafts.value[index].selected = !importDrafts.value[index].selected;
-    }
+function toLocalInput(isoValue?: string) {
+    if (!isoValue) return '';
+    const date = new Date(isoValue);
+    if (Number.isNaN(date.getTime())) return '';
+    const pad = (n: number) => String(n).padStart(2, '0');
+    return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
+}
 
-    function toggleImportAll() {
-        const next = !importAllSelected.value;
-        importDrafts.value.forEach((d) => (d.selected = next));
-    }
-
-    async function confirmImport() {
-        const unselected = importDrafts.value.filter((d) => !d.selected);
-        const toImport = importDrafts.value.filter((d) => d.selected);
-        if (!selectedTopicId.value || !toImport.length) return;
-        importSaving.value = true;
-
-        const pending: ImportDraft[] = [];
-        let saved = 0;
-        let failure: unknown = null;
-        try {
-            for (const draft of toImport) {
-                if (failure) {
-                    pending.push(draft);
-                    continue;
-                }
-                try {
-                    await exerciseService.create(selectedTopicId.value, {
-                        type: draft.type,
-                        question: draft.question,
-                        correct_answer: draft.correct_answer,
-                        explanation: draft.explanation,
-                        difficulty: draft.difficulty,
-                        metadata: draft.metadata,
-                    } as Partial<Exercise>);
-                    saved += 1;
-                } catch (error) {
-                    failure = error;
-                    pending.push(draft);
-                }
-            }
-            importDrafts.value = [...unselected, ...pending];
-            if (saved) await loadExercises(selectedTopicId.value);
-
-            if (failure) {
-                toast.add({
-                    severity: 'warn',
-                    summary: 'Importación parcial',
-                    detail: `${saved} de ${toImport.length} se importaron. ${apiMessage(failure, 'Revisá el resto e intentá de nuevo.')}`,
-                    life: 5000,
-                });
-            } else {
-                toast.add({
-                    severity: 'success',
-                    summary: 'Ejercicios importados',
-                    detail: `${saved} ${saved === 1 ? 'ejercicio agregado' : 'ejercicios agregados'} al tema.`,
-                    life: 3500,
-                });
-                showImportModal.value = false;
-            }
-        } finally {
-            importSaving.value = false;
-        }
-    }
-
-    function openNewSheet() {
-        newSheet.topic_id = selectedTopicId.value;
-        loadSheetExercises(newSheet.topic_id);
-        showSheetModal.value = true;
-    }
-
-    async function goToSheet(sheetId: string) {
-        const sheet = practiceSheets.value.find((s) => s.id === sheetId);
-        if (sheet) {
-            activeTab.value = 'sheets';
-            openEditSheet(sheet);
-            return;
-        }
-
-        try {
-            const loadedSheet = await loadPracticeSheet(sheetId);
-            activeTab.value = 'sheets';
-            openEditSheet(loadedSheet);
-        } catch {
-            return;
-        }
-    }
-
-    function openNotebook(notebookId: string) {
-        router.push(`/teacher/courses/${courseId}/notebooks/${notebookId}`);
-    }
-
-    function openPracticeForLevel(level: number) {
-        newSheet.level = level;
-        newSheet.sheet_type = 'practice';
-        newSheet.test_style = 'keyboard';
-        newSheet.scheduled_at = '';
-        newSheet.available_until = '';
-        newSheet.topic_id = selectedTopicId.value;
-        loadSheetExercises(newSheet.topic_id);
-        showSheetModal.value = true;
-    }
-
-    function openLevelTestForLevel(level: number) {
-        newSheet.level = level;
-        newSheet.sheet_type = 'level_test';
-        newSheet.scheduled_at = '';
-        newSheet.available_until = '';
-        newSheet.topic_id = selectedTopicId.value;
-        loadSheetExercises(newSheet.topic_id);
-        showSheetModal.value = true;
-    }
-
-    function openNotebookForLevel(level: number) {
-        newNotebook.level = level;
-        showNotebookModal.value = true;
-    }
-
-    function createNextLevel() {
-        const nextLevel = teacherLevels.value.length;
-        openPracticeForLevel(nextLevel);
-    }
-
-    function startTopicEdit(topic: Topic) {
-        editingTopicId.value = topic.id;
-        editTopicTitle.value = topic.title;
-    }
-
-    async function saveTopicEdit(topic: Topic) {
-        if (!editTopicTitle.value.trim()) return;
-        await updateTopicService(topic.id, {
-            title: editTopicTitle.value,
-            description: topic.description,
-            order_index: topic.order_index,
-        });
-        editingTopicId.value = null;
-    }
-
-    async function deleteTopic(id: string) {
-        const ok = await showConfirm('¿Eliminar este tema?');
-        if (!ok) return;
-        await deleteTopicService(id);
-    }
-
-    async function deleteMaterial(id: string) {
-        const ok = await showConfirm('¿Eliminar este material?');
-        if (!ok) return;
-        await deleteMaterialService(id);
-        materials.value = materials.value.filter((m) => m.id !== id);
-    }
-
-    async function openEditSheet(sheet: PracticeSheet) {
-        editingSheetId.value = sheet.id;
-        editSheet.title = sheet.title;
-        editSheet.topic_id = sheet.topic_id || '';
-        editSheet.level = sheet.level ?? 1;
-        editSheet.sheet_type = sheet.sheet_type || 'practice';
-        editSheet.test_style = sheet.test_style || 'keyboard';
-        editSheet.scheduled_at = toLocalInput(sheet.scheduled_at);
-        editSheet.available_until = toLocalInput(sheet.available_until);
-        editSheet.max_attempts = sheet.max_attempts ?? null;
-        editSheet.time_limit_minutes = sheet.time_limit_minutes ?? null;
-        editSheet.exercise_ids = (sheet.exercises || []).map((e) => e.exercise.id);
-        await loadEditSheetExercises(editSheet.topic_id);
-        showEditSheetModal.value = true;
-    }
-
-    async function loadEditSheetExercises(topicId: string) {
-        if (!topicId) {
-            editSheetExercises.value = [];
-            return;
-        }
-        try {
-            const res = await loadExercises(topicId);
-            editSheetExercises.value = res || [];
-        } catch {
-            editSheetExercises.value = [];
-        }
-    }
-
-    async function saveSheetEdit() {
-        if (!editingSheetId.value) return;
-        await updatePracticeSheet(editingSheetId.value, {
-            title: editSheet.title,
-            topic_id: editSheet.topic_id,
-            level: editSheet.level,
-            sheet_type: editSheet.sheet_type,
-            test_style: editSheet.test_style,
-            scheduled_at: toUtcISO(editSheet.scheduled_at, editSheet.sheet_type),
-            available_until: closingUtcISO(editSheet),
-            max_attempts: sheetLimit(editSheet.max_attempts, editSheet.sheet_type),
-            time_limit_minutes: sheetLimit(editSheet.time_limit_minutes, editSheet.sheet_type),
-            exercise_ids: editSheet.exercise_ids,
-        });
-        showEditSheetModal.value = false;
-        await loadSheetsPage(courseId, 1);
-    }
-
-    async function deleteSheet(id: string) {
-        const ok = await showConfirm('¿Eliminar esta hoja de práctica?');
-        if (!ok) return false;
-        await deletePracticeSheetService(id);
-        await loadSheetsPage(courseId, sheetsPage.value);
-        return true;
-    }
-
-    async function deleteEditingSheet() {
-        if (!editingSheetId.value) return;
-        if (await deleteSheet(editingSheetId.value)) {
-            showEditSheetModal.value = false;
-            editingSheetId.value = null;
-        }
-    }
-
-    function ensureExerciseIsValid(form: typeof newExercise) {
-        if (form.type !== 'fill_blanks') return true;
-        const problem = validateFillBlanks(form.question, form.fillBlanks);
-        if (problem) {
+async function createSheet() {
+    if (newSheet.sheet_type === 'level_test') {
+        const existing = teacherLevels.value.find(
+            (item) => item.level === newSheet.level,
+        )?.levelTest;
+        if (existing) {
             toast.add({
-                severity: 'warn',
-                summary: 'Revisá el ejercicio',
-                detail: problem,
+                severity: 'info',
+                summary: 'Este nivel ya tiene una prueba',
+                detail: 'Podés editarla o eliminarla antes de crear otra.',
                 life: 4000,
             });
-            return false;
-        }
-        return true;
-    }
-
-    const loadedTeacherImage = ref('');
-
-    async function openEditExercise(ex: Exercise) {
-        editingExerciseId.value = ex.id;
-        editExercise.question = ex.question;
-        editExercise.type = ex.type;
-        editExercise.correct_answer = ex.correct_answer || '';
-        editExercise.explanation = ex.explanation || '';
-        editExercise.difficulty = ex.difficulty ?? 1;
-        editExercise.metadata = ex.metadata || '{}';
-
-        editExercise.teacher_image = getMetadataTeacherImage(ex.metadata);
-        editExercise.media_url = getMetadataMediaURL(ex.metadata);
-        setExerciseOptions(editExercise, getMetadataOptions(ex.metadata));
-
-        editExercise.accept = acceptedKinds(ex);
-        editExercise.fillBlanks = parseFillBlanksConfig(ex);
-        showEditExerciseModal.value = true;
-        if (editExercise.type === 'handwritten') {
-            const drawing = editExercise.teacher_image || (await statementImageDataURL(ex));
-            editExercise.teacher_image = drawing;
-            loadedTeacherImage.value = drawing;
-            nextTick(() => initTeacherCanvas('edit', drawing));
-        }
-    }
-
-    async function saveExerciseEdit() {
-        if (!editingExerciseId.value) return;
-        if (uploadInFlight(editExerciseUpload)) return;
-        if (!ensureExerciseIsValid(editExercise)) return;
-        await updateExerciseService(
-            editingExerciseId.value,
-            buildExercisePayload(editExercise, 'edit'),
-        );
-
-        forgetStatementImage(editingExerciseId.value);
-        showEditExerciseModal.value = false;
-    }
-
-    function needsLargeQuestionInput(type: Exercise['type']) {
-        return type === 'handwritten' || type === 'canvas';
-    }
-
-    function questionPlaceholder(type: Exercise['type']) {
-        if (type === 'handwritten') {
-            return 'Texto de respaldo opcional para buscar/listar el ejercicio';
-        }
-        if (type === 'canvas') {
-            return 'Escribe la consigna completa que verá el alumno...';
-        }
-        if (type === 'attachment') {
-            return 'Describí qué tiene que entregar el alumno...';
-        }
-        if (type === 'multiple_choice') {
-            return '¿Cuánto es 12 + 5 + 8?';
-        }
-        if (type === 'equation') {
-            return 'Resuelve: $\\frac{2x + 4}{3} = 10$';
-        }
-        return '¿Cuánto es 1/2 + 1/4?';
-    }
-
-    function answerPlaceholder(type: Exercise['type']) {
-        if (type === 'equation') return 'x = 13 o $x = 13$';
-        if (type === 'multiple_choice') return 'Opción correcta';
-        return '3/4';
-    }
-
-    function getMetadataOptions(metadata?: string) {
-        const parsed = parseExerciseMetadata(metadata);
-        const value = parsed?.options;
-        return Array.isArray(value) ? value.map((option) => String(option)) : [];
-    }
-
-    function getMetadataTeacherImage(metadata?: string) {
-        const parsed = parseExerciseMetadata(metadata);
-        const value =
-            parsed?.teacher_image ||
-            parsed?.teacherImage ||
-            parsed?.image_data ||
-            parsed?.imageData;
-        return typeof value === 'string' && value.startsWith('data:image/') ? value : '';
-    }
-
-    function getMetadataMediaURL(metadata?: string) {
-        const value = parseExerciseMetadata(metadata)?.media_url;
-        return typeof value === 'string' ? value : '';
-    }
-
-    function setExerciseOptions(form: typeof newExercise | typeof editExercise, options: string[]) {
-        const next = [...options];
-        while (next.length < 4) next.push('');
-        form.options.splice(0, form.options.length, ...next.slice(0, 8));
-    }
-
-    function buildExerciseMetadata(
-        form: typeof newExercise | typeof editExercise,
-        canvasKind?: TeacherCanvasKind,
-    ) {
-        const parsed = parseExerciseMetadata(form.metadata) || {};
-
-        if (form.media_url) parsed.media_url = form.media_url;
-        else delete parsed.media_url;
-        if (form.type === 'multiple_choice') {
-            const options = form.options.map((option) => option.trim()).filter(Boolean);
-            return JSON.stringify({ ...parsed, options });
-        }
-        const rest = { ...parsed };
-        delete rest.options;
-        if (form.type === 'fill_blanks') {
-            rest.teacher_image = '';
-            const config = pruneFillBlanks(form.fillBlanks, form.question);
-            return JSON.stringify({
-                ...rest,
-                blanks: config.blanks,
-                options: buildOptions(config),
-                layout: config.layout,
-            });
-        }
-        if (form.type === 'attachment') {
-            if (form.accept.length) rest.accept = [...form.accept];
-            else delete rest.accept;
-            rest.teacher_image = '';
-            return JSON.stringify(rest);
-        }
-        delete rest.accept;
-        if (form.type === 'handwritten') {
-            const canvasImage = canvasKind ? captureTeacherCanvas(canvasKind) : '';
-            const drawing = canvasImage || form.teacher_image;
-
-            if (drawing && drawing === loadedTeacherImage.value) {
-                delete rest.teacher_image;
-            } else {
-                rest.teacher_image = drawing;
-            }
-        } else {
-            rest.teacher_image = '';
-        }
-        return JSON.stringify(rest);
-    }
-
-    function buildExercisePayload(
-        form: typeof newExercise | typeof editExercise,
-        canvasKind?: TeacherCanvasKind,
-    ): Partial<Exercise> {
-        return {
-            question:
-                form.question.trim() ||
-                (form.type === 'handwritten' ? 'Ejercicio manuscrito' : form.question),
-            type: form.type,
-            correct_answer:
-                form.type === 'fill_blanks'
-                    ? buildCorrectAnswer(pruneFillBlanks(form.fillBlanks, form.question).blanks)
-                    : form.correct_answer,
-            explanation: form.explanation,
-            difficulty: form.difficulty,
-            metadata: buildExerciseMetadata(form, canvasKind),
-        };
-    }
-
-    function resetExerciseForm(form: typeof newExercise) {
-        form.question = '';
-        form.type = 'open_text';
-        form.correct_answer = '';
-        form.explanation = '';
-        form.difficulty = 1;
-        form.metadata = '{}';
-        form.teacher_image = '';
-        form.media_url = '';
-        form.accept = [];
-        form.fillBlanks = { blanks: [], distractors: [], layout: 'text' };
-        setExerciseOptions(form, []);
-        clearTeacherCanvas('new');
-    }
-
-    function setTeacherCanvasRef(kind: TeacherCanvasKind, el: HTMLCanvasElement | null) {
-        if (teacherCanvasRefs[kind] === el) return;
-        teacherCanvasRefs[kind] = el;
-        if (el) {
-            const form = kind === 'new' ? newExercise : editExercise;
-            nextTick(() => initTeacherCanvas(kind, form.teacher_image));
-        }
-    }
-
-    function initTeacherCanvas(kind: TeacherCanvasKind, imageData = '') {
-        const canvas = teacherCanvasRefs[kind];
-        if (!canvas) return;
-        const width = canvas.offsetWidth || 720;
-        const height = canvas.offsetHeight || 240;
-        canvas.width = width;
-        canvas.height = height;
-        const ctx = canvas.getContext('2d');
-        if (!ctx) return;
-        drawTeacherCanvasBackground(ctx, width, height);
-        if (imageData) {
-            const img = new Image();
-            img.onload = () => ctx.drawImage(img, 0, 0, width, height);
-            img.src = imageData;
-        }
-    }
-
-    function seedTeacherCanvasFromQuestion(kind: TeacherCanvasKind) {
-        const form = kind === 'new' ? newExercise : editExercise;
-        const canvas = teacherCanvasRefs[kind];
-        if (!canvas) return;
-        initTeacherCanvas(kind);
-        const ctx = canvas.getContext('2d');
-        if (!ctx) return;
-        const words = (form.question.trim() || 'Escribí tu respuesta.').split(/\s+/);
-        const maxWidth = canvas.width - 44;
-        const lines: string[] = [];
-        let line = '';
-        ctx.font = 'italic 24px "Segoe Print", "Comic Sans MS", cursive';
-        for (const word of words) {
-            const candidate = line ? `${line} ${word}` : word;
-            if (line && ctx.measureText(candidate).width > maxWidth) {
-                lines.push(line);
-                line = word;
-            } else line = candidate;
-        }
-        if (line) lines.push(line);
-        ctx.fillStyle = '#1f2937';
-        ctx.textBaseline = 'top';
-        lines.slice(0, 5).forEach((text, index) => ctx.fillText(text, 22, 12 + index * 34));
-        if (lines.length > 5) ctx.fillText('…', 22, 12 + 5 * 34);
-        form.teacher_image = captureTeacherCanvas(kind);
-    }
-
-    function convertManualExerciseToHandwritten(kind: TeacherCanvasKind) {
-        const form = kind === 'new' ? newExercise : editExercise;
-        if (!form.question.trim()) {
-            toast.add({
-                severity: 'warn',
-                summary: 'Escribí una consigna primero',
-                detail: 'La convertiremos en un borrador manuscrito para que lo corrijas.',
-                life: 3500,
-            });
             return;
         }
-        form.type = 'handwritten';
-
-        nextTick(() => nextTick(() => seedTeacherCanvasFromQuestion(kind)));
     }
+    await createPracticeSheet(courseId, {
+        ...newSheet,
+        scheduled_at: toUtcISO(newSheet.scheduled_at, newSheet.sheet_type),
+        available_until: closingUtcISO(newSheet),
+        max_attempts: sheetLimit(newSheet.max_attempts, newSheet.sheet_type),
+        time_limit_minutes: sheetLimit(newSheet.time_limit_minutes, newSheet.sheet_type),
+    });
+    showSheetModal.value = false;
+    newSheet.title = '';
+    newSheet.topic_id = '';
+    newSheet.level = 1;
+    newSheet.sheet_type = 'practice';
+    newSheet.test_style = 'keyboard';
+    newSheet.scheduled_at = '';
+    newSheet.available_until = '';
+    newSheet.exercise_ids = [];
+    sheetExercises.value = [];
+    await loadSheetsPage(courseId, 1);
+}
 
-    function drawTeacherCanvasBackground(
-        ctx: CanvasRenderingContext2D,
-        width: number,
-        height: number,
-    ) {
-        ctx.fillStyle = '#ffffff';
-        ctx.fillRect(0, 0, width, height);
-        ctx.strokeStyle = 'rgba(124, 58, 237, 0.12)';
-        ctx.lineWidth = 1;
-        for (let y = 34; y < height; y += 34) {
-            ctx.beginPath();
-            ctx.moveTo(0, y);
-            ctx.lineTo(width, y);
-            ctx.stroke();
+async function createNotebook() {
+    const res = await createNotebookService(courseId, { ...newNotebook });
+    showNotebookModal.value = false;
+    newNotebook.title = '';
+    newNotebook.description = '';
+    newNotebook.level = 1;
+    newNotebook.topic_id = '';
+    router.push(`/teacher/courses/${courseId}/notebooks/${res.id}`);
+}
+
+async function deleteExercise(id: string) {
+    const ok = await showConfirm('¿Eliminar este ejercicio?');
+    if (!ok) return;
+    await deleteExerciseService(id);
+}
+
+const showExportModal = ref(false);
+const exportSelectedIds = ref<Set<string>>(new Set());
+const exportAllSelected = computed(
+    () => exercises.value.length > 0 && exportSelectedIds.value.size === exercises.value.length,
+);
+
+function openExportModal() {
+    exportSelectedIds.value = new Set(exercises.value.map((e) => e.id));
+    showExportModal.value = true;
+}
+
+function toggleExportExercise(id: string) {
+    const next = new Set(exportSelectedIds.value);
+    if (next.has(id)) next.delete(id);
+    else next.add(id);
+    exportSelectedIds.value = next;
+}
+
+function toggleExportAll() {
+    exportSelectedIds.value = exportAllSelected.value
+        ? new Set()
+        : new Set(exercises.value.map((e) => e.id));
+}
+
+function confirmExport() {
+    const selected = exercises.value.filter((e) => exportSelectedIds.value.has(e.id));
+    const payload = selected.map((ex) => ({
+        type: ex.type,
+        question: ex.question,
+        correct_answer: ex.correct_answer,
+        explanation: ex.explanation,
+        difficulty: ex.difficulty,
+        metadata: ex.metadata,
+    }));
+    const topic = topics.value.find((t) => t.id === selectedTopicId.value);
+    const blob = new Blob([JSON.stringify(payload, null, 2)], {
+        type: 'application/json',
+    });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `ejercicios-${topic?.title || selectedTopicId.value}.json`;
+    link.click();
+    URL.revokeObjectURL(url);
+    showExportModal.value = false;
+}
+
+interface ImportDraft extends Partial<Exercise> {
+    selected: boolean;
+}
+
+const showImportModal = ref(false);
+const importDrafts = ref<ImportDraft[]>([]);
+const importFileError = ref('');
+const importSaving = ref(false);
+const importSelectedCount = computed(() => importDrafts.value.filter((d) => d.selected).length);
+const importAllSelected = computed(
+    () => importDrafts.value.length > 0 && importSelectedCount.value === importDrafts.value.length,
+);
+
+function openImportModal() {
+    importDrafts.value = [];
+    importFileError.value = '';
+    showImportModal.value = true;
+}
+
+async function onImportFileChange(event: Event) {
+    const file = (event.target as HTMLInputElement).files?.[0];
+    (event.target as HTMLInputElement).value = '';
+    if (!file) return;
+    importFileError.value = '';
+    try {
+        const parsed = JSON.parse(await file.text());
+        if (!Array.isArray(parsed) || !parsed.length) throw new Error('empty or not an array');
+        importDrafts.value = parsed.map((d) => ({ ...d, selected: true }));
+    } catch {
+        importDrafts.value = [];
+        importFileError.value = 'El archivo debe ser un JSON con una lista de ejercicios.';
+    }
+}
+
+function toggleImportDraft(index: number) {
+    importDrafts.value[index].selected = !importDrafts.value[index].selected;
+}
+
+function toggleImportAll() {
+    const next = !importAllSelected.value;
+    importDrafts.value.forEach((d) => (d.selected = next));
+}
+
+async function confirmImport() {
+    const unselected = importDrafts.value.filter((d) => !d.selected);
+    const toImport = importDrafts.value.filter((d) => d.selected);
+    if (!selectedTopicId.value || !toImport.length) return;
+    importSaving.value = true;
+
+    const pending: ImportDraft[] = [];
+    let saved = 0;
+    let failure: unknown = null;
+    try {
+        for (const draft of toImport) {
+            if (failure) {
+                pending.push(draft);
+                continue;
+            }
+            try {
+                await createExerciseService(selectedTopicId.value, {
+                    type: draft.type,
+                    question: draft.question,
+                    correct_answer: draft.correct_answer,
+                    explanation: draft.explanation,
+                    difficulty: draft.difficulty,
+                    metadata: draft.metadata,
+                } as Partial<Exercise>);
+                saved += 1;
+            } catch (error) {
+                failure = error;
+                pending.push(draft);
+            }
         }
+        importDrafts.value = [...unselected, ...pending];
+        if (saved) await loadExercises(selectedTopicId.value);
+
+        if (failure) {
+            toast.add({
+                severity: 'warn',
+                summary: 'Importación parcial',
+                detail: `${saved} de ${toImport.length} se importaron. ${apiMessage(failure, 'Revisá el resto e intentá de nuevo.')}`,
+                life: 5000,
+            });
+        } else {
+            toast.add({
+                severity: 'success',
+                summary: 'Ejercicios importados',
+                detail: `${saved} ${saved === 1 ? 'ejercicio agregado' : 'ejercicios agregados'} al tema.`,
+                life: 3500,
+            });
+            showImportModal.value = false;
+        }
+    } finally {
+        importSaving.value = false;
+    }
+}
+
+function openNewSheet() {
+    newSheet.topic_id = selectedTopicId.value;
+    loadSheetExercises(newSheet.topic_id);
+    showSheetModal.value = true;
+}
+
+async function goToSheet(sheetId: string) {
+    const sheet = practiceSheets.value.find((s) => s.id === sheetId);
+    if (sheet) {
+        activeTab.value = 'sheets';
+        openEditSheet(sheet);
+        return;
     }
 
-    function getTeacherCanvasPos(e: MouseEvent, kind: TeacherCanvasKind) {
-        const canvas = teacherCanvasRefs[kind];
-        if (!canvas) return { x: 0, y: 0 };
-        const rect = canvas.getBoundingClientRect();
-        return {
-            x: (e.clientX - rect.left) * (canvas.width / rect.width),
-            y: (e.clientY - rect.top) * (canvas.height / rect.height),
-        };
+    try {
+        const loadedSheet = await loadPracticeSheet(sheetId);
+        activeTab.value = 'sheets';
+        openEditSheet(loadedSheet);
+    } catch {
+        return;
     }
+}
 
-    function startTeacherDraw(e: MouseEvent, kind: TeacherCanvasKind) {
-        const canvas = teacherCanvasRefs[kind];
-        const ctx = canvas?.getContext('2d');
-        if (!canvas || !ctx) return;
-        teacherDrawing[kind] = true;
-        teacherLastPos[kind] = getTeacherCanvasPos(e, kind);
-        ctx.beginPath();
-        ctx.moveTo(teacherLastPos[kind].x, teacherLastPos[kind].y);
+function openNotebook(notebookId: string) {
+    router.push(`/teacher/courses/${courseId}/notebooks/${notebookId}`);
+}
+
+function openPracticeForLevel(level: number) {
+    newSheet.level = level;
+    newSheet.sheet_type = 'practice';
+    newSheet.test_style = 'keyboard';
+    newSheet.scheduled_at = '';
+    newSheet.available_until = '';
+    newSheet.topic_id = selectedTopicId.value;
+    loadSheetExercises(newSheet.topic_id);
+    showSheetModal.value = true;
+}
+
+function openLevelTestForLevel(level: number) {
+    newSheet.level = level;
+    newSheet.sheet_type = 'level_test';
+    newSheet.scheduled_at = '';
+    newSheet.available_until = '';
+    newSheet.topic_id = selectedTopicId.value;
+    loadSheetExercises(newSheet.topic_id);
+    showSheetModal.value = true;
+}
+
+function openNotebookForLevel(level: number) {
+    newNotebook.level = level;
+    showNotebookModal.value = true;
+}
+
+function createNextLevel() {
+    const nextLevel = teacherLevels.value.length;
+    openPracticeForLevel(nextLevel);
+}
+
+function startTopicEdit(topic: Topic) {
+    editingTopicId.value = topic.id;
+    editTopicTitle.value = topic.title;
+}
+
+async function saveTopicEdit(topic: Topic) {
+    if (!editTopicTitle.value.trim()) return;
+    await updateTopicService(topic.id, {
+        title: editTopicTitle.value,
+        description: topic.description,
+        order_index: topic.order_index,
+    });
+    editingTopicId.value = null;
+}
+
+async function deleteTopic(id: string) {
+    const ok = await showConfirm('¿Eliminar este tema?');
+    if (!ok) return;
+    await deleteTopicService(id);
+}
+
+async function deleteMaterial(id: string) {
+    const ok = await showConfirm('¿Eliminar este material?');
+    if (!ok) return;
+    await deleteMaterialService(id);
+    materials.value = materials.value.filter((m) => m.id !== id);
+}
+
+async function openEditSheet(sheet: PracticeSheet) {
+    editingSheetId.value = sheet.id;
+    editSheet.title = sheet.title;
+    editSheet.topic_id = sheet.topic_id || '';
+    editSheet.level = sheet.level ?? 1;
+    editSheet.sheet_type = sheet.sheet_type || 'practice';
+    editSheet.test_style = sheet.test_style || 'keyboard';
+    editSheet.scheduled_at = toLocalInput(sheet.scheduled_at);
+    editSheet.available_until = toLocalInput(sheet.available_until);
+    editSheet.max_attempts = sheet.max_attempts ?? null;
+    editSheet.time_limit_minutes = sheet.time_limit_minutes ?? null;
+    editSheet.exercise_ids = (sheet.exercises || []).map((e) => e.exercise.id);
+    await loadEditSheetExercises(editSheet.topic_id);
+    showEditSheetModal.value = true;
+}
+
+async function loadEditSheetExercises(topicId: string) {
+    if (!topicId) {
+        editSheetExercises.value = [];
+        return;
     }
-
-    function drawTeacherCanvas(e: MouseEvent, kind: TeacherCanvasKind) {
-        if (!teacherDrawing[kind]) return;
-        const canvas = teacherCanvasRefs[kind];
-        const ctx = canvas?.getContext('2d');
-        if (!canvas || !ctx) return;
-        const pos = getTeacherCanvasPos(e, kind);
-        ctx.strokeStyle = '#111827';
-        ctx.lineWidth = 3;
-        ctx.lineCap = 'round';
-        ctx.lineJoin = 'round';
-        ctx.lineTo(pos.x, pos.y);
-        ctx.stroke();
-        teacherLastPos[kind] = pos;
+    try {
+        const res = await loadExercises(topicId);
+        editSheetExercises.value = res || [];
+    } catch {
+        editSheetExercises.value = [];
     }
+}
 
-    function stopTeacherDraw(kind: TeacherCanvasKind) {
-        teacherDrawing[kind] = false;
-        const form = kind === 'new' ? newExercise : editExercise;
-        form.teacher_image = captureTeacherCanvas(kind);
+async function saveSheetEdit() {
+    if (!editingSheetId.value) return;
+    await updatePracticeSheet(editingSheetId.value, {
+        title: editSheet.title,
+        topic_id: editSheet.topic_id,
+        level: editSheet.level,
+        sheet_type: editSheet.sheet_type,
+        test_style: editSheet.test_style,
+        scheduled_at: toUtcISO(editSheet.scheduled_at, editSheet.sheet_type),
+        available_until: closingUtcISO(editSheet),
+        max_attempts: sheetLimit(editSheet.max_attempts, editSheet.sheet_type),
+        time_limit_minutes: sheetLimit(editSheet.time_limit_minutes, editSheet.sheet_type),
+        exercise_ids: editSheet.exercise_ids,
+    });
+    showEditSheetModal.value = false;
+    await loadSheetsPage(courseId, 1);
+}
+
+async function deleteSheet(id: string) {
+    const ok = await showConfirm('¿Eliminar esta hoja de práctica?');
+    if (!ok) return false;
+    await deletePracticeSheetService(id);
+    await loadSheetsPage(courseId, sheetsPage.value);
+    return true;
+}
+
+async function deleteEditingSheet() {
+    if (!editingSheetId.value) return;
+    if (await deleteSheet(editingSheetId.value)) {
+        showEditSheetModal.value = false;
+        editingSheetId.value = null;
     }
+}
 
-    function startTeacherDrawTouch(e: TouchEvent, kind: TeacherCanvasKind) {
-        const touch = e.touches[0];
-        if (!touch) return;
-        startTeacherDraw({ clientX: touch.clientX, clientY: touch.clientY } as MouseEvent, kind);
-    }
-
-    function drawTeacherCanvasTouch(e: TouchEvent, kind: TeacherCanvasKind) {
-        const touch = e.touches[0];
-        if (!touch) return;
-        drawTeacherCanvas({ clientX: touch.clientX, clientY: touch.clientY } as MouseEvent, kind);
-    }
-
-    function clearTeacherCanvas(kind: TeacherCanvasKind) {
-        initTeacherCanvas(kind);
-        const form = kind === 'new' ? newExercise : editExercise;
-        form.teacher_image = '';
-    }
-
-    function captureTeacherCanvas(kind: TeacherCanvasKind) {
-        return teacherCanvasRefs[kind]?.toDataURL('image/png') || '';
-    }
-
-    function openEditNotebook(nb: Notebook) {
-        editingNotebookId.value = nb.id;
-        editNotebook.title = nb.title;
-        editNotebook.description = nb.description || '';
-        editNotebook.topic_id = nb.topic_id || '';
-        showEditNotebookModal.value = true;
-    }
-
-    async function saveNotebookEdit() {
-        if (!editingNotebookId.value) return;
-        await updateNotebookService(editingNotebookId.value, {
-            title: editNotebook.title,
-            description: editNotebook.description,
-            topic_id: editNotebook.topic_id,
+function ensureExerciseIsValid(form: typeof newExercise) {
+    if (form.type !== 'fill_blanks') return true;
+    const problem = validateFillBlanks(form.question, form.fillBlanks);
+    if (problem) {
+        toast.add({
+            severity: 'warn',
+            summary: 'Revisá el ejercicio',
+            detail: problem,
+            life: 4000,
         });
-        showEditNotebookModal.value = false;
-        notebooks.value = await loadNotebooks(courseId);
+        return false;
     }
+    return true;
+}
 
-    async function deleteNotebook(id: string) {
-        const ok = await showConfirm('¿Eliminar este cuaderno?');
-        if (!ok) return;
-        await deleteNotebookService(id);
-        notebooks.value = notebooks.value.filter((n) => n.id !== id);
+const loadedTeacherImage = ref('');
+
+async function openEditExercise(ex: Exercise) {
+    editingExerciseId.value = ex.id;
+    editExercise.question = ex.question;
+    editExercise.type = ex.type;
+    editExercise.correct_answer = ex.correct_answer || '';
+    editExercise.explanation = ex.explanation || '';
+    editExercise.difficulty = ex.difficulty ?? 1;
+    editExercise.metadata = ex.metadata || '{}';
+
+    editExercise.teacher_image = getMetadataTeacherImage(ex.metadata);
+    editExercise.media_url = getMetadataMediaURL(ex.metadata);
+    setExerciseOptions(editExercise, getMetadataOptions(ex.metadata));
+
+    editExercise.accept = acceptedKinds(ex);
+    editExercise.fillBlanks = parseFillBlanksConfig(ex);
+    showEditExerciseModal.value = true;
+    if (editExercise.type === 'handwritten') {
+        const drawing = editExercise.teacher_image || (await statementImageDataURL(ex));
+        editExercise.teacher_image = drawing;
+        loadedTeacherImage.value = drawing;
+        nextTick(() => initTeacherCanvas('edit', drawing));
     }
+}
+
+async function saveExerciseEdit() {
+    if (!editingExerciseId.value) return;
+    if (uploadInFlight(editExerciseUpload)) return;
+    if (!ensureExerciseIsValid(editExercise)) return;
+    await updateExerciseService(
+        editingExerciseId.value,
+        buildExercisePayload(editExercise, 'edit'),
+    );
+
+    forgetStatementImage(editingExerciseId.value);
+    showEditExerciseModal.value = false;
+}
+
+function needsLargeQuestionInput(type: Exercise['type']) {
+    return type === 'handwritten' || type === 'canvas';
+}
+
+function questionPlaceholder(type: Exercise['type']) {
+    if (type === 'handwritten') {
+        return 'Texto de respaldo opcional para buscar/listar el ejercicio';
+    }
+    if (type === 'canvas') {
+        return 'Escribe la consigna completa que verá el alumno...';
+    }
+    if (type === 'attachment') {
+        return 'Describí qué tiene que entregar el alumno...';
+    }
+    if (type === 'multiple_choice') {
+        return '¿Cuánto es 12 + 5 + 8?';
+    }
+    if (type === 'equation') {
+        return 'Resuelve: $\\frac{2x + 4}{3} = 10$';
+    }
+    return '¿Cuánto es 1/2 + 1/4?';
+}
+
+function answerPlaceholder(type: Exercise['type']) {
+    if (type === 'equation') return 'x = 13 o $x = 13$';
+    if (type === 'multiple_choice') return 'Opción correcta';
+    return '3/4';
+}
+
+function getMetadataOptions(metadata?: string) {
+    const parsed = parseExerciseMetadata(metadata);
+    const value = parsed?.options;
+    return Array.isArray(value) ? value.map((option) => String(option)) : [];
+}
+
+function getMetadataTeacherImage(metadata?: string) {
+    const parsed = parseExerciseMetadata(metadata);
+    const value =
+        parsed?.teacher_image || parsed?.teacherImage || parsed?.image_data || parsed?.imageData;
+    return typeof value === 'string' && value.startsWith('data:image/') ? value : '';
+}
+
+function getMetadataMediaURL(metadata?: string) {
+    const value = parseExerciseMetadata(metadata)?.media_url;
+    return typeof value === 'string' ? value : '';
+}
+
+function setExerciseOptions(form: typeof newExercise | typeof editExercise, options: string[]) {
+    const next = [...options];
+    while (next.length < 4) next.push('');
+    form.options.splice(0, form.options.length, ...next.slice(0, 8));
+}
+
+function buildExerciseMetadata(
+    form: typeof newExercise | typeof editExercise,
+    canvasKind?: TeacherCanvasKind,
+) {
+    const parsed = parseExerciseMetadata(form.metadata) || {};
+
+    if (form.media_url) parsed.media_url = form.media_url;
+    else delete parsed.media_url;
+    if (form.type === 'multiple_choice') {
+        const options = form.options.map((option) => option.trim()).filter(Boolean);
+        return JSON.stringify({ ...parsed, options });
+    }
+    const rest = { ...parsed };
+    delete rest.options;
+    if (form.type === 'fill_blanks') {
+        rest.teacher_image = '';
+        const config = pruneFillBlanks(form.fillBlanks, form.question);
+        return JSON.stringify({
+            ...rest,
+            blanks: config.blanks,
+            options: buildOptions(config),
+            layout: config.layout,
+        });
+    }
+    if (form.type === 'attachment') {
+        if (form.accept.length) rest.accept = [...form.accept];
+        else delete rest.accept;
+        rest.teacher_image = '';
+        return JSON.stringify(rest);
+    }
+    delete rest.accept;
+    if (form.type === 'handwritten') {
+        const canvasImage = canvasKind ? captureTeacherCanvas(canvasKind) : '';
+        const drawing = canvasImage || form.teacher_image;
+
+        if (drawing && drawing === loadedTeacherImage.value) {
+            delete rest.teacher_image;
+        } else {
+            rest.teacher_image = drawing;
+        }
+    } else {
+        rest.teacher_image = '';
+    }
+    return JSON.stringify(rest);
+}
+
+function buildExercisePayload(
+    form: typeof newExercise | typeof editExercise,
+    canvasKind?: TeacherCanvasKind,
+): Partial<Exercise> {
+    return {
+        question:
+            form.question.trim() ||
+            (form.type === 'handwritten' ? 'Ejercicio manuscrito' : form.question),
+        type: form.type,
+        correct_answer:
+            form.type === 'fill_blanks'
+                ? buildCorrectAnswer(pruneFillBlanks(form.fillBlanks, form.question).blanks)
+                : form.correct_answer,
+        explanation: form.explanation,
+        difficulty: form.difficulty,
+        metadata: buildExerciseMetadata(form, canvasKind),
+    };
+}
+
+function resetExerciseForm(form: typeof newExercise) {
+    form.question = '';
+    form.type = 'open_text';
+    form.correct_answer = '';
+    form.explanation = '';
+    form.difficulty = 1;
+    form.metadata = '{}';
+    form.teacher_image = '';
+    form.media_url = '';
+    form.accept = [];
+    form.fillBlanks = { blanks: [], distractors: [], layout: 'text' };
+    setExerciseOptions(form, []);
+    clearTeacherCanvas('new');
+}
+
+function setTeacherCanvasRef(kind: TeacherCanvasKind, el: HTMLCanvasElement | null) {
+    if (teacherCanvasRefs[kind] === el) return;
+    teacherCanvasRefs[kind] = el;
+    if (el) {
+        const form = kind === 'new' ? newExercise : editExercise;
+        nextTick(() => initTeacherCanvas(kind, form.teacher_image));
+    }
+}
+
+function initTeacherCanvas(kind: TeacherCanvasKind, imageData = '') {
+    const canvas = teacherCanvasRefs[kind];
+    if (!canvas) return;
+    const width = canvas.offsetWidth || 720;
+    const height = canvas.offsetHeight || 240;
+    canvas.width = width;
+    canvas.height = height;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+    drawTeacherCanvasBackground(ctx, width, height);
+    if (imageData) {
+        const img = new Image();
+        img.onload = () => ctx.drawImage(img, 0, 0, width, height);
+        img.src = imageData;
+    }
+}
+
+function seedTeacherCanvasFromQuestion(kind: TeacherCanvasKind) {
+    const form = kind === 'new' ? newExercise : editExercise;
+    const canvas = teacherCanvasRefs[kind];
+    if (!canvas) return;
+    initTeacherCanvas(kind);
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+    const words = (form.question.trim() || 'Escribí tu respuesta.').split(/\s+/);
+    const maxWidth = canvas.width - 44;
+    const lines: string[] = [];
+    let line = '';
+    ctx.font = 'italic 24px "Segoe Print", "Comic Sans MS", cursive';
+    for (const word of words) {
+        const candidate = line ? `${line} ${word}` : word;
+        if (line && ctx.measureText(candidate).width > maxWidth) {
+            lines.push(line);
+            line = word;
+        } else line = candidate;
+    }
+    if (line) lines.push(line);
+    ctx.fillStyle = '#1f2937';
+    ctx.textBaseline = 'top';
+    lines.slice(0, 5).forEach((text, index) => ctx.fillText(text, 22, 12 + index * 34));
+    if (lines.length > 5) ctx.fillText('…', 22, 12 + 5 * 34);
+    form.teacher_image = captureTeacherCanvas(kind);
+}
+
+function convertManualExerciseToHandwritten(kind: TeacherCanvasKind) {
+    const form = kind === 'new' ? newExercise : editExercise;
+    if (!form.question.trim()) {
+        toast.add({
+            severity: 'warn',
+            summary: 'Escribí una consigna primero',
+            detail: 'La convertiremos en un borrador manuscrito para que lo corrijas.',
+            life: 3500,
+        });
+        return;
+    }
+    form.type = 'handwritten';
+
+    nextTick(() => nextTick(() => seedTeacherCanvasFromQuestion(kind)));
+}
+
+function drawTeacherCanvasBackground(ctx: CanvasRenderingContext2D, width: number, height: number) {
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(0, 0, width, height);
+    ctx.strokeStyle = 'rgba(124, 58, 237, 0.12)';
+    ctx.lineWidth = 1;
+    for (let y = 34; y < height; y += 34) {
+        ctx.beginPath();
+        ctx.moveTo(0, y);
+        ctx.lineTo(width, y);
+        ctx.stroke();
+    }
+}
+
+function getTeacherCanvasPos(e: MouseEvent, kind: TeacherCanvasKind) {
+    const canvas = teacherCanvasRefs[kind];
+    if (!canvas) return { x: 0, y: 0 };
+    const rect = canvas.getBoundingClientRect();
+    return {
+        x: (e.clientX - rect.left) * (canvas.width / rect.width),
+        y: (e.clientY - rect.top) * (canvas.height / rect.height),
+    };
+}
+
+function startTeacherDraw(e: MouseEvent, kind: TeacherCanvasKind) {
+    const canvas = teacherCanvasRefs[kind];
+    const ctx = canvas?.getContext('2d');
+    if (!canvas || !ctx) return;
+    teacherDrawing[kind] = true;
+    teacherLastPos[kind] = getTeacherCanvasPos(e, kind);
+    ctx.beginPath();
+    ctx.moveTo(teacherLastPos[kind].x, teacherLastPos[kind].y);
+}
+
+function drawTeacherCanvas(e: MouseEvent, kind: TeacherCanvasKind) {
+    if (!teacherDrawing[kind]) return;
+    const canvas = teacherCanvasRefs[kind];
+    const ctx = canvas?.getContext('2d');
+    if (!canvas || !ctx) return;
+    const pos = getTeacherCanvasPos(e, kind);
+    ctx.strokeStyle = '#111827';
+    ctx.lineWidth = 3;
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+    ctx.lineTo(pos.x, pos.y);
+    ctx.stroke();
+    teacherLastPos[kind] = pos;
+}
+
+function stopTeacherDraw(kind: TeacherCanvasKind) {
+    teacherDrawing[kind] = false;
+    const form = kind === 'new' ? newExercise : editExercise;
+    form.teacher_image = captureTeacherCanvas(kind);
+}
+
+function startTeacherDrawTouch(e: TouchEvent, kind: TeacherCanvasKind) {
+    const touch = e.touches[0];
+    if (!touch) return;
+    startTeacherDraw({ clientX: touch.clientX, clientY: touch.clientY } as MouseEvent, kind);
+}
+
+function drawTeacherCanvasTouch(e: TouchEvent, kind: TeacherCanvasKind) {
+    const touch = e.touches[0];
+    if (!touch) return;
+    drawTeacherCanvas({ clientX: touch.clientX, clientY: touch.clientY } as MouseEvent, kind);
+}
+
+function clearTeacherCanvas(kind: TeacherCanvasKind) {
+    initTeacherCanvas(kind);
+    const form = kind === 'new' ? newExercise : editExercise;
+    form.teacher_image = '';
+}
+
+function captureTeacherCanvas(kind: TeacherCanvasKind) {
+    return teacherCanvasRefs[kind]?.toDataURL('image/png') || '';
+}
+
+function openEditNotebook(nb: Notebook) {
+    editingNotebookId.value = nb.id;
+    editNotebook.title = nb.title;
+    editNotebook.description = nb.description || '';
+    editNotebook.topic_id = nb.topic_id || '';
+    showEditNotebookModal.value = true;
+}
+
+async function saveNotebookEdit() {
+    if (!editingNotebookId.value) return;
+    await updateNotebookService(editingNotebookId.value, {
+        title: editNotebook.title,
+        description: editNotebook.description,
+        topic_id: editNotebook.topic_id,
+    });
+    showEditNotebookModal.value = false;
+    notebooks.value = await loadNotebooks(courseId);
+}
+
+async function deleteNotebook(id: string) {
+    const ok = await showConfirm('¿Eliminar este cuaderno?');
+    if (!ok) return;
+    await deleteNotebookService(id);
+    notebooks.value = notebooks.value.filter((n) => n.id !== id);
+}
 </script>
 
 <template>
@@ -3434,720 +3398,720 @@
 </template>
 
 <style scoped>
+.course-detail {
+    padding: 24px 28px 40px;
+    max-width: 1180px;
+}
+
+.course-header {
+    position: relative;
+    margin-bottom: 16px;
+    padding: 22px 24px;
+    border-radius: var(--radius-2xl);
+    background: linear-gradient(115deg, var(--surface-elevated), var(--surface-card));
+    border: 1px solid var(--surface-elevated-strong);
+    box-shadow: var(--shadow-card);
+    backdrop-filter: blur(18px);
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 14px;
+    overflow: hidden;
+}
+
+.course-header > .btn {
+    align-self: flex-start;
+    width: auto;
+    flex: 0 0 auto;
+}
+
+.course-header > * {
+    position: relative;
+    z-index: 1;
+}
+
+.page-title {
+    font-size: clamp(1.55rem, 2.5vw, 2rem);
+    font-weight: 800;
+    color: var(--text-heading);
+    line-height: 1.12;
+    margin: 0;
+}
+
+.course-status {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: 12px;
+}
+.status-option {
+    display: flex;
+    align-items: center;
+    gap: 9px;
+    flex: 1 1 210px;
+    padding: 10px 12px;
+    border: 1.5px solid var(--surface-border);
+    border-radius: var(--radius-lg);
+    background: var(--surface-card);
+    color: var(--text-secondary);
+    text-align: left;
+    cursor: pointer;
+    transition: var(--transition-fast);
+}
+.status-option:hover:not(:disabled) {
+    border-color: rgba(var(--practiq-violet-rgb), 0.45);
+    color: var(--text-primary);
+}
+.status-option:disabled {
+    cursor: default;
+}
+.status-option--current {
+    border-color: var(--practiq-violet);
+    background: var(--fill-primary-faint);
+    color: var(--practiq-violet);
+}
+.status-option i {
+    font-size: 1rem;
+    flex-shrink: 0;
+}
+.status-option-text {
+    display: grid;
+    gap: 1px;
+    min-width: 0;
+}
+.status-option-text strong {
+    font-size: var(--text-sm);
+    font-weight: 800;
+}
+.status-option-text small {
+    font-size: var(--text-xs);
+    color: var(--text-muted);
+    line-height: 1.3;
+}
+.status-option--current .status-option-text small {
+    color: inherit;
+    opacity: 0.8;
+}
+.status-confirm,
+.status-error {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin: 10px 0 0;
+    padding: 10px 12px;
+    border-radius: var(--radius-lg);
+    font-size: var(--text-xs);
+    line-height: 1.35;
+}
+.status-confirm {
+    background: var(--color-warning-bg);
+    color: var(--color-warning-dark);
+}
+.status-confirm span {
+    flex: 1 1 200px;
+}
+.status-confirm-actions {
+    display: flex;
+    gap: 8px;
+    flex: 0 0 auto;
+}
+.status-confirm-cancel,
+.status-confirm-go {
+    border: none;
+    border-radius: var(--radius-pill);
+    padding: 6px 14px;
+    font-weight: 800;
+    font-size: var(--text-xs);
+    cursor: pointer;
+}
+.status-confirm-cancel {
+    background: transparent;
+    color: inherit;
+    text-decoration: underline;
+}
+.status-confirm-go {
+    background: var(--color-warning-dark);
+    color: #fff;
+}
+.status-error {
+    background: var(--color-error-bg);
+    color: var(--color-error-dark);
+}
+.badge-status--draft {
+    background: #fef3c7;
+    color: #92400e;
+}
+.badge-status--published {
+    background: #dcfce7;
+    color: #166534;
+}
+.badge-status--archived {
+    background: var(--surface-hover);
+    color: var(--text-muted);
+}
+.course-badges {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: 10px;
+}
+
+.badge-muted {
+    background: var(--surface-hover);
+    color: var(--text-secondary);
+}
+
+.tabs {
+    display: flex;
+    gap: 8px;
+    padding: 8px;
+    border-radius: var(--radius-2xl);
+    background: var(--surface-glass);
+    border: 1px solid var(--surface-elevated-strong);
+    box-shadow: var(--shadow-card);
+    margin-bottom: 24px;
+    overflow-x: auto;
+    scrollbar-width: thin;
+    scroll-snap-type: x proximity;
+    scroll-padding-inline: 8px;
+}
+
+.tab {
+    padding: 10px 14px;
+    background: transparent;
+    border: 1px solid transparent;
+    border-radius: var(--radius-xl);
+    font-size: var(--text-base);
+    font-weight: 700;
+    color: var(--text-secondary);
+    cursor: pointer;
+    transition: var(--transition);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    white-space: nowrap;
+    scroll-snap-align: start;
+}
+
+.tab:hover {
+    background: var(--surface-elevated-strong);
+    color: var(--text-heading);
+}
+
+.tab-active {
+    color: var(--practiq-violet-dark);
+    background: var(--gradient-brand-soft);
+    border-color: rgba(var(--practiq-violet-rgb), 0.18);
+}
+
+.empty-inline {
+    color: var(--text-muted);
+    font-size: var(--text-md);
+    padding: 24px 18px;
+    border: 1px dashed rgba(var(--surface-border-rgb), 0.3);
+    border-radius: var(--radius-xl);
+    background: var(--surface-glass);
+}
+
+.empty-inline--compact {
+    padding: 12px;
+}
+.exercise-selector {
+    border: 1px solid rgba(var(--surface-border-rgb), 0.2);
+    border-radius: var(--radius-lg);
+    padding: 8px;
+    max-height: 180px;
+    overflow-y: auto;
+    background: var(--surface-subtle);
+}
+.exercise-checkbox {
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+    padding: 6px 4px;
+    cursor: pointer;
+    font-size: var(--text-base);
+    color: var(--text-primary);
+    border-radius: var(--radius-sm);
+}
+
+.exercise-checkbox:hover {
+    background: var(--surface-hover);
+}
+.options-editor {
+    display: grid;
+    gap: 8px;
+}
+.form-textarea--large {
+    min-height: 180px;
+}
+.field-hint--warn {
+    color: #92400e;
+}
+.field-hint {
+    margin-top: 6px;
+    font-size: var(--text-sm);
+    color: var(--text-secondary);
+}
+.field-hint--error {
+    color: var(--color-error);
+    font-weight: 600;
+}
+.math-preview {
+    margin-top: 10px;
+    padding: 12px 14px;
+    border: 1px solid rgba(var(--practiq-violet-rgb), 0.16);
+    border-radius: var(--radius-md);
+    background: var(--surface-subtle);
+    color: var(--text-primary);
+}
+.math-preview-label {
+    margin-bottom: 6px;
+    font-size: var(--text-xs);
+    font-weight: 800;
+    text-transform: uppercase;
+    color: var(--text-secondary);
+}
+.equation-editor-wrap {
+    display: grid;
+    gap: 6px;
+}
+.equation-editor-label {
+    font-size: var(--text-xs);
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--practiq-violet);
+}
+.teacher-canvas-wrap {
+    display: grid;
+    gap: 8px;
+}
+.teacher-canvas-toolbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    color: var(--text-secondary);
+    font-size: var(--text-sm);
+}
+.teacher-canvas-actions {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    gap: 6px;
+}
+.teacher-canvas {
+    width: 100%;
+    height: 240px;
+    display: block;
+    border: 1.5px solid rgba(var(--practiq-violet-rgb), 0.18);
+    border-radius: var(--radius-lg);
+    background: var(--surface-card);
+    cursor: crosshair;
+    touch-action: none;
+    box-shadow: var(--shadow-card);
+}
+.modal-actions {
+    display: flex;
+    gap: 12px;
+    justify-content: flex-end;
+    margin-top: 24px;
+}
+.accept-options {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+}
+.accept-option {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: var(--text-sm);
+    color: var(--text-primary);
+    cursor: pointer;
+}
+.form-hint {
+    display: block;
+    margin-top: 6px;
+    color: var(--text-secondary);
+    font-size: var(--text-xs);
+    line-height: 1.4;
+}
+
+@media (max-width: 1024px) {
     .course-detail {
-        padding: 24px 28px 40px;
-        max-width: 1180px;
+        padding: 20px 20px 40px;
     }
+}
 
+@media (max-width: 768px) {
+    .course-detail {
+        display: block;
+
+        width: auto !important;
+        min-width: 0;
+        max-width: none !important;
+        margin-left: 0 !important;
+        box-sizing: border-box;
+        overflow: visible;
+        padding: 0 !important;
+    }
+    .course-detail > * {
+        width: 100%;
+        min-width: 0;
+        max-width: 100%;
+        box-sizing: border-box;
+    }
     .course-header {
-        position: relative;
-        margin-bottom: 16px;
-        padding: 22px 24px;
-        border-radius: var(--radius-2xl);
-        background: linear-gradient(115deg, var(--surface-elevated), var(--surface-card));
-        border: 1px solid var(--surface-elevated-strong);
-        box-shadow: var(--shadow-card);
-        backdrop-filter: blur(18px);
-        display: flex;
-        flex-direction: column;
-        align-items: flex-start;
-        gap: 14px;
-        overflow: hidden;
+        width: 100%;
+        padding: 22px 18px;
+        border-radius: 22px;
     }
+}
 
-    .course-header > .btn {
-        align-self: flex-start;
-        width: auto;
-        flex: 0 0 auto;
+@media (max-width: 600px) {
+    .course-detail .tabs {
+        gap: 4px;
+        margin-inline: 0;
+        padding: 6px;
+        scroll-snap-type: x mandatory;
+        scroll-padding-inline: 6px;
     }
+    .tab {
+        padding: 9px 12px;
 
-    .course-header > * {
-        position: relative;
-        z-index: 1;
-    }
-
-    .page-title {
-        font-size: clamp(1.55rem, 2.5vw, 2rem);
-        font-weight: 800;
-        color: var(--text-heading);
-        line-height: 1.12;
-        margin: 0;
-    }
-
-    .course-status {
-        display: flex;
-        flex-wrap: wrap;
-        gap: 8px;
-        margin-top: 12px;
-    }
-    .status-option {
-        display: flex;
-        align-items: center;
-        gap: 9px;
-        flex: 1 1 210px;
-        padding: 10px 12px;
-        border: 1.5px solid var(--surface-border);
-        border-radius: var(--radius-lg);
-        background: var(--surface-card);
-        color: var(--text-secondary);
-        text-align: left;
-        cursor: pointer;
-        transition: var(--transition-fast);
-    }
-    .status-option:hover:not(:disabled) {
-        border-color: rgba(var(--practiq-violet-rgb), 0.45);
-        color: var(--text-primary);
-    }
-    .status-option:disabled {
-        cursor: default;
-    }
-    .status-option--current {
-        border-color: var(--practiq-violet);
-        background: var(--fill-primary-faint);
-        color: var(--practiq-violet);
-    }
-    .status-option i {
-        font-size: 1rem;
+        min-height: 44px;
         flex-shrink: 0;
     }
-    .status-option-text {
-        display: grid;
-        gap: 1px;
-        min-width: 0;
-    }
-    .status-option-text strong {
-        font-size: var(--text-sm);
-        font-weight: 800;
-    }
-    .status-option-text small {
-        font-size: var(--text-xs);
-        color: var(--text-muted);
-        line-height: 1.3;
-    }
-    .status-option--current .status-option-text small {
-        color: inherit;
-        opacity: 0.8;
-    }
-    .status-confirm,
-    .status-error {
-        display: flex;
-        align-items: center;
-        flex-wrap: wrap;
-        gap: 8px;
-        margin: 10px 0 0;
-        padding: 10px 12px;
-        border-radius: var(--radius-lg);
-        font-size: var(--text-xs);
-        line-height: 1.35;
-    }
-    .status-confirm {
-        background: var(--color-warning-bg);
-        color: var(--color-warning-dark);
-    }
-    .status-confirm span {
-        flex: 1 1 200px;
-    }
-    .status-confirm-actions {
-        display: flex;
-        gap: 8px;
-        flex: 0 0 auto;
-    }
-    .status-confirm-cancel,
-    .status-confirm-go {
-        border: none;
-        border-radius: var(--radius-pill);
-        padding: 6px 14px;
-        font-weight: 800;
-        font-size: var(--text-xs);
-        cursor: pointer;
-    }
-    .status-confirm-cancel {
-        background: transparent;
-        color: inherit;
-        text-decoration: underline;
-    }
-    .status-confirm-go {
-        background: var(--color-warning-dark);
-        color: #fff;
-    }
-    .status-error {
-        background: var(--color-error-bg);
-        color: var(--color-error-dark);
-    }
-    .badge-status--draft {
-        background: #fef3c7;
-        color: #92400e;
-    }
-    .badge-status--published {
-        background: #dcfce7;
-        color: #166534;
-    }
-    .badge-status--archived {
-        background: var(--surface-hover);
-        color: var(--text-muted);
-    }
-    .course-badges {
-        display: flex;
-        flex-wrap: wrap;
-        gap: 8px;
-        margin-top: 10px;
-    }
-
-    .badge-muted {
-        background: var(--surface-hover);
-        color: var(--text-secondary);
-    }
-
-    .tabs {
-        display: flex;
-        gap: 8px;
-        padding: 8px;
-        border-radius: var(--radius-2xl);
-        background: var(--surface-glass);
-        border: 1px solid var(--surface-elevated-strong);
-        box-shadow: var(--shadow-card);
-        margin-bottom: 24px;
-        overflow-x: auto;
-        scrollbar-width: thin;
-        scroll-snap-type: x proximity;
-        scroll-padding-inline: 8px;
-    }
-
-    .tab {
-        padding: 10px 14px;
-        background: transparent;
-        border: 1px solid transparent;
-        border-radius: var(--radius-xl);
-        font-size: var(--text-base);
-        font-weight: 700;
-        color: var(--text-secondary);
-        cursor: pointer;
-        transition: var(--transition);
-        display: flex;
-        align-items: center;
-        gap: 8px;
-        white-space: nowrap;
-        scroll-snap-align: start;
-    }
-
-    .tab:hover {
-        background: var(--surface-elevated-strong);
-        color: var(--text-heading);
-    }
-
-    .tab-active {
-        color: var(--practiq-violet-dark);
-        background: var(--gradient-brand-soft);
-        border-color: rgba(var(--practiq-violet-rgb), 0.18);
-    }
-
-    .empty-inline {
-        color: var(--text-muted);
-        font-size: var(--text-md);
-        padding: 24px 18px;
-        border: 1px dashed rgba(var(--surface-border-rgb), 0.3);
-        border-radius: var(--radius-xl);
-        background: var(--surface-glass);
-    }
-
-    .empty-inline--compact {
-        padding: 12px;
-    }
-    .exercise-selector {
-        border: 1px solid rgba(var(--surface-border-rgb), 0.2);
-        border-radius: var(--radius-lg);
-        padding: 8px;
-        max-height: 180px;
-        overflow-y: auto;
-        background: var(--surface-subtle);
-    }
-    .exercise-checkbox {
-        display: flex;
-        align-items: flex-start;
-        gap: 8px;
-        padding: 6px 4px;
-        cursor: pointer;
-        font-size: var(--text-base);
-        color: var(--text-primary);
-        border-radius: var(--radius-sm);
-    }
-
-    .exercise-checkbox:hover {
-        background: var(--surface-hover);
-    }
-    .options-editor {
-        display: grid;
-        gap: 8px;
-    }
-    .form-textarea--large {
-        min-height: 180px;
-    }
-    .field-hint--warn {
-        color: #92400e;
-    }
-    .field-hint {
-        margin-top: 6px;
-        font-size: var(--text-sm);
-        color: var(--text-secondary);
-    }
-    .field-hint--error {
-        color: var(--color-error);
-        font-weight: 600;
-    }
-    .math-preview {
-        margin-top: 10px;
-        padding: 12px 14px;
-        border: 1px solid rgba(var(--practiq-violet-rgb), 0.16);
-        border-radius: var(--radius-md);
-        background: var(--surface-subtle);
-        color: var(--text-primary);
-    }
-    .math-preview-label {
-        margin-bottom: 6px;
-        font-size: var(--text-xs);
-        font-weight: 800;
-        text-transform: uppercase;
-        color: var(--text-secondary);
-    }
-    .equation-editor-wrap {
-        display: grid;
-        gap: 6px;
-    }
-    .equation-editor-label {
-        font-size: var(--text-xs);
-        font-weight: 700;
-        text-transform: uppercase;
-        letter-spacing: 0.04em;
-        color: var(--practiq-violet);
-    }
-    .teacher-canvas-wrap {
-        display: grid;
-        gap: 8px;
-    }
-    .teacher-canvas-toolbar {
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        gap: 12px;
-        color: var(--text-secondary);
-        font-size: var(--text-sm);
-    }
-    .teacher-canvas-actions {
-        display: flex;
-        flex-wrap: wrap;
-        justify-content: flex-end;
-        gap: 6px;
-    }
-    .teacher-canvas {
-        width: 100%;
-        height: 240px;
-        display: block;
-        border: 1.5px solid rgba(var(--practiq-violet-rgb), 0.18);
-        border-radius: var(--radius-lg);
-        background: var(--surface-card);
-        cursor: crosshair;
-        touch-action: none;
-        box-shadow: var(--shadow-card);
-    }
     .modal-actions {
-        display: flex;
-        gap: 12px;
-        justify-content: flex-end;
-        margin-top: 24px;
+        flex-direction: column-reverse;
     }
-    .accept-options {
-        display: flex;
-        flex-wrap: wrap;
-        gap: 12px;
+    .modal-actions .btn {
+        width: 100%;
     }
-    .accept-option {
-        display: inline-flex;
-        align-items: center;
-        gap: 6px;
-        font-size: var(--text-sm);
-        color: var(--text-primary);
-        cursor: pointer;
-    }
-    .form-hint {
-        display: block;
-        margin-top: 6px;
-        color: var(--text-secondary);
-        font-size: var(--text-xs);
-        line-height: 1.4;
-    }
+}
 
-    @media (max-width: 1024px) {
-        .course-detail {
-            padding: 20px 20px 40px;
-        }
-    }
+.pagination-controls {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    margin-top: 24px;
+    padding: 16px 20px;
+    background: var(--surface-elevated);
+    border-radius: var(--radius-xl);
+}
 
-    @media (max-width: 768px) {
-        .course-detail {
-            display: block;
+.pagination-controls button {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 16px;
+    border: 1px solid var(--border-subtle);
+    border-radius: 12px;
+    background: var(--surface-base);
+    color: var(--text-primary);
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+}
 
-            width: auto !important;
-            min-width: 0;
-            max-width: none !important;
-            margin-left: 0 !important;
-            box-sizing: border-box;
-            overflow: visible;
-            padding: 0 !important;
-        }
-        .course-detail > * {
-            width: 100%;
-            min-width: 0;
-            max-width: 100%;
-            box-sizing: border-box;
-        }
-        .course-header {
-            width: 100%;
-            padding: 22px 18px;
-            border-radius: 22px;
-        }
-    }
+.pagination-controls button:hover:not(:disabled) {
+    background: var(--surface-elevated-strong);
+    border-color: var(--border-strong);
+}
 
-    @media (max-width: 600px) {
-        .course-detail .tabs {
-            gap: 4px;
-            margin-inline: 0;
-            padding: 6px;
-            scroll-snap-type: x mandatory;
-            scroll-padding-inline: 6px;
-        }
-        .tab {
-            padding: 9px 12px;
+.pagination-controls button:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
 
-            min-height: 44px;
-            flex-shrink: 0;
-        }
-        .modal-actions {
-            flex-direction: column-reverse;
-        }
-        .modal-actions .btn {
-            width: 100%;
-        }
-    }
+.pagination-info {
+    font-size: 14px;
+    color: var(--text-secondary);
+    font-weight: 500;
+}
 
-    .pagination-controls {
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        gap: 16px;
-        margin-top: 24px;
-        padding: 16px 20px;
-        background: var(--surface-elevated);
-        border-radius: var(--radius-xl);
-    }
-
-    .pagination-controls button {
-        display: flex;
-        align-items: center;
-        gap: 8px;
-        padding: 10px 16px;
-        border: 1px solid var(--border-subtle);
-        border-radius: 12px;
-        background: var(--surface-base);
-        color: var(--text-primary);
-        font-size: 14px;
-        font-weight: 600;
-        cursor: pointer;
-        transition: all 0.2s;
-    }
-
-    .pagination-controls button:hover:not(:disabled) {
-        background: var(--surface-elevated-strong);
-        border-color: var(--border-strong);
-    }
-
-    .pagination-controls button:disabled {
-        opacity: 0.5;
-        cursor: not-allowed;
-    }
-
-    .pagination-info {
-        font-size: 14px;
-        color: var(--text-secondary);
-        font-weight: 500;
-    }
-
-    .ai-drafts-modal {
-        max-width: 760px;
-        max-height: min(88vh, 820px);
-        overflow: auto;
-    }
+.ai-drafts-modal {
+    max-width: 760px;
+    max-height: min(88vh, 820px);
+    overflow: auto;
+}
+.form-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 12px;
+}
+.ai-draft-card {
+    position: relative;
+    display: grid;
+    gap: 10px;
+    padding: 14px;
+    margin: 12px 0;
+    border: 1px solid var(--surface-border);
+    border-radius: var(--radius-lg);
+    background: var(--surface-base);
+}
+.ai-draft-head {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+.ai-draft-include {
+    display: grid;
+    place-items: center;
+    flex: 0 0 auto;
+    min-width: 24px;
+    min-height: 24px;
+    cursor: pointer;
+}
+.ai-draft-summary {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 0;
+    border: 0;
+    background: none;
+    text-align: left;
+    cursor: pointer;
+    color: inherit;
+}
+.ai-draft-index {
+    flex: 0 0 auto;
+    display: grid;
+    place-items: center;
+    width: 22px;
+    height: 22px;
+    border-radius: var(--radius-pill);
+    background: var(--surface-sunken);
+    font-size: 12px;
+    font-weight: 700;
+    color: var(--text-secondary);
+}
+.ai-draft-summary-text {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 0;
+    flex: 1;
+}
+.ai-draft-type {
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--text-secondary);
+}
+.ai-draft-question {
+    font-size: 13px;
+    color: var(--text-primary);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.ai-draft-chip {
+    flex: 0 0 auto;
+    padding: 2px 8px;
+    border-radius: var(--radius-pill);
+    font-size: 11px;
+    font-weight: 700;
+}
+.ai-draft-chip--ok {
+    background: var(--color-success-bg);
+    color: var(--color-success-dark);
+}
+.ai-draft-chip--todo {
+    background: var(--fill-warning-subtle);
+    color: var(--color-warning-dark);
+}
+.ai-draft-chip--off {
+    background: var(--surface-sunken);
+    color: var(--text-secondary);
+}
+.ai-draft-card--excluded {
+    opacity: 0.55;
+}
+.ai-draft-footer {
+    position: sticky;
+    bottom: 0;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    margin-top: 12px;
+    padding: 10px 0 0;
+    background: var(--surface-card);
+    border-top: 1px solid var(--surface-border);
+}
+.ai-draft-tally {
+    margin: 0;
+    font-size: 13px;
+    color: var(--text-secondary);
+}
+.ai-draft-jump {
+    padding: 0;
+    border: 0;
+    background: none;
+    color: var(--color-warning-dark);
+    font: inherit;
+    font-weight: 700;
+    text-decoration: underline;
+    cursor: pointer;
+}
+.ai-draft-card .form-select {
+    padding-right: 42px;
+}
+.ai-draft-card--incomplete {
+    border-color: var(--color-warning);
+}
+.ai-draft-label {
+    color: var(--text-secondary);
+    font-size: 12px;
+    font-weight: 700;
+}
+.ai-draft-option {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+.ai-draft-option input[type='radio'] {
+    flex: 0 0 auto;
+}
+.ai-draft-warning {
+    margin: 4px 0 0;
+    color: var(--color-warning-dark);
+    font-size: 13px;
+}
+.ai-draft-problem {
+    margin: 0;
+    color: var(--color-warning-dark);
+    font-size: 12px;
+    font-weight: 600;
+}
+.picker-select-all {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin: 10px 0;
+    font-weight: 700;
+    font-size: 13px;
+}
+.picker-list {
+    display: grid;
+    gap: 6px;
+    max-height: 320px;
+    overflow-y: auto;
+    margin-bottom: 12px;
+}
+.picker-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 10px;
+    border: 1px solid var(--surface-border);
+    border-radius: var(--radius-md);
+    background: var(--surface-base);
+}
+.picker-row-text {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: 13px;
+}
+.picker-row-tag {
+    flex: 0 0 auto;
+    color: var(--text-secondary);
+    font-size: 11px;
+    text-transform: uppercase;
+}
+.label-optional {
+    color: var(--text-muted);
+    font-weight: 500;
+}
+@media (max-width: 600px) {
     .form-grid {
-        display: grid;
-        grid-template-columns: repeat(2, minmax(0, 1fr));
-        gap: 12px;
+        grid-template-columns: 1fr;
     }
+    .ai-drafts-modal {
+        max-height: 92dvh;
+    }
+
     .ai-draft-card {
-        position: relative;
-        display: grid;
-        gap: 10px;
-        padding: 14px;
-        margin: 12px 0;
-        border: 1px solid var(--surface-border);
-        border-radius: var(--radius-lg);
-        background: var(--surface-base);
+        padding: 10px;
+        margin: 8px 0;
+        gap: 8px;
     }
     .ai-draft-head {
-        display: flex;
-        align-items: center;
-        gap: 10px;
+        align-items: flex-start;
+        gap: 8px;
     }
-    .ai-draft-include {
-        display: grid;
-        place-items: center;
-        flex: 0 0 auto;
-        min-width: 24px;
-        min-height: 24px;
-        cursor: pointer;
-    }
+
     .ai-draft-summary {
-        flex: 1;
-        min-width: 0;
-        display: flex;
-        align-items: center;
-        gap: 10px;
-        padding: 0;
-        border: 0;
-        background: none;
-        text-align: left;
-        cursor: pointer;
-        color: inherit;
-    }
-    .ai-draft-index {
-        flex: 0 0 auto;
         display: grid;
-        place-items: center;
-        width: 22px;
-        height: 22px;
-        border-radius: var(--radius-pill);
-        background: var(--surface-sunken);
-        font-size: 12px;
-        font-weight: 700;
-        color: var(--text-secondary);
+        grid-template-columns: auto 1fr auto;
+        align-items: start;
+        gap: 6px 8px;
+        min-height: 44px;
     }
+
     .ai-draft-summary-text {
-        display: flex;
-        flex-direction: column;
-        gap: 2px;
-        min-width: 0;
-        flex: 1;
+        grid-column: 2;
     }
-    .ai-draft-type {
-        font-size: 11px;
-        font-weight: 700;
-        text-transform: uppercase;
-        letter-spacing: 0.04em;
-        color: var(--text-secondary);
+    .ai-draft-summary > .pi {
+        grid-column: 3;
+        align-self: center;
     }
+
     .ai-draft-question {
-        font-size: 13px;
-        color: var(--text-primary);
-        overflow: hidden;
-        text-overflow: ellipsis;
-        white-space: nowrap;
+        white-space: normal;
+        display: -webkit-box;
+        -webkit-line-clamp: 2;
+        line-clamp: 2;
+        -webkit-box-orient: vertical;
     }
+
     .ai-draft-chip {
-        flex: 0 0 auto;
-        padding: 2px 8px;
-        border-radius: var(--radius-pill);
-        font-size: 11px;
-        font-weight: 700;
+        grid-column: 2 / -1;
+        justify-self: start;
+        white-space: normal;
+        text-align: left;
+        line-height: 1.35;
     }
-    .ai-draft-chip--ok {
-        background: var(--color-success-bg);
-        color: var(--color-success-dark);
-    }
-    .ai-draft-chip--todo {
-        background: var(--fill-warning-subtle);
-        color: var(--color-warning-dark);
-    }
-    .ai-draft-chip--off {
-        background: var(--surface-sunken);
-        color: var(--text-secondary);
-    }
-    .ai-draft-card--excluded {
-        opacity: 0.55;
-    }
+
     .ai-draft-footer {
-        position: sticky;
-        bottom: 0;
-        display: flex;
-        flex-wrap: wrap;
-        align-items: center;
-        justify-content: space-between;
-        gap: 8px;
-        margin-top: 12px;
-        padding: 10px 0 0;
-        background: var(--surface-card);
-        border-top: 1px solid var(--surface-border);
-    }
-    .ai-draft-tally {
-        margin: 0;
-        font-size: 13px;
-        color: var(--text-secondary);
-    }
-    .ai-draft-jump {
-        padding: 0;
-        border: 0;
-        background: none;
-        color: var(--color-warning-dark);
-        font: inherit;
-        font-weight: 700;
-        text-decoration: underline;
-        cursor: pointer;
-    }
-    .ai-draft-card .form-select {
-        padding-right: 42px;
-    }
-    .ai-draft-card--incomplete {
-        border-color: var(--color-warning);
-    }
-    .ai-draft-label {
-        color: var(--text-secondary);
-        font-size: 12px;
-        font-weight: 700;
-    }
-    .ai-draft-option {
-        display: flex;
-        align-items: center;
-        gap: 8px;
-    }
-    .ai-draft-option input[type='radio'] {
-        flex: 0 0 auto;
-    }
-    .ai-draft-warning {
-        margin: 4px 0 0;
-        color: var(--color-warning-dark);
-        font-size: 13px;
-    }
-    .ai-draft-problem {
-        margin: 0;
-        color: var(--color-warning-dark);
-        font-size: 12px;
-        font-weight: 600;
-    }
-    .picker-select-all {
-        display: flex;
-        align-items: center;
-        gap: 8px;
-        margin: 10px 0;
-        font-weight: 700;
-        font-size: 13px;
-    }
-    .picker-list {
-        display: grid;
-        gap: 6px;
-        max-height: 320px;
-        overflow-y: auto;
-        margin-bottom: 12px;
-    }
-    .picker-row {
-        display: flex;
-        align-items: center;
+        flex-direction: column;
+        align-items: stretch;
         gap: 10px;
-        padding: 8px 10px;
-        border: 1px solid var(--surface-border);
-        border-radius: var(--radius-md);
-        background: var(--surface-base);
+        padding-bottom: 8px;
     }
-    .picker-row-text {
-        flex: 1;
-        min-width: 0;
-        overflow: hidden;
-        text-overflow: ellipsis;
-        white-space: nowrap;
-        font-size: 13px;
+    .ai-drafts-modal .modal-actions {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 8px;
     }
-    .picker-row-tag {
-        flex: 0 0 auto;
-        color: var(--text-secondary);
-        font-size: 11px;
-        text-transform: uppercase;
+    .ai-drafts-modal .modal-actions .btn {
+        width: 100%;
+        min-height: 44px;
     }
-    .label-optional {
-        color: var(--text-muted);
-        font-weight: 500;
+
+    .ai-draft-handwriting,
+    .ai-draft-canvas-wrap {
+        max-width: 100%;
     }
-    @media (max-width: 600px) {
-        .form-grid {
-            grid-template-columns: 1fr;
-        }
-        .ai-drafts-modal {
-            max-height: 92dvh;
-        }
-
-        .ai-draft-card {
-            padding: 10px;
-            margin: 8px 0;
-            gap: 8px;
-        }
-        .ai-draft-head {
-            align-items: flex-start;
-            gap: 8px;
-        }
-
-        .ai-draft-summary {
-            display: grid;
-            grid-template-columns: auto 1fr auto;
-            align-items: start;
-            gap: 6px 8px;
-            min-height: 44px;
-        }
-
-        .ai-draft-summary-text {
-            grid-column: 2;
-        }
-        .ai-draft-summary > .pi {
-            grid-column: 3;
-            align-self: center;
-        }
-
-        .ai-draft-question {
-            white-space: normal;
-            display: -webkit-box;
-            -webkit-line-clamp: 2;
-            line-clamp: 2;
-            -webkit-box-orient: vertical;
-        }
-
-        .ai-draft-chip {
-            grid-column: 2 / -1;
-            justify-self: start;
-            white-space: normal;
-            text-align: left;
-            line-height: 1.35;
-        }
-
-        .ai-draft-footer {
-            flex-direction: column;
-            align-items: stretch;
-            gap: 10px;
-            padding-bottom: 8px;
-        }
-        .ai-drafts-modal .modal-actions {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 8px;
-        }
-        .ai-drafts-modal .modal-actions .btn {
-            width: 100%;
-            min-height: 44px;
-        }
-
-        .ai-draft-handwriting,
-        .ai-draft-canvas-wrap {
-            max-width: 100%;
-        }
-        .ai-draft-canvas {
-            width: 100%;
-        }
-        .teacher-canvas-toolbar {
-            flex-wrap: wrap;
-            gap: 6px;
-        }
+    .ai-draft-canvas {
+        width: 100%;
     }
+    .teacher-canvas-toolbar {
+        flex-wrap: wrap;
+        gap: 6px;
+    }
+}
 </style>

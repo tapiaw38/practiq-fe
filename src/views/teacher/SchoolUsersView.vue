@@ -1,262 +1,262 @@
 <script setup lang="ts">
-    import { computed, onMounted, reactive, ref, watch } from 'vue';
-    import { useToast } from '@/composables/useToast';
-    import TeacherLayout from '@/layouts/TeacherLayout.vue';
-    import Skeleton from '@/components/ui/Skeleton.vue';
-    import { useSchools } from '@/composables/useSchools';
-    import { useAssignment } from '@/composables/useAssignment';
-    import { useGrade } from '@/composables/useGrade';
-    import { useProfile } from '@/composables/useProfile';
-    import type { SchoolMember, SchoolRole } from '@/services/schools/schoolService';
-    import { authApi } from '@/api/request/server';
-    import { AuthAdminService } from '@/services/auth/authAdminService';
-    import { useAuthStore } from '@/stores/authStore';
-    import type { AssignedUser, AuthApiUser, Grade } from '@/types';
+import { computed, onMounted, reactive, ref, watch } from 'vue';
+import { useToast } from '@/composables/useToast';
+import TeacherLayout from '@/layouts/TeacherLayout.vue';
+import Skeleton from '@/components/ui/Skeleton.vue';
+import { useSchools } from '@/composables/useSchools';
+import { useAssignment } from '@/composables/useAssignment';
+import { useGrade } from '@/composables/useGrade';
+import { useProfile } from '@/composables/useProfile';
+import type { SchoolMember, SchoolRole } from '@/services/schools/schoolService';
+import { authApi } from '@/api/request/server';
+import { AuthAdminService } from '@/services/auth/authAdminService';
+import { useAuthStore } from '@/stores/authStore';
+import type { AssignedUser, AuthApiUser, Grade } from '@/types';
 
-    const toast = useToast();
-    const authStore = useAuthStore();
-    const { active, activeId, loadSchools, service } = useSchools();
-    const {
-        loadStudentTeachers,
-        assignTeacher: assignTeacherService,
-        unassignTeacher: unassignTeacherService,
-    } = useAssignment();
-    const { loadGrades, loadUserGrades, addGradeMember, removeGradeMember } = useGrade();
-    const { loadProfileById, updateUIThemeById, findByEmail } = useProfile();
-    const members = ref<SchoolMember[]>([]);
-    const loading = ref(true);
-    const saving = ref(false);
-    const grades = ref<Grade[]>([]);
-    const assigningMember = ref<SchoolMember | null>(null);
-    const assignedTeachers = ref<AssignedUser[]>([]);
-    const assignedGrades = ref<Grade[]>([]);
-    const assignLoading = ref(false);
-    const teacherToAssign = ref('');
-    const gradeToAssign = ref('');
-    const themeForm = reactive({ ui_theme: 'primary' as 'primary' | 'secondary' });
-    const savingTheme = ref(false);
-    const themeSaveSuccess = ref(false);
+const toast = useToast();
+const authStore = useAuthStore();
+const { active, activeId, loadSchools, service } = useSchools();
+const {
+    loadStudentTeachers,
+    assignTeacher: assignTeacherService,
+    unassignTeacher: unassignTeacherService,
+} = useAssignment();
+const { loadGrades, loadUserGrades, addGradeMember, removeGradeMember } = useGrade();
+const { loadProfileById, updateUIThemeById, findByEmail } = useProfile();
+const members = ref<SchoolMember[]>([]);
+const loading = ref(true);
+const saving = ref(false);
+const grades = ref<Grade[]>([]);
+const assigningMember = ref<SchoolMember | null>(null);
+const assignedTeachers = ref<AssignedUser[]>([]);
+const assignedGrades = ref<Grade[]>([]);
+const assignLoading = ref(false);
+const teacherToAssign = ref('');
+const gradeToAssign = ref('');
+const themeForm = reactive({ ui_theme: 'primary' as 'primary' | 'secondary' });
+const savingTheme = ref(false);
+const themeSaveSuccess = ref(false);
 
-    const form = reactive({ userId: '', userQuery: '', role: 'student' as SchoolRole });
-    const matches = ref<AuthApiUser[]>([]);
-    const authAdmin = new AuthAdminService(authApi);
-    const isSuperAdmin = computed(
-        () => authStore.authUser?.roles?.some((role) => role.name === 'superadmin') ?? false,
-    );
+const form = reactive({ userId: '', userQuery: '', role: 'student' as SchoolRole });
+const matches = ref<AuthApiUser[]>([]);
+const authAdmin = new AuthAdminService(authApi);
+const isSuperAdmin = computed(
+    () => authStore.authUser?.roles?.some((role) => role.name === 'superadmin') ?? false,
+);
 
-    const isInstitution = computed(() => active.value?.kind === 'institution');
-    const roleLabel: Record<SchoolRole, string> = {
-        admin: 'Administrador',
-        teacher: 'Docente',
-        student: 'Alumno',
-    };
+const isInstitution = computed(() => active.value?.kind === 'institution');
+const roleLabel: Record<SchoolRole, string> = {
+    admin: 'Administrador',
+    teacher: 'Docente',
+    student: 'Alumno',
+};
 
-    const schoolTeachers = computed(() =>
-        members.value.filter((m) => m.role === 'teacher' || m.role === 'admin'),
-    );
+const schoolTeachers = computed(() =>
+    members.value.filter((m) => m.role === 'teacher' || m.role === 'admin'),
+);
 
-    async function openAssign(member: SchoolMember) {
-        assigningMember.value = member;
-        teacherToAssign.value = '';
-        gradeToAssign.value = '';
-        themeSaveSuccess.value = false;
-        assignLoading.value = true;
-        try {
-            if (!grades.value.length) grades.value = await loadGrades();
-            const [teachers, memberGrades, profile] = await Promise.all([
-                loadStudentTeachers(member.user_id),
-                loadUserGrades(member.user_id),
-                loadProfileById(member.user_id),
-            ]);
-            assignedTeachers.value = teachers || [];
-            assignedGrades.value = memberGrades || [];
-            themeForm.ui_theme = profile?.ui_theme || 'primary';
-        } finally {
-            assignLoading.value = false;
-        }
-    }
-
-    function closeAssign() {
-        assigningMember.value = null;
-    }
-
-    async function saveTheme() {
-        if (!assigningMember.value || savingTheme.value) return;
-        savingTheme.value = true;
-        themeSaveSuccess.value = false;
-        try {
-            await updateUIThemeById(assigningMember.value.user_id, { ...themeForm });
-            themeSaveSuccess.value = true;
-            window.setTimeout(() => (themeSaveSuccess.value = false), 3000);
-        } finally {
-            savingTheme.value = false;
-        }
-    }
-
-    async function refreshAssignments() {
-        if (!assigningMember.value) return;
-        const userId = assigningMember.value.user_id;
-        const [teachers, memberGrades] = await Promise.all([
-            loadStudentTeachers(userId),
-            loadUserGrades(userId),
+async function openAssign(member: SchoolMember) {
+    assigningMember.value = member;
+    teacherToAssign.value = '';
+    gradeToAssign.value = '';
+    themeSaveSuccess.value = false;
+    assignLoading.value = true;
+    try {
+        if (!grades.value.length) grades.value = await loadGrades();
+        const [teachers, memberGrades, profile] = await Promise.all([
+            loadStudentTeachers(member.user_id),
+            loadUserGrades(member.user_id),
+            loadProfileById(member.user_id),
         ]);
         assignedTeachers.value = teachers || [];
         assignedGrades.value = memberGrades || [];
+        themeForm.ui_theme = profile?.ui_theme || 'primary';
+    } finally {
+        assignLoading.value = false;
     }
+}
 
-    async function assignTeacher() {
-        if (!assigningMember.value || !teacherToAssign.value) return;
-        await assignTeacherService(teacherToAssign.value, assigningMember.value.user_id);
-        teacherToAssign.value = '';
-        await refreshAssignments();
+function closeAssign() {
+    assigningMember.value = null;
+}
+
+async function saveTheme() {
+    if (!assigningMember.value || savingTheme.value) return;
+    savingTheme.value = true;
+    themeSaveSuccess.value = false;
+    try {
+        await updateUIThemeById(assigningMember.value.user_id, { ...themeForm });
+        themeSaveSuccess.value = true;
+        window.setTimeout(() => (themeSaveSuccess.value = false), 3000);
+    } finally {
+        savingTheme.value = false;
     }
+}
 
-    async function unassignTeacher(teacherId: string) {
-        if (!assigningMember.value) return;
-        await unassignTeacherService(teacherId, assigningMember.value.user_id);
-        await refreshAssignments();
+async function refreshAssignments() {
+    if (!assigningMember.value) return;
+    const userId = assigningMember.value.user_id;
+    const [teachers, memberGrades] = await Promise.all([
+        loadStudentTeachers(userId),
+        loadUserGrades(userId),
+    ]);
+    assignedTeachers.value = teachers || [];
+    assignedGrades.value = memberGrades || [];
+}
+
+async function assignTeacher() {
+    if (!assigningMember.value || !teacherToAssign.value) return;
+    await assignTeacherService(teacherToAssign.value, assigningMember.value.user_id);
+    teacherToAssign.value = '';
+    await refreshAssignments();
+}
+
+async function unassignTeacher(teacherId: string) {
+    if (!assigningMember.value) return;
+    await unassignTeacherService(teacherId, assigningMember.value.user_id);
+    await refreshAssignments();
+}
+
+async function assignGrade() {
+    if (!assigningMember.value || !gradeToAssign.value) return;
+    await addGradeMember(gradeToAssign.value, assigningMember.value.user_id);
+    gradeToAssign.value = '';
+    await refreshAssignments();
+}
+
+async function unassignGrade(gradeId: string) {
+    if (!assigningMember.value) return;
+    await removeGradeMember(gradeId, assigningMember.value.user_id);
+    await refreshAssignments();
+}
+
+async function searchUsers() {
+    form.userId = '';
+    const query = form.userQuery.trim().toLowerCase();
+    if (!isSuperAdmin.value || query.length < 2) {
+        matches.value = [];
+        return;
     }
-
-    async function assignGrade() {
-        if (!assigningMember.value || !gradeToAssign.value) return;
-        await addGradeMember(gradeToAssign.value, assigningMember.value.user_id);
-        gradeToAssign.value = '';
-        await refreshAssignments();
-    }
-
-    async function unassignGrade(gradeId: string) {
-        if (!assigningMember.value) return;
-        await removeGradeMember(gradeId, assigningMember.value.user_id);
-        await refreshAssignments();
-    }
-
-    async function searchUsers() {
-        form.userId = '';
-        const query = form.userQuery.trim().toLowerCase();
-        if (!isSuperAdmin.value || query.length < 2) {
-            matches.value = [];
-            return;
-        }
-        try {
-            const { data } = await authAdmin.listUsers({ limit: 100 });
-            matches.value = data
-                .filter((user) =>
-                    [user.id, user.first_name, user.last_name, user.email]
-                        .join(' ')
-                        .toLowerCase()
-                        .includes(query),
-                )
-                .slice(0, 8);
-        } catch {
-            matches.value = [];
-        }
-    }
-
-    function practiqUserId(user: AuthApiUser) {
-        return user.username || user.id;
-    }
-
-    function selectUser(user: AuthApiUser) {
-        form.userId = practiqUserId(user);
-        form.userQuery = user.email || `${user.first_name} ${user.last_name}`.trim();
+    try {
+        const { data } = await authAdmin.listUsers({ limit: 100 });
+        matches.value = data
+            .filter((user) =>
+                [user.id, user.first_name, user.last_name, user.email]
+                    .join(' ')
+                    .toLowerCase()
+                    .includes(query),
+            )
+            .slice(0, 8);
+    } catch {
         matches.value = [];
     }
-    function clearMatchesSoon() {
-        window.setTimeout(() => {
-            matches.value = [];
-        }, 150);
+}
+
+function practiqUserId(user: AuthApiUser) {
+    return user.username || user.id;
+}
+
+function selectUser(user: AuthApiUser) {
+    form.userId = practiqUserId(user);
+    form.userQuery = user.email || `${user.first_name} ${user.last_name}`.trim();
+    matches.value = [];
+}
+function clearMatchesSoon() {
+    window.setTimeout(() => {
+        matches.value = [];
+    }, 150);
+}
+
+async function loadMembers() {
+    if (!active.value) {
+        members.value = [];
+        loading.value = false;
+        return;
     }
-
-    async function loadMembers() {
-        if (!active.value) {
-            members.value = [];
-            loading.value = false;
-            return;
-        }
-        loading.value = true;
-        try {
-            const { data } = await service.members(active.value.id);
-            members.value = data;
-        } catch {
-            toast.add({
-                severity: 'error',
-                summary: 'Error',
-                detail: 'No se pudieron cargar los usuarios de esta escuela',
-                life: 3000,
-            });
-        } finally {
-            loading.value = false;
-        }
+    loading.value = true;
+    try {
+        const { data } = await service.members(active.value.id);
+        members.value = data;
+    } catch {
+        toast.add({
+            severity: 'error',
+            summary: 'Error',
+            detail: 'No se pudieron cargar los usuarios de esta escuela',
+            life: 3000,
+        });
+    } finally {
+        loading.value = false;
     }
+}
 
-    async function addMember() {
-        if (!active.value || saving.value) return;
-        const email = form.userQuery.trim();
-        if (isSuperAdmin.value ? !form.userId.trim() : !email) return;
+async function addMember() {
+    if (!active.value || saving.value) return;
+    const email = form.userQuery.trim();
+    if (isSuperAdmin.value ? !form.userId.trim() : !email) return;
 
-        saving.value = true;
-        try {
-            let userId = form.userId.trim();
+    saving.value = true;
+    try {
+        let userId = form.userId.trim();
 
-            if (!isSuperAdmin.value) {
-                try {
-                    userId = (await findByEmail(email)).id;
-                } catch (error: any) {
-                    toast.add({
-                        severity: 'error',
-                        summary: 'Error',
-                        detail:
-                            error.response?.status === 404
-                                ? 'No hay ninguna cuenta de Practiq con ese email. Tiene que iniciar sesión en Practiq al menos una vez antes de sumarla.'
-                                : 'No se pudo buscar ese email',
-                        life: 4000,
-                    });
-                    return;
-                }
+        if (!isSuperAdmin.value) {
+            try {
+                userId = (await findByEmail(email)).id;
+            } catch (error: any) {
+                toast.add({
+                    severity: 'error',
+                    summary: 'Error',
+                    detail:
+                        error.response?.status === 404
+                            ? 'No hay ninguna cuenta de Practiq con ese email. Tiene que iniciar sesión en Practiq al menos una vez antes de sumarla.'
+                            : 'No se pudo buscar ese email',
+                    life: 4000,
+                });
+                return;
             }
-            await service.addMember(active.value.id, userId, form.role);
-            form.userId = '';
-            form.userQuery = '';
-            await loadMembers();
-            toast.add({
-                severity: 'success',
-                summary: 'Membresía actualizada',
-                detail: 'El rol y el acceso quedaron activos.',
-                life: 2500,
-            });
-        } catch (error: any) {
-            toast.add({
-                severity: 'error',
-                summary: 'Error',
-                detail: error.response?.data?.message || 'No se pudo actualizar el usuario',
-                life: 3500,
-            });
-        } finally {
-            saving.value = false;
         }
-    }
-
-    async function removeMember(member: SchoolMember) {
-        if (!active.value) return;
-        if (!window.confirm(`¿Quitar a ${member.name} de ${active.value.name}?`)) return;
-        try {
-            await service.removeMember(active.value.id, member.user_id);
-            await loadMembers();
-        } catch {
-            toast.add({
-                severity: 'error',
-                summary: 'Error',
-                detail: 'No se pudo quitar el usuario',
-                life: 3000,
-            });
-        }
-    }
-
-    watch(activeId, loadMembers);
-    onMounted(async () => {
-        await loadSchools(false, isSuperAdmin.value);
+        await service.addMember(active.value.id, userId, form.role);
+        form.userId = '';
+        form.userQuery = '';
         await loadMembers();
-    });
+        toast.add({
+            severity: 'success',
+            summary: 'Membresía actualizada',
+            detail: 'El rol y el acceso quedaron activos.',
+            life: 2500,
+        });
+    } catch (error: any) {
+        toast.add({
+            severity: 'error',
+            summary: 'Error',
+            detail: error.response?.data?.message || 'No se pudo actualizar el usuario',
+            life: 3500,
+        });
+    } finally {
+        saving.value = false;
+    }
+}
+
+async function removeMember(member: SchoolMember) {
+    if (!active.value) return;
+    if (!window.confirm(`¿Quitar a ${member.name} de ${active.value.name}?`)) return;
+    try {
+        await service.removeMember(active.value.id, member.user_id);
+        await loadMembers();
+    } catch {
+        toast.add({
+            severity: 'error',
+            summary: 'Error',
+            detail: 'No se pudo quitar el usuario',
+            life: 3000,
+        });
+    }
+}
+
+watch(activeId, loadMembers);
+onMounted(async () => {
+    await loadSchools(false, isSuperAdmin.value);
+    await loadMembers();
+});
 </script>
 
 <template>
@@ -520,454 +520,454 @@
 </template>
 
 <style scoped>
+.school-users {
+    max-width: 900px;
+    padding: 2rem;
+}
+.page-header {
+    margin-bottom: 1.5rem;
+}
+.eyebrow {
+    margin: 0 0 0.45rem;
+    color: var(--practiq-violet);
+    font-size: 0.72rem;
+    font-weight: 800;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+}
+h1,
+h2,
+p {
+    margin-top: 0;
+}
+.page-header h1 {
+    margin-bottom: 0.5rem;
+    color: var(--text-heading);
+    font-size: clamp(1.55rem, 2.5vw, 2rem);
+}
+.page-header p:not(.eyebrow) {
+    color: var(--text-secondary);
+}
+.users-card {
+    padding: 1.4rem;
+    border: 1px solid var(--surface-border);
+    border-radius: var(--radius-xl);
+    background: var(--surface-card);
+}
+.card-heading {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 1rem;
+}
+.card-heading h2 {
+    margin-bottom: 0.25rem;
+    color: var(--text-heading);
+    font-size: 1.1rem;
+}
+.card-heading p,
+.form-note {
+    margin-bottom: 0;
+    color: var(--text-secondary);
+    font-size: 0.86rem;
+}
+.school-kind {
+    padding: 0.35rem 0.65rem;
+    border-radius: var(--radius-pill);
+    color: var(--practiq-violet-dark);
+    background: var(--fill-primary-soft);
+    font-size: 0.75rem;
+    font-weight: 700;
+    white-space: nowrap;
+}
+.member-form {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 150px auto;
+    gap: 0.7rem;
+    align-items: end;
+    margin-top: 1.4rem;
+}
+.member-form label {
+    display: grid;
+    gap: 0.3rem;
+    color: var(--text-secondary);
+    font-size: 0.77rem;
+    font-weight: 700;
+}
+.member-form input,
+.member-form select {
+    min-height: 42px;
+    padding: 0.55rem 0.7rem;
+    border: 1px solid var(--surface-border);
+    border-radius: var(--radius-md);
+    color: var(--text-primary);
+    background: var(--surface-subtle);
+    font: inherit;
+}
+.member-form button {
+    min-height: 42px;
+    padding: 0 1rem;
+    border: 0;
+    border-radius: var(--radius-md);
+    color: #fff;
+    background: var(--practiq-violet);
+    font-weight: 700;
+    cursor: pointer;
+}
+.member-form button:disabled {
+    opacity: 0.55;
+    cursor: not-allowed;
+}
+.form-note {
+    margin-top: 0.7rem;
+}
+.member-form label:first-child {
+    position: relative;
+}
+.user-suggestions {
+    position: absolute;
+    z-index: 4;
+    top: calc(100% + 4px);
+    width: 100%;
+    overflow: hidden;
+    border: 1px solid var(--surface-border);
+    border-radius: var(--radius-md);
+    background: var(--surface-card);
+    box-shadow: var(--shadow-card);
+}
+.user-suggestions button {
+    display: grid;
+    width: 100%;
+    min-height: 0;
+    padding: 0.55rem 0.7rem;
+    border-radius: 0;
+    color: var(--text-primary);
+    background: transparent;
+    text-align: left;
+}
+.user-suggestions button:hover {
+    background: var(--surface-subtle);
+}
+.user-suggestions span {
+    overflow: hidden;
+    color: var(--text-secondary);
+    font-size: 0.72rem;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.member-list,
+.loading-list {
+    display: grid;
+    gap: 0.55rem;
+    margin: 1.4rem 0 0;
+    padding: 0;
+    list-style: none;
+}
+.member-row {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 0.75rem;
+    border: 1px solid var(--surface-border);
+    border-radius: var(--radius-lg);
+}
+.member-avatar {
+    display: grid;
+    flex: 0 0 36px;
+    width: 36px;
+    height: 36px;
+    place-items: center;
+    border-radius: var(--radius-md);
+    color: var(--practiq-violet-dark);
+    background: var(--fill-primary-soft);
+    font-size: 0.82rem;
+    font-weight: 800;
+}
+.member-data {
+    display: grid;
+    min-width: 0;
+    gap: 0.25rem;
+}
+.member-data strong {
+    overflow: hidden;
+    color: var(--text-primary);
+    font-size: 0.9rem;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.member-username {
+    overflow: hidden;
+    color: var(--text-secondary);
+    font-size: 0.76rem;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.role-badge {
+    width: fit-content;
+    padding: 0.15rem 0.45rem;
+    border-radius: var(--radius-pill);
+    background: var(--surface-subtle);
+    color: var(--text-secondary);
+    font-size: 0.7rem;
+    font-weight: 700;
+}
+.role-badge--admin {
+    color: #197563;
+    background: #dff6ee;
+}
+.role-badge--teacher {
+    color: var(--practiq-violet-dark);
+    background: var(--fill-primary-soft);
+}
+.inactive {
+    margin-left: auto;
+    color: var(--color-error-dark, #b91c1c);
+    font-size: 0.75rem;
+    font-weight: 700;
+}
+.assign-button {
+    margin-left: auto;
+    padding: 0.4rem 0.65rem;
+    border: 0;
+    border-radius: var(--radius-md);
+    color: var(--practiq-violet-dark);
+    background: var(--fill-primary-soft);
+    cursor: pointer;
+    font-weight: 700;
+}
+.remove-button {
+    padding: 0.4rem 0.65rem;
+    border: 0;
+    border-radius: var(--radius-md);
+    color: var(--color-error-dark, #b91c1c);
+    background: var(--color-error-bg, #fef2f2);
+    cursor: pointer;
+    font-weight: 700;
+}
+.empty-state {
+    display: grid;
+    min-height: 170px;
+    margin-top: 1.4rem;
+    place-items: center;
+    align-content: center;
+    gap: 0.6rem;
+    border: 1px dashed var(--surface-border);
+    border-radius: var(--radius-lg);
+    color: var(--text-secondary);
+    text-align: center;
+}
+.empty-state i {
+    color: var(--practiq-violet);
+    font-size: 1.5rem;
+}
+.empty-state p {
+    margin: 0;
+}
+.empty-state span {
+    font-size: 0.82rem;
+}
+.assign-backdrop {
+    position: fixed;
+    inset: 0;
+    z-index: 60;
+    display: grid;
+    place-items: center;
+    padding: 1.2rem;
+    background: var(--surface-scrim);
+}
+.assign-card {
+    width: min(560px, 100%);
+    max-height: calc(100vh - 48px);
+    overflow: auto;
+    padding: 1.3rem;
+    border-radius: var(--radius-xl);
+    background: var(--surface-card);
+    box-shadow: var(--shadow-panel);
+}
+.assign-head {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 1rem;
+    margin-bottom: 1rem;
+}
+.assign-head h3 {
+    margin: 0.2rem 0 0;
+    color: var(--text-heading);
+}
+.assign-close {
+    width: 36px;
+    height: 36px;
+    border: 0;
+    border-radius: var(--radius-pill);
+    background: var(--surface-subtle);
+    color: var(--text-primary);
+    font-size: 20px;
+    cursor: pointer;
+}
+.assign-block {
+    padding: 0.8rem;
+    margin-bottom: 0.9rem;
+    border-radius: var(--radius-lg);
+    background: var(--surface-subtle);
+    border: 1px solid var(--surface-border);
+}
+.assign-label {
+    display: block;
+    margin-bottom: 0.4rem;
+    color: var(--text-secondary);
+    font-size: 0.75rem;
+    font-weight: 700;
+    text-transform: uppercase;
+}
+.chip-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4rem;
+}
+.chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.3rem;
+    padding: 0.2rem 0.55rem;
+    border-radius: var(--radius-pill);
+    font-size: 0.78rem;
+    font-weight: 700;
+}
+.chip--teacher {
+    color: var(--color-info-dark);
+    background: var(--color-info-bg);
+}
+.chip--grade {
+    color: var(--color-success-dark);
+    background: var(--color-success-bg);
+}
+.chip button {
+    border: 0;
+    background: transparent;
+    color: inherit;
+    cursor: pointer;
+    font-weight: 800;
+    padding: 0;
+}
+.chip-empty {
+    color: var(--text-muted);
+    font-size: 0.82rem;
+}
+.assign-row {
+    display: flex;
+    gap: 0.5rem;
+    margin-top: 0.6rem;
+}
+.assign-row select {
+    flex: 1;
+    min-height: 38px;
+    padding: 0.4rem 0.6rem;
+    border: 1px solid var(--surface-border);
+    border-radius: var(--radius-md);
+    background: var(--surface-card);
+    color: var(--text-primary);
+    font: inherit;
+}
+.assign-row button {
+    padding: 0 0.8rem;
+    border: 0;
+    border-radius: var(--radius-md);
+    background: var(--practiq-violet);
+    color: #fff;
+    font-weight: 700;
+    cursor: pointer;
+}
+.assign-row button:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+.assistant-fields {
+    display: grid;
+    gap: 0.5rem;
+}
+.assistant-fields select,
+.assistant-fields input {
+    min-height: 38px;
+    padding: 0.4rem 0.6rem;
+    border: 1px solid var(--surface-border);
+    border-radius: var(--radius-md);
+    background: var(--surface-card);
+    color: var(--text-primary);
+    font: inherit;
+}
+.assistant-save {
+    padding: 0 0.9rem;
+    min-height: 38px;
+    border: 0;
+    border-radius: var(--radius-md);
+    background: var(--practiq-violet);
+    color: #fff;
+    font-weight: 700;
+    cursor: pointer;
+}
+.assistant-save--ok {
+    background: var(--color-success);
+}
+.assistant-save:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+@media (max-width: 640px) {
     .school-users {
-        max-width: 900px;
-        padding: 2rem;
-    }
-    .page-header {
-        margin-bottom: 1.5rem;
-    }
-    .eyebrow {
-        margin: 0 0 0.45rem;
-        color: var(--practiq-violet);
-        font-size: 0.72rem;
-        font-weight: 800;
-        letter-spacing: 0.1em;
-        text-transform: uppercase;
-    }
-    h1,
-    h2,
-    p {
-        margin-top: 0;
-    }
-    .page-header h1 {
-        margin-bottom: 0.5rem;
-        color: var(--text-heading);
-        font-size: clamp(1.55rem, 2.5vw, 2rem);
-    }
-    .page-header p:not(.eyebrow) {
-        color: var(--text-secondary);
-    }
-    .users-card {
-        padding: 1.4rem;
-        border: 1px solid var(--surface-border);
-        border-radius: var(--radius-xl);
-        background: var(--surface-card);
+        padding: 1rem;
     }
     .card-heading {
-        display: flex;
         align-items: flex-start;
-        justify-content: space-between;
-        gap: 1rem;
-    }
-    .card-heading h2 {
-        margin-bottom: 0.25rem;
-        color: var(--text-heading);
-        font-size: 1.1rem;
-    }
-    .card-heading p,
-    .form-note {
-        margin-bottom: 0;
-        color: var(--text-secondary);
-        font-size: 0.86rem;
-    }
-    .school-kind {
-        padding: 0.35rem 0.65rem;
-        border-radius: var(--radius-pill);
-        color: var(--practiq-violet-dark);
-        background: var(--fill-primary-soft);
-        font-size: 0.75rem;
-        font-weight: 700;
-        white-space: nowrap;
+        flex-direction: column;
     }
     .member-form {
-        display: grid;
-        grid-template-columns: minmax(0, 1fr) 150px auto;
-        gap: 0.7rem;
-        align-items: end;
-        margin-top: 1.4rem;
-    }
-    .member-form label {
-        display: grid;
-        gap: 0.3rem;
-        color: var(--text-secondary);
-        font-size: 0.77rem;
-        font-weight: 700;
-    }
-    .member-form input,
-    .member-form select {
-        min-height: 42px;
-        padding: 0.55rem 0.7rem;
-        border: 1px solid var(--surface-border);
-        border-radius: var(--radius-md);
-        color: var(--text-primary);
-        background: var(--surface-subtle);
-        font: inherit;
+        grid-template-columns: 1fr;
     }
     .member-form button {
-        min-height: 42px;
-        padding: 0 1rem;
-        border: 0;
-        border-radius: var(--radius-md);
-        color: #fff;
-        background: var(--practiq-violet);
-        font-weight: 700;
-        cursor: pointer;
-    }
-    .member-form button:disabled {
-        opacity: 0.55;
-        cursor: not-allowed;
-    }
-    .form-note {
-        margin-top: 0.7rem;
-    }
-    .member-form label:first-child {
-        position: relative;
-    }
-    .user-suggestions {
-        position: absolute;
-        z-index: 4;
-        top: calc(100% + 4px);
         width: 100%;
-        overflow: hidden;
-        border: 1px solid var(--surface-border);
-        border-radius: var(--radius-md);
-        background: var(--surface-card);
-        box-shadow: var(--shadow-card);
-    }
-    .user-suggestions button {
-        display: grid;
-        width: 100%;
-        min-height: 0;
-        padding: 0.55rem 0.7rem;
-        border-radius: 0;
-        color: var(--text-primary);
-        background: transparent;
-        text-align: left;
-    }
-    .user-suggestions button:hover {
-        background: var(--surface-subtle);
-    }
-    .user-suggestions span {
-        overflow: hidden;
-        color: var(--text-secondary);
-        font-size: 0.72rem;
-        text-overflow: ellipsis;
-        white-space: nowrap;
-    }
-    .member-list,
-    .loading-list {
-        display: grid;
-        gap: 0.55rem;
-        margin: 1.4rem 0 0;
-        padding: 0;
-        list-style: none;
     }
     .member-row {
-        display: flex;
         align-items: center;
-        gap: 0.75rem;
-        padding: 0.75rem;
-        border: 1px solid var(--surface-border);
-        border-radius: var(--radius-lg);
-    }
-    .member-avatar {
-        display: grid;
-        flex: 0 0 36px;
-        width: 36px;
-        height: 36px;
-        place-items: center;
-        border-radius: var(--radius-md);
-        color: var(--practiq-violet-dark);
-        background: var(--fill-primary-soft);
-        font-size: 0.82rem;
-        font-weight: 800;
+        gap: 0.6rem;
+        padding: 0.65rem;
     }
     .member-data {
-        display: grid;
-        min-width: 0;
-        gap: 0.25rem;
+        flex: 1;
     }
-    .member-data strong {
-        overflow: hidden;
-        color: var(--text-primary);
-        font-size: 0.9rem;
-        text-overflow: ellipsis;
-        white-space: nowrap;
-    }
-    .member-username {
-        overflow: hidden;
-        color: var(--text-secondary);
-        font-size: 0.76rem;
-        text-overflow: ellipsis;
-        white-space: nowrap;
-    }
-    .role-badge {
-        width: fit-content;
-        padding: 0.15rem 0.45rem;
-        border-radius: var(--radius-pill);
-        background: var(--surface-subtle);
-        color: var(--text-secondary);
-        font-size: 0.7rem;
-        font-weight: 700;
-    }
-    .role-badge--admin {
-        color: #197563;
-        background: #dff6ee;
-    }
-    .role-badge--teacher {
-        color: var(--practiq-violet-dark);
-        background: var(--fill-primary-soft);
+    .member-avatar {
+        flex-basis: 34px;
+        width: 34px;
+        height: 34px;
     }
     .inactive {
-        margin-left: auto;
-        color: var(--color-error-dark, #b91c1c);
-        font-size: 0.75rem;
-        font-weight: 700;
+        margin-left: 0;
     }
-    .assign-button {
-        margin-left: auto;
-        padding: 0.4rem 0.65rem;
-        border: 0;
-        border-radius: var(--radius-md);
-        color: var(--practiq-violet-dark);
-        background: var(--fill-primary-soft);
-        cursor: pointer;
-        font-weight: 700;
-    }
+    .assign-button,
     .remove-button {
-        padding: 0.4rem 0.65rem;
-        border: 0;
-        border-radius: var(--radius-md);
-        color: var(--color-error-dark, #b91c1c);
-        background: var(--color-error-bg, #fef2f2);
-        cursor: pointer;
-        font-weight: 700;
-    }
-    .empty-state {
-        display: grid;
-        min-height: 170px;
-        margin-top: 1.4rem;
-        place-items: center;
-        align-content: center;
-        gap: 0.6rem;
-        border: 1px dashed var(--surface-border);
-        border-radius: var(--radius-lg);
-        color: var(--text-secondary);
-        text-align: center;
-    }
-    .empty-state i {
-        color: var(--practiq-violet);
-        font-size: 1.5rem;
-    }
-    .empty-state p {
-        margin: 0;
-    }
-    .empty-state span {
-        font-size: 0.82rem;
-    }
-    .assign-backdrop {
-        position: fixed;
-        inset: 0;
-        z-index: 60;
-        display: grid;
-        place-items: center;
-        padding: 1.2rem;
-        background: var(--surface-scrim);
-    }
-    .assign-card {
-        width: min(560px, 100%);
-        max-height: calc(100vh - 48px);
-        overflow: auto;
-        padding: 1.3rem;
-        border-radius: var(--radius-xl);
-        background: var(--surface-card);
-        box-shadow: var(--shadow-panel);
-    }
-    .assign-head {
-        display: flex;
-        align-items: flex-start;
-        justify-content: space-between;
-        gap: 1rem;
-        margin-bottom: 1rem;
-    }
-    .assign-head h3 {
-        margin: 0.2rem 0 0;
-        color: var(--text-heading);
-    }
-    .assign-close {
-        width: 36px;
-        height: 36px;
-        border: 0;
-        border-radius: var(--radius-pill);
-        background: var(--surface-subtle);
-        color: var(--text-primary);
-        font-size: 20px;
-        cursor: pointer;
-    }
-    .assign-block {
-        padding: 0.8rem;
-        margin-bottom: 0.9rem;
-        border-radius: var(--radius-lg);
-        background: var(--surface-subtle);
-        border: 1px solid var(--surface-border);
-    }
-    .assign-label {
-        display: block;
-        margin-bottom: 0.4rem;
-        color: var(--text-secondary);
-        font-size: 0.75rem;
-        font-weight: 700;
-        text-transform: uppercase;
-    }
-    .chip-row {
-        display: flex;
-        flex-wrap: wrap;
-        gap: 0.4rem;
-    }
-    .chip {
-        display: inline-flex;
-        align-items: center;
-        gap: 0.3rem;
-        padding: 0.2rem 0.55rem;
-        border-radius: var(--radius-pill);
+        width: auto;
+        min-height: 36px;
+        padding: 0.35rem 0.55rem;
         font-size: 0.78rem;
-        font-weight: 700;
     }
-    .chip--teacher {
-        color: var(--color-info-dark);
-        background: var(--color-info-bg);
-    }
-    .chip--grade {
-        color: var(--color-success-dark);
-        background: var(--color-success-bg);
-    }
-    .chip button {
-        border: 0;
-        background: transparent;
-        color: inherit;
-        cursor: pointer;
-        font-weight: 800;
-        padding: 0;
-    }
-    .chip-empty {
-        color: var(--text-muted);
-        font-size: 0.82rem;
+    .school-kind {
+        white-space: normal;
     }
     .assign-row {
-        display: flex;
-        gap: 0.5rem;
-        margin-top: 0.6rem;
+        flex-direction: column;
     }
-    .assign-row select {
-        flex: 1;
-        min-height: 38px;
-        padding: 0.4rem 0.6rem;
-        border: 1px solid var(--surface-border);
-        border-radius: var(--radius-md);
-        background: var(--surface-card);
-        color: var(--text-primary);
-        font: inherit;
-    }
-    .assign-row button {
-        padding: 0 0.8rem;
-        border: 0;
-        border-radius: var(--radius-md);
-        background: var(--practiq-violet);
-        color: #fff;
-        font-weight: 700;
-        cursor: pointer;
-    }
-    .assign-row button:disabled {
-        opacity: 0.5;
-        cursor: not-allowed;
-    }
-    .assistant-fields {
-        display: grid;
-        gap: 0.5rem;
-    }
-    .assistant-fields select,
-    .assistant-fields input {
-        min-height: 38px;
-        padding: 0.4rem 0.6rem;
-        border: 1px solid var(--surface-border);
-        border-radius: var(--radius-md);
-        background: var(--surface-card);
-        color: var(--text-primary);
-        font: inherit;
-    }
-    .assistant-save {
-        padding: 0 0.9rem;
-        min-height: 38px;
-        border: 0;
-        border-radius: var(--radius-md);
-        background: var(--practiq-violet);
-        color: #fff;
-        font-weight: 700;
-        cursor: pointer;
-    }
-    .assistant-save--ok {
-        background: var(--color-success);
-    }
-    .assistant-save:disabled {
-        opacity: 0.6;
-        cursor: not-allowed;
-    }
-    @media (max-width: 640px) {
-        .school-users {
-            padding: 1rem;
-        }
-        .card-heading {
-            align-items: flex-start;
-            flex-direction: column;
-        }
-        .member-form {
-            grid-template-columns: 1fr;
-        }
-        .member-form button {
-            width: 100%;
-        }
-        .member-row {
-            align-items: center;
-            gap: 0.6rem;
-            padding: 0.65rem;
-        }
-        .member-data {
-            flex: 1;
-        }
-        .member-avatar {
-            flex-basis: 34px;
-            width: 34px;
-            height: 34px;
-        }
-        .inactive {
-            margin-left: 0;
-        }
-        .assign-button,
-        .remove-button {
-            width: auto;
-            min-height: 36px;
-            padding: 0.35rem 0.55rem;
-            font-size: 0.78rem;
-        }
-        .school-kind {
-            white-space: normal;
-        }
-        .assign-row {
-            flex-direction: column;
-        }
 
-        .assign-row select,
-        .assistant-fields select {
-            min-height: 48px;
-            font-size: var(--text-md);
-        }
-        .assign-row button,
-        .assistant-save {
-            width: 100%;
-            min-height: 48px;
-            padding: 0 1rem;
-            font-size: var(--text-md);
-        }
+    .assign-row select,
+    .assistant-fields select {
+        min-height: 48px;
+        font-size: var(--text-md);
     }
+    .assign-row button,
+    .assistant-save {
+        width: 100%;
+        min-height: 48px;
+        padding: 0 1rem;
+        font-size: var(--text-md);
+    }
+}
 </style>

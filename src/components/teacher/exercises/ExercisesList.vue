@@ -1,81 +1,80 @@
 <script setup lang="ts">
-    import { computed, ref, watch } from 'vue';
-    import { renderEquation, renderInlineEquation } from '@/composables/useContentRenderer';
-    import FileViewer from '@/components/ui/FileViewer.vue';
-    import type { Exercise } from '@/types';
-    import { splitStatement, deserializeAnswer } from '@/utils/fillBlanks';
-    import type { ExercisesListEmits, ExercisesListProps } from './ExercisesList.types';
+import { computed, ref, watch } from 'vue';
+import { renderEquation, renderInlineEquation } from '@/composables/useContentRenderer';
+import FileViewer from '@/components/ui/FileViewer.vue';
+import type { Exercise } from '@/types';
+import { splitStatement, deserializeAnswer } from '@/utils/fillBlanks';
+import type { ExercisesListEmits, ExercisesListProps } from './ExercisesList.types';
 
-    const props = defineProps<ExercisesListProps>();
-    const emit = defineEmits<ExercisesListEmits>();
+const props = defineProps<ExercisesListProps>();
+const emit = defineEmits<ExercisesListEmits>();
 
-    const levelGroups = computed(() => {
-        const byLevel = new Map<number, Exercise[]>();
-        for (const exercise of props.exercises) {
-            const level = exercise.difficulty ?? 0;
-            const items = byLevel.get(level) ?? [];
-            items.push(exercise);
-            byLevel.set(level, items);
+const levelGroups = computed(() => {
+    const byLevel = new Map<number, Exercise[]>();
+    for (const exercise of props.exercises) {
+        const level = exercise.difficulty ?? 0;
+        const items = byLevel.get(level) ?? [];
+        items.push(exercise);
+        byLevel.set(level, items);
+    }
+    return [...byLevel.entries()]
+        .sort(([a], [b]) => a - b)
+        .map(([level, items]) => ({ level, items }));
+});
+
+const collapsedLevels = ref<Set<number>>(new Set());
+
+watch(
+    levelGroups,
+    (groups) => {
+        const levels = new Set(groups.map((group) => group.level));
+        const next = new Set([...collapsedLevels.value].filter((level) => levels.has(level)));
+        if (!collapsedLevels.value.size && groups.length > 1) {
+            for (const group of groups) next.add(group.level);
         }
-        return [...byLevel.entries()]
-            .sort(([a], [b]) => a - b)
-            .map(([level, items]) => ({ level, items }));
-    });
-
-    const collapsedLevels = ref<Set<number>>(new Set());
-
-    watch(
-        levelGroups,
-        (groups) => {
-            const levels = new Set(groups.map((group) => group.level));
-            const next = new Set([...collapsedLevels.value].filter((level) => levels.has(level)));
-            if (!collapsedLevels.value.size && groups.length > 1) {
-                for (const group of groups) next.add(group.level);
-            }
-            collapsedLevels.value = next;
-        },
-        { immediate: true },
-    );
-
-    function toggleLevel(level: number) {
-        const next = new Set(collapsedLevels.value);
-        if (next.has(level)) next.delete(level);
-        else next.add(level);
         collapsedLevels.value = next;
-    }
+    },
+    { immediate: true },
+);
 
-    const allCollapsed = computed(
-        () =>
-            levelGroups.value.length > 0 && collapsedLevels.value.size === levelGroups.value.length,
-    );
+function toggleLevel(level: number) {
+    const next = new Set(collapsedLevels.value);
+    if (next.has(level)) next.delete(level);
+    else next.add(level);
+    collapsedLevels.value = next;
+}
 
-    function toggleAll() {
-        collapsedLevels.value = allCollapsed.value
-            ? new Set()
-            : new Set(levelGroups.value.map((group) => group.level));
-    }
+const allCollapsed = computed(
+    () => levelGroups.value.length > 0 && collapsedLevels.value.size === levelGroups.value.length,
+);
 
-    function fillBlanksAnswerText(correctAnswer?: string): string {
-        const placements = deserializeAnswer(correctAnswer);
-        const entries = Object.entries(placements).sort(([a], [b]) => Number(a) - Number(b));
-        if (!entries.length) return 'N/A';
-        return entries.map(([, answer]) => answer).join(', ');
-    }
+function toggleAll() {
+    collapsedLevels.value = allCollapsed.value
+        ? new Set()
+        : new Set(levelGroups.value.map((group) => group.level));
+}
 
-    const preview = ref<{ url: string; title: string } | null>(null);
+function fillBlanksAnswerText(correctAnswer?: string): string {
+    const placements = deserializeAnswer(correctAnswer);
+    const entries = Object.entries(placements).sort(([a], [b]) => Number(a) - Number(b));
+    if (!entries.length) return 'N/A';
+    return entries.map(([, answer]) => answer).join(', ');
+}
 
-    function openPreview(exercise: Exercise) {
-        preview.value = {
-            url: exercise.media_view_url ?? '',
-            title: exercise.question || 'Material del enunciado',
-        };
-    }
+const preview = ref<{ url: string; title: string } | null>(null);
 
-    const diffColor = (difficulty: number) => {
-        if (difficulty <= 3) return 'var(--color-success-bg)';
-        if (difficulty <= 6) return 'var(--color-warning-bg)';
-        return 'var(--color-error-bg)';
+function openPreview(exercise: Exercise) {
+    preview.value = {
+        url: exercise.media_view_url ?? '',
+        title: exercise.question || 'Material del enunciado',
     };
+}
+
+const diffColor = (difficulty: number) => {
+    if (difficulty <= 3) return 'var(--color-success-bg)';
+    if (difficulty <= 6) return 'var(--color-warning-bg)';
+    return 'var(--color-error-bg)';
+};
 </script>
 
 <template>
@@ -259,209 +258,209 @@
 </template>
 
 <style scoped>
-    .tab-content {
-        background: var(--surface-elevated);
-        border: 1px solid var(--surface-elevated-strong);
-        border-radius: var(--radius-2xl);
-        box-shadow: var(--shadow-card);
-        padding: 20px;
-    }
+.tab-content {
+    background: var(--surface-elevated);
+    border: 1px solid var(--surface-elevated-strong);
+    border-radius: var(--radius-2xl);
+    box-shadow: var(--shadow-card);
+    padding: 20px;
+}
+.section-header,
+.item-info,
+.item-actions {
+    display: flex;
+    align-items: center;
+}
+.blank-slot {
+    display: inline-block;
+    min-width: 44px;
+    padding: 0 4px;
+    margin: 0 2px;
+    border-bottom: 2px solid var(--practiq-violet, #6d28d9);
+    color: var(--practiq-violet, #6d28d9);
+    font-weight: 700;
+    text-align: center;
+}
+.section-header {
+    justify-content: space-between;
+    gap: 16px;
+    margin-bottom: 16px;
+}
+.section-header h2 {
+    margin: 0;
+    color: var(--text-heading);
+    font-size: 1.25rem;
+    font-weight: 800;
+}
+.topic-select {
+    min-width: 220px;
+}
+.empty-inline {
+    padding: 18px;
+    border: 1px dashed var(--surface-border);
+    border-radius: var(--radius-lg);
+    color: var(--text-secondary);
+    text-align: center;
+}
+.levels-toolbar {
+    display: flex;
+    justify-content: flex-end;
+    margin-bottom: 6px;
+}
+
+.level-group {
+    margin-bottom: 10px;
+}
+
+.level-head {
+    width: 100%;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 10px;
+    border: 1px solid var(--surface-border);
+    border-radius: var(--radius-lg);
+    background: var(--surface-sunken);
+    cursor: pointer;
+    color: inherit;
+    text-align: left;
+    min-height: 44px;
+}
+
+.level-title {
+    font-weight: 700;
+    font-size: 14px;
+}
+
+.level-count {
+    margin-left: auto;
+    font-size: 12px;
+    color: var(--text-secondary);
+}
+
+.level-group .items-list {
+    margin-top: 8px;
+}
+
+.items-list {
+    display: grid;
+    gap: 10px;
+}
+.list-item {
+    display: flex;
+    justify-content: space-between;
+    gap: 14px;
+    padding: 14px;
+    border: 1px solid var(--surface-border);
+    border-radius: var(--radius-lg);
+    background: var(--surface-card);
+    transition: var(--transition-fast);
+}
+.list-item:hover {
+    transform: translateY(-1px);
+    box-shadow: var(--shadow-card);
+}
+.item-info {
+    gap: 12px;
+    min-width: 0;
+}
+.item-title {
+    font-weight: 800;
+    color: var(--text-primary);
+    line-height: 1.3;
+}
+.item-title--math {
+    display: block;
+    max-width: min(100%, 720px);
+    overflow-x: auto;
+    padding: 8px 10px;
+    border-radius: var(--radius-md);
+    background: var(--surface-subtle);
+    border-left: 3px solid var(--practiq-violet);
+}
+.item-title--math :deep(p) {
+    margin: 0;
+}
+.item-title--math :deep(.katex-display) {
+    margin: 0;
+    overflow-x: auto;
+    overflow-y: hidden;
+    padding: 2px 0;
+    text-align: left;
+}
+.item-title--math :deep(.katex) {
+    font-size: 1.08em;
+}
+.item-title--truncate,
+.item-subtitle--truncate {
+    display: -webkit-box;
+    overflow: hidden;
+    -webkit-box-orient: vertical;
+}
+.item-title--truncate {
+    -webkit-line-clamp: 3;
+}
+.item-subtitle--truncate {
+    -webkit-line-clamp: 2;
+}
+.item-subtitle {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    flex-wrap: wrap;
+    color: var(--text-secondary);
+    font-size: var(--text-sm);
+    margin-top: 3px;
+}
+.answer-math {
+    display: inline-flex;
+    align-items: center;
+    max-width: 100%;
+    overflow-x: auto;
+    vertical-align: middle;
+}
+.answer-math :deep(.katex) {
+    font-size: 1em;
+}
+.difficulty-badge {
+    width: 32px;
+    height: 32px;
+    border-radius: var(--radius-md);
+    display: grid;
+    place-items: center;
+    font-weight: 800;
+    color: var(--text-primary);
+    flex: 0 0 auto;
+}
+.item-actions {
+    gap: 8px;
+    flex: 0 0 auto;
+}
+@media (max-width: 760px) {
     .section-header,
-    .item-info,
-    .item-actions {
-        display: flex;
-        align-items: center;
+    .list-item {
+        flex-direction: column;
+        align-items: stretch;
     }
-    .blank-slot {
-        display: inline-block;
-        min-width: 44px;
-        padding: 0 4px;
-        margin: 0 2px;
-        border-bottom: 2px solid var(--practiq-violet, #6d28d9);
-        color: var(--practiq-violet, #6d28d9);
-        font-weight: 700;
-        text-align: center;
-    }
-    .section-header {
-        justify-content: space-between;
-        gap: 16px;
-        margin-bottom: 16px;
-    }
-    .section-header h2 {
-        margin: 0;
-        color: var(--text-heading);
-        font-size: 1.25rem;
-        font-weight: 800;
+    .section-header .flex.gap-3 {
+        flex-wrap: wrap;
     }
     .topic-select {
-        min-width: 220px;
-    }
-    .empty-inline {
-        padding: 18px;
-        border: 1px dashed var(--surface-border);
-        border-radius: var(--radius-lg);
-        color: var(--text-secondary);
-        text-align: center;
-    }
-    .levels-toolbar {
-        display: flex;
-        justify-content: flex-end;
-        margin-bottom: 6px;
-    }
-
-    .level-group {
-        margin-bottom: 10px;
-    }
-
-    .level-head {
-        width: 100%;
-        display: flex;
-        align-items: center;
-        gap: 10px;
-        padding: 8px 10px;
-        border: 1px solid var(--surface-border);
-        border-radius: var(--radius-lg);
-        background: var(--surface-sunken);
-        cursor: pointer;
-        color: inherit;
-        text-align: left;
-        min-height: 44px;
-    }
-
-    .level-title {
-        font-weight: 700;
-        font-size: 14px;
-    }
-
-    .level-count {
-        margin-left: auto;
-        font-size: 12px;
-        color: var(--text-secondary);
-    }
-
-    .level-group .items-list {
-        margin-top: 8px;
-    }
-
-    .items-list {
-        display: grid;
-        gap: 10px;
-    }
-    .list-item {
-        display: flex;
-        justify-content: space-between;
-        gap: 14px;
-        padding: 14px;
-        border: 1px solid var(--surface-border);
-        border-radius: var(--radius-lg);
-        background: var(--surface-card);
-        transition: var(--transition-fast);
-    }
-    .list-item:hover {
-        transform: translateY(-1px);
-        box-shadow: var(--shadow-card);
-    }
-    .item-info {
-        gap: 12px;
         min-width: 0;
+        flex: 1 1 auto;
     }
-    .item-title {
-        font-weight: 800;
-        color: var(--text-primary);
-        line-height: 1.3;
+    .toolbar-actions {
+        flex-wrap: nowrap;
     }
-    .item-title--math {
-        display: block;
-        max-width: min(100%, 720px);
-        overflow-x: auto;
-        padding: 8px 10px;
-        border-radius: var(--radius-md);
-        background: var(--surface-subtle);
-        border-left: 3px solid var(--practiq-violet);
+    .toolbar-actions .btn {
+        flex: 1 1 0;
+        padding: 8px 0;
     }
-    .item-title--math :deep(p) {
-        margin: 0;
-    }
-    .item-title--math :deep(.katex-display) {
-        margin: 0;
-        overflow-x: auto;
-        overflow-y: hidden;
-        padding: 2px 0;
-        text-align: left;
-    }
-    .item-title--math :deep(.katex) {
-        font-size: 1.08em;
-    }
-    .item-title--truncate,
-    .item-subtitle--truncate {
-        display: -webkit-box;
-        overflow: hidden;
-        -webkit-box-orient: vertical;
-    }
-    .item-title--truncate {
-        -webkit-line-clamp: 3;
-    }
-    .item-subtitle--truncate {
-        -webkit-line-clamp: 2;
-    }
-    .item-subtitle {
-        display: flex;
-        align-items: center;
-        gap: 4px;
-        flex-wrap: wrap;
-        color: var(--text-secondary);
-        font-size: var(--text-sm);
-        margin-top: 3px;
-    }
-    .answer-math {
-        display: inline-flex;
-        align-items: center;
-        max-width: 100%;
-        overflow-x: auto;
-        vertical-align: middle;
-    }
-    .answer-math :deep(.katex) {
-        font-size: 1em;
-    }
-    .difficulty-badge {
-        width: 32px;
-        height: 32px;
-        border-radius: var(--radius-md);
-        display: grid;
-        place-items: center;
-        font-weight: 800;
-        color: var(--text-primary);
-        flex: 0 0 auto;
+    .toolbar-actions .btn-label {
+        display: none;
     }
     .item-actions {
-        gap: 8px;
-        flex: 0 0 auto;
+        justify-content: flex-end;
     }
-    @media (max-width: 760px) {
-        .section-header,
-        .list-item {
-            flex-direction: column;
-            align-items: stretch;
-        }
-        .section-header .flex.gap-3 {
-            flex-wrap: wrap;
-        }
-        .topic-select {
-            min-width: 0;
-            flex: 1 1 auto;
-        }
-        .toolbar-actions {
-            flex-wrap: nowrap;
-        }
-        .toolbar-actions .btn {
-            flex: 1 1 0;
-            padding: 8px 0;
-        }
-        .toolbar-actions .btn-label {
-            display: none;
-        }
-        .item-actions {
-            justify-content: flex-end;
-        }
-    }
+}
 </style>

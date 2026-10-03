@@ -47,6 +47,9 @@ export const useExercise = () => {
         }
     };
 
+    const requestExerciseDrafts = (topicId: string, form: FormData) =>
+        store.generateDrafts(topicId, form);
+
     const updateExercise = async (id: string, params: Partial<Exercise>) => {
         try {
             const exercise = await store.updateExercise(id, params);
@@ -93,6 +96,7 @@ export const useExercise = () => {
         loading,
         loadExercises,
         createExercise,
+        requestExerciseDrafts,
         updateExercise,
         deleteExercise,
         reset: store.reset,

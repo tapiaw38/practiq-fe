@@ -1,15 +1,11 @@
 <script setup lang="ts">
-    import { computed } from 'vue';
-    import { fileKind } from '@/utils/fileKind';
+import { computed } from 'vue';
+import { fileKind } from '@/utils/fileKind';
+import type { ExerciseMediaProps } from './ExerciseMedia.types';
 
-    const props = withDefaults(
-        defineProps<{
-            url?: string;
-        }>(),
-        { url: '' },
-    );
+const props = withDefaults(defineProps<ExerciseMediaProps>(), { url: '' });
 
-    const kind = computed(() => fileKind(props.url));
+const kind = computed(() => fileKind(props.url));
 </script>
 
 <template>
@@ -43,39 +39,39 @@
 </template>
 
 <style scoped>
-    .exercise-media {
-        margin: 12px 0;
-    }
+.exercise-media {
+    margin: 12px 0;
+}
 
-    .exercise-media__image,
-    .exercise-media__video {
-        display: block;
-        width: 100%;
-        max-height: 340px;
+.exercise-media__image,
+.exercise-media__video {
+    display: block;
+    width: 100%;
+    max-height: 340px;
 
-        object-fit: contain;
-        border-radius: var(--radius-lg, 12px);
-        background: var(--surface-elevated);
-        border: 1px solid var(--surface-elevated-strong);
-    }
+    object-fit: contain;
+    border-radius: var(--radius-lg, 12px);
+    background: var(--surface-elevated);
+    border: 1px solid var(--surface-elevated-strong);
+}
 
-    .exercise-media__audio {
-        width: 100%;
+.exercise-media__audio {
+    width: 100%;
 
-        min-height: 44px;
-    }
+    min-height: 44px;
+}
 
-    .exercise-media__link {
-        display: inline-flex;
-        align-items: center;
-        gap: 8px;
-        min-height: 44px;
-        padding: 0 14px;
-        border-radius: var(--radius-lg, 12px);
-        border: 1px solid var(--surface-elevated-strong);
-        background: var(--surface-elevated);
-        color: var(--practiq-violet);
-        font-weight: 700;
-        text-decoration: none;
-    }
+.exercise-media__link {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    min-height: 44px;
+    padding: 0 14px;
+    border-radius: var(--radius-lg, 12px);
+    border: 1px solid var(--surface-elevated-strong);
+    background: var(--surface-elevated);
+    color: var(--practiq-violet);
+    font-weight: 700;
+    text-decoration: none;
+}
 </style>

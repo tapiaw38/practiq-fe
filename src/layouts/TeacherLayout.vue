@@ -1,115 +1,110 @@
 <script setup lang="ts">
-    import { computed, ref, watch, onMounted, onBeforeUnmount } from 'vue';
-    import { useRoute, useRouter } from 'vue-router';
-    import { useAuthStore } from '@/stores/authStore';
-    import { useSchools } from '@/composables/useSchools';
-    import { usePendingReviews } from '@/composables/usePendingReviews';
-    import ChangePasswordModal from '@/components/auth/ChangePasswordModal.vue';
-    import SetPasswordModal from '@/components/auth/SetPasswordModal.vue';
+import { computed, ref, watch, onMounted, onBeforeUnmount } from 'vue';
+import { useRoute, useRouter } from 'vue-router';
+import { useAuthStore } from '@/stores/authStore';
+import { useSchools } from '@/composables/useSchools';
+import { usePendingReviews } from '@/composables/usePendingReviews';
+import ChangePasswordModal from '@/components/auth/ChangePasswordModal.vue';
+import SetPasswordModal from '@/components/auth/SetPasswordModal.vue';
 
-    const route = useRoute();
-    const router = useRouter();
-    const authStore = useAuthStore();
-    const { schools, activeId, hasChoice, active, loadSchools, setActive, resetSchools, service } =
-        useSchools();
-    const { count: pendingCount, hasMore: pendingHasMore, load: loadPending } = usePendingReviews();
-    const profile = computed(() => authStore.profile);
+const route = useRoute();
+const router = useRouter();
+const authStore = useAuthStore();
+const { schools, activeId, hasChoice, active, loadSchools, setActive, resetSchools, service } =
+    useSchools();
+const { count: pendingCount, hasMore: pendingHasMore, load: loadPending } = usePendingReviews();
+const profile = computed(() => authStore.profile);
 
-    async function renameActive(name: string) {
-        const school = active.value;
-        const trimmed = name.trim();
-        if (!school || !trimmed || trimmed === school.name) return;
-        try {
-            await service.update(school.id, { name: trimmed });
-            await loadSchools(true, isSuperAdmin.value);
-        } catch {}
-    }
-    const userInitial = computed(() => profile.value?.name?.[0]?.toUpperCase() || 'D');
-    const navOpen = ref(false);
-    const showChangePassword = ref(false);
-    const showSetPassword = ref(false);
-    const isGoogleUser = computed(() => authStore.authMethod === 'google');
+async function renameActive(name: string) {
+    const school = active.value;
+    const trimmed = name.trim();
+    if (!school || !trimmed || trimmed === school.name) return;
+    try {
+        await service.update(school.id, { name: trimmed });
+        await loadSchools(true, isSuperAdmin.value);
+    } catch {}
+}
+const userInitial = computed(() => profile.value?.name?.[0]?.toUpperCase() || 'D');
+const navOpen = ref(false);
+const showChangePassword = ref(false);
+const showSetPassword = ref(false);
+const isGoogleUser = computed(() => authStore.authMethod === 'google');
 
-    const isSuperAdmin = computed(() => {
-        const roles = authStore.authUser?.roles || [];
-        return roles.some((role) => role.name === 'superadmin');
-    });
-    const roleLabel = computed(() => (isSuperAdmin.value ? 'Administrador' : 'Profesor'));
-    const administersActive = computed(() => isSuperAdmin.value || active.value?.role === 'admin');
-    const canRenameActiveSchool = computed(
-        () => isSuperAdmin.value || active.value?.role === 'admin',
-    );
-    const canManageSubscription = computed(
-        () =>
-            !isSuperAdmin.value &&
-            active.value?.kind === 'personal' &&
-            active.value.role === 'admin',
-    );
+const isSuperAdmin = computed(() => {
+    const roles = authStore.authUser?.roles || [];
+    return roles.some((role) => role.name === 'superadmin');
+});
+const roleLabel = computed(() => (isSuperAdmin.value ? 'Administrador' : 'Profesor'));
+const administersActive = computed(() => isSuperAdmin.value || active.value?.role === 'admin');
+const canRenameActiveSchool = computed(() => isSuperAdmin.value || active.value?.role === 'admin');
+const canManageSubscription = computed(
+    () => !isSuperAdmin.value && active.value?.kind === 'personal' && active.value.role === 'admin',
+);
 
-    const pendingLabel = computed(() =>
-        pendingCount.value <= 0 ? '' : pendingHasMore.value ? '99+' : String(pendingCount.value),
-    );
+const pendingLabel = computed(() =>
+    pendingCount.value <= 0 ? '' : pendingHasMore.value ? '99+' : String(pendingCount.value),
+);
 
-    interface Tab {
-        to: string;
-        icon: string;
-        label: string;
-        badge?: string;
-    }
-    const tabs = computed<Tab[]>(() => {
-        const list: Tab[] = [
-            { to: '/teacher/dashboard', icon: 'pi-home', label: 'Inicio' },
-            { to: '/teacher/notebook-reviews', icon: 'pi-book', label: 'Cuadernos' },
-            {
-                to: '/teacher/attempt-reviews',
-                icon: 'pi-paperclip',
-                label: 'Pruebas',
-                badge: pendingLabel.value,
-            },
-        ];
-        if (isSuperAdmin.value) {
-            list.push({ to: '/teacher/admin/schools', icon: 'pi-building', label: 'Escuelas' });
-        } else if (administersActive.value && active.value) {
-            list.push({ to: '/teacher/admin/academic', icon: 'pi-sitemap', label: 'Académico' });
-        } else if (canManageSubscription.value) {
-            list.push({
-                to: '/teacher/subscription',
-                icon: 'pi-credit-card',
-                label: 'Suscripción',
-            });
-        }
-        return list;
-    });
-
-    function isActive(to: string) {
-        return route.path === to || route.path.startsWith(`${to}/`);
-    }
-
-    onMounted(() => {
-        loadSchools(false, isSuperAdmin.value);
-        loadPending();
-        window.addEventListener('keydown', onKey);
-    });
-    onBeforeUnmount(() => window.removeEventListener('keydown', onKey));
-
-    function onKey(event: KeyboardEvent) {
-        if (event.key === 'Escape') navOpen.value = false;
-    }
-
-    watch(
-        () => route.fullPath,
-        () => {
-            navOpen.value = false;
+interface Tab {
+    to: string;
+    icon: string;
+    label: string;
+    badge?: string;
+}
+const tabs = computed<Tab[]>(() => {
+    const list: Tab[] = [
+        { to: '/teacher/dashboard', icon: 'pi-home', label: 'Inicio' },
+        { to: '/teacher/notebook-reviews', icon: 'pi-book', label: 'Cuadernos' },
+        {
+            to: '/teacher/attempt-reviews',
+            icon: 'pi-paperclip',
+            label: 'Pruebas',
+            badge: pendingLabel.value,
         },
-    );
-    watch(activeId, () => loadPending());
-
-    function logout() {
-        authStore.clearAuth();
-        localStorage.removeItem('practiq_profile');
-        resetSchools();
-        router.push('/login');
+    ];
+    if (isSuperAdmin.value) {
+        list.push({ to: '/teacher/admin/schools', icon: 'pi-building', label: 'Escuelas' });
+    } else if (administersActive.value && active.value) {
+        list.push({ to: '/teacher/admin/academic', icon: 'pi-sitemap', label: 'Académico' });
+    } else if (canManageSubscription.value) {
+        list.push({
+            to: '/teacher/subscription',
+            icon: 'pi-credit-card',
+            label: 'Suscripción',
+        });
     }
+    return list;
+});
+
+function isActive(to: string) {
+    return route.path === to || route.path.startsWith(`${to}/`);
+}
+
+onMounted(() => {
+    loadSchools(false, isSuperAdmin.value);
+    loadPending();
+    window.addEventListener('keydown', onKey);
+});
+onBeforeUnmount(() => window.removeEventListener('keydown', onKey));
+
+function onKey(event: KeyboardEvent) {
+    if (event.key === 'Escape') navOpen.value = false;
+}
+
+watch(
+    () => route.fullPath,
+    () => {
+        navOpen.value = false;
+    },
+);
+watch(activeId, () => loadPending());
+
+function logout() {
+    authStore.clearAuth();
+    localStorage.removeItem('practiq_profile');
+    resetSchools();
+    router.push('/login');
+}
 </script>
 
 <template>

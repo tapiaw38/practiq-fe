@@ -1,214 +1,212 @@
 <script setup lang="ts">
-    import { computed, onMounted, onUnmounted, ref, reactive, watch } from 'vue';
-    import { useRoute, useRouter } from 'vue-router';
-    import { useAuthStore } from '@/stores/authStore';
-    import { useDashboard } from '@/composables/useDashboard';
-    import { useLevel } from '@/composables/useLevel';
-    import ChangePasswordModal from '@/components/auth/ChangePasswordModal.vue';
-    import SetPasswordModal from '@/components/auth/SetPasswordModal.vue';
-    import NotificationBell from '@/components/ui/NotificationBell.vue';
-    import UserAvatar from '@/components/ui/UserAvatar.vue';
-    import type { LevelData } from '@/types';
+import { computed, onMounted, onUnmounted, ref, reactive, watch } from 'vue';
+import { useRoute, useRouter } from 'vue-router';
+import { useAuthStore } from '@/stores/authStore';
+import { useDashboard } from '@/composables/useDashboard';
+import { useLevel } from '@/composables/useLevel';
+import ChangePasswordModal from '@/components/auth/ChangePasswordModal.vue';
+import SetPasswordModal from '@/components/auth/SetPasswordModal.vue';
+import NotificationBell from '@/components/ui/NotificationBell.vue';
+import UserAvatar from '@/components/ui/UserAvatar.vue';
+import type { LevelData } from '@/types';
 
-    interface CourseNavItem {
-        id: string;
-        title: string;
-        currentLevel: number;
-        levels: LevelData[];
-        loading: boolean;
+interface CourseNavItem {
+    id: string;
+    title: string;
+    currentLevel: number;
+    levels: LevelData[];
+    loading: boolean;
+}
+
+const route = useRoute();
+const router = useRouter();
+const authStore = useAuthStore();
+const { loadDashboard } = useDashboard();
+const { loadCourseLevels } = useLevel();
+const profile = computed(() => authStore.profile);
+const avatarSeed = computed(() => profile.value?.avatar_seed || '');
+const userInitial = computed(() => profile.value?.name?.[0]?.toUpperCase() || 'A');
+const navOpen = ref(false);
+const drawerViewportHeight = ref(0);
+const drawerViewportTop = ref(0);
+const coursesOpen = ref(false);
+const loadingCourses = ref(false);
+const coursesData = ref<CourseNavItem[]>([]);
+const openCourses = ref(new Set<string>());
+const showChangePassword = ref(false);
+const showSetPassword = ref(false);
+const lastPracticedSheetId = ref('');
+let drawerSwipeStart: { x: number; y: number; wasOpen: boolean } | null = null;
+const isGoogleUser = computed(() => authStore.authMethod === 'google');
+const showMobileBottomNav = computed(
+    () =>
+        ![
+            'student-practice',
+            'student-level-test',
+            'student-notebook',
+            'student-course-levels',
+        ].includes(String(route.name || '')),
+);
+const drawerViewportStyle = computed(() => {
+    if (window.innerWidth > 920 || !drawerViewportHeight.value) return undefined;
+    return {
+        top: `${drawerViewportTop.value + 12}px`,
+        height: `${Math.max(0, drawerViewportHeight.value - 24)}px`,
+    };
+});
+
+const openLevels = reactive<Record<string, Set<number>>>({});
+
+function toggleCourse(id: string) {
+    const s = new Set(openCourses.value);
+    if (s.has(id)) {
+        s.delete(id);
+    } else {
+        s.add(id);
+        loadCourseNavLevels(id);
     }
+    openCourses.value = s;
+}
 
-    const route = useRoute();
-    const router = useRouter();
-    const authStore = useAuthStore();
-    const { loadDashboard } = useDashboard();
-    const { loadCourseLevels } = useLevel();
-    const profile = computed(() => authStore.profile);
-    const avatarSeed = computed(() => profile.value?.avatar_seed || '');
-    const userInitial = computed(() => profile.value?.name?.[0]?.toUpperCase() || 'A');
-    const navOpen = ref(false);
-    const drawerViewportHeight = ref(0);
-    const drawerViewportTop = ref(0);
-    const coursesOpen = ref(false);
-    const loadingCourses = ref(false);
-    const coursesData = ref<CourseNavItem[]>([]);
-    const openCourses = ref(new Set<string>());
-    const showChangePassword = ref(false);
-    const showSetPassword = ref(false);
-    const lastPracticedSheetId = ref('');
-    let drawerSwipeStart: { x: number; y: number; wasOpen: boolean } | null = null;
-    const isGoogleUser = computed(() => authStore.authMethod === 'google');
-    const showMobileBottomNav = computed(
-        () =>
-            ![
-                'student-practice',
-                'student-level-test',
-                'student-notebook',
-                'student-course-levels',
-            ].includes(String(route.name || '')),
-    );
-    const drawerViewportStyle = computed(() => {
-        if (window.innerWidth > 920 || !drawerViewportHeight.value) return undefined;
-        return {
-            top: `${drawerViewportTop.value + 12}px`,
-            height: `${Math.max(0, drawerViewportHeight.value - 24)}px`,
-        };
-    });
+function toggleLevel(courseId: string, level: number) {
+    if (!openLevels[courseId]) openLevels[courseId] = new Set();
+    const s = new Set(openLevels[courseId]);
+    s.has(level) ? s.delete(level) : s.add(level);
+    openLevels[courseId] = s;
+}
 
-    const openLevels = reactive<Record<string, Set<number>>>({});
+async function loadCourseNavLevels(courseId: string) {
+    const course = coursesData.value.find((c) => c.id === courseId);
+    if (!course || course.levels.length) return;
+    course.loading = true;
+    try {
+        const res = await loadCourseLevels(courseId);
+        course.currentLevel = res.current_level;
+        course.levels = res.levels;
 
-    function toggleCourse(id: string) {
-        const s = new Set(openCourses.value);
-        if (s.has(id)) {
-            s.delete(id);
-        } else {
-            s.add(id);
-            loadCourseNavLevels(id);
-        }
-        openCourses.value = s;
-    }
-
-    function toggleLevel(courseId: string, level: number) {
         if (!openLevels[courseId]) openLevels[courseId] = new Set();
-        const s = new Set(openLevels[courseId]);
-        s.has(level) ? s.delete(level) : s.add(level);
-        openLevels[courseId] = s;
+        openLevels[courseId] = new Set([res.current_level]);
+    } finally {
+        course.loading = false;
     }
+}
 
-    async function loadCourseNavLevels(courseId: string) {
-        const course = coursesData.value.find((c) => c.id === courseId);
-        if (!course || course.levels.length) return;
-        course.loading = true;
-        try {
-            const res = await loadCourseLevels(courseId);
-            course.currentLevel = res.current_level;
-            course.levels = res.levels;
+watch(coursesOpen, async (open) => {
+    if (!open || coursesData.value.length) return;
+    loadingCourses.value = true;
+    try {
+        const dashboard = await loadDashboard();
+        coursesData.value = (dashboard.courses || []).map((c) => ({
+            id: c.course_id,
+            title: c.title,
 
-            if (!openLevels[courseId]) openLevels[courseId] = new Set();
-            openLevels[courseId] = new Set([res.current_level]);
-        } finally {
-            course.loading = false;
-        }
+            currentLevel: c.current_level,
+            levels: [],
+            loading: false,
+        }));
+    } catch {
+        coursesData.value = [];
+    } finally {
+        loadingCourses.value = false;
     }
+});
 
-    watch(coursesOpen, async (open) => {
-        if (!open || coursesData.value.length) return;
-        loadingCourses.value = true;
-        try {
-            const dashboard = await loadDashboard();
-            coursesData.value = (dashboard.courses || []).map((c) => ({
-                id: c.course_id,
-                title: c.title,
+function goPractice(id: string) {
+    navOpen.value = false;
+    router.push(`/student/practice/${id}`);
+}
 
-                currentLevel: c.current_level,
-                levels: [],
-                loading: false,
-            }));
-        } catch {
-            coursesData.value = [];
-        } finally {
-            loadingCourses.value = false;
-        }
-    });
+function goLevelTest(id: string) {
+    navOpen.value = false;
+    router.push(`/student/level-test/${id}`);
+}
 
-    function goPractice(id: string) {
+function goNotebook(id: string) {
+    navOpen.value = false;
+    router.push(`/student/notebook/${id}`);
+}
+
+function syncDesktopState() {
+    if (window.innerWidth > 920) navOpen.value = false;
+}
+
+function syncDrawerViewport() {
+    drawerViewportHeight.value = Math.round(window.visualViewport?.height ?? window.innerHeight);
+    drawerViewportTop.value = Math.round(window.visualViewport?.offsetTop ?? 0);
+}
+
+function syncLastPractice(event: Event) {
+    const id = (event as CustomEvent<{ id?: string }>).detail?.id || '';
+    lastPracticedSheetId.value = id;
+}
+
+function canUseDrawerSwipe() {
+    return window.innerWidth <= 920 && showMobileBottomNav.value;
+}
+
+function onDrawerTouchStart(event: TouchEvent) {
+    if (!canUseDrawerSwipe() || event.touches.length !== 1) return;
+    const touch = event.touches[0];
+    if (!touch) return;
+    drawerSwipeStart = { x: touch.clientX, y: touch.clientY, wasOpen: navOpen.value };
+}
+
+function onDrawerTouchEnd(event: TouchEvent) {
+    const start = drawerSwipeStart;
+    drawerSwipeStart = null;
+    const touch = event.changedTouches[0];
+    if (!start || !touch || !canUseDrawerSwipe()) return;
+
+    const deltaX = touch.clientX - start.x;
+    const deltaY = touch.clientY - start.y;
+
+    if (Math.abs(deltaX) < 64 || Math.abs(deltaX) <= Math.abs(deltaY) * 1.35) return;
+    if (!start.wasOpen && start.x <= 32 && deltaX > 0) navOpen.value = true;
+    if (start.wasOpen && deltaX < 0) navOpen.value = false;
+}
+
+watch(
+    () => route.fullPath,
+    () => {
         navOpen.value = false;
-        router.push(`/student/practice/${id}`);
-    }
+    },
+);
 
-    function goLevelTest(id: string) {
-        navOpen.value = false;
-        router.push(`/student/level-test/${id}`);
-    }
+watch(navOpen, (open) => {
+    window.dispatchEvent(new CustomEvent('student-drawer-toggled', { detail: { open } }));
+});
 
-    function goNotebook(id: string) {
-        navOpen.value = false;
-        router.push(`/student/notebook/${id}`);
-    }
+onMounted(() => {
+    syncDrawerViewport();
+    window.addEventListener('resize', syncDesktopState);
+    window.addEventListener('resize', syncDrawerViewport);
+    window.visualViewport?.addEventListener('resize', syncDrawerViewport);
+    window.visualViewport?.addEventListener('scroll', syncDrawerViewport);
+    window.addEventListener('practiq:last-practice-changed', syncLastPractice);
+    window.addEventListener('touchstart', onDrawerTouchStart, { passive: true });
+    window.addEventListener('touchend', onDrawerTouchEnd, { passive: true });
 
-    function syncDesktopState() {
-        if (window.innerWidth > 920) navOpen.value = false;
-    }
+    void loadDashboard()
+        .then((dashboard) => {
+            lastPracticedSheetId.value = dashboard.last_practiced_sheet_id || '';
+        })
+        .catch(() => undefined);
+});
+onUnmounted(() => {
+    window.removeEventListener('resize', syncDesktopState);
+    window.removeEventListener('resize', syncDrawerViewport);
+    window.visualViewport?.removeEventListener('resize', syncDrawerViewport);
+    window.visualViewport?.removeEventListener('scroll', syncDrawerViewport);
+    window.removeEventListener('practiq:last-practice-changed', syncLastPractice);
+    window.removeEventListener('touchstart', onDrawerTouchStart);
+    window.removeEventListener('touchend', onDrawerTouchEnd);
+});
 
-    function syncDrawerViewport() {
-        drawerViewportHeight.value = Math.round(
-            window.visualViewport?.height ?? window.innerHeight,
-        );
-        drawerViewportTop.value = Math.round(window.visualViewport?.offsetTop ?? 0);
-    }
-
-    function syncLastPractice(event: Event) {
-        const id = (event as CustomEvent<{ id?: string }>).detail?.id || '';
-        lastPracticedSheetId.value = id;
-    }
-
-    function canUseDrawerSwipe() {
-        return window.innerWidth <= 920 && showMobileBottomNav.value;
-    }
-
-    function onDrawerTouchStart(event: TouchEvent) {
-        if (!canUseDrawerSwipe() || event.touches.length !== 1) return;
-        const touch = event.touches[0];
-        if (!touch) return;
-        drawerSwipeStart = { x: touch.clientX, y: touch.clientY, wasOpen: navOpen.value };
-    }
-
-    function onDrawerTouchEnd(event: TouchEvent) {
-        const start = drawerSwipeStart;
-        drawerSwipeStart = null;
-        const touch = event.changedTouches[0];
-        if (!start || !touch || !canUseDrawerSwipe()) return;
-
-        const deltaX = touch.clientX - start.x;
-        const deltaY = touch.clientY - start.y;
-
-        if (Math.abs(deltaX) < 64 || Math.abs(deltaX) <= Math.abs(deltaY) * 1.35) return;
-        if (!start.wasOpen && start.x <= 32 && deltaX > 0) navOpen.value = true;
-        if (start.wasOpen && deltaX < 0) navOpen.value = false;
-    }
-
-    watch(
-        () => route.fullPath,
-        () => {
-            navOpen.value = false;
-        },
-    );
-
-    watch(navOpen, (open) => {
-        window.dispatchEvent(new CustomEvent('student-drawer-toggled', { detail: { open } }));
-    });
-
-    onMounted(() => {
-        syncDrawerViewport();
-        window.addEventListener('resize', syncDesktopState);
-        window.addEventListener('resize', syncDrawerViewport);
-        window.visualViewport?.addEventListener('resize', syncDrawerViewport);
-        window.visualViewport?.addEventListener('scroll', syncDrawerViewport);
-        window.addEventListener('practiq:last-practice-changed', syncLastPractice);
-        window.addEventListener('touchstart', onDrawerTouchStart, { passive: true });
-        window.addEventListener('touchend', onDrawerTouchEnd, { passive: true });
-
-        void loadDashboard()
-            .then((dashboard) => {
-                lastPracticedSheetId.value = dashboard.last_practiced_sheet_id || '';
-            })
-            .catch(() => undefined);
-    });
-    onUnmounted(() => {
-        window.removeEventListener('resize', syncDesktopState);
-        window.removeEventListener('resize', syncDrawerViewport);
-        window.visualViewport?.removeEventListener('resize', syncDrawerViewport);
-        window.visualViewport?.removeEventListener('scroll', syncDrawerViewport);
-        window.removeEventListener('practiq:last-practice-changed', syncLastPractice);
-        window.removeEventListener('touchstart', onDrawerTouchStart);
-        window.removeEventListener('touchend', onDrawerTouchEnd);
-    });
-
-    function logout() {
-        authStore.clearAuth();
-        localStorage.removeItem('practiq_profile');
-        router.push('/login');
-    }
+function logout() {
+    authStore.clearAuth();
+    localStorage.removeItem('practiq_profile');
+    router.push('/login');
+}
 </script>
 
 <template>
@@ -542,752 +540,752 @@
 </template>
 
 <style scoped>
-    .app-shell {
-        --practiq-assistant-rail: clamp(320px, 27vw, 430px);
-        min-height: 100vh;
-        display: flex;
-        background: var(--gradient-app-bg);
-    }
+.app-shell {
+    --practiq-assistant-rail: clamp(320px, 27vw, 430px);
+    min-height: 100vh;
+    display: flex;
+    background: var(--gradient-app-bg);
+}
 
-    .mobile-topbar {
-        display: none;
-    }
+.mobile-topbar {
+    display: none;
+}
 
+.sidebar {
+    width: 280px;
+    flex-shrink: 0;
+    margin: 18px 0 18px 18px;
+    border-radius: 32px;
+    background: var(--surface-glass);
+    border: 1px solid var(--surface-glass-border);
+    box-shadow: var(--shadow-panel);
+    backdrop-filter: blur(18px);
+    display: flex;
+    flex-direction: column;
+    padding: 18px 14px 14px;
+    position: sticky;
+    top: 18px;
+    height: calc(100vh - 36px);
+    z-index: 25;
+}
+
+.sidebar-brand,
+.sidebar-brand-main,
+.user-info,
+.topbar-brand,
+.nav-item,
+.sidebar-footer {
+    display: flex;
+    align-items: center;
+}
+
+.sidebar-logo {
+    width: 120px;
+    display: block;
+}
+
+.topbar-logo {
+    width: 100px;
+    display: block;
+}
+
+.sidebar-brand {
+    justify-content: space-between;
+    align-items: center;
+    gap: 12px;
+    padding: 4px 8px 14px;
+    border-bottom: 1px solid rgba(var(--surface-border-rgb), 0.12);
+}
+
+.sidebar-brand-main,
+.topbar-brand,
+.user-info,
+.nav-item {
+    gap: 12px;
+}
+
+.brand-icon {
+    width: 40px;
+    height: 40px;
+    border-radius: var(--radius-lg);
+    background: var(--gradient-brand);
+    color: var(--color-on-primary);
+    display: grid;
+    place-items: center;
+    font-weight: 800;
+    box-shadow: var(--shadow-indigo);
+}
+
+.brand-icon--large {
+    width: 48px;
+    height: 48px;
+    border-radius: var(--radius-xl);
+    font-size: var(--font-stat-value);
+}
+
+.brand-name {
+    font-size: 17px;
+    font-weight: 800;
+    color: var(--text-heading);
+}
+
+.brand-name--large {
+    font-size: var(--font-stat-value);
+}
+
+.brand-tag {
+    font-size: var(--text-sm);
+    color: var(--text-secondary);
+}
+
+.close-btn,
+.topbar-btn,
+.logout-btn {
+    width: 44px;
+    height: 44px;
+    border: none;
+    border-radius: var(--radius-lg);
+    background: var(--surface-subtle);
+    color: var(--text-secondary);
+    display: grid;
+    place-items: center;
+    cursor: pointer;
+    transition: var(--transition);
+}
+
+.close-btn:hover,
+.topbar-btn:hover,
+.logout-btn:hover {
+    background: var(--surface-card);
+    color: var(--text-primary);
+}
+
+.sidebar-nav {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    margin-top: 16px;
+    overflow-y: auto;
+    overflow-x: hidden;
+    padding: 0 4px 8px;
+    scrollbar-width: thin;
+}
+
+.nav-section-label {
+    padding: 4px 10px 6px;
+    font-size: var(--text-xs);
+    font-weight: 800;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--text-muted);
+}
+
+.nav-item {
+    position: relative;
+    padding: 10px 12px;
+    border-radius: var(--radius-xl);
+    color: var(--text-secondary);
+    font-size: var(--text-md);
+    font-weight: 700;
+    text-decoration: none;
+    transition: var(--transition);
+    min-height: 46px;
+}
+
+.nav-item:hover {
+    background: var(--surface-elevated-strong);
+    color: var(--text-heading);
+    transform: translateX(2px);
+}
+
+.nav-item-active {
+    background: var(--surface-card);
+    color: var(--practiq-violet-dark);
+    box-shadow: var(--shadow-card);
+}
+
+.nav-icon {
+    width: 30px;
+    height: 30px;
+    border-radius: var(--radius-md);
+    display: grid;
+    place-items: center;
+    background: rgba(var(--surface-border-rgb), 0.12);
+    color: var(--text-secondary);
+    flex-shrink: 0;
+}
+
+.nav-item:hover .nav-icon,
+.nav-item-active .nav-icon,
+.nav-item-btn:hover .nav-icon {
+    background: var(--gradient-brand);
+    color: var(--color-on-primary);
+}
+
+.nav-group {
+    display: flex;
+    flex-direction: column;
+}
+
+.nav-item-btn {
+    width: 100%;
+    background: none;
+    border: none;
+    cursor: pointer;
+    text-align: left;
+    justify-content: flex-start;
+    font-family: inherit;
+    font-size: var(--text-md);
+    font-weight: 700;
+}
+
+.nav-chevron {
+    margin-left: auto;
+    font-size: var(--text-xs);
+    opacity: 0.6;
+}
+
+.nav-sub {
+    margin-top: 6px;
+    padding: 8px 0 4px 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    overflow: hidden;
+    border-left: 1px solid rgba(var(--surface-border-rgb), 0.16);
+}
+
+.nav-sub-loading {
+    display: flex;
+    align-items: center;
+    padding: 8px 12px;
+    color: var(--text-secondary);
+    font-size: var(--text-sm);
+    font-weight: 600;
+}
+
+.nav-sub-loading .pi-spinner {
+    color: var(--practiq-violet);
+    font-size: var(--text-sm);
+}
+
+.nav-sub-empty {
+    padding: 6px 12px;
+    font-size: var(--text-sm);
+    color: var(--text-secondary);
+}
+
+.nav-course-group {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    margin-bottom: 2px;
+}
+
+.nav-course-toggle {
+    display: flex;
+    align-items: center;
+    gap: 9px;
+    padding: 10px 11px;
+    border-radius: var(--radius-lg);
+    border: none;
+    background: rgba(var(--surface-card-rgb), 0.42);
+    cursor: pointer;
+    text-align: left;
+    transition: var(--transition);
+    width: 100%;
+}
+.nav-course-toggle:hover {
+    background: rgba(var(--practiq-violet-rgb), 0.1);
+}
+.nav-course-toggle .pi-graduation-cap {
+    width: 26px;
+    height: 26px;
+    border-radius: var(--radius-sm);
+    display: grid;
+    place-items: center;
+    background: var(--fill-primary-soft);
+    font-size: var(--text-sm);
+    color: var(--practiq-violet);
+    flex-shrink: 0;
+}
+.nav-course-toggle-title {
+    flex: 1;
+    font-size: var(--text-md);
+    font-weight: 700;
+    color: var(--text-primary);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.nav-level-group {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    padding-left: 6px;
+}
+
+.nav-level-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 10px;
+    border-radius: var(--radius-md);
+    border: none;
+    background: transparent;
+    cursor: pointer;
+    width: 100%;
+    text-align: left;
+    transition: var(--transition);
+}
+.nav-level-row:hover:not(:disabled) {
+    background: var(--surface-elevated-strong);
+}
+.nav-level-row--current {
+    background: var(--fill-primary-subtle);
+}
+.nav-level-row--locked {
+    cursor: default;
+    opacity: 0.5;
+}
+
+.nav-level-badge {
+    width: 24px;
+    height: 24px;
+    border-radius: 7px;
+    background: var(--gradient-brand);
+    color: var(--color-on-primary);
+    font-size: var(--text-xs);
+    font-weight: 800;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+}
+.nav-level-badge--locked {
+    background: var(--fill-border-muted);
+    color: var(--text-muted);
+}
+
+.nav-level-label {
+    flex: 1;
+    font-size: var(--text-sm);
+    font-weight: 700;
+    color: var(--text-primary);
+}
+
+.nav-level-tag {
+    font-size: 10px;
+    font-weight: 700;
+    color: var(--practiq-violet);
+    background: var(--fill-primary-soft);
+    padding: 2px 7px;
+    border-radius: var(--radius-pill);
+    flex-shrink: 0;
+}
+
+.nav-section-tag {
+    font-size: 10px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--text-muted);
+    padding: 7px 12px 2px;
+}
+
+.nav-book-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 10px 8px 12px;
+    border-radius: var(--radius-md);
+    border: none;
+    background: rgba(var(--surface-bg-rgb), 0.5);
+    cursor: pointer;
+    font-size: var(--text-sm);
+    font-weight: 650;
+    color: var(--text-secondary);
+    text-align: left;
+    width: 100%;
+    transition: var(--transition);
+}
+
+.nav-book-item:hover {
+    background: var(--fill-primary-subtle);
+    color: var(--practiq-violet-dark);
+}
+
+.nav-book-item--practice:hover {
+    background: var(--fill-success-subtle);
+    color: var(--color-success-dark);
+}
+
+.nav-book-item--test:hover {
+    background: var(--fill-warning-subtle);
+    color: var(--color-warning-strong);
+}
+
+.nav-book-item--notebook:hover {
+    background: var(--fill-primary-subtle);
+    color: var(--practiq-violet);
+}
+
+.nav-book-item .pi {
+    width: 22px;
+    height: 22px;
+    border-radius: var(--radius-xs);
+    display: grid;
+    place-items: center;
+    background: rgba(var(--surface-card-rgb), 0.7);
+    font-size: var(--text-xs);
+    flex-shrink: 0;
+}
+
+.nav-book-item span {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.sidebar-footer {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 14px 8px 0;
+    border-top: 1px solid rgba(var(--surface-border-rgb), 0.14);
+}
+
+.footer-actions {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex-shrink: 0;
+}
+
+.topbar-right {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.footer-bell :deep(.bell-btn) {
+    width: 44px;
+    height: 44px;
+}
+
+.icon-btn {
+    width: 44px;
+    height: 44px;
+    border: none;
+    border-radius: var(--radius-md);
+    background: var(--surface-subtle);
+    color: var(--text-secondary);
+    display: grid;
+    place-items: center;
+    cursor: pointer;
+    transition: var(--transition);
+    font-size: var(--text-md);
+}
+.icon-btn:hover {
+    background: var(--surface-card);
+    color: var(--text-primary);
+}
+.icon-btn--logout:hover {
+    color: var(--color-error);
+    background: var(--color-error-bg);
+}
+
+.user-info {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    min-width: 0;
+    flex: 1;
+}
+
+.topbar-avatar-link {
+    display: inline-flex;
+    overflow: hidden;
+    border-radius: 50%;
+    text-decoration: none;
+}
+.user-avatar,
+.topbar-avatar {
+    width: 46px;
+    height: 46px;
+    border-radius: 50%;
+    overflow: hidden;
+    background: var(--gradient-brand);
+    color: var(--color-on-primary);
+    display: grid;
+    place-items: center;
+    font-weight: 800;
+    box-shadow: var(--shadow-indigo);
+    flex-shrink: 0;
+}
+
+.user-details {
+    min-width: 0;
+
+    display: none;
+}
+
+.user-name {
+    font-size: var(--text-md);
+    font-weight: 700;
+    color: var(--text-heading);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.user-role {
+    font-size: var(--text-sm);
+    color: var(--text-secondary);
+}
+
+.main-content {
+    flex: 1;
+    min-width: 0;
+}
+
+.drawer-backdrop {
+    display: none;
+}
+
+.student-bottom-nav {
+    display: none;
+}
+
+@media (max-width: 1100px) {
     .sidebar {
-        width: 280px;
-        flex-shrink: 0;
-        margin: 18px 0 18px 18px;
-        border-radius: 32px;
-        background: var(--surface-glass);
-        border: 1px solid var(--surface-glass-border);
-        box-shadow: var(--shadow-panel);
-        backdrop-filter: blur(18px);
-        display: flex;
-        flex-direction: column;
-        padding: 18px 14px 14px;
-        position: sticky;
-        top: 18px;
-        height: calc(100vh - 36px);
-        z-index: 25;
+        width: 250px;
+        margin: 16px 0 16px 16px;
+        height: calc(100vh - 32px);
     }
+}
 
-    .sidebar-brand,
-    .sidebar-brand-main,
-    .user-info,
-    .topbar-brand,
-    .nav-item,
-    .sidebar-footer {
-        display: flex;
-        align-items: center;
-    }
-
-    .sidebar-logo {
-        width: 120px;
-        display: block;
-    }
-
-    .topbar-logo {
-        width: 100px;
-        display: block;
-    }
-
-    .sidebar-brand {
-        justify-content: space-between;
-        align-items: center;
-        gap: 12px;
-        padding: 4px 8px 14px;
-        border-bottom: 1px solid rgba(var(--surface-border-rgb), 0.12);
-    }
-
-    .sidebar-brand-main,
-    .topbar-brand,
-    .user-info,
-    .nav-item {
-        gap: 12px;
-    }
-
-    .brand-icon {
-        width: 40px;
-        height: 40px;
-        border-radius: var(--radius-lg);
-        background: var(--gradient-brand);
-        color: var(--color-on-primary);
-        display: grid;
-        place-items: center;
-        font-weight: 800;
-        box-shadow: var(--shadow-indigo);
-    }
-
-    .brand-icon--large {
-        width: 48px;
-        height: 48px;
-        border-radius: var(--radius-xl);
-        font-size: var(--font-stat-value);
-    }
-
-    .brand-name {
-        font-size: 17px;
-        font-weight: 800;
-        color: var(--text-heading);
-    }
-
-    .brand-name--large {
-        font-size: var(--font-stat-value);
-    }
-
-    .brand-tag {
-        font-size: var(--text-sm);
-        color: var(--text-secondary);
-    }
-
-    .close-btn,
-    .topbar-btn,
-    .logout-btn {
-        width: 44px;
-        height: 44px;
-        border: none;
-        border-radius: var(--radius-lg);
-        background: var(--surface-subtle);
-        color: var(--text-secondary);
-        display: grid;
-        place-items: center;
-        cursor: pointer;
-        transition: var(--transition);
-    }
-
-    .close-btn:hover,
-    .topbar-btn:hover,
-    .logout-btn:hover {
-        background: var(--surface-card);
-        color: var(--text-primary);
-    }
-
-    .sidebar-nav {
-        flex: 1;
-        display: flex;
-        flex-direction: column;
-        gap: 6px;
-        margin-top: 16px;
-        overflow-y: auto;
-        overflow-x: hidden;
-        padding: 0 4px 8px;
-        scrollbar-width: thin;
-    }
-
-    .nav-section-label {
-        padding: 4px 10px 6px;
-        font-size: var(--text-xs);
-        font-weight: 800;
-        letter-spacing: 0.12em;
-        text-transform: uppercase;
-        color: var(--text-muted);
-    }
-
-    .nav-item {
-        position: relative;
-        padding: 10px 12px;
-        border-radius: var(--radius-xl);
-        color: var(--text-secondary);
-        font-size: var(--text-md);
-        font-weight: 700;
-        text-decoration: none;
-        transition: var(--transition);
-        min-height: 46px;
-    }
-
-    .nav-item:hover {
-        background: var(--surface-elevated-strong);
-        color: var(--text-heading);
-        transform: translateX(2px);
-    }
-
-    .nav-item-active {
-        background: var(--surface-card);
-        color: var(--practiq-violet-dark);
-        box-shadow: var(--shadow-card);
-    }
-
-    .nav-icon {
-        width: 30px;
-        height: 30px;
-        border-radius: var(--radius-md);
-        display: grid;
-        place-items: center;
-        background: rgba(var(--surface-border-rgb), 0.12);
-        color: var(--text-secondary);
-        flex-shrink: 0;
-    }
-
-    .nav-item:hover .nav-icon,
-    .nav-item-active .nav-icon,
-    .nav-item-btn:hover .nav-icon {
-        background: var(--gradient-brand);
-        color: var(--color-on-primary);
-    }
-
-    .nav-group {
-        display: flex;
-        flex-direction: column;
-    }
-
-    .nav-item-btn {
-        width: 100%;
-        background: none;
-        border: none;
-        cursor: pointer;
-        text-align: left;
-        justify-content: flex-start;
-        font-family: inherit;
-        font-size: var(--text-md);
-        font-weight: 700;
-    }
-
-    .nav-chevron {
-        margin-left: auto;
-        font-size: var(--text-xs);
-        opacity: 0.6;
-    }
-
-    .nav-sub {
-        margin-top: 6px;
-        padding: 8px 0 4px 12px;
-        display: flex;
-        flex-direction: column;
-        gap: 8px;
-        overflow: hidden;
-        border-left: 1px solid rgba(var(--surface-border-rgb), 0.16);
-    }
-
-    .nav-sub-loading {
-        display: flex;
-        align-items: center;
-        padding: 8px 12px;
-        color: var(--text-secondary);
-        font-size: var(--text-sm);
-        font-weight: 600;
-    }
-
-    .nav-sub-loading .pi-spinner {
-        color: var(--practiq-violet);
-        font-size: var(--text-sm);
-    }
-
-    .nav-sub-empty {
-        padding: 6px 12px;
-        font-size: var(--text-sm);
-        color: var(--text-secondary);
-    }
-
-    .nav-course-group {
-        display: flex;
-        flex-direction: column;
-        gap: 4px;
-        margin-bottom: 2px;
-    }
-
-    .nav-course-toggle {
-        display: flex;
-        align-items: center;
-        gap: 9px;
-        padding: 10px 11px;
-        border-radius: var(--radius-lg);
-        border: none;
-        background: rgba(var(--surface-card-rgb), 0.42);
-        cursor: pointer;
-        text-align: left;
-        transition: var(--transition);
-        width: 100%;
-    }
-    .nav-course-toggle:hover {
-        background: rgba(var(--practiq-violet-rgb), 0.1);
-    }
-    .nav-course-toggle .pi-graduation-cap {
-        width: 26px;
-        height: 26px;
-        border-radius: var(--radius-sm);
-        display: grid;
-        place-items: center;
-        background: var(--fill-primary-soft);
-        font-size: var(--text-sm);
-        color: var(--practiq-violet);
-        flex-shrink: 0;
-    }
-    .nav-course-toggle-title {
-        flex: 1;
-        font-size: var(--text-md);
-        font-weight: 700;
-        color: var(--text-primary);
-        white-space: nowrap;
-        overflow: hidden;
-        text-overflow: ellipsis;
-    }
-
-    .nav-level-group {
-        display: flex;
-        flex-direction: column;
-        gap: 4px;
-        padding-left: 6px;
-    }
-
-    .nav-level-row {
-        display: flex;
-        align-items: center;
-        gap: 8px;
-        padding: 8px 10px;
-        border-radius: var(--radius-md);
-        border: none;
-        background: transparent;
-        cursor: pointer;
-        width: 100%;
-        text-align: left;
-        transition: var(--transition);
-    }
-    .nav-level-row:hover:not(:disabled) {
-        background: var(--surface-elevated-strong);
-    }
-    .nav-level-row--current {
-        background: var(--fill-primary-subtle);
-    }
-    .nav-level-row--locked {
-        cursor: default;
-        opacity: 0.5;
-    }
-
-    .nav-level-badge {
-        width: 24px;
-        height: 24px;
-        border-radius: 7px;
-        background: var(--gradient-brand);
-        color: var(--color-on-primary);
-        font-size: var(--text-xs);
-        font-weight: 800;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        flex-shrink: 0;
-    }
-    .nav-level-badge--locked {
-        background: var(--fill-border-muted);
-        color: var(--text-muted);
-    }
-
-    .nav-level-label {
-        flex: 1;
-        font-size: var(--text-sm);
-        font-weight: 700;
-        color: var(--text-primary);
-    }
-
-    .nav-level-tag {
-        font-size: 10px;
-        font-weight: 700;
-        color: var(--practiq-violet);
-        background: var(--fill-primary-soft);
-        padding: 2px 7px;
-        border-radius: var(--radius-pill);
-        flex-shrink: 0;
-    }
-
-    .nav-section-tag {
-        font-size: 10px;
-        font-weight: 700;
-        text-transform: uppercase;
-        letter-spacing: 0.06em;
-        color: var(--text-muted);
-        padding: 7px 12px 2px;
-    }
-
-    .nav-book-item {
-        display: flex;
-        align-items: center;
-        gap: 8px;
-        padding: 8px 10px 8px 12px;
-        border-radius: var(--radius-md);
-        border: none;
-        background: rgba(var(--surface-bg-rgb), 0.5);
-        cursor: pointer;
-        font-size: var(--text-sm);
-        font-weight: 650;
-        color: var(--text-secondary);
-        text-align: left;
-        width: 100%;
-        transition: var(--transition);
-    }
-
-    .nav-book-item:hover {
-        background: var(--fill-primary-subtle);
-        color: var(--practiq-violet-dark);
-    }
-
-    .nav-book-item--practice:hover {
-        background: var(--fill-success-subtle);
-        color: var(--color-success-dark);
-    }
-
-    .nav-book-item--test:hover {
-        background: var(--fill-warning-subtle);
-        color: var(--color-warning-strong);
-    }
-
-    .nav-book-item--notebook:hover {
-        background: var(--fill-primary-subtle);
-        color: var(--practiq-violet);
-    }
-
-    .nav-book-item .pi {
-        width: 22px;
-        height: 22px;
-        border-radius: var(--radius-xs);
-        display: grid;
-        place-items: center;
-        background: rgba(var(--surface-card-rgb), 0.7);
-        font-size: var(--text-xs);
-        flex-shrink: 0;
-    }
-
-    .nav-book-item span {
-        min-width: 0;
-        overflow: hidden;
-        text-overflow: ellipsis;
-        white-space: nowrap;
-    }
-
-    .sidebar-footer {
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        gap: 12px;
-        padding: 14px 8px 0;
-        border-top: 1px solid rgba(var(--surface-border-rgb), 0.14);
-    }
-
-    .footer-actions {
-        display: flex;
-        align-items: center;
-        gap: 6px;
-        flex-shrink: 0;
-    }
-
-    .topbar-right {
-        display: flex;
-        align-items: center;
-        gap: 10px;
-    }
-
-    .footer-bell :deep(.bell-btn) {
-        width: 44px;
-        height: 44px;
-    }
-
-    .icon-btn {
-        width: 44px;
-        height: 44px;
-        border: none;
-        border-radius: var(--radius-md);
-        background: var(--surface-subtle);
-        color: var(--text-secondary);
-        display: grid;
-        place-items: center;
-        cursor: pointer;
-        transition: var(--transition);
-        font-size: var(--text-md);
-    }
-    .icon-btn:hover {
-        background: var(--surface-card);
-        color: var(--text-primary);
-    }
-    .icon-btn--logout:hover {
-        color: var(--color-error);
-        background: var(--color-error-bg);
-    }
-
-    .user-info {
-        display: flex;
-        align-items: center;
-        gap: 12px;
-        min-width: 0;
-        flex: 1;
-    }
-
-    .topbar-avatar-link {
-        display: inline-flex;
-        overflow: hidden;
-        border-radius: 50%;
-        text-decoration: none;
-    }
-    .user-avatar,
-    .topbar-avatar {
-        width: 46px;
-        height: 46px;
-        border-radius: 50%;
-        overflow: hidden;
-        background: var(--gradient-brand);
-        color: var(--color-on-primary);
-        display: grid;
-        place-items: center;
-        font-weight: 800;
-        box-shadow: var(--shadow-indigo);
-        flex-shrink: 0;
-    }
-
-    .user-details {
-        min-width: 0;
-
-        display: none;
-    }
-
-    .user-name {
-        font-size: var(--text-md);
-        font-weight: 700;
-        color: var(--text-heading);
-        white-space: nowrap;
-        overflow: hidden;
-        text-overflow: ellipsis;
-    }
-
-    .user-role {
-        font-size: var(--text-sm);
-        color: var(--text-secondary);
+@media (max-width: 1024px) {
+    .sidebar {
+        width: 220px;
+        margin: 12px 0 12px 12px;
+        height: calc(100vh - 24px);
     }
 
     .main-content {
-        flex: 1;
-        min-width: 0;
+        padding: 16px;
+    }
+
+    .sidebar-footer {
+        gap: 6px;
+        padding: 14px 4px 0;
+    }
+
+    .user-avatar {
+        width: 38px;
+        height: 38px;
+        font-size: var(--text-sm);
+    }
+
+    .footer-actions {
+        gap: 3px;
+    }
+
+    .icon-btn,
+    .footer-bell :deep(.bell-btn) {
+        width: 34px;
+        height: 34px;
+        font-size: var(--text-sm);
+    }
+}
+
+@media (max-width: 768px) {
+    .main-content {
+        padding: 12px;
+    }
+}
+
+@media (max-width: 920px) {
+    .main-content {
+        padding-bottom: calc(72px + 16px + env(safe-area-inset-bottom));
+    }
+
+    .app-shell {
+        display: block;
+    }
+
+    .mobile-topbar {
+        display: flex;
+        justify-content: space-between;
+        padding: 14px 16px 0;
+        position: sticky;
+        top: 0;
+        z-index: 30;
+        background: var(--gradient-mobile-topbar);
+        backdrop-filter: blur(16px);
+    }
+
+    .topbar-avatar {
+        width: 42px;
+        height: 42px;
+        border-radius: 50%;
     }
 
     .drawer-backdrop {
-        display: none;
+        display: block;
+        position: fixed;
+        inset: 0;
+        background: var(--surface-scrim);
+        z-index: 250;
+    }
+
+    .sidebar {
+        position: fixed;
+        top: 12px;
+        left: 12px;
+        margin: 0;
+        width: min(320px, calc(100vw - 24px));
+        height: calc(100vh - 24px);
+        transform: translateX(-110%);
+        transition: transform 0.24s ease;
+        z-index: 260;
+    }
+
+    .sidebar--open {
+        transform: translateX(0);
+    }
+
+    .user-details {
+        display: block;
+    }
+
+    .nav-item {
+        min-height: 52px;
+    }
+
+    .nav-level-row,
+    .nav-book-item,
+    .nav-course-toggle {
+        min-height: 48px;
     }
 
     .student-bottom-nav {
+        position: fixed;
+        z-index: 28;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        height: 72px;
+        display: grid;
+        grid-template-columns: repeat(4, 1fr);
+        padding: 7px 10px calc(7px + env(safe-area-inset-bottom));
+        background: var(--surface-glass);
+        border-top: 1px solid var(--surface-glass-border);
+        box-shadow: 0 -8px 28px rgba(var(--text-primary-rgb), 0.06);
+        backdrop-filter: blur(18px);
+    }
+    .student-bottom-nav__item {
+        min-width: 0;
+        display: grid;
+        place-items: center;
+        align-content: center;
+        gap: 4px;
+        border: 0;
+        background: transparent;
+        color: var(--text-secondary);
+        text-decoration: none;
+        font: inherit;
+        font-size: 10px;
+        font-weight: 700;
+        cursor: pointer;
+    }
+    .student-bottom-nav__item i {
+        font-size: 1.05rem;
+    }
+    .student-bottom-nav__item--active {
+        color: var(--practiq-violet-dark);
+    }
+    .student-bottom-nav__item--active i {
+        width: 40px;
+        height: 28px;
+        display: grid;
+        place-items: center;
+        border-radius: var(--radius-pill);
+        background: var(--fill-primary-soft);
+    }
+}
+
+@media (min-width: 921px) {
+    .close-btn {
         display: none;
     }
 
-    @media (max-width: 1100px) {
-        .sidebar {
-            width: 250px;
-            margin: 16px 0 16px 16px;
-            height: calc(100vh - 32px);
-        }
+    :global(.practiq-assistant-focus-target--open .sidebar) {
+        width: 76px;
+        margin-left: 12px;
+        padding: 14px 10px;
+        border-radius: 24px;
     }
 
-    @media (max-width: 1024px) {
-        .sidebar {
-            width: 220px;
-            margin: 12px 0 12px 12px;
-            height: calc(100vh - 24px);
-        }
-
-        .main-content {
-            padding: 16px;
-        }
-
-        .sidebar-footer {
-            gap: 6px;
-            padding: 14px 4px 0;
-        }
-
-        .user-avatar {
-            width: 38px;
-            height: 38px;
-            font-size: var(--text-sm);
-        }
-
-        .footer-actions {
-            gap: 3px;
-        }
-
-        .icon-btn,
-        .footer-bell :deep(.bell-btn) {
-            width: 34px;
-            height: 34px;
-            font-size: var(--text-sm);
-        }
+    :global(.practiq-assistant-focus-target--open .app-shell) {
+        min-width: 0;
     }
 
-    @media (max-width: 768px) {
-        .main-content {
-            padding: 12px;
-        }
+    :global(.practiq-assistant-focus-target--open .sidebar-brand) {
+        justify-content: center;
+        padding: 2px 0 12px;
     }
 
-    @media (max-width: 920px) {
-        .main-content {
-            padding-bottom: calc(72px + 16px + env(safe-area-inset-bottom));
-        }
-
-        .app-shell {
-            display: block;
-        }
-
-        .mobile-topbar {
-            display: flex;
-            justify-content: space-between;
-            padding: 14px 16px 0;
-            position: sticky;
-            top: 0;
-            z-index: 30;
-            background: var(--gradient-mobile-topbar);
-            backdrop-filter: blur(16px);
-        }
-
-        .topbar-avatar {
-            width: 42px;
-            height: 42px;
-            border-radius: 50%;
-        }
-
-        .drawer-backdrop {
-            display: block;
-            position: fixed;
-            inset: 0;
-            background: var(--surface-scrim);
-            z-index: 250;
-        }
-
-        .sidebar {
-            position: fixed;
-            top: 12px;
-            left: 12px;
-            margin: 0;
-            width: min(320px, calc(100vw - 24px));
-            height: calc(100vh - 24px);
-            transform: translateX(-110%);
-            transition: transform 0.24s ease;
-            z-index: 260;
-        }
-
-        .sidebar--open {
-            transform: translateX(0);
-        }
-
-        .user-details {
-            display: block;
-        }
-
-        .nav-item {
-            min-height: 52px;
-        }
-
-        .nav-level-row,
-        .nav-book-item,
-        .nav-course-toggle {
-            min-height: 48px;
-        }
-
-        .student-bottom-nav {
-            position: fixed;
-            z-index: 28;
-            left: 0;
-            right: 0;
-            bottom: 0;
-            height: 72px;
-            display: grid;
-            grid-template-columns: repeat(4, 1fr);
-            padding: 7px 10px calc(7px + env(safe-area-inset-bottom));
-            background: var(--surface-glass);
-            border-top: 1px solid var(--surface-glass-border);
-            box-shadow: 0 -8px 28px rgba(var(--text-primary-rgb), 0.06);
-            backdrop-filter: blur(18px);
-        }
-        .student-bottom-nav__item {
-            min-width: 0;
-            display: grid;
-            place-items: center;
-            align-content: center;
-            gap: 4px;
-            border: 0;
-            background: transparent;
-            color: var(--text-secondary);
-            text-decoration: none;
-            font: inherit;
-            font-size: 10px;
-            font-weight: 700;
-            cursor: pointer;
-        }
-        .student-bottom-nav__item i {
-            font-size: 1.05rem;
-        }
-        .student-bottom-nav__item--active {
-            color: var(--practiq-violet-dark);
-        }
-        .student-bottom-nav__item--active i {
-            width: 40px;
-            height: 28px;
-            display: grid;
-            place-items: center;
-            border-radius: var(--radius-pill);
-            background: var(--fill-primary-soft);
-        }
+    :global(.practiq-assistant-focus-target--open .sidebar-logo) {
+        width: 40px;
+        height: 40px;
+        object-fit: cover;
+        object-position: left center;
     }
 
-    @media (min-width: 921px) {
-        .close-btn {
-            display: none;
-        }
-
-        :global(.practiq-assistant-focus-target--open .sidebar) {
-            width: 76px;
-            margin-left: 12px;
-            padding: 14px 10px;
-            border-radius: 24px;
-        }
-
-        :global(.practiq-assistant-focus-target--open .app-shell) {
-            min-width: 0;
-        }
-
-        :global(.practiq-assistant-focus-target--open .sidebar-brand) {
-            justify-content: center;
-            padding: 2px 0 12px;
-        }
-
-        :global(.practiq-assistant-focus-target--open .sidebar-logo) {
-            width: 40px;
-            height: 40px;
-            object-fit: cover;
-            object-position: left center;
-        }
-
-        :global(.practiq-assistant-focus-target--open .sidebar-nav) {
-            align-items: center;
-            padding: 0;
-        }
-
-        :global(.practiq-assistant-focus-target--open .nav-section-label),
-        :global(.practiq-assistant-focus-target--open .nav-item > span:not(.nav-icon)),
-        :global(.practiq-assistant-focus-target--open .nav-chevron),
-        :global(.practiq-assistant-focus-target--open .nav-sub) {
-            display: none;
-        }
-
-        :global(.practiq-assistant-focus-target--open .nav-group),
-        :global(.practiq-assistant-focus-target--open .nav-item) {
-            width: 100%;
-        }
-
-        :global(.practiq-assistant-focus-target--open .nav-item) {
-            justify-content: center;
-            padding: 8px;
-        }
-
-        :global(.practiq-assistant-focus-target--open .sidebar-footer) {
-            flex-direction: column;
-            padding: 10px 0 0;
-            gap: 8px;
-        }
-
-        :global(.practiq-assistant-focus-target--open .user-details) {
-            display: none;
-        }
-
-        :global(.practiq-assistant-focus-target--open .user-info),
-        :global(.practiq-assistant-focus-target--open .footer-actions) {
-            flex: 0 0 auto;
-        }
-
-        :global(.practiq-assistant-focus-target--open .footer-actions) {
-            flex-direction: column;
-        }
+    :global(.practiq-assistant-focus-target--open .sidebar-nav) {
+        align-items: center;
+        padding: 0;
     }
+
+    :global(.practiq-assistant-focus-target--open .nav-section-label),
+    :global(.practiq-assistant-focus-target--open .nav-item > span:not(.nav-icon)),
+    :global(.practiq-assistant-focus-target--open .nav-chevron),
+    :global(.practiq-assistant-focus-target--open .nav-sub) {
+        display: none;
+    }
+
+    :global(.practiq-assistant-focus-target--open .nav-group),
+    :global(.practiq-assistant-focus-target--open .nav-item) {
+        width: 100%;
+    }
+
+    :global(.practiq-assistant-focus-target--open .nav-item) {
+        justify-content: center;
+        padding: 8px;
+    }
+
+    :global(.practiq-assistant-focus-target--open .sidebar-footer) {
+        flex-direction: column;
+        padding: 10px 0 0;
+        gap: 8px;
+    }
+
+    :global(.practiq-assistant-focus-target--open .user-details) {
+        display: none;
+    }
+
+    :global(.practiq-assistant-focus-target--open .user-info),
+    :global(.practiq-assistant-focus-target--open .footer-actions) {
+        flex: 0 0 auto;
+    }
+
+    :global(.practiq-assistant-focus-target--open .footer-actions) {
+        flex-direction: column;
+    }
+}
 </style>

@@ -1,268 +1,267 @@
 <script setup lang="ts">
-    import UiModal from '@/components/ui/UiModal.vue';
-    import { computed, onMounted, reactive, ref, watch } from 'vue';
-    import { useRouter } from 'vue-router';
-    import TeacherLayout from '@/layouts/TeacherLayout.vue';
-    import Skeleton from '@/components/ui/Skeleton.vue';
-    import ConfirmModal from '@/components/ui/ConfirmModal.vue';
-    import { useConfirm } from '@/composables/useConfirm';
-    import { useCourse } from '@/composables/useCourse';
-    import { useGrade } from '@/composables/useGrade';
-    import { useSubject } from '@/composables/useSubject';
-    import type { Course, Grade, Subject } from '@/types';
-    import { useSchools } from '@/composables/useSchools';
+import UiModal from '@/components/ui/UiModal.vue';
+import { computed, onMounted, reactive, ref, watch } from 'vue';
+import { useRouter } from 'vue-router';
+import TeacherLayout from '@/layouts/TeacherLayout.vue';
+import Skeleton from '@/components/ui/Skeleton.vue';
+import ConfirmModal from '@/components/ui/ConfirmModal.vue';
+import { useConfirm } from '@/composables/useConfirm';
+import { useCourse } from '@/composables/useCourse';
+import { useGrade } from '@/composables/useGrade';
+import { useSubject } from '@/composables/useSubject';
+import type { Course, Grade, Subject } from '@/types';
+import { useSchools } from '@/composables/useSchools';
 
-    const router = useRouter();
-    const { confirmState, showConfirm, onConfirm, onCancel } = useConfirm();
-    const {
-        courses,
-        loadCourses,
-        createCourse: createCourseService,
-        updateCourse: updateCourseService,
-        deleteCourse: deleteCourseService,
-    } = useCourse();
-    const {
-        grades,
-        loadGrades,
-        createGrade: createGradeService,
-        updateGrade: updateGradeService,
-        deleteGrade: deleteGradeService,
-    } = useGrade();
-    const {
-        subjects,
-        loadSubjects,
-        createSubject: createSubjectService,
-        updateSubject: updateSubjectService,
-        deleteSubject: deleteSubjectService,
-    } = useSubject();
+const router = useRouter();
+const { confirmState, showConfirm, onConfirm, onCancel } = useConfirm();
+const {
+    courses,
+    loadCourses,
+    createCourse: createCourseService,
+    updateCourse: updateCourseService,
+    deleteCourse: deleteCourseService,
+} = useCourse();
+const {
+    grades,
+    loadGrades,
+    createGrade: createGradeService,
+    updateGrade: updateGradeService,
+    deleteGrade: deleteGradeService,
+} = useGrade();
+const {
+    subjects,
+    loadSubjects,
+    createSubject: createSubjectService,
+    updateSubject: updateSubjectService,
+    deleteSubject: deleteSubjectService,
+} = useSubject();
 
-    const loading = ref(false);
-    const { activeId, active } = useSchools();
-    const saving = ref(false);
-    const selectedGradeId = ref<string | null>(null);
+const loading = ref(false);
+const { activeId, active } = useSchools();
+const saving = ref(false);
+const selectedGradeId = ref<string | null>(null);
 
-    const showGradeModal = ref(false);
-    const showCourseModal = ref(false);
-    const showSubjectCatalog = ref(false);
+const showGradeModal = ref(false);
+const showCourseModal = ref(false);
+const showSubjectCatalog = ref(false);
 
-    const editingGrade = ref<Grade | null>(null);
-    const editingCourse = ref<Course | null>(null);
-    const editingSubject = ref<{
-        id: string;
-        name: string;
-        description: string;
-    } | null>(null);
+const editingGrade = ref<Grade | null>(null);
+const editingCourse = ref<Course | null>(null);
+const editingSubject = ref<{
+    id: string;
+    name: string;
+    description: string;
+} | null>(null);
 
-    const gradeForm = reactive({
-        name: '',
-        description: '',
-        visualTheme: 'primary' as 'primary' | 'secondary',
-    });
-    const courseForm = reactive({
-        subjectId: '',
-        title: '',
-        description: '',
-        level: '',
-    });
-    const subjectForm = reactive({ name: '', description: '' });
+const gradeForm = reactive({
+    name: '',
+    description: '',
+    visualTheme: 'primary' as 'primary' | 'secondary',
+});
+const courseForm = reactive({
+    subjectId: '',
+    title: '',
+    description: '',
+    level: '',
+});
+const subjectForm = reactive({ name: '', description: '' });
 
-    const selectedGrade = computed(
-        () => grades.value.find((g) => g.id === selectedGradeId.value) ?? null,
-    );
-    const selectedCourses = computed(() =>
-        courses.value.filter((c) => c.grade_id === selectedGradeId.value),
-    );
+const selectedGrade = computed(
+    () => grades.value.find((g) => g.id === selectedGradeId.value) ?? null,
+);
+const selectedCourses = computed(() =>
+    courses.value.filter((c) => c.grade_id === selectedGradeId.value),
+);
 
-    function gradeCourses(gradeId: string) {
-        return courses.value.filter((c) => c.grade_id === gradeId);
-    }
+function gradeCourses(gradeId: string) {
+    return courses.value.filter((c) => c.grade_id === gradeId);
+}
 
-    function subjectCourseCount(subjectId: string) {
-        return courses.value.filter((c) => c.subject_id === subjectId).length;
-    }
+function subjectCourseCount(subjectId: string) {
+    return courses.value.filter((c) => c.subject_id === subjectId).length;
+}
 
-    onMounted(loadData);
-    watch(activeId, () => {
-        selectedGradeId.value = null;
-        loadData();
-    });
+onMounted(loadData);
+watch(activeId, () => {
+    selectedGradeId.value = null;
+    loadData();
+});
 
-    async function loadData() {
-        loading.value = true;
-        try {
-            await Promise.all([loadGrades(), loadSubjects(), loadCourses('teacher')]);
-            if (!selectedGradeId.value && grades.value.length > 0) {
-                selectedGradeId.value = grades.value[0].id;
-            }
-        } finally {
-            loading.value = false;
-        }
-    }
-
-    function openCreateGrade() {
-        editingGrade.value = null;
-        gradeForm.name = '';
-        gradeForm.description = '';
-        gradeForm.visualTheme = 'primary';
-        showGradeModal.value = true;
-    }
-
-    function openEditGrade(grade: Grade) {
-        editingGrade.value = grade;
-        gradeForm.name = grade.name;
-        gradeForm.description = grade.description || '';
-        gradeForm.visualTheme = grade.visual_theme || 'primary';
-        showGradeModal.value = true;
-    }
-
-    function closeGradeModal() {
-        showGradeModal.value = false;
-        editingGrade.value = null;
-    }
-
-    async function submitGrade() {
-        saving.value = true;
-        try {
-            if (editingGrade.value) {
-                await updateGradeService(editingGrade.value.id, {
-                    name: gradeForm.name,
-                    description: gradeForm.description,
-                    visual_theme: gradeForm.visualTheme,
-                });
-            } else {
-                const grade = await createGradeService({
-                    name: gradeForm.name,
-                    description: gradeForm.description,
-                    visual_theme: gradeForm.visualTheme,
-                });
-                selectedGradeId.value = grade.id;
-            }
-            closeGradeModal();
-            await loadData();
-        } finally {
-            saving.value = false;
-        }
-    }
-
-    async function confirmDeleteGrade(id: string) {
-        const ok = await showConfirm('¿Eliminar este grado?', {
-            description: 'Los cursos asociados también se perderán.',
-        });
-        if (!ok) return;
-        if (selectedGradeId.value === id) selectedGradeId.value = null;
-        await deleteGradeService(id);
-        await loadData();
+async function loadData() {
+    loading.value = true;
+    try {
+        await Promise.all([loadGrades(), loadSubjects(), loadCourses('teacher')]);
         if (!selectedGradeId.value && grades.value.length > 0) {
             selectedGradeId.value = grades.value[0].id;
         }
+    } finally {
+        loading.value = false;
     }
+}
 
-    function openCreateCourse() {
-        editingCourse.value = null;
-        courseForm.subjectId = '';
-        courseForm.title = '';
-        courseForm.description = '';
-        courseForm.level = '';
-        showCourseModal.value = true;
-    }
+function openCreateGrade() {
+    editingGrade.value = null;
+    gradeForm.name = '';
+    gradeForm.description = '';
+    gradeForm.visualTheme = 'primary';
+    showGradeModal.value = true;
+}
 
-    function openEditCourse(course: Course) {
-        editingCourse.value = course;
-        courseForm.subjectId = course.subject_id || '';
-        courseForm.title = course.title;
-        courseForm.description = course.description || '';
-        courseForm.level = course.level || '';
-        showCourseModal.value = true;
-    }
+function openEditGrade(grade: Grade) {
+    editingGrade.value = grade;
+    gradeForm.name = grade.name;
+    gradeForm.description = grade.description || '';
+    gradeForm.visualTheme = grade.visual_theme || 'primary';
+    showGradeModal.value = true;
+}
 
-    function closeCourseModal() {
-        showCourseModal.value = false;
-        editingCourse.value = null;
-    }
+function closeGradeModal() {
+    showGradeModal.value = false;
+    editingGrade.value = null;
+}
 
-    async function submitCourse() {
-        if (!selectedGrade.value) return;
-        saving.value = true;
-        try {
-            const subjectName =
-                subjects.value.find((s) => s.id === courseForm.subjectId)?.name || '';
-            if (editingCourse.value) {
-                await updateCourseService(editingCourse.value.id, {
-                    title: courseForm.title,
-                    description: courseForm.description,
-                    grade_id: selectedGrade.value.id,
-                    subject_id: courseForm.subjectId,
-                    subject: subjectName,
-                    level: courseForm.level,
-                });
-            } else {
-                await createCourseService({
-                    title: courseForm.title,
-                    description: courseForm.description,
-                    grade_id: selectedGrade.value.id,
-                    subject_id: courseForm.subjectId,
-                    subject: subjectName,
-                    level: courseForm.level,
-                });
-            }
-            closeCourseModal();
-        } finally {
-            saving.value = false;
-        }
-    }
-
-    async function confirmDeleteCourse(id: string) {
-        const ok = await showConfirm('¿Eliminar este curso?');
-        if (!ok) return;
-        await deleteCourseService(id);
-    }
-
-    async function createSubject() {
-        saving.value = true;
-        try {
-            await createSubjectService({
-                name: subjectForm.name,
-                description: subjectForm.description,
+async function submitGrade() {
+    saving.value = true;
+    try {
+        if (editingGrade.value) {
+            await updateGradeService(editingGrade.value.id, {
+                name: gradeForm.name,
+                description: gradeForm.description,
+                visual_theme: gradeForm.visualTheme,
             });
-            subjectForm.name = '';
-            subjectForm.description = '';
-            await loadData();
-        } finally {
-            saving.value = false;
-        }
-    }
-
-    function startEditSubject(subject: Subject) {
-        editingSubject.value = {
-            id: subject.id,
-            name: subject.name,
-            description: subject.description || '',
-        };
-    }
-
-    async function saveSubject() {
-        if (!editingSubject.value) return;
-        saving.value = true;
-        try {
-            await updateSubjectService(editingSubject.value.id, {
-                name: editingSubject.value.name,
-                description: editingSubject.value.description,
+        } else {
+            const grade = await createGradeService({
+                name: gradeForm.name,
+                description: gradeForm.description,
+                visual_theme: gradeForm.visualTheme,
             });
-            editingSubject.value = null;
-            await loadData();
-        } finally {
-            saving.value = false;
+            selectedGradeId.value = grade.id;
         }
-    }
-
-    async function confirmDeleteSubject(id: string) {
-        const ok = await showConfirm('¿Eliminar esta materia?', {
-            description: 'Los cursos asociados a esta materia también se perderán.',
-        });
-        if (!ok) return;
-        await deleteSubjectService(id);
+        closeGradeModal();
         await loadData();
+    } finally {
+        saving.value = false;
     }
+}
+
+async function confirmDeleteGrade(id: string) {
+    const ok = await showConfirm('¿Eliminar este grado?', {
+        description: 'Los cursos asociados también se perderán.',
+    });
+    if (!ok) return;
+    if (selectedGradeId.value === id) selectedGradeId.value = null;
+    await deleteGradeService(id);
+    await loadData();
+    if (!selectedGradeId.value && grades.value.length > 0) {
+        selectedGradeId.value = grades.value[0].id;
+    }
+}
+
+function openCreateCourse() {
+    editingCourse.value = null;
+    courseForm.subjectId = '';
+    courseForm.title = '';
+    courseForm.description = '';
+    courseForm.level = '';
+    showCourseModal.value = true;
+}
+
+function openEditCourse(course: Course) {
+    editingCourse.value = course;
+    courseForm.subjectId = course.subject_id || '';
+    courseForm.title = course.title;
+    courseForm.description = course.description || '';
+    courseForm.level = course.level || '';
+    showCourseModal.value = true;
+}
+
+function closeCourseModal() {
+    showCourseModal.value = false;
+    editingCourse.value = null;
+}
+
+async function submitCourse() {
+    if (!selectedGrade.value) return;
+    saving.value = true;
+    try {
+        const subjectName = subjects.value.find((s) => s.id === courseForm.subjectId)?.name || '';
+        if (editingCourse.value) {
+            await updateCourseService(editingCourse.value.id, {
+                title: courseForm.title,
+                description: courseForm.description,
+                grade_id: selectedGrade.value.id,
+                subject_id: courseForm.subjectId,
+                subject: subjectName,
+                level: courseForm.level,
+            });
+        } else {
+            await createCourseService({
+                title: courseForm.title,
+                description: courseForm.description,
+                grade_id: selectedGrade.value.id,
+                subject_id: courseForm.subjectId,
+                subject: subjectName,
+                level: courseForm.level,
+            });
+        }
+        closeCourseModal();
+    } finally {
+        saving.value = false;
+    }
+}
+
+async function confirmDeleteCourse(id: string) {
+    const ok = await showConfirm('¿Eliminar este curso?');
+    if (!ok) return;
+    await deleteCourseService(id);
+}
+
+async function createSubject() {
+    saving.value = true;
+    try {
+        await createSubjectService({
+            name: subjectForm.name,
+            description: subjectForm.description,
+        });
+        subjectForm.name = '';
+        subjectForm.description = '';
+        await loadData();
+    } finally {
+        saving.value = false;
+    }
+}
+
+function startEditSubject(subject: Subject) {
+    editingSubject.value = {
+        id: subject.id,
+        name: subject.name,
+        description: subject.description || '',
+    };
+}
+
+async function saveSubject() {
+    if (!editingSubject.value) return;
+    saving.value = true;
+    try {
+        await updateSubjectService(editingSubject.value.id, {
+            name: editingSubject.value.name,
+            description: editingSubject.value.description,
+        });
+        editingSubject.value = null;
+        await loadData();
+    } finally {
+        saving.value = false;
+    }
+}
+
+async function confirmDeleteSubject(id: string) {
+    const ok = await showConfirm('¿Eliminar esta materia?', {
+        description: 'Los cursos asociados a esta materia también se perderán.',
+    });
+    if (!ok) return;
+    await deleteSubjectService(id);
+    await loadData();
+}
 </script>
 
 <template>
@@ -769,985 +768,985 @@
 </template>
 
 <style scoped>
-    .ac-root {
-        display: flex;
-        flex-direction: column;
-        min-height: 100vh;
-        padding: 24px 28px 40px;
-        background: transparent;
-        gap: 18px;
-    }
+.ac-root {
+    display: flex;
+    flex-direction: column;
+    min-height: 100vh;
+    padding: 24px 28px 40px;
+    background: transparent;
+    gap: 18px;
+}
 
-    .catalog-button__badge {
-        min-width: 20px;
-        height: 20px;
-        padding: 0 6px;
-        border-radius: var(--radius-pill);
-        background: rgba(255, 255, 255, 0.2);
-        color: var(--color-on-primary);
-        font-size: var(--text-xs);
-        font-weight: 800;
-        display: grid;
-        place-items: center;
-    }
+.catalog-button__badge {
+    min-width: 20px;
+    height: 20px;
+    padding: 0 6px;
+    border-radius: var(--radius-pill);
+    background: rgba(255, 255, 255, 0.2);
+    color: var(--color-on-primary);
+    font-size: var(--text-xs);
+    font-weight: 800;
+    display: grid;
+    place-items: center;
+}
 
-    .ac-loading {
-        flex: 1;
-        display: flex;
-        flex-direction: column;
-        align-items: center;
-        justify-content: center;
-        gap: 12px;
-        color: var(--text-muted);
-        font-size: var(--text-md);
-    }
+.ac-loading {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+    color: var(--text-muted);
+    font-size: var(--text-md);
+}
 
-    .onboarding {
-        flex: 1;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        padding: 48px 24px;
-    }
+.onboarding {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 48px 24px;
+}
 
-    .onboarding__card {
-        background: var(--surface-elevated);
-        border: 1px solid var(--surface-elevated-strong);
-        border-radius: var(--radius-2xl);
-        padding: 24px 28px;
-        max-width: 500px;
-        width: 100%;
-        box-shadow: var(--shadow-soft);
-        display: flex;
-        flex-direction: column;
-        align-items: center;
-        gap: 14px;
-        text-align: center;
-    }
+.onboarding__card {
+    background: var(--surface-elevated);
+    border: 1px solid var(--surface-elevated-strong);
+    border-radius: var(--radius-2xl);
+    padding: 24px 28px;
+    max-width: 500px;
+    width: 100%;
+    box-shadow: var(--shadow-soft);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 14px;
+    text-align: center;
+}
 
-    .onboarding__icon {
-        width: 64px;
-        height: 64px;
-        border-radius: var(--radius-2xl);
-        background: var(--fill-primary-soft);
-        color: var(--practiq-violet);
-        font-size: 28px;
-        display: grid;
-        place-items: center;
-    }
+.onboarding__icon {
+    width: 64px;
+    height: 64px;
+    border-radius: var(--radius-2xl);
+    background: var(--fill-primary-soft);
+    color: var(--practiq-violet);
+    font-size: 28px;
+    display: grid;
+    place-items: center;
+}
 
-    .onboarding__card h2 {
-        font-size: 17px;
-        font-weight: 800;
-        color: var(--text-heading);
-        margin: 0;
-    }
+.onboarding__card h2 {
+    font-size: 17px;
+    font-weight: 800;
+    color: var(--text-heading);
+    margin: 0;
+}
 
-    .onboarding__card > p {
-        font-size: var(--text-md);
-        color: var(--text-secondary);
-        margin: 0;
-    }
+.onboarding__card > p {
+    font-size: var(--text-md);
+    color: var(--text-secondary);
+    margin: 0;
+}
 
-    .steps-list {
-        list-style: none;
-        margin: 0;
-        padding: 0;
-        width: 100%;
-        display: flex;
-        flex-direction: column;
-        gap: 10px;
-        text-align: left;
-    }
+.steps-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    text-align: left;
+}
 
-    .step-item {
-        display: flex;
-        align-items: flex-start;
-        gap: 14px;
-        padding: 9px 12px;
-        background: var(--surface-bg);
-        border: 1px solid rgba(var(--surface-border-rgb), 0.14);
-        border-radius: var(--radius-lg);
-    }
+.step-item {
+    display: flex;
+    align-items: flex-start;
+    gap: 14px;
+    padding: 9px 12px;
+    background: var(--surface-bg);
+    border: 1px solid rgba(var(--surface-border-rgb), 0.14);
+    border-radius: var(--radius-lg);
+}
 
-    .step-num {
-        width: 26px;
-        height: 26px;
-        border-radius: 50%;
-        background: var(--practiq-violet);
-        color: var(--color-on-primary);
-        font-weight: 800;
-        font-size: var(--text-sm);
-        display: grid;
-        place-items: center;
-        flex-shrink: 0;
-    }
+.step-num {
+    width: 26px;
+    height: 26px;
+    border-radius: 50%;
+    background: var(--practiq-violet);
+    color: var(--color-on-primary);
+    font-weight: 800;
+    font-size: var(--text-sm);
+    display: grid;
+    place-items: center;
+    flex-shrink: 0;
+}
 
-    .step-item div {
-        display: flex;
-        flex-direction: column;
-        gap: 3px;
-        padding-top: 4px;
-    }
+.step-item div {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    padding-top: 4px;
+}
 
-    .step-item strong {
-        font-size: var(--text-base);
-        color: var(--text-heading);
-    }
+.step-item strong {
+    font-size: var(--text-base);
+    color: var(--text-heading);
+}
 
-    .step-item span {
-        font-size: var(--text-sm);
-        color: var(--text-secondary);
-        line-height: 1.5;
-    }
+.step-item span {
+    font-size: var(--text-sm);
+    color: var(--text-secondary);
+    line-height: 1.5;
+}
 
-    .onboarding__actions {
-        display: flex;
-        gap: 10px;
-        flex-wrap: wrap;
-        justify-content: center;
-    }
+.onboarding__actions {
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+    justify-content: center;
+}
 
-    .ac-layout {
-        flex: 1;
-        display: grid;
-        grid-template-columns: 248px 1fr;
-        align-items: start;
-        min-height: 0;
-        overflow: hidden;
-        gap: 18px;
-    }
+.ac-layout {
+    flex: 1;
+    display: grid;
+    grid-template-columns: 248px 1fr;
+    align-items: start;
+    min-height: 0;
+    overflow: hidden;
+    gap: 18px;
+}
 
+.grade-sidebar {
+    display: flex;
+    flex-direction: column;
+    background: var(--surface-glass);
+    border: 1px solid var(--surface-elevated-strong);
+    border-radius: var(--radius-2xl);
+    box-shadow: var(--shadow-card);
+    overflow: hidden;
+}
+
+.sidebar-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    padding: 12px 12px 10px;
+    flex-shrink: 0;
+    border-bottom: 1px solid rgba(var(--surface-border-rgb), 0.14);
+}
+
+.sidebar-label {
+    font-size: var(--text-xs);
+    font-weight: 700;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--text-muted);
+}
+
+.grade-nav {
+    flex: 1;
+    overflow-y: auto;
+    padding: 4px 8px;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+.grade-mobile-select {
+    display: none;
+}
+.school-crumb {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.grade-nav-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 7px 10px;
+    border-radius: var(--radius-sm);
+    border: none;
+    background: none;
+    text-align: left;
+    cursor: pointer;
+    width: 100%;
+    transition: var(--transition-fast);
+}
+.grade-nav-item:hover {
+    background: var(--fill-primary-faint);
+}
+.grade-nav-item--active {
+    background: var(--fill-primary-soft);
+}
+.grade-nav-item--active .grade-nav-item__name {
+    color: var(--practiq-violet-dark);
+    font-weight: 700;
+}
+.grade-nav-item--active .grade-nav-item__dot {
+    background: var(--practiq-violet);
+}
+.grade-nav-item--active .grade-nav-item__count {
+    background: var(--fill-primary-soft);
+    color: var(--practiq-violet-dark);
+}
+
+.grade-nav-item__dot {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: var(--surface-border);
+    flex-shrink: 0;
+    transition: background 0.12s;
+}
+
+.grade-nav-item__name {
+    flex: 1;
+    font-size: var(--text-base);
+    color: var(--text-secondary);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.grade-nav-item__count {
+    font-size: var(--text-xs);
+    font-weight: 700;
+    color: var(--text-muted);
+    background: var(--surface-hover);
+    border-radius: var(--radius-pill);
+    padding: 2px 8px;
+    flex-shrink: 0;
+    transition: all 0.12s;
+}
+
+.sidebar-add-btn {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 7px 10px;
+    border: 1px solid rgba(var(--practiq-violet-rgb), 0.18);
+    border-radius: var(--radius-md);
+    background: var(--fill-primary-faint);
+    color: var(--practiq-violet-dark);
+    font-size: var(--text-sm);
+    font-weight: 700;
+    cursor: pointer;
+    transition: var(--transition-fast);
+    flex-shrink: 0;
+}
+.sidebar-add-btn:hover {
+    background: var(--fill-primary-soft);
+    border-color: rgba(var(--practiq-violet-rgb), 0.28);
+    color: var(--practiq-violet);
+}
+
+.grade-content {
+    min-width: 0;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    background: var(--surface-glass);
+    border: 1px solid var(--surface-elevated-strong);
+    border-radius: var(--radius-2xl);
+    box-shadow: var(--shadow-card);
+}
+
+@media (min-width: 821px) {
     .grade-sidebar {
-        display: flex;
-        flex-direction: column;
-        background: var(--surface-glass);
-        border: 1px solid var(--surface-elevated-strong);
-        border-radius: var(--radius-2xl);
-        box-shadow: var(--shadow-card);
-        overflow: hidden;
+        position: sticky;
+        top: 20px;
+        max-height: calc(100dvh - 40px);
     }
+}
 
-    .sidebar-header {
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        gap: 10px;
-        padding: 12px 12px 10px;
-        flex-shrink: 0;
-        border-bottom: 1px solid rgba(var(--surface-border-rgb), 0.14);
+.select-hint {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    color: var(--text-muted);
+    font-size: var(--text-md);
+}
+
+.grade-header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 16px;
+    padding: 18px 20px 16px;
+    background: transparent;
+    border-bottom: 1px solid rgba(var(--surface-border-rgb), 0.14);
+    flex-shrink: 0;
+}
+
+.grade-header__name {
+    font-size: var(--text-lg);
+    font-weight: 800;
+    color: var(--text-heading);
+    margin: 0 0 3px;
+}
+
+.grade-header__desc {
+    font-size: var(--text-base);
+    color: var(--text-secondary);
+    margin: 0;
+}
+
+.grade-header__actions {
+    display: flex;
+    gap: 8px;
+    flex-shrink: 0;
+    padding-top: 2px;
+}
+
+.courses-area {
+    flex: 1;
+    padding: 18px 20px 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.courses-area__head {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 16px;
+}
+
+.courses-area__head h3 {
+    font-size: var(--text-md);
+    font-weight: 700;
+    color: var(--text-heading);
+    margin: 0 0 4px;
+}
+.courses-area__head h3 em {
+    font-style: normal;
+    color: var(--practiq-violet);
+}
+
+.courses-area__hint {
+    font-size: var(--text-sm);
+    color: var(--text-muted);
+    margin: 0;
+}
+
+.courses-empty {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 10px;
+    padding: 32px 20px;
+    background: var(--surface-glass);
+    border: 1.5px dashed rgba(var(--surface-border-rgb), 0.3);
+    border-radius: var(--radius-2xl);
+    text-align: center;
+}
+.courses-empty__icon {
+    width: 48px;
+    height: 48px;
+    border-radius: var(--radius-xl);
+    background: var(--fill-primary-subtle);
+    color: var(--practiq-violet);
+    font-size: 22px;
+    display: grid;
+    place-items: center;
+    margin: 0 auto;
+}
+.courses-empty p {
+    font-size: var(--text-md);
+    color: var(--text-secondary);
+    margin: 0;
+    font-weight: 600;
+}
+.courses-empty__sub {
+    font-size: var(--text-base);
+    color: var(--text-muted) !important;
+    font-weight: 400 !important;
+}
+
+.courses-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+    gap: 14px;
+}
+
+.course-card {
+    background: var(--surface-elevated);
+    border: 1px solid var(--surface-elevated-strong);
+    border-radius: var(--radius-2xl);
+    box-shadow: var(--shadow-card);
+    overflow: hidden;
+    cursor: pointer;
+    display: flex;
+    flex-direction: column;
+    transition: var(--transition);
+}
+.course-card:hover {
+    border-color: rgba(var(--practiq-violet-rgb), 0.22);
+    box-shadow: var(--shadow-card-lg);
+    transform: translateY(-2px);
+}
+
+.course-card__open {
+    display: flex;
+    flex: 1;
+    flex-direction: column;
+    color: inherit;
+    text-decoration: none;
+}
+
+.course-card__subject-bar {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    padding: 7px 10px;
+    background: var(--color-info-bg);
+    color: var(--color-info-dark);
+    font-size: var(--text-xs);
+    font-weight: 700;
+    border-bottom: 1px solid rgba(var(--color-info-rgb), 0.14);
+}
+
+.course-card__actions {
+    display: flex;
+    gap: 4px;
+    margin-left: auto;
+    opacity: 0;
+    transition: opacity 0.15s;
+}
+.course-card:hover .course-card__actions {
+    opacity: 1;
+}
+
+.card-action-btn {
+    width: 24px;
+    height: 24px;
+    border-radius: var(--radius-xs);
+    border: none;
+    background: rgba(var(--surface-card-rgb), 0.7);
+    color: var(--color-info-dark);
+    cursor: pointer;
+    display: grid;
+    place-items: center;
+    font-size: var(--text-xs);
+    transition: all 0.12s;
+}
+.card-action-btn:hover {
+    background: var(--surface-card);
+}
+.card-action-btn--danger:hover {
+    color: var(--color-error);
+}
+
+.course-card__body {
+    padding: 10px;
+    flex: 1;
+}
+
+.course-card__title {
+    font-size: var(--text-base);
+    font-weight: 700;
+    color: var(--text-heading);
+    margin: 0 0 6px;
+    line-height: 1.4;
+}
+
+.course-card__desc {
+    font-size: var(--text-xs);
+    color: var(--text-secondary);
+    margin: 0;
+    line-height: 1.5;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+}
+
+.course-card__footer {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 7px 10px;
+    border-top: 1px solid rgba(var(--surface-border-rgb), 0.12);
+}
+
+.level-chip {
+    font-size: var(--text-xs);
+    font-weight: 700;
+    color: var(--text-secondary);
+    background: var(--surface-hover);
+    border-radius: var(--radius-pill);
+    padding: 3px 9px;
+}
+
+.course-card__go {
+    color: var(--practiq-violet-light);
+    font-size: var(--text-sm);
+    transition:
+        color 0.12s,
+        transform 0.12s;
+}
+.course-card:hover .course-card__go {
+    color: var(--practiq-violet);
+    transform: translateX(2px);
+}
+
+.btn-add-course {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    padding: 9px 18px;
+    border: none;
+    border-radius: var(--radius-md);
+    background: var(--practiq-violet);
+    color: var(--color-on-primary);
+    font-size: var(--text-base);
+    font-weight: 700;
+    cursor: pointer;
+    white-space: nowrap;
+    flex-shrink: 0;
+    transition: opacity 0.15s;
+}
+.btn-add-course:hover {
+    opacity: 0.88;
+}
+
+.btn-primary-lg {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 12px 24px;
+    border: none;
+    border-radius: var(--radius-lg);
+    background: var(--practiq-violet);
+    color: var(--color-on-primary);
+    font-weight: 700;
+    font-size: var(--text-md);
+    cursor: pointer;
+    transition: opacity 0.15s;
+}
+.btn-primary-lg:hover {
+    opacity: 0.88;
+}
+
+.btn-primary {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    padding: 10px 20px;
+    border: none;
+    border-radius: var(--radius-md);
+    background: var(--practiq-violet);
+    color: var(--color-on-primary);
+    font-weight: 700;
+    font-size: var(--text-md);
+    cursor: pointer;
+    transition: opacity 0.15s;
+}
+.btn-primary:disabled {
+    opacity: 0.5;
+}
+.btn-primary:hover:not(:disabled) {
+    opacity: 0.88;
+}
+
+.btn-sm {
+    font-size: var(--text-base);
+    padding: 7px 14px;
+    border-radius: var(--radius-md);
+}
+
+.btn-secondary {
+    padding: 10px 20px;
+    border: 1.5px solid rgba(var(--surface-border-rgb), 0.28);
+    border-radius: var(--radius-md);
+    background: var(--surface-card);
+    color: var(--text-secondary);
+    font-weight: 600;
+    font-size: var(--text-md);
+    cursor: pointer;
+    transition: border-color 0.12s;
+}
+.btn-secondary:hover {
+    border-color: var(--text-muted);
+}
+
+.btn-ghost {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    padding: 10px 20px;
+    border: 1.5px solid rgba(var(--surface-border-rgb), 0.28);
+    border-radius: var(--radius-md);
+    background: var(--surface-card);
+    color: var(--text-secondary);
+    font-weight: 600;
+    font-size: var(--text-md);
+    cursor: pointer;
+    transition: all 0.12s;
+}
+.btn-ghost:hover {
+    border-color: var(--practiq-violet);
+    color: var(--practiq-violet);
+}
+
+.btn-ghost.btn-sm {
+    font-size: var(--text-base);
+    padding: 7px 14px;
+    border-radius: var(--radius-md);
+}
+
+.icon-btn {
+    width: 33px;
+    height: 33px;
+    border-radius: var(--radius-md);
+    border: 1.5px solid rgba(var(--surface-border-rgb), 0.18);
+    background: var(--surface-card);
+    color: var(--text-secondary);
+    cursor: pointer;
+    display: grid;
+    place-items: center;
+    font-size: var(--text-base);
+    transition: all 0.12s;
+}
+.icon-btn:hover {
+    border-color: var(--practiq-violet-light);
+    color: var(--practiq-violet);
+}
+.icon-btn--danger:hover {
+    border-color: rgba(var(--color-error-rgb), 0.35);
+    color: var(--color-error);
+    background: var(--color-error-bg);
+}
+.icon-btn--sm {
+    width: 28px;
+    height: 28px;
+    border-radius: 7px;
+    font-size: var(--text-xs);
+}
+
+.modal-card {
+    background: var(--surface-card);
+    border-radius: var(--radius-2xl);
+    width: min(500px, 100%);
+
+    max-height: calc(100dvh - 48px);
+    overflow-y: auto;
+    box-shadow: var(--shadow-panel);
+}
+.modal-card--wide {
+    width: min(600px, 100%);
+}
+
+.modal-head {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 16px;
+    padding: 14px 18px 12px;
+    border-bottom: 1px solid var(--surface-border);
+}
+
+.modal-head h3 {
+    font-size: 17px;
+    font-weight: 800;
+    color: var(--text-heading);
+    margin: 0 0 3px;
+}
+
+.modal-subtitle {
+    font-size: var(--text-base);
+    color: var(--text-secondary);
+    margin: 0;
+}
+
+.modal-close {
+    width: 30px;
+    height: 30px;
+    border-radius: var(--radius-sm);
+    border: none;
+    background: var(--surface-hover);
+    color: var(--text-secondary);
+    font-size: 17px;
+    cursor: pointer;
+    display: grid;
+    place-items: center;
+    flex-shrink: 0;
+    line-height: 1;
+}
+.modal-close:hover {
+    background: var(--surface-border);
+}
+
+.modal-body {
+    padding: 14px 18px 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.modal-actions {
+    display: flex;
+    gap: 10px;
+    justify-content: flex-end;
+    padding-top: 4px;
+}
+
+.notice {
+    display: flex;
+    gap: 12px;
+    padding: 16px;
+    border-radius: var(--radius-lg);
+    font-size: var(--text-base);
+}
+.notice--warning {
+    background: var(--color-warning-bg);
+    border: 1px solid rgba(var(--color-warning-rgb), 0.25);
+}
+.notice--warning .pi {
+    color: var(--color-warning-dark);
+    font-size: 17px;
+    flex-shrink: 0;
+    margin-top: 2px;
+}
+.notice--warning strong {
+    display: block;
+    color: var(--color-warning-dark);
+    font-size: var(--text-md);
+    margin-bottom: 4px;
+}
+.notice--warning p {
+    color: var(--color-warning-dark);
+    margin: 0;
+}
+.notice-action {
+    margin-top: 10px;
+}
+
+.subject-create-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr auto;
+    gap: 10px;
+    align-items: end;
+}
+
+.subjects-empty {
+    text-align: center;
+    color: var(--text-muted);
+    padding: 20px;
+    font-size: var(--text-md);
+}
+
+.subject-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.subject-list-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 11px 13px;
+    background: var(--surface-subtle);
+    border: 1px solid rgba(var(--surface-border-rgb), 0.14);
+    border-radius: var(--radius-md);
+}
+
+.subject-list-item__info {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+.subject-list-item__info strong {
+    font-size: var(--text-md);
+    color: var(--text-heading);
+}
+.subject-list-item__info span {
+    font-size: var(--text-sm);
+    color: var(--text-secondary);
+}
+
+.subject-usage-badge {
+    font-size: var(--text-xs);
+    font-weight: 700;
+    color: var(--text-muted);
+    background: var(--surface-hover);
+    border-radius: var(--radius-pill);
+    padding: 2px 9px;
+    white-space: nowrap;
+    flex-shrink: 0;
+}
+
+.subject-list-item__actions {
+    display: flex;
+    gap: 5px;
+    flex-shrink: 0;
+}
+
+.edit-actions {
+    display: flex;
+    gap: 7px;
+    align-items: center;
+}
+
+.form-group {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.form-label {
+    font-size: var(--text-base);
+    font-weight: 700;
+    color: var(--text-secondary);
+}
+
+.optional {
+    font-weight: 400;
+    color: var(--text-muted);
+}
+
+.form-input,
+.form-textarea,
+.form-select {
+    width: 100%;
+    box-sizing: border-box;
+    padding: 10px 13px;
+    border: 1.5px solid rgba(var(--surface-border-rgb), 0.28);
+    border-radius: var(--radius-md);
+    background: var(--surface-subtle);
+    font: inherit;
+    font-size: var(--text-md);
+    color: var(--text-heading);
+    outline: none;
+    transition:
+        border-color 0.15s,
+        background 0.15s;
+}
+.form-input:focus,
+.form-textarea:focus,
+.form-select:focus {
+    border-color: var(--practiq-violet);
+    background: var(--surface-card);
+    box-shadow: var(--focus-ring-primary);
+}
+.form-input--sm {
+    padding: 7px 11px;
+    font-size: var(--text-base);
+    border-radius: var(--radius-md);
+}
+.form-textarea {
+    min-height: 78px;
+    resize: vertical;
+}
+
+@media (max-width: 1024px) {
+    .ac-layout {
+        grid-template-columns: 200px 1fr;
     }
-
-    .sidebar-label {
-        font-size: var(--text-xs);
-        font-weight: 700;
-        letter-spacing: 0.1em;
-        text-transform: uppercase;
-        color: var(--text-muted);
+    .grade-sidebar {
+        min-width: 0;
     }
+    .courses-grid {
+        grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+    }
+    .courses-area,
+    .grade-header {
+        padding: 14px;
+    }
+}
 
+@media (max-width: 820px) {
+    .ac-root {
+        display: block;
+        width: 100%;
+        min-width: 0;
+        padding: 16px 14px 32px;
+    }
+    .ac-layout {
+        width: 100%;
+        min-width: 0;
+        grid-template-columns: minmax(0, 1fr);
+        grid-template-rows: auto 1fr;
+    }
+    .grade-sidebar,
+    .grade-content {
+        width: 100%;
+        min-width: 0;
+        border-right: none;
+    }
     .grade-nav {
-        flex: 1;
-        overflow-y: auto;
-        padding: 4px 8px;
-        display: flex;
-        flex-direction: column;
-        gap: 2px;
-    }
-    .grade-mobile-select {
         display: none;
     }
-    .school-crumb {
-        display: flex;
-        align-items: center;
-        gap: 6px;
+    .grade-mobile-select {
+        display: grid;
+        gap: 5px;
+        padding: 10px 12px 12px;
+        color: var(--text-secondary);
+        font-size: var(--text-xs);
+        font-weight: 700;
     }
-
-    .grade-nav-item {
-        display: flex;
-        align-items: center;
-        gap: 10px;
-        padding: 7px 10px;
-        border-radius: var(--radius-sm);
-        border: none;
-        background: none;
-        text-align: left;
-        cursor: pointer;
+    .grade-mobile-select select {
+        min-height: 44px;
         width: 100%;
-        transition: var(--transition-fast);
-    }
-    .grade-nav-item:hover {
-        background: var(--fill-primary-faint);
-    }
-    .grade-nav-item--active {
-        background: var(--fill-primary-soft);
-    }
-    .grade-nav-item--active .grade-nav-item__name {
-        color: var(--practiq-violet-dark);
-        font-weight: 700;
-    }
-    .grade-nav-item--active .grade-nav-item__dot {
-        background: var(--practiq-violet);
-    }
-    .grade-nav-item--active .grade-nav-item__count {
-        background: var(--fill-primary-soft);
-        color: var(--practiq-violet-dark);
-    }
-
-    .grade-nav-item__dot {
-        width: 7px;
-        height: 7px;
-        border-radius: 50%;
-        background: var(--surface-border);
-        flex-shrink: 0;
-        transition: background 0.12s;
-    }
-
-    .grade-nav-item__name {
-        flex: 1;
-        font-size: var(--text-base);
-        color: var(--text-secondary);
-        white-space: nowrap;
-        overflow: hidden;
-        text-overflow: ellipsis;
-    }
-
-    .grade-nav-item__count {
-        font-size: var(--text-xs);
-        font-weight: 700;
-        color: var(--text-muted);
-        background: var(--surface-hover);
-        border-radius: var(--radius-pill);
-        padding: 2px 8px;
-        flex-shrink: 0;
-        transition: all 0.12s;
-    }
-
-    .sidebar-add-btn {
-        display: flex;
-        align-items: center;
-        gap: 6px;
-        padding: 7px 10px;
-        border: 1px solid rgba(var(--practiq-violet-rgb), 0.18);
+        padding: 0 10px;
+        border: 1px solid var(--surface-border);
         border-radius: var(--radius-md);
-        background: var(--fill-primary-faint);
-        color: var(--practiq-violet-dark);
-        font-size: var(--text-sm);
-        font-weight: 700;
-        cursor: pointer;
-        transition: var(--transition-fast);
-        flex-shrink: 0;
+        background: var(--surface-card);
+        color: var(--text-primary);
+        font: inherit;
     }
-    .sidebar-add-btn:hover {
-        background: var(--fill-primary-soft);
-        border-color: rgba(var(--practiq-violet-rgb), 0.28);
-        color: var(--practiq-violet);
+    .subject-create-row {
+        grid-template-columns: 1fr;
     }
-
-    .grade-content {
-        min-width: 0;
-        overflow-y: auto;
-        display: flex;
-        flex-direction: column;
-        background: var(--surface-glass);
-        border: 1px solid var(--surface-elevated-strong);
-        border-radius: var(--radius-2xl);
-        box-shadow: var(--shadow-card);
-    }
-
-    @media (min-width: 821px) {
-        .grade-sidebar {
-            position: sticky;
-            top: 20px;
-            max-height: calc(100dvh - 40px);
-        }
-    }
-
-    .select-hint {
-        flex: 1;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        gap: 10px;
-        color: var(--text-muted);
-        font-size: var(--text-md);
-    }
-
+    .courses-area,
     .grade-header {
-        display: flex;
-        align-items: flex-start;
-        justify-content: space-between;
-        gap: 16px;
-        padding: 18px 20px 16px;
-        background: transparent;
-        border-bottom: 1px solid rgba(var(--surface-border-rgb), 0.14);
-        flex-shrink: 0;
+        padding: 16px;
     }
-
-    .grade-header__name {
-        font-size: var(--text-lg);
-        font-weight: 800;
-        color: var(--text-heading);
-        margin: 0 0 3px;
-    }
-
-    .grade-header__desc {
-        font-size: var(--text-base);
-        color: var(--text-secondary);
-        margin: 0;
-    }
-
     .grade-header__actions {
-        display: flex;
-        gap: 8px;
-        flex-shrink: 0;
-        padding-top: 2px;
+        align-self: flex-start;
     }
 
-    .courses-area {
-        flex: 1;
-        padding: 18px 20px 20px;
-        display: flex;
-        flex-direction: column;
-        gap: 12px;
-    }
-
-    .courses-area__head {
-        display: flex;
-        align-items: flex-start;
-        justify-content: space-between;
-        gap: 16px;
-    }
-
-    .courses-area__head h3 {
-        font-size: var(--text-md);
-        font-weight: 700;
-        color: var(--text-heading);
-        margin: 0 0 4px;
-    }
-    .courses-area__head h3 em {
-        font-style: normal;
-        color: var(--practiq-violet);
-    }
-
-    .courses-area__hint {
-        font-size: var(--text-sm);
-        color: var(--text-muted);
-        margin: 0;
-    }
-
-    .courses-empty {
-        display: flex;
-        flex-direction: column;
-        align-items: center;
-        gap: 10px;
-        padding: 32px 20px;
-        background: var(--surface-glass);
-        border: 1.5px dashed rgba(var(--surface-border-rgb), 0.3);
-        border-radius: var(--radius-2xl);
-        text-align: center;
-    }
-    .courses-empty__icon {
-        width: 48px;
-        height: 48px;
-        border-radius: var(--radius-xl);
-        background: var(--fill-primary-subtle);
-        color: var(--practiq-violet);
-        font-size: 22px;
-        display: grid;
-        place-items: center;
-        margin: 0 auto;
-    }
-    .courses-empty p {
-        font-size: var(--text-md);
-        color: var(--text-secondary);
-        margin: 0;
-        font-weight: 600;
-    }
-    .courses-empty__sub {
-        font-size: var(--text-base);
-        color: var(--text-muted) !important;
-        font-weight: 400 !important;
-    }
-
-    .courses-grid {
-        display: grid;
-        grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
-        gap: 14px;
-    }
-
-    .course-card {
-        background: var(--surface-elevated);
-        border: 1px solid var(--surface-elevated-strong);
-        border-radius: var(--radius-2xl);
-        box-shadow: var(--shadow-card);
-        overflow: hidden;
-        cursor: pointer;
-        display: flex;
-        flex-direction: column;
-        transition: var(--transition);
-    }
-    .course-card:hover {
-        border-color: rgba(var(--practiq-violet-rgb), 0.22);
-        box-shadow: var(--shadow-card-lg);
-        transform: translateY(-2px);
-    }
-
-    .course-card__open {
-        display: flex;
-        flex: 1;
-        flex-direction: column;
-        color: inherit;
-        text-decoration: none;
-    }
-
-    .course-card__subject-bar {
-        display: flex;
-        align-items: center;
-        gap: 7px;
-        padding: 7px 10px;
-        background: var(--color-info-bg);
-        color: var(--color-info-dark);
-        font-size: var(--text-xs);
-        font-weight: 700;
-        border-bottom: 1px solid rgba(var(--color-info-rgb), 0.14);
-    }
-
-    .course-card__actions {
-        display: flex;
-        gap: 4px;
-        margin-left: auto;
-        opacity: 0;
-        transition: opacity 0.15s;
-    }
-    .course-card:hover .course-card__actions {
-        opacity: 1;
-    }
-
-    .card-action-btn {
-        width: 24px;
-        height: 24px;
-        border-radius: var(--radius-xs);
-        border: none;
-        background: rgba(var(--surface-card-rgb), 0.7);
-        color: var(--color-info-dark);
-        cursor: pointer;
-        display: grid;
-        place-items: center;
-        font-size: var(--text-xs);
-        transition: all 0.12s;
-    }
-    .card-action-btn:hover {
-        background: var(--surface-card);
-    }
-    .card-action-btn--danger:hover {
-        color: var(--color-error);
-    }
-
-    .course-card__body {
-        padding: 10px;
-        flex: 1;
-    }
-
-    .course-card__title {
-        font-size: var(--text-base);
-        font-weight: 700;
-        color: var(--text-heading);
-        margin: 0 0 6px;
-        line-height: 1.4;
-    }
-
-    .course-card__desc {
-        font-size: var(--text-xs);
-        color: var(--text-secondary);
-        margin: 0;
-        line-height: 1.5;
-        display: -webkit-box;
-        -webkit-line-clamp: 2;
-        -webkit-box-orient: vertical;
-        overflow: hidden;
-    }
-
-    .course-card__footer {
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        padding: 7px 10px;
-        border-top: 1px solid rgba(var(--surface-border-rgb), 0.12);
-    }
-
-    .level-chip {
-        font-size: var(--text-xs);
-        font-weight: 700;
-        color: var(--text-secondary);
-        background: var(--surface-hover);
-        border-radius: var(--radius-pill);
-        padding: 3px 9px;
-    }
-
-    .course-card__go {
-        color: var(--practiq-violet-light);
-        font-size: var(--text-sm);
-        transition:
-            color 0.12s,
-            transform 0.12s;
-    }
-    .course-card:hover .course-card__go {
-        color: var(--practiq-violet);
-        transform: translateX(2px);
-    }
-
-    .btn-add-course {
-        display: inline-flex;
-        align-items: center;
-        gap: 7px;
-        padding: 9px 18px;
-        border: none;
-        border-radius: var(--radius-md);
-        background: var(--practiq-violet);
-        color: var(--color-on-primary);
-        font-size: var(--text-base);
-        font-weight: 700;
-        cursor: pointer;
-        white-space: nowrap;
-        flex-shrink: 0;
-        transition: opacity 0.15s;
-    }
-    .btn-add-course:hover {
-        opacity: 0.88;
-    }
-
-    .btn-primary-lg {
-        display: inline-flex;
-        align-items: center;
-        gap: 8px;
-        padding: 12px 24px;
-        border: none;
-        border-radius: var(--radius-lg);
-        background: var(--practiq-violet);
-        color: var(--color-on-primary);
-        font-weight: 700;
-        font-size: var(--text-md);
-        cursor: pointer;
-        transition: opacity 0.15s;
-    }
-    .btn-primary-lg:hover {
-        opacity: 0.88;
-    }
-
-    .btn-primary {
-        display: inline-flex;
-        align-items: center;
-        gap: 7px;
-        padding: 10px 20px;
-        border: none;
-        border-radius: var(--radius-md);
-        background: var(--practiq-violet);
-        color: var(--color-on-primary);
-        font-weight: 700;
-        font-size: var(--text-md);
-        cursor: pointer;
-        transition: opacity 0.15s;
-    }
-    .btn-primary:disabled {
-        opacity: 0.5;
-    }
-    .btn-primary:hover:not(:disabled) {
-        opacity: 0.88;
-    }
-
-    .btn-sm {
-        font-size: var(--text-base);
-        padding: 7px 14px;
-        border-radius: var(--radius-md);
-    }
-
-    .btn-secondary {
-        padding: 10px 20px;
-        border: 1.5px solid rgba(var(--surface-border-rgb), 0.28);
-        border-radius: var(--radius-md);
-        background: var(--surface-card);
-        color: var(--text-secondary);
-        font-weight: 600;
-        font-size: var(--text-md);
-        cursor: pointer;
-        transition: border-color 0.12s;
-    }
-    .btn-secondary:hover {
-        border-color: var(--text-muted);
-    }
-
-    .btn-ghost {
-        display: inline-flex;
-        align-items: center;
-        gap: 7px;
-        padding: 10px 20px;
-        border: 1.5px solid rgba(var(--surface-border-rgb), 0.28);
-        border-radius: var(--radius-md);
-        background: var(--surface-card);
-        color: var(--text-secondary);
-        font-weight: 600;
-        font-size: var(--text-md);
-        cursor: pointer;
-        transition: all 0.12s;
-    }
-    .btn-ghost:hover {
-        border-color: var(--practiq-violet);
-        color: var(--practiq-violet);
-    }
-
-    .btn-ghost.btn-sm {
-        font-size: var(--text-base);
-        padding: 7px 14px;
-        border-radius: var(--radius-md);
-    }
-
-    .icon-btn {
-        width: 33px;
-        height: 33px;
-        border-radius: var(--radius-md);
-        border: 1.5px solid rgba(var(--surface-border-rgb), 0.18);
-        background: var(--surface-card);
-        color: var(--text-secondary);
-        cursor: pointer;
-        display: grid;
-        place-items: center;
-        font-size: var(--text-base);
-        transition: all 0.12s;
-    }
-    .icon-btn:hover {
-        border-color: var(--practiq-violet-light);
-        color: var(--practiq-violet);
-    }
-    .icon-btn--danger:hover {
-        border-color: rgba(var(--color-error-rgb), 0.35);
-        color: var(--color-error);
-        background: var(--color-error-bg);
-    }
-    .icon-btn--sm {
-        width: 28px;
-        height: 28px;
-        border-radius: 7px;
-        font-size: var(--text-xs);
-    }
-
-    .modal-card {
-        background: var(--surface-card);
-        border-radius: var(--radius-2xl);
-        width: min(500px, 100%);
-
-        max-height: calc(100dvh - 48px);
-        overflow-y: auto;
-        box-shadow: var(--shadow-panel);
-    }
-    .modal-card--wide {
-        width: min(600px, 100%);
-    }
-
-    .modal-head {
-        display: flex;
-        align-items: flex-start;
-        justify-content: space-between;
-        gap: 16px;
-        padding: 14px 18px 12px;
-        border-bottom: 1px solid var(--surface-border);
-    }
-
-    .modal-head h3 {
-        font-size: 17px;
-        font-weight: 800;
-        color: var(--text-heading);
-        margin: 0 0 3px;
-    }
-
-    .modal-subtitle {
-        font-size: var(--text-base);
-        color: var(--text-secondary);
-        margin: 0;
+    .icon-btn,
+    .icon-btn--sm,
+    .card-action-btn,
+    .modal-close {
+        width: 44px;
+        height: 44px;
     }
 
     .modal-close {
-        width: 30px;
-        height: 30px;
-        border-radius: var(--radius-sm);
-        border: none;
-        background: var(--surface-hover);
-        color: var(--text-secondary);
-        font-size: 17px;
-        cursor: pointer;
-        display: grid;
-        place-items: center;
-        flex-shrink: 0;
-        line-height: 1;
+        background: transparent;
+        font-size: 22px;
     }
-    .modal-close:hover {
-        background: var(--surface-border);
-    }
+}
 
-    .modal-body {
-        padding: 14px 18px 16px;
-        display: flex;
-        flex-direction: column;
-        gap: 10px;
+@media (max-width: 820px) {
+    .modal-card,
+    .modal-card--wide {
+        width: 100%;
+        max-width: 100%;
+        max-height: 95dvh;
     }
 
     .modal-actions {
-        display: flex;
-        gap: 10px;
-        justify-content: flex-end;
-        padding-top: 4px;
-    }
+        flex-direction: column-reverse;
 
-    .notice {
-        display: flex;
-        gap: 12px;
-        padding: 16px;
-        border-radius: var(--radius-lg);
-        font-size: var(--text-base);
+        margin-top: 4px;
     }
-    .notice--warning {
-        background: var(--color-warning-bg);
-        border: 1px solid rgba(var(--color-warning-rgb), 0.25);
-    }
-    .notice--warning .pi {
-        color: var(--color-warning-dark);
-        font-size: 17px;
-        flex-shrink: 0;
-        margin-top: 2px;
-    }
-    .notice--warning strong {
-        display: block;
-        color: var(--color-warning-dark);
-        font-size: var(--text-md);
-        margin-bottom: 4px;
-    }
-    .notice--warning p {
-        color: var(--color-warning-dark);
-        margin: 0;
-    }
-    .notice-action {
-        margin-top: 10px;
-    }
-
-    .subject-create-row {
-        display: grid;
-        grid-template-columns: 1fr 1fr auto;
-        gap: 10px;
-        align-items: end;
-    }
-
-    .subjects-empty {
-        text-align: center;
-        color: var(--text-muted);
-        padding: 20px;
-        font-size: var(--text-md);
-    }
-
-    .subject-list {
-        list-style: none;
-        margin: 0;
-        padding: 0;
-        display: flex;
-        flex-direction: column;
-        gap: 6px;
-    }
-
-    .subject-list-item {
-        display: flex;
-        align-items: center;
-        gap: 10px;
-        padding: 11px 13px;
-        background: var(--surface-subtle);
-        border: 1px solid rgba(var(--surface-border-rgb), 0.14);
-        border-radius: var(--radius-md);
-    }
-
-    .subject-list-item__info {
-        flex: 1;
-        min-width: 0;
-        display: flex;
-        flex-direction: column;
-        gap: 2px;
-    }
-    .subject-list-item__info strong {
-        font-size: var(--text-md);
-        color: var(--text-heading);
-    }
-    .subject-list-item__info span {
-        font-size: var(--text-sm);
-        color: var(--text-secondary);
-    }
-
-    .subject-usage-badge {
-        font-size: var(--text-xs);
-        font-weight: 700;
-        color: var(--text-muted);
-        background: var(--surface-hover);
-        border-radius: var(--radius-pill);
-        padding: 2px 9px;
-        white-space: nowrap;
-        flex-shrink: 0;
-    }
-
-    .subject-list-item__actions {
-        display: flex;
-        gap: 5px;
-        flex-shrink: 0;
-    }
-
-    .edit-actions {
-        display: flex;
-        gap: 7px;
-        align-items: center;
-    }
-
-    .form-group {
-        display: flex;
-        flex-direction: column;
-        gap: 6px;
-    }
-
-    .form-label {
-        font-size: var(--text-base);
-        font-weight: 700;
-        color: var(--text-secondary);
-    }
-
-    .optional {
-        font-weight: 400;
-        color: var(--text-muted);
-    }
-
-    .form-input,
-    .form-textarea,
-    .form-select {
+    .modal-actions > * {
         width: 100%;
-        box-sizing: border-box;
-        padding: 10px 13px;
-        border: 1.5px solid rgba(var(--surface-border-rgb), 0.28);
-        border-radius: var(--radius-md);
-        background: var(--surface-subtle);
-        font: inherit;
-        font-size: var(--text-md);
-        color: var(--text-heading);
-        outline: none;
-        transition:
-            border-color 0.15s,
-            background 0.15s;
     }
-    .form-input:focus,
-    .form-textarea:focus,
-    .form-select:focus {
-        border-color: var(--practiq-violet);
-        background: var(--surface-card);
-        box-shadow: var(--focus-ring-primary);
-    }
-    .form-input--sm {
-        padding: 7px 11px;
-        font-size: var(--text-base);
-        border-radius: var(--radius-md);
-    }
-    .form-textarea {
-        min-height: 78px;
-        resize: vertical;
-    }
-
-    @media (max-width: 1024px) {
-        .ac-layout {
-            grid-template-columns: 200px 1fr;
-        }
-        .grade-sidebar {
-            min-width: 0;
-        }
-        .courses-grid {
-            grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
-        }
-        .courses-area,
-        .grade-header {
-            padding: 14px;
-        }
-    }
-
-    @media (max-width: 820px) {
-        .ac-root {
-            display: block;
-            width: 100%;
-            min-width: 0;
-            padding: 16px 14px 32px;
-        }
-        .ac-layout {
-            width: 100%;
-            min-width: 0;
-            grid-template-columns: minmax(0, 1fr);
-            grid-template-rows: auto 1fr;
-        }
-        .grade-sidebar,
-        .grade-content {
-            width: 100%;
-            min-width: 0;
-            border-right: none;
-        }
-        .grade-nav {
-            display: none;
-        }
-        .grade-mobile-select {
-            display: grid;
-            gap: 5px;
-            padding: 10px 12px 12px;
-            color: var(--text-secondary);
-            font-size: var(--text-xs);
-            font-weight: 700;
-        }
-        .grade-mobile-select select {
-            min-height: 44px;
-            width: 100%;
-            padding: 0 10px;
-            border: 1px solid var(--surface-border);
-            border-radius: var(--radius-md);
-            background: var(--surface-card);
-            color: var(--text-primary);
-            font: inherit;
-        }
-        .subject-create-row {
-            grid-template-columns: 1fr;
-        }
-        .courses-area,
-        .grade-header {
-            padding: 16px;
-        }
-        .grade-header__actions {
-            align-self: flex-start;
-        }
-
-        .icon-btn,
-        .icon-btn--sm,
-        .card-action-btn,
-        .modal-close {
-            width: 44px;
-            height: 44px;
-        }
-
-        .modal-close {
-            background: transparent;
-            font-size: 22px;
-        }
-    }
-
-    @media (max-width: 820px) {
-        .modal-card,
-        .modal-card--wide {
-            width: 100%;
-            max-width: 100%;
-            max-height: 95dvh;
-        }
-
-        .modal-actions {
-            flex-direction: column-reverse;
-
-            margin-top: 4px;
-        }
-        .modal-actions > * {
-            width: 100%;
-        }
-    }
+}
 </style>

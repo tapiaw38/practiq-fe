@@ -179,6 +179,11 @@ export const useNotebook = () => {
         }
     };
 
+    const deletePage = (pageId: string) => store.deleteNotebookPage(pageId);
+
+    const generatePageDrafts = (notebookId: string, form: FormData) =>
+        store.generatePageDrafts(notebookId, form);
+
     const saveSubmission = async (
         pageId: string,
         params: { canvas_data?: string; answer_text?: string },
@@ -384,6 +389,8 @@ export const useNotebook = () => {
         deleteNotebook,
         addPage,
         updatePage,
+        deletePage,
+        generatePageDrafts,
         saveSubmission,
         saveSubmissionAsync,
         loadSubmissionJob,

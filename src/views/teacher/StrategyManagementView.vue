@@ -1,165 +1,165 @@
 <script setup lang="ts">
-    import UiModal from '@/components/ui/UiModal.vue';
-    import { ref, reactive, computed, onMounted } from 'vue';
-    import TeacherLayout from '@/layouts/TeacherLayout.vue';
-    import Skeleton from '@/components/ui/Skeleton.vue';
-    import CourseStrategyAssignments from '@/components/teacher/strategy/CourseStrategyAssignments.vue';
-    import StrategyCatalog from '@/components/teacher/strategy/StrategyCatalog.vue';
-    import { useCourse } from '@/composables/useCourse';
-    import { useStrategy } from '@/composables/useStrategy';
-    import { useAuthStore } from '@/stores/authStore';
-    import type { LearningStrategy } from '@/types';
+import UiModal from '@/components/ui/UiModal.vue';
+import { ref, reactive, computed, onMounted } from 'vue';
+import TeacherLayout from '@/layouts/TeacherLayout.vue';
+import Skeleton from '@/components/ui/Skeleton.vue';
+import CourseStrategyAssignments from '@/components/teacher/strategy/CourseStrategyAssignments.vue';
+import StrategyCatalog from '@/components/teacher/strategy/StrategyCatalog.vue';
+import { useCourse } from '@/composables/useCourse';
+import { useStrategy } from '@/composables/useStrategy';
+import { useAuthStore } from '@/stores/authStore';
+import type { LearningStrategy } from '@/types';
 
-    const authStore = useAuthStore();
+const authStore = useAuthStore();
 
-    const { courses, loadCourses } = useCourse();
-    const {
-        strategies,
-        courseAssignments,
-        loadStrategies,
-        loadCourseStrategies,
-        assignStrategyToCourse,
-        removeCourseStrategy,
-        createStrategy: createStrategyService,
-        updateStrategy: updateStrategyService,
-        deleteStrategy: deleteStrategyService,
-    } = useStrategy();
-    const loading = ref(true);
-    const selectedStrategyForCourse = ref<Record<string, string>>({});
-    const assigning = ref<Record<string, boolean>>({});
+const { courses, loadCourses } = useCourse();
+const {
+    strategies,
+    courseAssignments,
+    loadStrategies,
+    loadCourseStrategies,
+    assignStrategyToCourse,
+    removeCourseStrategy,
+    createStrategy: createStrategyService,
+    updateStrategy: updateStrategyService,
+    deleteStrategy: deleteStrategyService,
+} = useStrategy();
+const loading = ref(true);
+const selectedStrategyForCourse = ref<Record<string, string>>({});
+const assigning = ref<Record<string, boolean>>({});
 
-    const showStrategyModal = ref(false);
-    const editingStrategy = ref<LearningStrategy | null>(null);
-    const saving = ref(false);
+const showStrategyModal = ref(false);
+const editingStrategy = ref<LearningStrategy | null>(null);
+const saving = ref(false);
 
-    const deletingStrategy = ref<LearningStrategy | null>(null);
-    const deleting = ref(false);
+const deletingStrategy = ref<LearningStrategy | null>(null);
+const deleting = ref(false);
 
-    const strategyForm = reactive({
-        name: '',
-        code: '',
-        description: '',
-    });
+const strategyForm = reactive({
+    name: '',
+    code: '',
+    description: '',
+});
 
-    const isSuperAdmin = computed(() => {
-        const roles = authStore.authUser?.roles || [];
-        return roles.some((role) => role.name === 'superadmin');
-    });
+const isSuperAdmin = computed(() => {
+    const roles = authStore.authUser?.roles || [];
+    return roles.some((role) => role.name === 'superadmin');
+});
 
-    onMounted(async () => {
+onMounted(async () => {
+    await loadData();
+});
+
+async function loadData() {
+    loading.value = true;
+    try {
+        await Promise.all([loadStrategies(), loadCourses('teacher')]);
+
+        for (const course of courses.value) {
+            try {
+                await loadCourseStrategies(course.id);
+            } catch {
+                courseAssignments.value[course.id] = [];
+            }
+            selectedStrategyForCourse.value[course.id] = '';
+        }
+    } catch (err) {
+        console.error('Failed to load data:', err);
+    } finally {
+        loading.value = false;
+    }
+}
+
+async function assignStrategy(courseId: string) {
+    const strategyId = selectedStrategyForCourse.value[courseId];
+    if (!strategyId) return;
+
+    assigning.value[courseId] = true;
+    try {
+        await assignStrategyToCourse(courseId, strategyId);
+        selectedStrategyForCourse.value[courseId] = '';
+    } catch (err) {
+        console.error('Failed to assign strategy:', err);
+    } finally {
+        assigning.value[courseId] = false;
+    }
+}
+
+async function removeAssignment(courseId: string, assignmentId: string) {
+    try {
+        await removeCourseStrategy(assignmentId);
+        courseAssignments.value[courseId] = courseAssignments.value[courseId].filter(
+            (a) => a.id !== assignmentId,
+        );
+    } catch (err) {
+        console.error('Failed to remove assignment:', err);
+    }
+}
+
+function openCreateModal() {
+    editingStrategy.value = null;
+    strategyForm.name = '';
+    strategyForm.code = '';
+    strategyForm.description = '';
+    showStrategyModal.value = true;
+}
+
+function editStrategy(strategy: LearningStrategy) {
+    editingStrategy.value = strategy;
+    strategyForm.name = strategy.name;
+    strategyForm.code = strategy.code;
+    strategyForm.description = strategy.description;
+    showStrategyModal.value = true;
+}
+
+function closeStrategyModal() {
+    showStrategyModal.value = false;
+    editingStrategy.value = null;
+}
+
+async function saveStrategy() {
+    saving.value = true;
+    try {
+        if (editingStrategy.value) {
+            await updateStrategyService(editingStrategy.value.id, {
+                name: strategyForm.name,
+                code: strategyForm.code,
+                description: strategyForm.description,
+            });
+        } else {
+            await createStrategyService({
+                name: strategyForm.name,
+                code: strategyForm.code,
+                description: strategyForm.description,
+            });
+        }
+
+        closeStrategyModal();
         await loadData();
-    });
-
-    async function loadData() {
-        loading.value = true;
-        try {
-            await Promise.all([loadStrategies(), loadCourses('teacher')]);
-
-            for (const course of courses.value) {
-                try {
-                    await loadCourseStrategies(course.id);
-                } catch {
-                    courseAssignments.value[course.id] = [];
-                }
-                selectedStrategyForCourse.value[course.id] = '';
-            }
-        } catch (err) {
-            console.error('Failed to load data:', err);
-        } finally {
-            loading.value = false;
-        }
+    } catch (err) {
+        console.error('Failed to save strategy:', err);
+    } finally {
+        saving.value = false;
     }
+}
 
-    async function assignStrategy(courseId: string) {
-        const strategyId = selectedStrategyForCourse.value[courseId];
-        if (!strategyId) return;
+function confirmDeleteStrategy(strategy: LearningStrategy) {
+    deletingStrategy.value = strategy;
+}
 
-        assigning.value[courseId] = true;
-        try {
-            await assignStrategyToCourse(courseId, strategyId);
-            selectedStrategyForCourse.value[courseId] = '';
-        } catch (err) {
-            console.error('Failed to assign strategy:', err);
-        } finally {
-            assigning.value[courseId] = false;
-        }
+async function deleteStrategy() {
+    if (!deletingStrategy.value) return;
+
+    deleting.value = true;
+    try {
+        await deleteStrategyService(deletingStrategy.value.id);
+        deletingStrategy.value = null;
+    } catch (err) {
+        console.error('Failed to delete strategy:', err);
+    } finally {
+        deleting.value = false;
     }
-
-    async function removeAssignment(courseId: string, assignmentId: string) {
-        try {
-            await removeCourseStrategy(assignmentId);
-            courseAssignments.value[courseId] = courseAssignments.value[courseId].filter(
-                (a) => a.id !== assignmentId,
-            );
-        } catch (err) {
-            console.error('Failed to remove assignment:', err);
-        }
-    }
-
-    function openCreateModal() {
-        editingStrategy.value = null;
-        strategyForm.name = '';
-        strategyForm.code = '';
-        strategyForm.description = '';
-        showStrategyModal.value = true;
-    }
-
-    function editStrategy(strategy: LearningStrategy) {
-        editingStrategy.value = strategy;
-        strategyForm.name = strategy.name;
-        strategyForm.code = strategy.code;
-        strategyForm.description = strategy.description;
-        showStrategyModal.value = true;
-    }
-
-    function closeStrategyModal() {
-        showStrategyModal.value = false;
-        editingStrategy.value = null;
-    }
-
-    async function saveStrategy() {
-        saving.value = true;
-        try {
-            if (editingStrategy.value) {
-                await updateStrategyService(editingStrategy.value.id, {
-                    name: strategyForm.name,
-                    code: strategyForm.code,
-                    description: strategyForm.description,
-                });
-            } else {
-                await createStrategyService({
-                    name: strategyForm.name,
-                    code: strategyForm.code,
-                    description: strategyForm.description,
-                });
-            }
-
-            closeStrategyModal();
-            await loadData();
-        } catch (err) {
-            console.error('Failed to save strategy:', err);
-        } finally {
-            saving.value = false;
-        }
-    }
-
-    function confirmDeleteStrategy(strategy: LearningStrategy) {
-        deletingStrategy.value = strategy;
-    }
-
-    async function deleteStrategy() {
-        if (!deletingStrategy.value) return;
-
-        deleting.value = true;
-        try {
-            await deleteStrategyService(deletingStrategy.value.id);
-            deletingStrategy.value = null;
-        } catch (err) {
-            console.error('Failed to delete strategy:', err);
-        } finally {
-            deleting.value = false;
-        }
-    }
+}
 </script>
 
 <template>
@@ -317,144 +317,144 @@
 </template>
 
 <style scoped>
+.strategy-dashboard {
+    padding: 24px 28px 40px;
+    max-width: 1200px;
+}
+
+.loading-state {
+    display: flex;
+    justify-content: center;
+    padding: 80px;
+}
+
+.empty-icon {
+    width: 56px;
+    height: 56px;
+    border-radius: var(--radius-xl);
+    background: var(--fill-primary-subtle);
+    display: grid;
+    place-items: center;
+    margin: 0 auto 16px;
+    font-size: 24px;
+    color: var(--practiq-violet);
+}
+
+.empty-state h3 {
+    font-size: 18px;
+    font-weight: 700;
+    color: var(--text-primary);
+    margin-bottom: 8px;
+}
+
+.empty-state p {
+    font-size: var(--text-md);
+    color: var(--text-secondary);
+    margin-bottom: 20px;
+}
+
+.content-section {
+    margin-bottom: 32px;
+}
+
+.strategies-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
+    gap: 16px;
+}
+
+.strategy-card {
+    background: var(--surface-elevated);
+    border-radius: var(--radius-2xl);
+    border: 1px solid var(--surface-elevated-strong);
+    box-shadow: var(--shadow-card);
+    padding: 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.strategy-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 12px;
+}
+
+.icon-btn {
+    width: 32px;
+    height: 32px;
+    border-radius: var(--radius-sm);
+    border: 1px solid rgba(var(--surface-border-rgb), 0.2);
+    background: transparent;
+    display: grid;
+    place-items: center;
+    cursor: pointer;
+    color: var(--text-secondary);
+    transition: all 0.15s;
+}
+
+.icon-btn:hover {
+    background: var(--surface-hover);
+    color: var(--text-primary);
+}
+
+.icon-btn--danger:hover {
+    background: rgba(var(--color-error-rgb), 0.1);
+    color: var(--color-error);
+    border-color: rgba(var(--color-error-rgb), 0.3);
+}
+
+.modal-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 20px;
+}
+
+.form-textarea--code {
+    font-family: monospace;
+    font-size: var(--text-sm);
+}
+
+.form-error {
+    display: block;
+    color: var(--color-error);
+    font-size: var(--text-sm);
+    margin-top: 4px;
+}
+
+.btn-danger {
+    background: var(--color-error);
+    color: white;
+    border: none;
+}
+
+.btn-danger:hover {
+    opacity: 0.9;
+}
+
+@media (max-width: 1024px) {
     .strategy-dashboard {
-        padding: 24px 28px 40px;
-        max-width: 1200px;
-    }
-
-    .loading-state {
-        display: flex;
-        justify-content: center;
-        padding: 80px;
-    }
-
-    .empty-icon {
-        width: 56px;
-        height: 56px;
-        border-radius: var(--radius-xl);
-        background: var(--fill-primary-subtle);
-        display: grid;
-        place-items: center;
-        margin: 0 auto 16px;
-        font-size: 24px;
-        color: var(--practiq-violet);
-    }
-
-    .empty-state h3 {
-        font-size: 18px;
-        font-weight: 700;
-        color: var(--text-primary);
-        margin-bottom: 8px;
-    }
-
-    .empty-state p {
-        font-size: var(--text-md);
-        color: var(--text-secondary);
-        margin-bottom: 20px;
-    }
-
-    .content-section {
-        margin-bottom: 32px;
+        padding: 20px 16px 40px;
     }
 
     .strategies-grid {
-        display: grid;
-        grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
-        gap: 16px;
+        grid-template-columns: 1fr;
     }
+}
 
-    .strategy-card {
-        background: var(--surface-elevated);
-        border-radius: var(--radius-2xl);
-        border: 1px solid var(--surface-elevated-strong);
-        box-shadow: var(--shadow-card);
-        padding: 20px;
-        display: flex;
+@media (max-width: 768px) {
+    .page-header {
         flex-direction: column;
-        gap: 12px;
-    }
-
-    .strategy-header {
-        display: flex;
-        justify-content: space-between;
         align-items: flex-start;
-        gap: 12px;
+        gap: 16px;
+        padding: 20px;
     }
 
     .icon-btn {
-        width: 32px;
-        height: 32px;
-        border-radius: var(--radius-sm);
-        border: 1px solid rgba(var(--surface-border-rgb), 0.2);
-        background: transparent;
-        display: grid;
-        place-items: center;
-        cursor: pointer;
-        color: var(--text-secondary);
-        transition: all 0.15s;
+        width: 44px;
+        height: 44px;
     }
-
-    .icon-btn:hover {
-        background: var(--surface-hover);
-        color: var(--text-primary);
-    }
-
-    .icon-btn--danger:hover {
-        background: rgba(var(--color-error-rgb), 0.1);
-        color: var(--color-error);
-        border-color: rgba(var(--color-error-rgb), 0.3);
-    }
-
-    .modal-head {
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        margin-bottom: 20px;
-    }
-
-    .form-textarea--code {
-        font-family: monospace;
-        font-size: var(--text-sm);
-    }
-
-    .form-error {
-        display: block;
-        color: var(--color-error);
-        font-size: var(--text-sm);
-        margin-top: 4px;
-    }
-
-    .btn-danger {
-        background: var(--color-error);
-        color: white;
-        border: none;
-    }
-
-    .btn-danger:hover {
-        opacity: 0.9;
-    }
-
-    @media (max-width: 1024px) {
-        .strategy-dashboard {
-            padding: 20px 16px 40px;
-        }
-
-        .strategies-grid {
-            grid-template-columns: 1fr;
-        }
-    }
-
-    @media (max-width: 768px) {
-        .page-header {
-            flex-direction: column;
-            align-items: flex-start;
-            gap: 16px;
-            padding: 20px;
-        }
-
-        .icon-btn {
-            width: 44px;
-            height: 44px;
-        }
-    }
+}
 </style>

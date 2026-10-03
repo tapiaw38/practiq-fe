@@ -1,98 +1,92 @@
 <script setup lang="ts">
-    import { nextTick, onMounted, onUnmounted, ref } from 'vue';
-    import { useRouter } from 'vue-router';
-    import { useNotification } from '@/composables/useNotification';
-    import type { AppNotification } from '@/types';
+import { nextTick, onMounted, onUnmounted, ref } from 'vue';
+import { useRouter } from 'vue-router';
+import { useNotification } from '@/composables/useNotification';
+import type { AppNotification } from '@/types';
 
-    const router = useRouter();
-    const {
-        notifications,
-        unreadCount,
-        loading,
-        loadNotifications,
-        dismissNotification,
-        markAllRead,
-    } = useNotification();
+const router = useRouter();
+const { notifications, unreadCount, loading, loadNotifications, dismissNotification, markAllRead } =
+    useNotification();
 
-    const open = ref(false);
-    const bellRef = ref<HTMLElement | null>(null);
-    const panelFixed = ref(false);
-    const panelStyle = ref<Record<string, string>>({});
+const open = ref(false);
+const bellRef = ref<HTMLElement | null>(null);
+const panelFixed = ref(false);
+const panelStyle = ref<Record<string, string>>({});
 
-    onMounted(() => {
-        loadNotifications();
-        document.addEventListener('click', closeOnOutsideClick);
-        window.addEventListener('resize', updatePanelPosition);
-    });
+onMounted(() => {
+    loadNotifications();
+    document.addEventListener('click', closeOnOutsideClick);
+    window.addEventListener('resize', updatePanelPosition);
+});
 
-    onUnmounted(() => {
-        document.removeEventListener('click', closeOnOutsideClick);
-        window.removeEventListener('resize', updatePanelPosition);
-    });
+onUnmounted(() => {
+    document.removeEventListener('click', closeOnOutsideClick);
+    window.removeEventListener('resize', updatePanelPosition);
+});
 
-    function closeOnOutsideClick(event: MouseEvent) {
-        if (!open.value) return;
-        if (bellRef.value && !bellRef.value.contains(event.target as Node)) {
-            open.value = false;
-        }
-    }
-
-    async function togglePanel() {
-        open.value = !open.value;
-
-        if (open.value) loadNotifications();
-        await nextTick();
-        updatePanelPosition();
-    }
-
-    function updatePanelPosition() {
-        if (!open.value || !bellRef.value) return;
-
-        const isFooterBell = !!bellRef.value.closest('.footer-bell');
-        panelFixed.value = true;
-        const rect = bellRef.value.getBoundingClientRect();
-        const panelWidth = Math.min(360, window.innerWidth - 32);
-        const left = Math.max(16, Math.min(rect.left, window.innerWidth - panelWidth - 16));
-        const maxHeight = Math.min(
-            Math.max(160, isFooterBell ? rect.top - 24 : window.innerHeight - rect.bottom - 24),
-            window.innerHeight * 0.7,
-        );
-
-        panelStyle.value = {
-            left: `${left}px`,
-            width: `${panelWidth}px`,
-            ...(isFooterBell
-                ? { bottom: `${Math.max(16, window.innerHeight - rect.top + 10)}px` }
-                : { top: `${Math.min(window.innerHeight - maxHeight - 16, rect.bottom + 10)}px` }),
-            maxHeight: `${maxHeight}px`,
-        };
-    }
-
-    async function openNotification(notification: AppNotification) {
-        if (notification.scheduled_at && !isPast(notification.scheduled_at)) {
-            return;
-        }
-        await dismissNotification(notification.id);
+function closeOnOutsideClick(event: MouseEvent) {
+    if (!open.value) return;
+    if (bellRef.value && !bellRef.value.contains(event.target as Node)) {
         open.value = false;
-        if (notification.resource_type === 'practice_sheet' && notification.resource_id) {
-            router.push(`/student/level-test/${notification.resource_id}`);
-        }
     }
+}
 
-    function formatSchedule(value?: string) {
-        if (!value) return '';
-        return new Date(value).toLocaleString('es-AR', {
-            weekday: 'long',
-            day: 'numeric',
-            month: 'long',
-            hour: '2-digit',
-            minute: '2-digit',
-        });
-    }
+async function togglePanel() {
+    open.value = !open.value;
 
-    function isPast(value?: string) {
-        return !!value && new Date(value) <= new Date();
+    if (open.value) loadNotifications();
+    await nextTick();
+    updatePanelPosition();
+}
+
+function updatePanelPosition() {
+    if (!open.value || !bellRef.value) return;
+
+    const isFooterBell = !!bellRef.value.closest('.footer-bell');
+    panelFixed.value = true;
+    const rect = bellRef.value.getBoundingClientRect();
+    const panelWidth = Math.min(360, window.innerWidth - 32);
+    const left = Math.max(16, Math.min(rect.left, window.innerWidth - panelWidth - 16));
+    const maxHeight = Math.min(
+        Math.max(160, isFooterBell ? rect.top - 24 : window.innerHeight - rect.bottom - 24),
+        window.innerHeight * 0.7,
+    );
+
+    panelStyle.value = {
+        left: `${left}px`,
+        width: `${panelWidth}px`,
+        ...(isFooterBell
+            ? { bottom: `${Math.max(16, window.innerHeight - rect.top + 10)}px` }
+            : { top: `${Math.min(window.innerHeight - maxHeight - 16, rect.bottom + 10)}px` }),
+        maxHeight: `${maxHeight}px`,
+    };
+}
+
+async function openNotification(notification: AppNotification) {
+    if (notification.scheduled_at && !isPast(notification.scheduled_at)) {
+        return;
     }
+    await dismissNotification(notification.id);
+    open.value = false;
+    if (notification.resource_type === 'practice_sheet' && notification.resource_id) {
+        router.push(`/student/level-test/${notification.resource_id}`);
+    }
+}
+
+function formatSchedule(value?: string) {
+    if (!value) return '';
+    return new Date(value).toLocaleString('es-AR', {
+        weekday: 'long',
+        day: 'numeric',
+        month: 'long',
+        hour: '2-digit',
+        minute: '2-digit',
+    });
+}
+
+function isPast(value?: string) {
+    return !!value && new Date(value) <= new Date();
+}
 </script>
 
 <template>
@@ -178,173 +172,173 @@
 </template>
 
 <style scoped>
-    .bell-wrap {
-        position: relative;
-    }
+.bell-wrap {
+    position: relative;
+}
 
-    .bell-btn {
-        position: relative;
-        display: grid;
-        place-items: center;
-        width: 44px;
-        height: 44px;
-        border-radius: 50%;
-        border: 1px solid var(--surface-elevated-strong);
-        background: var(--surface-card);
-        color: var(--text-primary);
-        cursor: pointer;
-        transition: var(--transition-fast);
-    }
+.bell-btn {
+    position: relative;
+    display: grid;
+    place-items: center;
+    width: 44px;
+    height: 44px;
+    border-radius: 50%;
+    border: 1px solid var(--surface-elevated-strong);
+    background: var(--surface-card);
+    color: var(--text-primary);
+    cursor: pointer;
+    transition: var(--transition-fast);
+}
 
-    .bell-btn:hover {
-        box-shadow: var(--shadow-card);
-    }
+.bell-btn:hover {
+    box-shadow: var(--shadow-card);
+}
 
-    .bell-badge {
-        position: absolute;
-        top: -4px;
-        right: -4px;
-        min-width: 20px;
-        height: 20px;
-        padding: 0 5px;
-        border-radius: 999px;
-        background: var(--red-500, #dc2626);
-        color: #fff;
-        font-size: 11px;
-        font-weight: 800;
-        display: grid;
-        place-items: center;
-    }
+.bell-badge {
+    position: absolute;
+    top: -4px;
+    right: -4px;
+    min-width: 20px;
+    height: 20px;
+    padding: 0 5px;
+    border-radius: 999px;
+    background: var(--red-500, #dc2626);
+    color: #fff;
+    font-size: 11px;
+    font-weight: 800;
+    display: grid;
+    place-items: center;
+}
 
-    .bell-panel {
-        position: absolute;
-        right: 0;
-        top: calc(100% + 10px);
-        width: min(360px, calc(100vw - 32px));
-        max-height: 70vh;
-        overflow-y: auto;
-        padding: 12px;
-        border-radius: var(--radius-xl, 20px);
-        border: 1px solid var(--surface-elevated-strong);
-        background: var(--surface-card);
-        box-shadow: var(--shadow-card);
-        z-index: 50;
-    }
+.bell-panel {
+    position: absolute;
+    right: 0;
+    top: calc(100% + 10px);
+    width: min(360px, calc(100vw - 32px));
+    max-height: 70vh;
+    overflow-y: auto;
+    padding: 12px;
+    border-radius: var(--radius-xl, 20px);
+    border: 1px solid var(--surface-elevated-strong);
+    background: var(--surface-card);
+    box-shadow: var(--shadow-card);
+    z-index: 50;
+}
 
-    .bell-panel--fixed {
-        position: fixed;
-        top: auto;
-        right: auto;
-        z-index: 500;
-    }
+.bell-panel--fixed {
+    position: fixed;
+    top: auto;
+    right: auto;
+    z-index: 500;
+}
 
-    .bell-head {
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        gap: 8px;
-        margin-bottom: 10px;
-    }
+.bell-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    margin-bottom: 10px;
+}
 
-    .bell-title {
-        font-weight: 800;
-        color: var(--text-primary);
-    }
+.bell-title {
+    font-weight: 800;
+    color: var(--text-primary);
+}
 
-    .bell-mark-all {
-        border: none;
-        background: none;
-        padding: 0;
-        color: var(--practiq-violet);
-        font-size: var(--text-xs);
-        font-weight: 700;
-        cursor: pointer;
-    }
+.bell-mark-all {
+    border: none;
+    background: none;
+    padding: 0;
+    color: var(--practiq-violet);
+    font-size: var(--text-xs);
+    font-weight: 700;
+    cursor: pointer;
+}
 
-    .bell-empty {
-        margin: 0;
-        padding: 18px 6px;
-        text-align: center;
-        color: var(--text-secondary);
-        font-size: var(--text-sm);
-    }
+.bell-empty {
+    margin: 0;
+    padding: 18px 6px;
+    text-align: center;
+    color: var(--text-secondary);
+    font-size: var(--text-sm);
+}
 
-    .bell-list {
-        list-style: none;
-        margin: 0;
-        padding: 0;
-        display: flex;
-        flex-direction: column;
-        gap: 6px;
-    }
+.bell-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
 
-    .bell-item {
-        display: flex;
-        gap: 10px;
-        align-items: flex-start;
-        padding: 10px;
-        border-radius: var(--radius-lg);
-        cursor: pointer;
-        transition: var(--transition-fast);
-    }
+.bell-item {
+    display: flex;
+    gap: 10px;
+    align-items: flex-start;
+    padding: 10px;
+    border-radius: var(--radius-lg);
+    cursor: pointer;
+    transition: var(--transition-fast);
+}
 
-    .bell-item:hover {
-        background: var(--surface-elevated);
-    }
+.bell-item:hover {
+    background: var(--surface-elevated);
+}
 
-    .bell-item--unread {
-        background: rgba(124, 58, 237, 0.07);
-    }
+.bell-item--unread {
+    background: rgba(124, 58, 237, 0.07);
+}
 
-    .bell-item--scheduled {
-        cursor: default;
-    }
+.bell-item--scheduled {
+    cursor: default;
+}
 
-    .bell-item-icon {
-        display: grid;
-        place-items: center;
-        width: 32px;
-        height: 32px;
-        flex: 0 0 auto;
-        border-radius: 50%;
-        background: rgba(124, 58, 237, 0.12);
-        color: var(--practiq-violet);
-    }
+.bell-item-icon {
+    display: grid;
+    place-items: center;
+    width: 32px;
+    height: 32px;
+    flex: 0 0 auto;
+    border-radius: 50%;
+    background: rgba(124, 58, 237, 0.12);
+    color: var(--practiq-violet);
+}
 
-    .bell-item-body {
-        flex: 1;
-        min-width: 0;
-    }
+.bell-item-body {
+    flex: 1;
+    min-width: 0;
+}
 
-    .bell-item-title {
-        font-weight: 700;
-        color: var(--text-primary);
-        font-size: var(--text-sm);
-    }
+.bell-item-title {
+    font-weight: 700;
+    color: var(--text-primary);
+    font-size: var(--text-sm);
+}
 
-    .bell-item-text,
-    .bell-item-date {
-        color: var(--text-secondary);
-        font-size: var(--text-xs);
-        margin-top: 2px;
-    }
+.bell-item-text,
+.bell-item-date {
+    color: var(--text-secondary);
+    font-size: var(--text-xs);
+    margin-top: 2px;
+}
 
-    .bell-item-date {
-        color: var(--practiq-violet);
-        font-weight: 600;
-    }
+.bell-item-date {
+    color: var(--practiq-violet);
+    font-weight: 600;
+}
 
-    .bell-item-now {
-        margin-left: 4px;
-        color: var(--green-600, #16a34a);
-    }
+.bell-item-now {
+    margin-left: 4px;
+    color: var(--green-600, #16a34a);
+}
 
-    .bell-dot {
-        width: 8px;
-        height: 8px;
-        border-radius: 50%;
-        background: var(--practiq-violet);
-        flex: 0 0 auto;
-        margin-top: 6px;
-    }
+.bell-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--practiq-violet);
+    flex: 0 0 auto;
+    margin-top: 6px;
+}
 </style>

@@ -1,22 +1,22 @@
 <script setup lang="ts">
-    import { ref } from 'vue';
-    import FileViewer from '@/components/ui/FileViewer.vue';
-    import type { Material } from '@/types';
-    import type { MaterialsListEmits, MaterialsListProps } from './MaterialsList.types';
+import { ref } from 'vue';
+import FileViewer from '@/components/ui/FileViewer.vue';
+import type { Material } from '@/types';
+import type { MaterialsListEmits, MaterialsListProps } from './MaterialsList.types';
 
-    defineProps<MaterialsListProps>();
-    const emit = defineEmits<MaterialsListEmits>();
+defineProps<MaterialsListProps>();
+const emit = defineEmits<MaterialsListEmits>();
 
-    const viewing = ref<Material | null>(null);
+const viewing = ref<Material | null>(null);
 
-    const materialIcon = (type: string) =>
-        ({
-            pdf: 'pi pi-file-pdf',
-            image: 'pi pi-image',
-            video: 'pi pi-video',
-            text: 'pi pi-align-left',
-            worksheet: 'pi pi-copy',
-        })[type] || 'pi pi-file';
+const materialIcon = (type: string) =>
+    ({
+        pdf: 'pi pi-file-pdf',
+        image: 'pi pi-image',
+        video: 'pi pi-video',
+        text: 'pi pi-align-left',
+        worksheet: 'pi pi-copy',
+    })[type] || 'pi pi-file';
 </script>
 
 <template>
@@ -74,128 +74,128 @@
 </template>
 
 <style scoped>
+.tab-content {
+    background: var(--surface-elevated);
+    border: 1px solid var(--surface-elevated-strong);
+    border-radius: var(--radius-2xl);
+    box-shadow: var(--shadow-card);
+    padding: 20px;
+}
+.section-header,
+.list-item,
+.item-info {
+    display: flex;
+    align-items: center;
+}
+.section-header {
+    justify-content: space-between;
+    gap: 16px;
+    margin-bottom: 16px;
+}
+.section-header h2 {
+    margin: 0;
+    color: var(--text-heading);
+    font-size: 1.25rem;
+    font-weight: 800;
+}
+.empty-inline {
+    padding: 18px;
+    border: 1px dashed var(--surface-border);
+    border-radius: var(--radius-lg);
+    color: var(--text-secondary);
+    text-align: center;
+}
+.items-list {
+    display: grid;
+    gap: 10px;
+}
+.list-item {
+    justify-content: space-between;
+    gap: 14px;
+    padding: 14px;
+    border: 1px solid var(--surface-border);
+    border-radius: var(--radius-lg);
+    background: var(--surface-card);
+    transition: var(--transition-fast);
+}
+.list-item:hover {
+    transform: translateY(-1px);
+    box-shadow: var(--shadow-card);
+}
+.item-info {
+    gap: 12px;
+    min-width: 0;
+}
+.item-actions {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex: 0 0 auto;
+}
+.item-title {
+    font-weight: 800;
+    color: var(--text-primary);
+}
+.item-subtitle {
+    color: var(--text-secondary);
+    font-size: var(--text-sm);
+    margin-top: 3px;
+}
+.item-leading-icon {
+    width: 34px;
+    height: 34px;
+    display: grid;
+    place-items: center;
+    border-radius: var(--radius-md);
+    background: var(--fill-primary-soft);
+    color: var(--practiq-violet);
+    flex: 0 0 auto;
+}
+
+@media (max-width: 600px) {
     .tab-content {
-        background: var(--surface-elevated);
-        border: 1px solid var(--surface-elevated-strong);
-        border-radius: var(--radius-2xl);
-        box-shadow: var(--shadow-card);
-        padding: 20px;
-    }
-    .section-header,
-    .list-item,
-    .item-info {
-        display: flex;
-        align-items: center;
+        padding: 14px;
     }
     .section-header {
-        justify-content: space-between;
-        gap: 16px;
-        margin-bottom: 16px;
-    }
-    .section-header h2 {
-        margin: 0;
-        color: var(--text-heading);
-        font-size: 1.25rem;
-        font-weight: 800;
-    }
-    .empty-inline {
-        padding: 18px;
-        border: 1px dashed var(--surface-border);
-        border-radius: var(--radius-lg);
-        color: var(--text-secondary);
-        text-align: center;
-    }
-    .items-list {
-        display: grid;
+        align-items: stretch;
+        flex-direction: column;
         gap: 10px;
     }
-    .list-item {
-        justify-content: space-between;
-        gap: 14px;
-        padding: 14px;
-        border: 1px solid var(--surface-border);
-        border-radius: var(--radius-lg);
-        background: var(--surface-card);
-        transition: var(--transition-fast);
+    .section-header .btn {
+        width: 100%;
+        min-height: 44px;
+        justify-content: center;
     }
-    .list-item:hover {
-        transform: translateY(-1px);
-        box-shadow: var(--shadow-card);
+    .list-item {
+        align-items: center;
+        gap: 10px;
+        padding: 12px;
     }
     .item-info {
-        gap: 12px;
+        flex: 1;
+        width: auto;
+    }
+    .item-info > div {
         min-width: 0;
     }
-    .item-actions {
-        display: flex;
-        align-items: center;
-        gap: 6px;
-        flex: 0 0 auto;
-    }
-    .item-title {
-        font-weight: 800;
-        color: var(--text-primary);
-    }
+    .item-title,
     .item-subtitle {
-        color: var(--text-secondary);
-        font-size: var(--text-sm);
-        margin-top: 3px;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
     }
-    .item-leading-icon {
-        width: 34px;
-        height: 34px;
-        display: grid;
-        place-items: center;
-        border-radius: var(--radius-md);
-        background: var(--fill-primary-soft);
-        color: var(--practiq-violet);
-        flex: 0 0 auto;
+    .item-actions {
+        width: auto;
+        justify-content: flex-end;
+        gap: 2px;
     }
-
-    @media (max-width: 600px) {
-        .tab-content {
-            padding: 14px;
-        }
-        .section-header {
-            align-items: stretch;
-            flex-direction: column;
-            gap: 10px;
-        }
-        .section-header .btn {
-            width: 100%;
-            min-height: 44px;
-            justify-content: center;
-        }
-        .list-item {
-            align-items: center;
-            gap: 10px;
-            padding: 12px;
-        }
-        .item-info {
-            flex: 1;
-            width: auto;
-        }
-        .item-info > div {
-            min-width: 0;
-        }
-        .item-title,
-        .item-subtitle {
-            overflow: hidden;
-            text-overflow: ellipsis;
-            white-space: nowrap;
-        }
-        .item-actions {
-            width: auto;
-            justify-content: flex-end;
-            gap: 2px;
-        }
-        .item-actions .btn {
-            width: 36px;
-            min-width: 36px;
-            min-height: 36px;
-            height: 36px;
-            padding: 0;
-            justify-content: center;
-        }
+    .item-actions .btn {
+        width: 36px;
+        min-width: 36px;
+        min-height: 36px;
+        height: 36px;
+        padding: 0;
+        justify-content: center;
     }
+}
 </style>

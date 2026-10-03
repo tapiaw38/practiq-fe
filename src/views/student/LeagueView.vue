@@ -1,135 +1,132 @@
 <script setup lang="ts">
-    import { computed, nextTick, onMounted, ref, watch } from 'vue';
-    import StudentLayout from '@/layouts/StudentLayout.vue';
-    import Skeleton from '@/components/ui/Skeleton.vue';
-    import UserAvatar from '@/components/ui/UserAvatar.vue';
-    import { practiqApi } from '@/api/request/server';
-    import { useDashboard } from '@/composables/useDashboard';
-    import { useCountUp } from '@/composables/useCountUp';
-    import { DashboardService } from '@/services/dashboard/dashboardService';
-    import type { CourseLeaderboard, CourseSummary } from '@/services/dashboard/dashboardService';
+import { computed, nextTick, onMounted, ref, watch } from 'vue';
+import StudentLayout from '@/layouts/StudentLayout.vue';
+import Skeleton from '@/components/ui/Skeleton.vue';
+import UserAvatar from '@/components/ui/UserAvatar.vue';
+import { useDashboard } from '@/composables/useDashboard';
+import { useCountUp } from '@/composables/useCountUp';
+import type { CourseLeaderboard, CourseSummary } from '@/types/dashboard';
 
-    const { loadDashboard } = useDashboard();
-    const service = new DashboardService(practiqApi);
-    const courses = ref<CourseSummary[]>([]);
-    const selectedCourseID = ref('');
-    const loading = ref(true);
-    const loadError = ref(false);
-    const board = ref<CourseLeaderboard | null>(null);
-    const boardLoading = ref(false);
-    const boardError = ref(false);
-    const boardDirection = ref<'next' | 'previous'>('next');
-    let swipeStartX: number | null = null;
-    const courseTabElements = new Map<string, HTMLButtonElement>();
+const { loadDashboard, loadLeaderboard } = useDashboard();
+const courses = ref<CourseSummary[]>([]);
+const selectedCourseID = ref('');
+const loading = ref(true);
+const loadError = ref(false);
+const board = ref<CourseLeaderboard | null>(null);
+const boardLoading = ref(false);
+const boardError = ref(false);
+const boardDirection = ref<'next' | 'previous'>('next');
+let swipeStartX: number | null = null;
+const courseTabElements = new Map<string, HTMLButtonElement>();
 
-    const selectedCourse = computed(
-        () =>
-            courses.value.find((course) => course.course_id === selectedCourseID.value) ||
-            courses.value[0],
+const selectedCourse = computed(
+    () =>
+        courses.value.find((course) => course.course_id === selectedCourseID.value) ||
+        courses.value[0],
+);
+
+const courseXp = computed(() => (selectedCourse.value ? selectedCourse.value.course_xp : 0));
+const courseXpShown = useCountUp(courseXp);
+
+const MEDALS: Record<number, string> = { 1: '🥇', 2: '🥈', 3: '🥉' };
+
+const placeFor = (position: number, totalXp: number) => {
+    if (totalXp <= 0) return '–';
+    return MEDALS[position] || String(position);
+};
+
+const showPodium = computed(() => (board.value?.data[0]?.total_xp ?? 0) > 0);
+const podium = computed(() =>
+    showPodium.value
+        ? (board.value?.data ?? []).slice(0, 3).filter((entry) => entry.total_xp > 0)
+        : [],
+);
+const restEntries = computed(() => (board.value?.data ?? []).slice(podium.value.length));
+
+function podiumOrder(position: number) {
+    if (position === 1) return 2;
+    if (position === 2) return 1;
+    return 3;
+}
+
+async function loadBoard(courseID: string) {
+    if (!courseID) return;
+    boardLoading.value = true;
+    boardError.value = false;
+    try {
+        board.value = await loadLeaderboard(courseID);
+    } catch {
+        board.value = null;
+        boardError.value = true;
+    } finally {
+        boardLoading.value = false;
+    }
+}
+
+async function selectCourse(courseID: string, direction: 'next' | 'previous' = 'next') {
+    if (!courseID || courseID === selectedCourseID.value) return;
+    boardDirection.value = direction;
+    selectedCourseID.value = courseID;
+
+    await nextTick();
+    courseTabElements.get(courseID)?.scrollIntoView({
+        behavior: 'smooth',
+        block: 'nearest',
+        inline: 'center',
+    });
+}
+
+function setCourseTabRef(courseID: string, element: unknown) {
+    if (element instanceof HTMLButtonElement) courseTabElements.set(courseID, element);
+    else courseTabElements.delete(courseID);
+}
+
+function onBoardTouchStart(event: TouchEvent) {
+    swipeStartX = event.changedTouches[0]?.clientX ?? null;
+}
+
+function onBoardTouchEnd(event: TouchEvent) {
+    const startX = swipeStartX;
+    swipeStartX = null;
+    const endX = event.changedTouches[0]?.clientX;
+    if (startX === null || endX === undefined || Math.abs(endX - startX) < 56) return;
+
+    const currentIndex = courses.value.findIndex(
+        (course) => course.course_id === selectedCourseID.value,
     );
+    if (currentIndex < 0) return;
+    const nextIndex = endX < startX ? currentIndex + 1 : currentIndex - 1;
+    const nextCourse = courses.value[nextIndex];
+    if (nextCourse)
+        selectCourse(nextCourse.course_id, nextIndex > currentIndex ? 'next' : 'previous');
+}
 
-    const courseXp = computed(() => (selectedCourse.value ? selectedCourse.value.course_xp : 0));
-    const courseXpShown = useCountUp(courseXp);
+const LAST_COURSE_KEY = 'league:last-course';
 
-    const MEDALS: Record<number, string> = { 1: '🥇', 2: '🥈', 3: '🥉' };
+watch(courses, (items) => {
+    if (!items.length) return;
+    const known = items.some((item) => item.course_id === selectedCourseID.value);
+    if (!known) selectedCourseID.value = items[0].course_id;
+});
 
-    const placeFor = (position: number, totalXp: number) => {
-        if (totalXp <= 0) return '–';
-        return MEDALS[position] || String(position);
-    };
+watch(selectedCourseID, (courseID) => {
+    if (!courseID) return;
+    localStorage.setItem(LAST_COURSE_KEY, courseID);
+    loadBoard(courseID);
+});
 
-    const showPodium = computed(() => (board.value?.data[0]?.total_xp ?? 0) > 0);
-    const podium = computed(() =>
-        showPodium.value
-            ? (board.value?.data ?? []).slice(0, 3).filter((entry) => entry.total_xp > 0)
-            : [],
-    );
-    const restEntries = computed(() => (board.value?.data ?? []).slice(podium.value.length));
-
-    function podiumOrder(position: number) {
-        if (position === 1) return 2;
-        if (position === 2) return 1;
-        return 3;
+onMounted(async () => {
+    const remembered = localStorage.getItem(LAST_COURSE_KEY) || '';
+    if (remembered) selectedCourseID.value = remembered;
+    try {
+        const dashboard = await loadDashboard();
+        courses.value = dashboard.courses || [];
+    } catch {
+        loadError.value = true;
+    } finally {
+        loading.value = false;
     }
-
-    async function loadBoard(courseID: string) {
-        if (!courseID) return;
-        boardLoading.value = true;
-        boardError.value = false;
-        try {
-            board.value = await service.leaderboard(courseID);
-        } catch {
-            board.value = null;
-            boardError.value = true;
-        } finally {
-            boardLoading.value = false;
-        }
-    }
-
-    async function selectCourse(courseID: string, direction: 'next' | 'previous' = 'next') {
-        if (!courseID || courseID === selectedCourseID.value) return;
-        boardDirection.value = direction;
-        selectedCourseID.value = courseID;
-
-        await nextTick();
-        courseTabElements.get(courseID)?.scrollIntoView({
-            behavior: 'smooth',
-            block: 'nearest',
-            inline: 'center',
-        });
-    }
-
-    function setCourseTabRef(courseID: string, element: unknown) {
-        if (element instanceof HTMLButtonElement) courseTabElements.set(courseID, element);
-        else courseTabElements.delete(courseID);
-    }
-
-    function onBoardTouchStart(event: TouchEvent) {
-        swipeStartX = event.changedTouches[0]?.clientX ?? null;
-    }
-
-    function onBoardTouchEnd(event: TouchEvent) {
-        const startX = swipeStartX;
-        swipeStartX = null;
-        const endX = event.changedTouches[0]?.clientX;
-        if (startX === null || endX === undefined || Math.abs(endX - startX) < 56) return;
-
-        const currentIndex = courses.value.findIndex(
-            (course) => course.course_id === selectedCourseID.value,
-        );
-        if (currentIndex < 0) return;
-        const nextIndex = endX < startX ? currentIndex + 1 : currentIndex - 1;
-        const nextCourse = courses.value[nextIndex];
-        if (nextCourse)
-            selectCourse(nextCourse.course_id, nextIndex > currentIndex ? 'next' : 'previous');
-    }
-
-    const LAST_COURSE_KEY = 'league:last-course';
-
-    watch(courses, (items) => {
-        if (!items.length) return;
-        const known = items.some((item) => item.course_id === selectedCourseID.value);
-        if (!known) selectedCourseID.value = items[0].course_id;
-    });
-
-    watch(selectedCourseID, (courseID) => {
-        if (!courseID) return;
-        localStorage.setItem(LAST_COURSE_KEY, courseID);
-        loadBoard(courseID);
-    });
-
-    onMounted(async () => {
-        const remembered = localStorage.getItem(LAST_COURSE_KEY) || '';
-        if (remembered) selectedCourseID.value = remembered;
-        try {
-            const dashboard = await loadDashboard();
-            courses.value = dashboard.courses || [];
-        } catch {
-            loadError.value = true;
-        } finally {
-            loading.value = false;
-        }
-    });
+});
 </script>
 
 <template>
@@ -295,376 +292,376 @@
 </template>
 
 <style scoped>
+.league-shell {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 24px 20px 72px;
+    display: grid;
+    gap: 18px;
+}
+.league-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 20px;
+    padding: 22px 26px;
+    border: 1px solid rgba(var(--practiq-violet-rgb), 0.12);
+    border-radius: var(--radius-2xl);
+    background: var(--elevation-tint-bg);
+    box-shadow: var(--shadow-card);
+}
+.league-kicker {
+    margin: 0 0 4px;
+    color: var(--practiq-violet);
+    font-size: var(--text-xs);
+    font-weight: 800;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+}
+h1,
+h2,
+p {
+    margin: 0;
+}
+h1 {
+    color: var(--text-heading);
+    font-size: var(--font-hero);
+    line-height: 1.1;
+}
+h2 {
+    color: var(--text-heading);
+    font-size: 17px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+h2 i {
+    color: var(--practiq-violet);
+}
+.league-header p:not(.league-kicker),
+.league-card p {
+    margin-top: 7px;
+    color: var(--text-secondary);
+    line-height: 1.5;
+}
+.league-xp {
+    min-width: 120px;
+    padding: 10px 18px;
+    border-radius: var(--radius-xl);
+    background: var(--gradient-brand);
+    color: var(--color-on-primary);
+    text-align: center;
+}
+.league-xp span {
+    display: block;
+    font-size: 10px;
+    font-weight: 800;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    opacity: 0.85;
+}
+.league-xp strong {
+    font-size: 1.8rem;
+    line-height: 1;
+}
+.course-tabs {
+    display: flex;
+    gap: 10px;
+    overflow-x: auto;
+    padding: 4px 2px 12px;
+    scrollbar-width: none;
+    scroll-snap-type: x mandatory;
+    isolation: isolate;
+}
+.course-tabs::-webkit-scrollbar {
+    display: none;
+}
+.course-tab {
+    flex: 0 0 176px;
+    min-height: 76px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 12px;
+    border: 1px solid var(--surface-glass-border);
+    border-radius: var(--radius-xl);
+    background: var(--elevation-tint-bg);
+    color: var(--text-secondary);
+    text-align: left;
+    cursor: pointer;
+    scroll-snap-align: start;
+    font: inherit;
+    transition: var(--transition-fast);
+}
+.course-tab:hover {
+    border-color: rgba(var(--practiq-violet-rgb), 0.28);
+}
+.course-tab--active {
+    background: var(--fill-primary-soft);
+    border-color: var(--practiq-violet);
+    color: var(--practiq-violet-dark);
+    box-shadow:
+        inset 0 0 0 1px rgba(var(--practiq-violet-rgb), 0.08),
+        0 5px 14px rgba(var(--practiq-violet-rgb), 0.1);
+}
+.course-tab__icon {
+    width: 38px;
+    height: 38px;
+    display: grid;
+    place-items: center;
+    border-radius: var(--radius-md);
+    background: var(--surface-card);
+    flex: none;
+}
+.course-tab--active .course-tab__icon {
+    background: var(--gradient-brand);
+    color: var(--color-on-primary);
+}
+.course-tab__copy {
+    min-width: 0;
+    display: grid;
+    gap: 3px;
+}
+.course-tab strong {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: var(--text-sm);
+}
+.course-tab small {
+    font-size: var(--text-xs);
+    color: var(--text-muted);
+}
+.league-card {
+    max-width: 650px;
+    padding: 24px;
+    border-radius: var(--radius-2xl);
+    background: var(--elevation-tint-bg);
+    border: 1px solid var(--surface-glass-border);
+    box-shadow: var(--shadow-card);
+}
+.league-empty {
+    min-height: 190px;
+    display: grid;
+    place-items: center;
+    align-content: center;
+    gap: 10px;
+    padding: 24px;
+    text-align: center;
+    border-radius: var(--radius-2xl);
+    background: var(--elevation-tint-bg);
+    color: var(--text-secondary);
+    box-shadow: var(--elevation-tint-shadow);
+}
+.league-empty i {
+    color: var(--practiq-violet);
+    font-size: 1.5rem;
+}
+.league-card--skeleton {
+    display: grid;
+    justify-items: start;
+}
+.mt-16 {
+    margin-top: 16px;
+}
+.mt-12 {
+    margin-top: 12px;
+}
+.league-board {
+    width: 100%;
+    max-width: none;
+    display: grid;
+    gap: 14px;
+}
+.league-board--slide-next {
+    animation: league-board-in-next 0.2s ease-out both;
+}
+.league-board--slide-previous {
+    animation: league-board-in-previous 0.2s ease-out both;
+}
+@keyframes league-board-in-next {
+    from {
+        opacity: 0.35;
+        transform: translateX(18px);
+    }
+    to {
+        opacity: 1;
+        transform: translateX(0);
+    }
+}
+@keyframes league-board-in-previous {
+    from {
+        opacity: 0.35;
+        transform: translateX(-18px);
+    }
+    to {
+        opacity: 1;
+        transform: translateX(0);
+    }
+}
+
+.podium {
+    display: flex;
+    align-items: flex-end;
+    justify-content: center;
+    gap: 10px;
+    padding: 8px 4px 0;
+}
+.podium-slot {
+    flex: 1 1 0;
+    max-width: 150px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+    text-align: center;
+}
+.podium-medal {
+    font-size: 1.15rem;
+    line-height: 1;
+}
+.podium-slot--1 .podium-medal {
+    font-size: 1.4rem;
+}
+.podium-name {
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-weight: 700;
+    font-size: var(--text-sm);
+    color: var(--text-primary);
+}
+.podium-xp {
+    font-weight: 800;
+    font-size: var(--text-xs);
+    color: var(--practiq-violet-dark);
+}
+.podium-step {
+    width: 100%;
+    margin-top: 6px;
+    border-radius: var(--radius-md) var(--radius-md) 0 0;
+}
+.podium-slot--1 .podium-step {
+    height: 44px;
+    background: var(--gradient-brand);
+}
+.podium-slot--2 .podium-step {
+    height: 30px;
+    background: var(--fill-primary-soft);
+}
+.podium-slot--3 .podium-step {
+    height: 20px;
+    background: var(--surface-subtle);
+}
+.podium-slot--me .podium-name {
+    color: var(--practiq-violet-dark);
+}
+
+.board-rows {
+    display: grid;
+    gap: 6px;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+.board-rows--detached {
+    margin-top: 10px;
+    padding-top: 12px;
+    border-top: 1px dashed rgba(var(--surface-border-rgb), 0.4);
+}
+.board-row {
+    display: grid;
+    grid-template-columns: 28px auto 1fr auto;
+    align-items: center;
+    gap: 10px;
+    padding: 9px 12px;
+    border-radius: var(--radius-xl);
+    background: var(--surface-subtle);
+}
+
+.board-row--me {
+    background: var(--fill-primary-soft);
+    color: var(--practiq-violet-dark);
+}
+.board-pos {
+    font-weight: 800;
+    font-size: var(--text-sm);
+    text-align: center;
+    color: var(--text-muted);
+}
+.board-row--me .board-pos {
+    color: var(--practiq-violet-dark);
+}
+.board-name {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-weight: 700;
+    font-size: var(--text-sm);
+}
+.board-xp {
+    font-weight: 800;
+    font-size: var(--text-sm);
+    color: var(--practiq-violet-dark);
+}
+
+.league-board .board-note {
+    margin: 0;
+    color: var(--text-muted);
+    font-size: var(--text-sm);
+    line-height: 1.45;
+}
+.league-board .board-note--quiet {
+    margin-top: 10px;
+    padding-top: 10px;
+    border-top: 1px dashed rgba(var(--surface-border-rgb), 0.4);
+}
+
+@media (max-width: 600px) {
     .league-shell {
-        max-width: 1200px;
-        margin: 0 auto;
-        padding: 24px 20px 72px;
-        display: grid;
-        gap: 18px;
-    }
-    .league-header {
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        gap: 20px;
-        padding: 22px 26px;
-        border: 1px solid rgba(var(--practiq-violet-rgb), 0.12);
-        border-radius: var(--radius-2xl);
-        background: var(--elevation-tint-bg);
-        box-shadow: var(--shadow-card);
-    }
-    .league-kicker {
-        margin: 0 0 4px;
-        color: var(--practiq-violet);
-        font-size: var(--text-xs);
-        font-weight: 800;
-        letter-spacing: 0.1em;
-        text-transform: uppercase;
-    }
-    h1,
-    h2,
-    p {
-        margin: 0;
-    }
-    h1 {
-        color: var(--text-heading);
-        font-size: var(--font-hero);
-        line-height: 1.1;
-    }
-    h2 {
-        color: var(--text-heading);
-        font-size: 17px;
-        display: flex;
-        align-items: center;
-        gap: 8px;
-    }
-    h2 i {
-        color: var(--practiq-violet);
-    }
-    .league-header p:not(.league-kicker),
-    .league-card p {
-        margin-top: 7px;
-        color: var(--text-secondary);
-        line-height: 1.5;
-    }
-    .league-xp {
-        min-width: 120px;
-        padding: 10px 18px;
-        border-radius: var(--radius-xl);
-        background: var(--gradient-brand);
-        color: var(--color-on-primary);
-        text-align: center;
-    }
-    .league-xp span {
-        display: block;
-        font-size: 10px;
-        font-weight: 800;
-        letter-spacing: 0.08em;
-        text-transform: uppercase;
-        opacity: 0.85;
-    }
-    .league-xp strong {
-        font-size: 1.8rem;
-        line-height: 1;
-    }
-    .course-tabs {
-        display: flex;
-        gap: 10px;
-        overflow-x: auto;
-        padding: 4px 2px 12px;
-        scrollbar-width: none;
-        scroll-snap-type: x mandatory;
-        isolation: isolate;
-    }
-    .course-tabs::-webkit-scrollbar {
-        display: none;
-    }
-    .course-tab {
-        flex: 0 0 176px;
-        min-height: 76px;
-        display: flex;
-        align-items: center;
-        gap: 10px;
-        padding: 12px;
-        border: 1px solid var(--surface-glass-border);
-        border-radius: var(--radius-xl);
-        background: var(--elevation-tint-bg);
-        color: var(--text-secondary);
-        text-align: left;
-        cursor: pointer;
-        scroll-snap-align: start;
-        font: inherit;
-        transition: var(--transition-fast);
-    }
-    .course-tab:hover {
-        border-color: rgba(var(--practiq-violet-rgb), 0.28);
-    }
-    .course-tab--active {
-        background: var(--fill-primary-soft);
-        border-color: var(--practiq-violet);
-        color: var(--practiq-violet-dark);
-        box-shadow:
-            inset 0 0 0 1px rgba(var(--practiq-violet-rgb), 0.08),
-            0 5px 14px rgba(var(--practiq-violet-rgb), 0.1);
-    }
-    .course-tab__icon {
-        width: 38px;
-        height: 38px;
-        display: grid;
-        place-items: center;
-        border-radius: var(--radius-md);
-        background: var(--surface-card);
-        flex: none;
-    }
-    .course-tab--active .course-tab__icon {
-        background: var(--gradient-brand);
-        color: var(--color-on-primary);
-    }
-    .course-tab__copy {
-        min-width: 0;
-        display: grid;
-        gap: 3px;
-    }
-    .course-tab strong {
-        overflow: hidden;
-        text-overflow: ellipsis;
-        white-space: nowrap;
-        font-size: var(--text-sm);
-    }
-    .course-tab small {
-        font-size: var(--text-xs);
-        color: var(--text-muted);
-    }
-    .league-card {
-        max-width: 650px;
-        padding: 24px;
-        border-radius: var(--radius-2xl);
-        background: var(--elevation-tint-bg);
-        border: 1px solid var(--surface-glass-border);
-        box-shadow: var(--shadow-card);
-    }
-    .league-empty {
-        min-height: 190px;
-        display: grid;
-        place-items: center;
-        align-content: center;
-        gap: 10px;
-        padding: 24px;
-        text-align: center;
-        border-radius: var(--radius-2xl);
-        background: var(--elevation-tint-bg);
-        color: var(--text-secondary);
-        box-shadow: var(--elevation-tint-shadow);
-    }
-    .league-empty i {
-        color: var(--practiq-violet);
-        font-size: 1.5rem;
-    }
-    .league-card--skeleton {
-        display: grid;
-        justify-items: start;
-    }
-    .mt-16 {
-        margin-top: 16px;
-    }
-    .mt-12 {
-        margin-top: 12px;
-    }
-    .league-board {
-        width: 100%;
-        max-width: none;
-        display: grid;
+        padding: 16px 12px 92px;
         gap: 14px;
     }
-    .league-board--slide-next {
-        animation: league-board-in-next 0.2s ease-out both;
+    .league-header {
+        padding: 18px;
+        align-items: flex-start;
     }
-    .league-board--slide-previous {
-        animation: league-board-in-previous 0.2s ease-out both;
+    .league-header h1 {
+        font-size: 1.35rem;
     }
-    @keyframes league-board-in-next {
-        from {
-            opacity: 0.35;
-            transform: translateX(18px);
-        }
-        to {
-            opacity: 1;
-            transform: translateX(0);
-        }
-    }
-    @keyframes league-board-in-previous {
-        from {
-            opacity: 0.35;
-            transform: translateX(-18px);
-        }
-        to {
-            opacity: 1;
-            transform: translateX(0);
-        }
-    }
-
-    .podium {
-        display: flex;
-        align-items: flex-end;
-        justify-content: center;
-        gap: 10px;
-        padding: 8px 4px 0;
-    }
-    .podium-slot {
-        flex: 1 1 0;
-        max-width: 150px;
-        display: flex;
-        flex-direction: column;
-        align-items: center;
-        gap: 4px;
-        text-align: center;
-    }
-    .podium-medal {
-        font-size: 1.15rem;
-        line-height: 1;
-    }
-    .podium-slot--1 .podium-medal {
-        font-size: 1.4rem;
-    }
-    .podium-name {
-        max-width: 100%;
-        overflow: hidden;
-        text-overflow: ellipsis;
-        white-space: nowrap;
-        font-weight: 700;
+    .league-header p:not(.league-kicker) {
         font-size: var(--text-sm);
-        color: var(--text-primary);
     }
-    .podium-xp {
-        font-weight: 800;
-        font-size: var(--text-xs);
-        color: var(--practiq-violet-dark);
+    .league-xp {
+        min-width: 80px;
+        padding: 9px 10px;
     }
-    .podium-step {
-        width: 100%;
-        margin-top: 6px;
-        border-radius: var(--radius-md) var(--radius-md) 0 0;
+    .league-xp strong {
+        font-size: 1.45rem;
+    }
+    .course-tab {
+        flex-basis: 150px;
+        min-height: 68px;
+    }
+    .league-card {
+        padding: 20px;
+    }
+    .podium {
+        gap: 6px;
     }
     .podium-slot--1 .podium-step {
-        height: 44px;
-        background: var(--gradient-brand);
+        height: 36px;
     }
     .podium-slot--2 .podium-step {
-        height: 30px;
-        background: var(--fill-primary-soft);
+        height: 26px;
     }
     .podium-slot--3 .podium-step {
-        height: 20px;
-        background: var(--surface-subtle);
+        height: 18px;
     }
-    .podium-slot--me .podium-name {
-        color: var(--practiq-violet-dark);
+    .podium-name {
+        font-size: var(--text-xs);
     }
-
-    .board-rows {
-        display: grid;
-        gap: 6px;
-        margin: 0;
-        padding: 0;
-        list-style: none;
-    }
-    .board-rows--detached {
-        margin-top: 10px;
-        padding-top: 12px;
-        border-top: 1px dashed rgba(var(--surface-border-rgb), 0.4);
-    }
-    .board-row {
-        display: grid;
-        grid-template-columns: 28px auto 1fr auto;
-        align-items: center;
-        gap: 10px;
-        padding: 9px 12px;
-        border-radius: var(--radius-xl);
-        background: var(--surface-subtle);
-    }
-
-    .board-row--me {
-        background: var(--fill-primary-soft);
-        color: var(--practiq-violet-dark);
-    }
-    .board-pos {
-        font-weight: 800;
-        font-size: var(--text-sm);
-        text-align: center;
-        color: var(--text-muted);
-    }
-    .board-row--me .board-pos {
-        color: var(--practiq-violet-dark);
-    }
-    .board-name {
-        min-width: 0;
-        overflow: hidden;
-        text-overflow: ellipsis;
-        white-space: nowrap;
-        font-weight: 700;
-        font-size: var(--text-sm);
-    }
-    .board-xp {
-        font-weight: 800;
-        font-size: var(--text-sm);
-        color: var(--practiq-violet-dark);
-    }
-
-    .league-board .board-note {
-        margin: 0;
-        color: var(--text-muted);
-        font-size: var(--text-sm);
-        line-height: 1.45;
-    }
-    .league-board .board-note--quiet {
-        margin-top: 10px;
-        padding-top: 10px;
-        border-top: 1px dashed rgba(var(--surface-border-rgb), 0.4);
-    }
-
-    @media (max-width: 600px) {
-        .league-shell {
-            padding: 16px 12px 92px;
-            gap: 14px;
-        }
-        .league-header {
-            padding: 18px;
-            align-items: flex-start;
-        }
-        .league-header h1 {
-            font-size: 1.35rem;
-        }
-        .league-header p:not(.league-kicker) {
-            font-size: var(--text-sm);
-        }
-        .league-xp {
-            min-width: 80px;
-            padding: 9px 10px;
-        }
-        .league-xp strong {
-            font-size: 1.45rem;
-        }
-        .course-tab {
-            flex-basis: 150px;
-            min-height: 68px;
-        }
-        .league-card {
-            padding: 20px;
-        }
-        .podium {
-            gap: 6px;
-        }
-        .podium-slot--1 .podium-step {
-            height: 36px;
-        }
-        .podium-slot--2 .podium-step {
-            height: 26px;
-        }
-        .podium-slot--3 .podium-step {
-            height: 18px;
-        }
-        .podium-name {
-            font-size: var(--text-xs);
-        }
-    }
+}
 </style>

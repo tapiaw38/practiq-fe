@@ -2,6 +2,7 @@ import { defineStore } from 'pinia';
 import { ref } from 'vue';
 import type {
     AcademicStatusParams,
+    AvatarParams,
     UIThemeParams,
     IProfileService,
     ProfileTypeParams,
@@ -62,6 +63,18 @@ export const useProfileStore = (service: IProfileService) =>
             }
         };
 
+        const updateAvatar = async (params: AvatarParams) => {
+            loading.value = true;
+            try {
+                const response = await service.updateAvatar(params);
+                currentProfile.value = response.data;
+                profilesById.value[response.data.id] = response.data;
+                return response.data;
+            } finally {
+                loading.value = false;
+            }
+        };
+
         const updateUIThemeById = async (id: string, params: UIThemeParams) => {
             loading.value = true;
             try {
@@ -105,6 +118,7 @@ export const useProfileStore = (service: IProfileService) =>
             syncProfile,
             fetchProfile,
             fetchProfileById,
+            updateAvatar,
             updateUITheme,
             updateUIThemeById,
             updateAcademicStatusById,

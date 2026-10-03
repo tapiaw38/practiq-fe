@@ -1,269 +1,260 @@
 <script setup lang="ts">
-    import { ref, reactive, computed, onMounted, watch } from 'vue';
-    import { useRouter } from 'vue-router';
-    import { useAuthStore } from '@/stores/authStore';
-    import TeacherLayout from '@/layouts/TeacherLayout.vue';
-    import Skeleton from '@/components/ui/Skeleton.vue';
-    import UiModal from '@/components/ui/UiModal.vue';
-    import InviteStudentsModal from '@/components/teacher/students/InviteStudentsModal.vue';
-    import { useCourse } from '@/composables/useCourse';
-    import { useAssignment } from '@/composables/useAssignment';
-    import { useGrade } from '@/composables/useGrade';
-    import { useProfile } from '@/composables/useProfile';
-    import { useSubject } from '@/composables/useSubject';
-    import { usePendingReviews } from '@/composables/usePendingReviews';
-    import { formatDate } from '@/utils/formatters';
-    import type { AssignedUser, Grade } from '@/types';
-    import { useSchools } from '@/composables/useSchools';
+import { ref, reactive, computed, onMounted, watch } from 'vue';
+import { useRouter } from 'vue-router';
+import { useAuthStore } from '@/stores/authStore';
+import TeacherLayout from '@/layouts/TeacherLayout.vue';
+import Skeleton from '@/components/ui/Skeleton.vue';
+import UiModal from '@/components/ui/UiModal.vue';
+import InviteStudentsModal from '@/components/teacher/students/InviteStudentsModal.vue';
+import { useCourse } from '@/composables/useCourse';
+import { useAssignment } from '@/composables/useAssignment';
+import { useGrade } from '@/composables/useGrade';
+import { useProfile } from '@/composables/useProfile';
+import { useSubject } from '@/composables/useSubject';
+import { usePendingReviews } from '@/composables/usePendingReviews';
+import { formatDate } from '@/utils/formatters';
+import type { AssignedUser, Grade } from '@/types';
+import { useSchools } from '@/composables/useSchools';
 
-    const router = useRouter();
-    const authStore = useAuthStore();
-    const {
-        courses,
-        loading: loadingCourses,
-        loadCourses,
-        createCourse: createCourseService,
-    } = useCourse();
-    const { grades, loadGrades, loadGradesByUsers } = useGrade();
-    const { subjects, loadSubjects } = useSubject();
-    const { loadProfile } = useProfile();
-    const { loadMyStudents } = useAssignment();
-    const {
-        count: pendingReviews,
-        hasMore: pendingHasMore,
-        load: loadPending,
-    } = usePendingReviews();
-    const assignedStudents = ref<AssignedUser[]>([]);
-    const studentGrades = ref<Record<string, Grade[]>>({});
-    const loading = ref(true);
-    const showCreateModal = ref(false);
-    const showInviteModal = ref(false);
-    const creating = ref(false);
-    const courseView = ref<'grid' | 'list'>(
-        localStorage.getItem('practiq-teacher-course-view') === 'list' ? 'list' : 'grid',
-    );
-    const currentStudentPage = ref(1);
-    const studentsPerPage = 20;
-    const studentQuery = ref('');
-    const gradeFilter = ref('all');
-    const { activeId } = useSchools();
+const router = useRouter();
+const authStore = useAuthStore();
+const {
+    courses,
+    loading: loadingCourses,
+    loadCourses,
+    createCourse: createCourseService,
+} = useCourse();
+const { grades, loadGrades, loadGradesByUsers } = useGrade();
+const { subjects, loadSubjects } = useSubject();
+const { loadProfile } = useProfile();
+const { loadMyStudents } = useAssignment();
+const { count: pendingReviews, hasMore: pendingHasMore, load: loadPending } = usePendingReviews();
+const assignedStudents = ref<AssignedUser[]>([]);
+const studentGrades = ref<Record<string, Grade[]>>({});
+const loading = ref(true);
+const showCreateModal = ref(false);
+const showInviteModal = ref(false);
+const creating = ref(false);
+const courseView = ref<'grid' | 'list'>(
+    localStorage.getItem('practiq-teacher-course-view') === 'list' ? 'list' : 'grid',
+);
+const currentStudentPage = ref(1);
+const studentsPerPage = 20;
+const studentQuery = ref('');
+const gradeFilter = ref('all');
+const { activeId } = useSchools();
 
-    const newCourse = reactive({
-        title: '',
-        description: '',
-        subject: '',
-        grade_id: '',
-        level: '',
-    });
+const newCourse = reactive({
+    title: '',
+    description: '',
+    subject: '',
+    grade_id: '',
+    level: '',
+});
 
-    const teacherName = computed(() => {
-        const name = authStore.profile?.name || '';
-        return name.split(' ')[0] || 'Docente';
-    });
+const teacherName = computed(() => {
+    const name = authStore.profile?.name || '';
+    return name.split(' ')[0] || 'Docente';
+});
 
-    const isSuperAdmin = computed(() => {
-        const roles = authStore.authUser?.roles || [];
-        return roles.some((role) => role.name === 'superadmin');
-    });
-    const dashboardKicker = computed(() =>
-        isSuperAdmin.value ? 'Administración de plataforma' : 'Panel del docente',
-    );
+const isSuperAdmin = computed(() => {
+    const roles = authStore.authUser?.roles || [];
+    return roles.some((role) => role.name === 'superadmin');
+});
+const dashboardKicker = computed(() =>
+    isSuperAdmin.value ? 'Administración de plataforma' : 'Panel del docente',
+);
 
-    const subjectCount = computed(() => {
-        const set = new Set(courses.value.map((c) => c.subject || 'general'));
-        return set.size;
-    });
-    const pendingShown = computed(() => (pendingHasMore.value ? '99+' : pendingReviews.value));
+const subjectCount = computed(() => {
+    const set = new Set(courses.value.map((c) => c.subject || 'general'));
+    return set.size;
+});
+const pendingShown = computed(() => (pendingHasMore.value ? '99+' : pendingReviews.value));
 
-    const assignedStudentsByGrade = computed(() => {
-        const buckets = new Map<
-            string,
-            { gradeKey: string; gradeName: string; students: AssignedUser[] }
-        >();
-        for (const student of assignedStudents.value) {
-            const gradesForStudent = studentGrades.value[student.id] || [];
-            if (!gradesForStudent.length) {
-                if (!buckets.has('no-grade'))
-                    buckets.set('no-grade', {
-                        gradeKey: 'no-grade',
-                        gradeName: 'Sin grado',
-                        students: [],
-                    });
-                buckets.get('no-grade')!.students.push(student);
-                continue;
-            }
-            for (const grade of gradesForStudent) {
-                if (!buckets.has(grade.id))
-                    buckets.set(grade.id, {
-                        gradeKey: grade.id,
-                        gradeName: grade.name,
-                        students: [],
-                    });
-                buckets.get(grade.id)!.students.push(student);
-            }
+const assignedStudentsByGrade = computed(() => {
+    const buckets = new Map<
+        string,
+        { gradeKey: string; gradeName: string; students: AssignedUser[] }
+    >();
+    for (const student of assignedStudents.value) {
+        const gradesForStudent = studentGrades.value[student.id] || [];
+        if (!gradesForStudent.length) {
+            if (!buckets.has('no-grade'))
+                buckets.set('no-grade', {
+                    gradeKey: 'no-grade',
+                    gradeName: 'Sin grado',
+                    students: [],
+                });
+            buckets.get('no-grade')!.students.push(student);
+            continue;
         }
-        return Array.from(buckets.values());
-    });
+        for (const grade of gradesForStudent) {
+            if (!buckets.has(grade.id))
+                buckets.set(grade.id, {
+                    gradeKey: grade.id,
+                    gradeName: grade.name,
+                    students: [],
+                });
+            buckets.get(grade.id)!.students.push(student);
+        }
+    }
+    return Array.from(buckets.values());
+});
 
-    const filteredStudents = computed(() => {
-        const query = studentQuery.value.trim().toLowerCase();
-        const inGrade =
-            gradeFilter.value === 'all'
-                ? null
-                : assignedStudentsByGrade.value.find((g) => g.gradeKey === gradeFilter.value);
-        const allowed = inGrade ? new Set(inGrade.students.map((s) => s.id)) : null;
-        return assignedStudents.value.filter((student) => {
-            if (allowed && !allowed.has(student.id)) return false;
-            if (!query) return true;
-            return (
-                student.name.toLowerCase().includes(query) ||
-                student.email.toLowerCase().includes(query)
-            );
+const filteredStudents = computed(() => {
+    const query = studentQuery.value.trim().toLowerCase();
+    const inGrade =
+        gradeFilter.value === 'all'
+            ? null
+            : assignedStudentsByGrade.value.find((g) => g.gradeKey === gradeFilter.value);
+    const allowed = inGrade ? new Set(inGrade.students.map((s) => s.id)) : null;
+    return assignedStudents.value.filter((student) => {
+        if (allowed && !allowed.has(student.id)) return false;
+        if (!query) return true;
+        return (
+            student.name.toLowerCase().includes(query) ||
+            student.email.toLowerCase().includes(query)
+        );
+    });
+});
+
+const paginatedStudents = computed(() => {
+    const start = (currentStudentPage.value - 1) * studentsPerPage;
+    return filteredStudents.value.slice(start, start + studentsPerPage);
+});
+
+const totalStudentPages = computed(() =>
+    Math.max(1, Math.ceil(filteredStudents.value.length / studentsPerPage)),
+);
+
+watch([studentQuery, gradeFilter], () => {
+    currentStudentPage.value = 1;
+});
+
+onMounted(async () => {
+    if (!authStore.profile) {
+        try {
+            const profile = await loadProfile();
+            authStore.setProfile(profile);
+        } catch {}
+    }
+    await loadCoursesData();
+    await loadCatalogs();
+    await loadAssignedStudents();
+    await loadPending();
+});
+watch(activeId, async () => {
+    gradeFilter.value = 'all';
+    await Promise.all([loadCoursesData(), loadCatalogs(), loadAssignedStudents(), loadPending()]);
+});
+
+async function loadCoursesData() {
+    loading.value = true;
+    try {
+        await loadCourses('teacher');
+    } catch (err) {
+        console.error(err);
+    } finally {
+        loading.value = false;
+    }
+}
+
+async function createCourse() {
+    creating.value = true;
+    try {
+        const selectedSubject = subjects.value.find((item) => item.id === newCourse.subject);
+        await createCourseService({
+            title: newCourse.title,
+            description: newCourse.description,
+            subject_id: newCourse.subject,
+            subject: selectedSubject?.name || '',
+            grade_id: newCourse.grade_id,
+            level: newCourse.level,
         });
-    });
+        showCreateModal.value = false;
+        newCourse.title = '';
+        newCourse.description = '';
+        newCourse.subject = '';
+        newCourse.grade_id = '';
+        newCourse.level = '';
+    } catch (err) {
+        console.error(err);
+    } finally {
+        creating.value = false;
+    }
+}
 
-    const paginatedStudents = computed(() => {
-        const start = (currentStudentPage.value - 1) * studentsPerPage;
-        return filteredStudents.value.slice(start, start + studentsPerPage);
-    });
+function setCourseView(view: 'grid' | 'list') {
+    courseView.value = view;
+    localStorage.setItem('practiq-teacher-course-view', view);
+}
+function studentProgressRoute(student: AssignedUser) {
+    return {
+        path: `/teacher/students/${student.id}/progress`,
+        query: {
+            name: encodeURIComponent(student.name),
+            email: encodeURIComponent(student.email),
+        },
+    };
+}
 
-    const totalStudentPages = computed(() =>
-        Math.max(1, Math.ceil(filteredStudents.value.length / studentsPerPage)),
-    );
+function nextStudentPage() {
+    if (currentStudentPage.value < totalStudentPages.value) {
+        currentStudentPage.value++;
+    }
+}
 
-    watch([studentQuery, gradeFilter], () => {
-        currentStudentPage.value = 1;
-    });
+function prevStudentPage() {
+    if (currentStudentPage.value > 1) {
+        currentStudentPage.value--;
+    }
+}
 
-    onMounted(async () => {
-        if (!authStore.profile) {
-            try {
-                const profile = await loadProfile();
-                authStore.setProfile(profile);
-            } catch {}
-        }
-        await loadCoursesData();
-        await loadCatalogs();
-        await loadAssignedStudents();
-        await loadPending();
-    });
-    watch(activeId, async () => {
-        gradeFilter.value = 'all';
-        await Promise.all([
-            loadCoursesData(),
-            loadCatalogs(),
-            loadAssignedStudents(),
-            loadPending(),
-        ]);
-    });
+async function loadCatalogs() {
+    try {
+        await Promise.all([loadGrades(), loadSubjects()]);
+    } catch (err) {
+        console.error(err);
+    }
+}
 
-    async function loadCoursesData() {
-        loading.value = true;
+async function loadAssignedStudents() {
+    try {
+        assignedStudents.value = await loadMyStudents();
+
         try {
-            await loadCourses('teacher');
+            studentGrades.value = await loadGradesByUsers(
+                assignedStudents.value.map((student) => student.id),
+            );
         } catch (err) {
             console.error(err);
-        } finally {
-            loading.value = false;
-        }
-    }
-
-    async function createCourse() {
-        creating.value = true;
-        try {
-            const selectedSubject = subjects.value.find((item) => item.id === newCourse.subject);
-            await createCourseService({
-                title: newCourse.title,
-                description: newCourse.description,
-                subject_id: newCourse.subject,
-                subject: selectedSubject?.name || '',
-                grade_id: newCourse.grade_id,
-                level: newCourse.level,
-            });
-            showCreateModal.value = false;
-            newCourse.title = '';
-            newCourse.description = '';
-            newCourse.subject = '';
-            newCourse.grade_id = '';
-            newCourse.level = '';
-        } catch (err) {
-            console.error(err);
-        } finally {
-            creating.value = false;
-        }
-    }
-
-    function setCourseView(view: 'grid' | 'list') {
-        courseView.value = view;
-        localStorage.setItem('practiq-teacher-course-view', view);
-    }
-    function studentProgressRoute(student: AssignedUser) {
-        return {
-            path: `/teacher/students/${student.id}/progress`,
-            query: {
-                name: encodeURIComponent(student.name),
-                email: encodeURIComponent(student.email),
-            },
-        };
-    }
-
-    function nextStudentPage() {
-        if (currentStudentPage.value < totalStudentPages.value) {
-            currentStudentPage.value++;
-        }
-    }
-
-    function prevStudentPage() {
-        if (currentStudentPage.value > 1) {
-            currentStudentPage.value--;
-        }
-    }
-
-    async function loadCatalogs() {
-        try {
-            await Promise.all([loadGrades(), loadSubjects()]);
-        } catch (err) {
-            console.error(err);
-        }
-    }
-
-    async function loadAssignedStudents() {
-        try {
-            assignedStudents.value = await loadMyStudents();
-
-            try {
-                studentGrades.value = await loadGradesByUsers(
-                    assignedStudents.value.map((student) => student.id),
-                );
-            } catch (err) {
-                console.error(err);
-                studentGrades.value = {};
-            }
-        } catch (err) {
-            console.error(err);
-            assignedStudents.value = [];
             studentGrades.value = {};
         }
+    } catch (err) {
+        console.error(err);
+        assignedStudents.value = [];
+        studentGrades.value = {};
     }
+}
 
-    function goToPendingReviews() {
-        router.push('/teacher/attempt-reviews?reviewed=unreviewed');
-    }
+function goToPendingReviews() {
+    router.push('/teacher/attempt-reviews?reviewed=unreviewed');
+}
 
-    function subjectColor(subject?: string) {
-        const s = (subject || '').toLowerCase();
-        if (s.includes('matem')) return 'var(--brand-500)';
-        if (s.includes('lectura') || s.includes('lengu')) return 'var(--info-solid)';
-        if (s.includes('ingl')) return 'var(--success-solid)';
-        if (s.includes('ciencia')) return 'var(--warning-solid)';
-        if (s.includes('histor') || s.includes('social')) return 'var(--danger-solid)';
-        return 'var(--ink-muted)';
-    }
+function subjectColor(subject?: string) {
+    const s = (subject || '').toLowerCase();
+    if (s.includes('matem')) return 'var(--brand-500)';
+    if (s.includes('lectura') || s.includes('lengu')) return 'var(--info-solid)';
+    if (s.includes('ingl')) return 'var(--success-solid)';
+    if (s.includes('ciencia')) return 'var(--warning-solid)';
+    if (s.includes('histor') || s.includes('social')) return 'var(--danger-solid)';
+    return 'var(--ink-muted)';
+}
 
-    const statusLabel: Record<string, string> = {
-        draft: 'Borrador',
-        archived: 'Archivado',
-    };
+const statusLabel: Record<string, string> = {
+    draft: 'Borrador',
+    archived: 'Archivado',
+};
 </script>
 
 <template>
@@ -760,104 +751,104 @@
 </template>
 
 <style scoped>
-    .skeleton-stack {
-        display: flex;
-        flex-direction: column;
-        gap: 6px;
-    }
+.skeleton-stack {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
 
-    .chips {
-        display: flex;
-        gap: var(--space-2);
-        margin-bottom: var(--space-3);
-        overflow-x: auto;
-        padding-bottom: 2px;
-        scrollbar-width: none;
+.chips {
+    display: flex;
+    gap: var(--space-2);
+    margin-bottom: var(--space-3);
+    overflow-x: auto;
+    padding-bottom: 2px;
+    scrollbar-width: none;
+}
+.chips::-webkit-scrollbar {
+    display: none;
+}
+.chip {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-2);
+    flex: 0 0 auto;
+    min-height: 32px;
+    padding: 0 var(--space-3);
+    border: 1px solid var(--line-control);
+    border-radius: var(--radius-pill);
+    background: var(--surface);
+    color: var(--ink-soft);
+    font: 700 13px/1 var(--font-ui);
+    cursor: pointer;
+}
+.chip span {
+    color: var(--ink-muted);
+    font-weight: 800;
+}
+.chip:hover {
+    background: var(--surface-sunken);
+}
+.chip.is-active {
+    background: var(--brand-50);
+    border-color: var(--brand-600);
+    color: var(--brand-800);
+}
+.chip.is-active span {
+    color: var(--brand-800);
+}
+
+.course-row {
+    grid-template-columns: minmax(0, 1.3fr) minmax(0, 1.6fr) 110px 20px;
+}
+.course-row__main {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-1);
+    min-width: 0;
+}
+.course-row__badges {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-1);
+}
+
+.pagination {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-4);
+    margin-top: var(--space-4);
+}
+.pagination__info {
+    color: var(--ink-soft);
+    font: 400 13px/20px var(--font-body);
+    text-align: center;
+}
+.setup-link {
+    color: var(--brand-600);
+    font-weight: 700;
+    text-decoration: underline;
+}
+
+@media (max-width: 1023px) {
+    .course-row {
+        grid-template-columns: minmax(0, 1fr) 20px;
     }
-    .chips::-webkit-scrollbar {
+    .course-row__desc,
+    .course-row__date {
         display: none;
     }
-    .chip {
-        display: inline-flex;
-        align-items: center;
-        gap: var(--space-2);
-        flex: 0 0 auto;
-        min-height: 32px;
-        padding: 0 var(--space-3);
-        border: 1px solid var(--line-control);
-        border-radius: var(--radius-pill);
-        background: var(--surface);
-        color: var(--ink-soft);
-        font: 700 13px/1 var(--font-ui);
-        cursor: pointer;
+    .course-row .row-item__go {
+        grid-column: 2;
+        grid-row: 1;
     }
-    .chip span {
-        color: var(--ink-muted);
-        font-weight: 800;
-    }
-    .chip:hover {
-        background: var(--surface-sunken);
-    }
-    .chip.is-active {
-        background: var(--brand-50);
-        border-color: var(--brand-600);
-        color: var(--brand-800);
-    }
-    .chip.is-active span {
-        color: var(--brand-800);
-    }
-
-    .course-row {
-        grid-template-columns: minmax(0, 1.3fr) minmax(0, 1.6fr) 110px 20px;
-    }
-    .course-row__main {
-        display: flex;
-        flex-direction: column;
-        gap: var(--space-1);
-        min-width: 0;
-    }
-    .course-row__badges {
-        display: flex;
-        flex-wrap: wrap;
-        gap: var(--space-1);
-    }
-
     .pagination {
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        gap: var(--space-4);
-        margin-top: var(--space-4);
+        flex-direction: column;
+        align-items: stretch;
     }
-    .pagination__info {
-        color: var(--ink-soft);
-        font: 400 13px/20px var(--font-body);
-        text-align: center;
+    .pagination .btn {
+        width: 100%;
     }
-    .setup-link {
-        color: var(--brand-600);
-        font-weight: 700;
-        text-decoration: underline;
-    }
-
-    @media (max-width: 1023px) {
-        .course-row {
-            grid-template-columns: minmax(0, 1fr) 20px;
-        }
-        .course-row__desc,
-        .course-row__date {
-            display: none;
-        }
-        .course-row .row-item__go {
-            grid-column: 2;
-            grid-row: 1;
-        }
-        .pagination {
-            flex-direction: column;
-            align-items: stretch;
-        }
-        .pagination .btn {
-            width: 100%;
-        }
-    }
+}
 </style>

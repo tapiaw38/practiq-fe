@@ -1,72 +1,68 @@
 <script setup lang="ts">
-    import { nextTick, onBeforeUnmount, ref, watch } from 'vue';
-    import { BASE_COLORS, EXTENDED_COLORS } from '@/utils/palette';
+import { nextTick, onBeforeUnmount, ref, watch } from 'vue';
+import { BASE_COLORS, EXTENDED_COLORS } from '@/utils/palette';
+import type { ColorPaletteProps } from './ColorPalette.types';
 
-    withDefaults(
-        defineProps<{
-            compact?: boolean;
-        }>(),
-        { compact: false },
-    );
+withDefaults(defineProps<ColorPaletteProps>(), { compact: false });
 
-    const model = defineModel<string>({ required: true });
+const model = defineModel<string>({ required: true });
 
-    const open = ref(false);
-    const root = ref<HTMLElement | null>(null);
-    function uniqueColors(colors: typeof BASE_COLORS) {
-        const seen = new Set<string>();
-        return colors.filter((color) => {
-            const key = color.value.toLowerCase();
-            if (seen.has(key)) return false;
-            seen.add(key);
-            return true;
-        });
-    }
-
-    const baseColors = uniqueColors(BASE_COLORS);
-    const allColors = uniqueColors([...BASE_COLORS, ...EXTENDED_COLORS]);
-    const popStyle = ref<Record<string, string>>({});
-
-    function isActive(value: string) {
-        return model.value.toLowerCase() === value.toLowerCase();
-    }
-
-    function pick(value: string) {
-        model.value = value;
-        open.value = false;
-    }
-
-    async function togglePalette() {
-        open.value = !open.value;
-        if (!open.value) return;
-        await nextTick();
-        const rect = root.value?.getBoundingClientRect();
-        if (!rect) return;
-
-        const estimatedHeight = 260;
-        const top =
-            rect.bottom + 8 + estimatedHeight <= window.innerHeight
-                ? rect.bottom + 8
-                : Math.max(12, rect.top - estimatedHeight - 8);
-        popStyle.value = {
-            position: 'fixed',
-            left: `${Math.max(12, Math.min(rect.left, window.innerWidth - 312))}px`,
-            right: 'auto',
-            top: `${top}px`,
-            bottom: 'auto',
-        };
-    }
-
-    function onDocumentClick(event: MouseEvent) {
-        if (!root.value?.contains(event.target as Node)) open.value = false;
-    }
-
-    watch(open, (isOpen) => {
-        if (isOpen) document.addEventListener('click', onDocumentClick);
-        else document.removeEventListener('click', onDocumentClick);
+const open = ref(false);
+const root = ref<HTMLElement | null>(null);
+function uniqueColors(colors: typeof BASE_COLORS) {
+    const seen = new Set<string>();
+    return colors.filter((color) => {
+        const key = color.value.toLowerCase();
+        if (seen.has(key)) return false;
+        seen.add(key);
+        return true;
     });
+}
 
-    onBeforeUnmount(() => document.removeEventListener('click', onDocumentClick));
+const baseColors = uniqueColors(BASE_COLORS);
+const allColors = uniqueColors([...BASE_COLORS, ...EXTENDED_COLORS]);
+const popStyle = ref<Record<string, string>>({});
+
+function isActive(value: string) {
+    return model.value.toLowerCase() === value.toLowerCase();
+}
+
+function pick(value: string) {
+    model.value = value;
+    open.value = false;
+}
+
+async function togglePalette() {
+    open.value = !open.value;
+    if (!open.value) return;
+    await nextTick();
+    const rect = root.value?.getBoundingClientRect();
+    if (!rect) return;
+
+    const estimatedHeight = 260;
+    const top =
+        rect.bottom + 8 + estimatedHeight <= window.innerHeight
+            ? rect.bottom + 8
+            : Math.max(12, rect.top - estimatedHeight - 8);
+    popStyle.value = {
+        position: 'fixed',
+        left: `${Math.max(12, Math.min(rect.left, window.innerWidth - 312))}px`,
+        right: 'auto',
+        top: `${top}px`,
+        bottom: 'auto',
+    };
+}
+
+function onDocumentClick(event: MouseEvent) {
+    if (!root.value?.contains(event.target as Node)) open.value = false;
+}
+
+watch(open, (isOpen) => {
+    if (isOpen) document.addEventListener('click', onDocumentClick);
+    else document.removeEventListener('click', onDocumentClick);
+});
+
+onBeforeUnmount(() => document.removeEventListener('click', onDocumentClick));
 </script>
 
 <template>
@@ -131,188 +127,188 @@
 </template>
 
 <style scoped>
+.color-palette {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex-wrap: wrap;
+}
+
+.swatch {
+    width: 30px;
+    height: 30px;
+    padding: 0;
+    border-radius: 50%;
+    border: 2px solid var(--surface-elevated-strong);
+    cursor: pointer;
+    transition: var(--transition);
+}
+
+.swatch:hover {
+    transform: scale(1.1);
+}
+
+.swatch--active {
+    box-shadow:
+        0 0 0 2px var(--surface-card),
+        0 0 0 4px var(--practiq-violet);
+}
+
+.more {
+    position: relative;
+    display: flex;
+}
+
+.more-btn {
+    display: grid;
+    place-items: center;
+    width: 30px;
+    height: 30px;
+    border-radius: var(--radius-sm, 8px);
+    border: 1px solid var(--surface-border);
+    background: var(--surface-card);
+    color: var(--text-secondary);
+    font-size: 13px;
+    cursor: pointer;
+    transition: var(--transition-fast);
+}
+
+.more-btn:hover,
+.more-btn--open {
+    background: var(--fill-primary-soft);
+    color: var(--practiq-violet);
+}
+
+.pop {
+    position: absolute;
+    top: calc(100% + 6px);
+    right: 0;
+    z-index: 5;
+    display: grid;
+    grid-template-columns: repeat(7, 1fr);
+    gap: 6px;
+    padding: 10px;
+    width: max-content;
+    max-width: min(300px, 78vw);
+    border-radius: var(--radius-lg);
+    border: 1px solid var(--surface-elevated-strong);
+    background: var(--surface-card);
+    box-shadow: var(--shadow-card-lg, 0 12px 28px rgba(0, 0, 0, 0.18));
+}
+
+.pop-swatch,
+.pop-custom {
+    width: 26px;
+    height: 26px;
+    padding: 0;
+    border: 1px solid var(--surface-border);
+    border-radius: 50%;
+    cursor: pointer;
+    transition: var(--transition-fast);
+}
+
+.pop-swatch:hover,
+.pop-custom:hover {
+    transform: scale(1.15);
+}
+
+.pop-swatch--active {
+    box-shadow:
+        0 0 0 2px var(--practiq-violet),
+        0 0 0 3px var(--surface-card);
+}
+
+.pop-custom {
+    display: grid;
+    place-items: center;
+    position: relative;
+    overflow: hidden;
+    background: var(--surface-elevated);
+    color: var(--text-secondary);
+    font-size: 11px;
+}
+
+.pop-custom input {
+    position: absolute;
+    inset: 0;
+    opacity: 0;
+    cursor: pointer;
+}
+
+.color-palette--compact {
+    gap: 4px;
+}
+
+.color-palette--compact .swatch {
+    width: 18px;
+    height: 18px;
+    border-width: 2px;
+    border-color: var(--surface-card);
+    box-shadow: 0 0 0 1px var(--surface-border);
+}
+
+.color-palette--compact .swatch--active {
+    box-shadow:
+        0 0 0 2px var(--practiq-violet),
+        0 0 0 3px var(--surface-card);
+}
+
+.color-palette--compact .more-btn {
+    width: 30px;
+    height: 30px;
+    border-radius: var(--radius-xs, 6px);
+}
+
+@media (max-width: 640px) {
     .color-palette {
-        display: flex;
-        align-items: center;
-        gap: 6px;
-        flex-wrap: wrap;
-    }
-
-    .swatch {
-        width: 30px;
-        height: 30px;
-        padding: 0;
-        border-radius: 50%;
-        border: 2px solid var(--surface-elevated-strong);
-        cursor: pointer;
-        transition: var(--transition);
-    }
-
-    .swatch:hover {
-        transform: scale(1.1);
-    }
-
-    .swatch--active {
-        box-shadow:
-            0 0 0 2px var(--surface-card),
-            0 0 0 4px var(--practiq-violet);
-    }
-
-    .more {
-        position: relative;
-        display: flex;
+        flex-wrap: nowrap;
+        flex-shrink: 0;
     }
 
     .more-btn {
-        display: grid;
-        place-items: center;
-        width: 30px;
-        height: 30px;
-        border-radius: var(--radius-sm, 8px);
-        border: 1px solid var(--surface-border);
-        background: var(--surface-card);
-        color: var(--text-secondary);
-        font-size: 13px;
-        cursor: pointer;
-        transition: var(--transition-fast);
+        width: 40px;
+        height: 40px;
+        flex-shrink: 0;
     }
 
-    .more-btn:hover,
-    .more-btn--open {
-        background: var(--fill-primary-soft);
-        color: var(--practiq-violet);
+    .color-palette {
+        flex-wrap: nowrap;
+        justify-content: center;
+        max-width: none;
     }
 
-    .pop {
-        position: absolute;
-        top: calc(100% + 6px);
-        right: 0;
-        z-index: 5;
-        display: grid;
-        grid-template-columns: repeat(7, 1fr);
-        gap: 6px;
-        padding: 10px;
-        width: max-content;
-        max-width: min(300px, 78vw);
-        border-radius: var(--radius-lg);
-        border: 1px solid var(--surface-elevated-strong);
-        background: var(--surface-card);
-        box-shadow: var(--shadow-card-lg, 0 12px 28px rgba(0, 0, 0, 0.18));
+    .swatch {
+        display: none;
     }
 
     .pop-swatch,
     .pop-custom {
-        width: 26px;
-        height: 26px;
-        padding: 0;
-        border: 1px solid var(--surface-border);
-        border-radius: 50%;
-        cursor: pointer;
-        transition: var(--transition-fast);
+        width: 34px;
+        height: 34px;
     }
 
-    .pop-swatch:hover,
-    .pop-custom:hover {
-        transform: scale(1.15);
-    }
-
-    .pop-swatch--active {
-        box-shadow:
-            0 0 0 2px var(--practiq-violet),
-            0 0 0 3px var(--surface-card);
-    }
-
-    .pop-custom {
-        display: grid;
-        place-items: center;
-        position: relative;
-        overflow: hidden;
-        background: var(--surface-elevated);
-        color: var(--text-secondary);
-        font-size: 11px;
-    }
-
-    .pop-custom input {
-        position: absolute;
-        inset: 0;
-        opacity: 0;
-        cursor: pointer;
-    }
-
-    .color-palette--compact {
-        gap: 4px;
+    .pop {
+        position: fixed;
+        top: auto;
+        width: min(300px, calc(100vw - 24px));
+        box-sizing: border-box;
+        max-width: none;
+        max-height: min(260px, calc(100vh - 24px));
+        overflow-y: auto;
+        grid-template-columns: repeat(auto-fit, minmax(34px, 1fr));
+        justify-items: center;
+        padding: 14px;
+        z-index: 60;
     }
 
     .color-palette--compact .swatch {
-        width: 18px;
-        height: 18px;
-        border-width: 2px;
-        border-color: var(--surface-card);
-        box-shadow: 0 0 0 1px var(--surface-border);
-    }
-
-    .color-palette--compact .swatch--active {
-        box-shadow:
-            0 0 0 2px var(--practiq-violet),
-            0 0 0 3px var(--surface-card);
+        width: 26px;
+        height: 26px;
     }
 
     .color-palette--compact .more-btn {
-        width: 30px;
-        height: 30px;
-        border-radius: var(--radius-xs, 6px);
+        width: 34px;
+        height: 34px;
     }
-
-    @media (max-width: 640px) {
-        .color-palette {
-            flex-wrap: nowrap;
-            flex-shrink: 0;
-        }
-
-        .more-btn {
-            width: 40px;
-            height: 40px;
-            flex-shrink: 0;
-        }
-
-        .color-palette {
-            flex-wrap: nowrap;
-            justify-content: center;
-            max-width: none;
-        }
-
-        .swatch {
-            display: none;
-        }
-
-        .pop-swatch,
-        .pop-custom {
-            width: 34px;
-            height: 34px;
-        }
-
-        .pop {
-            position: fixed;
-            top: auto;
-            width: min(300px, calc(100vw - 24px));
-            box-sizing: border-box;
-            max-width: none;
-            max-height: min(260px, calc(100vh - 24px));
-            overflow-y: auto;
-            grid-template-columns: repeat(auto-fit, minmax(34px, 1fr));
-            justify-items: center;
-            padding: 14px;
-            z-index: 60;
-        }
-
-        .color-palette--compact .swatch {
-            width: 26px;
-            height: 26px;
-        }
-
-        .color-palette--compact .more-btn {
-            width: 34px;
-            height: 34px;
-        }
-    }
+}
 </style>

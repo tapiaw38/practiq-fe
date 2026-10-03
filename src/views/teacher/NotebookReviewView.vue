@@ -1,43 +1,219 @@
 <script setup lang="ts">
-    import UiModal from '@/components/ui/UiModal.vue';
-    import { ref, reactive, computed, onMounted, watch } from 'vue';
-    import TeacherLayout from '@/layouts/TeacherLayout.vue';
-    import Skeleton from '@/components/ui/Skeleton.vue';
-    import { useCourse } from '@/composables/useCourse';
-    import { useNotebook } from '@/composables/useNotebook';
-    import { useGrade } from '@/composables/useGrade';
-    import { useSubject } from '@/composables/useSubject';
-    import { formatDateTime } from '@/utils/formatters';
-    import type { NotebookSubmissionFull } from '@/types';
+import UiModal from '@/components/ui/UiModal.vue';
+import { ref, reactive, computed, onMounted, watch } from 'vue';
+import TeacherLayout from '@/layouts/TeacherLayout.vue';
+import Skeleton from '@/components/ui/Skeleton.vue';
+import { useCourse } from '@/composables/useCourse';
+import { useNotebook } from '@/composables/useNotebook';
+import { useGrade } from '@/composables/useGrade';
+import { useSubject } from '@/composables/useSubject';
+import { formatDateTime } from '@/utils/formatters';
+import type { NotebookSubmissionFull } from '@/types';
 
-    function effectiveVerdict(submission: NotebookSubmissionFull) {
-        return submission.teacher_is_correct ?? submission.ai_is_correct;
+function effectiveVerdict(submission: NotebookSubmissionFull) {
+    return submission.teacher_is_correct ?? submission.ai_is_correct;
+}
+
+const { courses, students, loadCourses, loadStudents } = useCourse();
+const { grades, loadGrades } = useGrade();
+const { subjects, loadSubjects } = useSubject();
+const {
+    submissionsPage,
+    submissionsPageSize,
+    submissionsHasMore,
+    loadSubmissions: loadSubmissionsService,
+    loadSubmissionsPage,
+    nextSubmissionsPage,
+    prevSubmissionsPage,
+    triggerAIReview: triggerAIReviewService,
+    updateManualReview: updateManualReviewService,
+} = useNotebook();
+const loading = ref(true);
+const submissions = ref<NotebookSubmissionFull[]>([]);
+const reviewingIds = ref<Set<string>>(new Set());
+const previewSubmission = ref<NotebookSubmissionFull | null>(null);
+const reviewingSubmission = ref<NotebookSubmissionFull | null>(null);
+const savingReview = ref(false);
+const studentsLoading = ref(false);
+let searchDebounceTimer: ReturnType<typeof setTimeout> | null = null;
+
+const filters = reactive({
+    courseId: '',
+    gradeId: '',
+    subjectId: '',
+    studentId: '',
+    reviewedStatus: '',
+    studentSearch: '',
+});
+
+const reviewForm = reactive({
+    isCorrect: null as boolean | null,
+    feedback: '',
+});
+
+const filteredSubmissions = computed(() => {
+    let result = [...submissions.value];
+
+    if (filters.studentSearch.trim()) {
+        const search = filters.studentSearch.toLowerCase();
+        result = result.filter(
+            (s) =>
+                (s.student_name?.toLowerCase() || '').includes(search) ||
+                (s.student_email?.toLowerCase() || '').includes(search),
+        );
     }
 
-    const { courses, students, loadCourses, loadStudents } = useCourse();
-    const { grades, loadGrades } = useGrade();
-    const { subjects, loadSubjects } = useSubject();
-    const {
-        submissionsPage,
-        submissionsPageSize,
-        submissionsHasMore,
-        loadSubmissions: loadSubmissionsService,
-        loadSubmissionsPage,
-        nextSubmissionsPage,
-        prevSubmissionsPage,
-        triggerAIReview: triggerAIReviewService,
-        updateManualReview: updateManualReviewService,
-    } = useNotebook();
-    const loading = ref(true);
-    const submissions = ref<NotebookSubmissionFull[]>([]);
-    const reviewingIds = ref<Set<string>>(new Set());
-    const previewSubmission = ref<NotebookSubmissionFull | null>(null);
-    const reviewingSubmission = ref<NotebookSubmissionFull | null>(null);
-    const savingReview = ref(false);
-    const studentsLoading = ref(false);
-    let searchDebounceTimer: ReturnType<typeof setTimeout> | null = null;
+    return result;
+});
 
-    const filters = reactive({
+const activeFilterCount = computed(
+    () =>
+        [
+            filters.gradeId,
+            filters.subjectId,
+            filters.courseId,
+            filters.studentId,
+            filters.reviewedStatus,
+            filters.studentSearch,
+        ].filter(Boolean).length,
+);
+
+const hasScope = () => !!(filters.courseId || filters.gradeId || filters.subjectId);
+
+onMounted(async () => {
+    await Promise.all([loadCoursesData(), loadGrades(), loadSubjects()]);
+    if (hasScope()) {
+        if (filters.courseId) {
+            await loadStudentsForCourse();
+        }
+        await loadSubmissions();
+    } else {
+        loading.value = false;
+    }
+});
+
+watch(
+    () => filters.studentSearch,
+    () => {
+        if (searchDebounceTimer) {
+            clearTimeout(searchDebounceTimer);
+        }
+        searchDebounceTimer = setTimeout(() => {
+            if (hasScope()) {
+                loadSubmissions(1);
+            }
+        }, 300);
+    },
+);
+
+async function loadCoursesData() {
+    try {
+        await loadCourses('teacher');
+    } catch (err) {
+        console.error('Failed to load courses:', err);
+    }
+}
+
+async function loadSubmissions(page = 1) {
+    if (!hasScope()) {
+        submissions.value = [];
+
+        submissionsPage.value = 1;
+        loading.value = false;
+        return;
+    }
+
+    loading.value = true;
+    try {
+        const filterParams: Record<string, string | boolean | undefined> = {};
+        if (filters.courseId) filterParams.course_id = filters.courseId;
+        if (filters.gradeId) filterParams.grade_id = filters.gradeId;
+        if (filters.subjectId) filterParams.subject_id = filters.subjectId;
+        if (filters.studentId) filterParams.student_id = filters.studentId;
+        if (filters.reviewedStatus === 'reviewed') filterParams.reviewed = true;
+        if (filters.reviewedStatus === 'unreviewed') filterParams.reviewed = false;
+
+        if (filters.studentSearch.trim()) {
+            submissions.value = (await loadSubmissionsService(filterParams)) || [];
+        } else {
+            submissions.value = (await loadSubmissionsPage(page, filterParams)) || [];
+        }
+    } catch (err) {
+        console.error('Failed to load submissions:', err);
+        submissions.value = [];
+    } finally {
+        loading.value = false;
+    }
+}
+
+async function goToNextPage() {
+    if (!submissionsHasMore.value) return;
+    const filterParams: Record<string, string | boolean | undefined> = {};
+    if (filters.courseId) filterParams.course_id = filters.courseId;
+    if (filters.gradeId) filterParams.grade_id = filters.gradeId;
+    if (filters.subjectId) filterParams.subject_id = filters.subjectId;
+    if (filters.studentId) filterParams.student_id = filters.studentId;
+    if (filters.reviewedStatus === 'reviewed') filterParams.reviewed = true;
+    if (filters.reviewedStatus === 'unreviewed') filterParams.reviewed = false;
+
+    loading.value = true;
+    try {
+        submissions.value = (await nextSubmissionsPage(filterParams)) || [];
+    } catch (err) {
+        console.error('Failed to load next page:', err);
+    } finally {
+        loading.value = false;
+    }
+}
+
+async function goToPrevPage() {
+    if (submissionsPage.value <= 1) return;
+    const filterParams: Record<string, string | boolean | undefined> = {};
+    if (filters.courseId) filterParams.course_id = filters.courseId;
+    if (filters.gradeId) filterParams.grade_id = filters.gradeId;
+    if (filters.subjectId) filterParams.subject_id = filters.subjectId;
+    if (filters.studentId) filterParams.student_id = filters.studentId;
+    if (filters.reviewedStatus === 'reviewed') filterParams.reviewed = true;
+    if (filters.reviewedStatus === 'unreviewed') filterParams.reviewed = false;
+
+    loading.value = true;
+    try {
+        submissions.value = (await prevSubmissionsPage(filterParams)) || [];
+    } catch (err) {
+        console.error('Failed to load previous page:', err);
+    } finally {
+        loading.value = false;
+    }
+}
+
+async function loadStudentsForCourse() {
+    if (!filters.courseId) {
+        students.value = [];
+        return;
+    }
+
+    studentsLoading.value = true;
+    try {
+        await loadStudents(filters.courseId);
+    } catch (err) {
+        console.error('Failed to load students:', err);
+        students.value = [];
+    } finally {
+        studentsLoading.value = false;
+    }
+}
+
+async function onCourseChange() {
+    filters.studentId = '';
+    await Promise.all([loadStudentsForCourse(), loadSubmissions()]);
+}
+
+async function refreshSubmissions() {
+    await loadSubmissions(submissionsPage.value);
+}
+
+async function clearFilters() {
+    Object.assign(filters, {
         courseId: '',
         gradeId: '',
         subjectId: '',
@@ -45,248 +221,72 @@
         reviewedStatus: '',
         studentSearch: '',
     });
+    students.value = [];
+    await loadSubmissions(1);
+}
 
-    const reviewForm = reactive({
-        isCorrect: null as boolean | null,
-        feedback: '',
-    });
+function getInitial(name?: string) {
+    return (name || 'E').charAt(0).toUpperCase();
+}
 
-    const filteredSubmissions = computed(() => {
-        let result = [...submissions.value];
+function openPreview(submission: NotebookSubmissionFull) {
+    previewSubmission.value = submission;
+}
 
-        if (filters.studentSearch.trim()) {
-            const search = filters.studentSearch.toLowerCase();
-            result = result.filter(
-                (s) =>
-                    (s.student_name?.toLowerCase() || '').includes(search) ||
-                    (s.student_email?.toLowerCase() || '').includes(search),
-            );
+function openReviewModal(submission: NotebookSubmissionFull) {
+    reviewingSubmission.value = submission;
+    reviewForm.isCorrect = submission.teacher_is_correct ?? null;
+    reviewForm.feedback = submission.teacher_feedback || '';
+}
+
+function closeReviewModal() {
+    reviewingSubmission.value = null;
+    reviewForm.isCorrect = null;
+    reviewForm.feedback = '';
+}
+
+async function triggerAIReview(submissionId: string) {
+    reviewingIds.value.add(submissionId);
+    try {
+        const reviewedSubmission = await triggerAIReviewService(submissionId);
+        const index = submissions.value.findIndex((s) => s.id === submissionId);
+        if (index >= 0 && reviewedSubmission) {
+            submissions.value[index] = reviewedSubmission;
         }
-
-        return result;
-    });
-
-    const activeFilterCount = computed(
-        () =>
-            [
-                filters.gradeId,
-                filters.subjectId,
-                filters.courseId,
-                filters.studentId,
-                filters.reviewedStatus,
-                filters.studentSearch,
-            ].filter(Boolean).length,
-    );
-
-    const hasScope = () => !!(filters.courseId || filters.gradeId || filters.subjectId);
-
-    onMounted(async () => {
-        await Promise.all([loadCoursesData(), loadGrades(), loadSubjects()]);
-        if (hasScope()) {
-            if (filters.courseId) {
-                await loadStudentsForCourse();
-            }
-            await loadSubmissions();
-        } else {
-            loading.value = false;
-        }
-    });
-
-    watch(
-        () => filters.studentSearch,
-        () => {
-            if (searchDebounceTimer) {
-                clearTimeout(searchDebounceTimer);
-            }
-            searchDebounceTimer = setTimeout(() => {
-                if (hasScope()) {
-                    loadSubmissions(1);
-                }
-            }, 300);
-        },
-    );
-
-    async function loadCoursesData() {
-        try {
-            await loadCourses('teacher');
-        } catch (err) {
-            console.error('Failed to load courses:', err);
-        }
+    } catch (err) {
+        console.error('Failed to trigger AI review:', err);
+    } finally {
+        reviewingIds.value.delete(submissionId);
     }
+}
 
-    async function loadSubmissions(page = 1) {
-        if (!hasScope()) {
-            submissions.value = [];
+async function saveManualReview() {
+    if (!reviewingSubmission.value || reviewForm.isCorrect === null) return;
 
-            submissionsPage.value = 1;
-            loading.value = false;
-            return;
-        }
-
-        loading.value = true;
-        try {
-            const filterParams: Record<string, string | boolean | undefined> = {};
-            if (filters.courseId) filterParams.course_id = filters.courseId;
-            if (filters.gradeId) filterParams.grade_id = filters.gradeId;
-            if (filters.subjectId) filterParams.subject_id = filters.subjectId;
-            if (filters.studentId) filterParams.student_id = filters.studentId;
-            if (filters.reviewedStatus === 'reviewed') filterParams.reviewed = true;
-            if (filters.reviewedStatus === 'unreviewed') filterParams.reviewed = false;
-
-            if (filters.studentSearch.trim()) {
-                submissions.value = (await loadSubmissionsService(filterParams)) || [];
-            } else {
-                submissions.value = (await loadSubmissionsPage(page, filterParams)) || [];
-            }
-        } catch (err) {
-            console.error('Failed to load submissions:', err);
-            submissions.value = [];
-        } finally {
-            loading.value = false;
-        }
-    }
-
-    async function goToNextPage() {
-        if (!submissionsHasMore.value) return;
-        const filterParams: Record<string, string | boolean | undefined> = {};
-        if (filters.courseId) filterParams.course_id = filters.courseId;
-        if (filters.gradeId) filterParams.grade_id = filters.gradeId;
-        if (filters.subjectId) filterParams.subject_id = filters.subjectId;
-        if (filters.studentId) filterParams.student_id = filters.studentId;
-        if (filters.reviewedStatus === 'reviewed') filterParams.reviewed = true;
-        if (filters.reviewedStatus === 'unreviewed') filterParams.reviewed = false;
-
-        loading.value = true;
-        try {
-            submissions.value = (await nextSubmissionsPage(filterParams)) || [];
-        } catch (err) {
-            console.error('Failed to load next page:', err);
-        } finally {
-            loading.value = false;
-        }
-    }
-
-    async function goToPrevPage() {
-        if (submissionsPage.value <= 1) return;
-        const filterParams: Record<string, string | boolean | undefined> = {};
-        if (filters.courseId) filterParams.course_id = filters.courseId;
-        if (filters.gradeId) filterParams.grade_id = filters.gradeId;
-        if (filters.subjectId) filterParams.subject_id = filters.subjectId;
-        if (filters.studentId) filterParams.student_id = filters.studentId;
-        if (filters.reviewedStatus === 'reviewed') filterParams.reviewed = true;
-        if (filters.reviewedStatus === 'unreviewed') filterParams.reviewed = false;
-
-        loading.value = true;
-        try {
-            submissions.value = (await prevSubmissionsPage(filterParams)) || [];
-        } catch (err) {
-            console.error('Failed to load previous page:', err);
-        } finally {
-            loading.value = false;
-        }
-    }
-
-    async function loadStudentsForCourse() {
-        if (!filters.courseId) {
-            students.value = [];
-            return;
-        }
-
-        studentsLoading.value = true;
-        try {
-            await loadStudents(filters.courseId);
-        } catch (err) {
-            console.error('Failed to load students:', err);
-            students.value = [];
-        } finally {
-            studentsLoading.value = false;
-        }
-    }
-
-    async function onCourseChange() {
-        filters.studentId = '';
-        await Promise.all([loadStudentsForCourse(), loadSubmissions()]);
-    }
-
-    async function refreshSubmissions() {
-        await loadSubmissions(submissionsPage.value);
-    }
-
-    async function clearFilters() {
-        Object.assign(filters, {
-            courseId: '',
-            gradeId: '',
-            subjectId: '',
-            studentId: '',
-            reviewedStatus: '',
-            studentSearch: '',
+    savingReview.value = true;
+    try {
+        await updateManualReviewService(reviewingSubmission.value.id, {
+            teacher_is_correct: reviewForm.isCorrect,
+            teacher_feedback: reviewForm.feedback,
         });
-        students.value = [];
-        await loadSubmissions(1);
-    }
 
-    function getInitial(name?: string) {
-        return (name || 'E').charAt(0).toUpperCase();
-    }
-
-    function openPreview(submission: NotebookSubmissionFull) {
-        previewSubmission.value = submission;
-    }
-
-    function openReviewModal(submission: NotebookSubmissionFull) {
-        reviewingSubmission.value = submission;
-        reviewForm.isCorrect = submission.teacher_is_correct ?? null;
-        reviewForm.feedback = submission.teacher_feedback || '';
-    }
-
-    function closeReviewModal() {
-        reviewingSubmission.value = null;
-        reviewForm.isCorrect = null;
-        reviewForm.feedback = '';
-    }
-
-    async function triggerAIReview(submissionId: string) {
-        reviewingIds.value.add(submissionId);
-        try {
-            const reviewedSubmission = await triggerAIReviewService(submissionId);
-            const index = submissions.value.findIndex((s) => s.id === submissionId);
-            if (index >= 0 && reviewedSubmission) {
-                submissions.value[index] = reviewedSubmission;
-            }
-        } catch (err) {
-            console.error('Failed to trigger AI review:', err);
-        } finally {
-            reviewingIds.value.delete(submissionId);
-        }
-    }
-
-    async function saveManualReview() {
-        if (!reviewingSubmission.value || reviewForm.isCorrect === null) return;
-
-        savingReview.value = true;
-        try {
-            await updateManualReviewService(reviewingSubmission.value.id, {
+        const idx = submissions.value.findIndex((s) => s.id === reviewingSubmission.value!.id);
+        if (idx >= 0) {
+            submissions.value[idx] = {
+                ...submissions.value[idx],
                 teacher_is_correct: reviewForm.isCorrect,
                 teacher_feedback: reviewForm.feedback,
-            });
-
-            const idx = submissions.value.findIndex((s) => s.id === reviewingSubmission.value!.id);
-            if (idx >= 0) {
-                submissions.value[idx] = {
-                    ...submissions.value[idx],
-                    teacher_is_correct: reviewForm.isCorrect,
-                    teacher_feedback: reviewForm.feedback,
-                    teacher_reviewed_at: new Date().toISOString(),
-                };
-            }
-
-            closeReviewModal();
-        } catch (err) {
-            console.error('Failed to save review:', err);
-        } finally {
-            savingReview.value = false;
+                teacher_reviewed_at: new Date().toISOString(),
+            };
         }
+
+        closeReviewModal();
+    } catch (err) {
+        console.error('Failed to save review:', err);
+    } finally {
+        savingReview.value = false;
     }
+}
 </script>
 
 <template>
@@ -774,565 +774,565 @@
 </template>
 
 <style scoped>
+.review-dashboard {
+    padding: 24px 28px 40px;
+    max-width: 1280px;
+}
+
+.page-header {
+    margin-bottom: 20px;
+}
+
+.filters-panel {
+    padding: 14px 16px 16px;
+    background: var(--surface-elevated);
+    border-radius: var(--radius-xl);
+    border: 1px solid var(--surface-elevated-strong);
+    margin-bottom: 20px;
+}
+.filters-panel__head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 12px;
+    color: var(--text-heading);
+    font-size: var(--text-sm);
+}
+.filters-panel__head > div {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+.filters-panel__head span {
+    padding: 2px 7px;
+    border-radius: var(--radius-pill);
+    background: var(--fill-primary-soft);
+    color: var(--practiq-violet-dark);
+    font-size: var(--text-xs);
+    font-weight: 800;
+}
+.filters-clear {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    min-height: 32px;
+    padding: 5px 8px;
+    border: 0;
+    border-radius: var(--radius-md);
+    background: transparent;
+    color: var(--practiq-violet-dark);
+    font: inherit;
+    font-size: var(--text-xs);
+    font-weight: 800;
+    cursor: pointer;
+}
+.filters-clear:hover {
+    background: var(--fill-primary-soft);
+}
+.filters-bar {
+    display: flex;
+    gap: 16px;
+    flex-wrap: wrap;
+}
+
+.filter-group {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    min-width: 180px;
+}
+
+.filter-group--search {
+    flex: 1;
+    min-width: 220px;
+}
+
+.filter-label {
+    font-size: var(--text-xs);
+    font-weight: 700;
+    color: var(--text-secondary);
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+}
+
+.filter-select,
+.filter-input {
+    padding: 10px 14px;
+    border-radius: var(--radius-md);
+    border: 1.5px solid rgba(var(--practiq-violet-rgb), 0.15);
+    font-size: var(--text-base);
+    color: var(--text-primary);
+    background: var(--surface-elevated-strong);
+    outline: none;
+    transition: border-color 0.15s;
+}
+
+.filter-select:focus,
+.filter-input:focus {
+    border-color: var(--practiq-violet);
+}
+
+.filter-select:disabled {
+    cursor: not-allowed;
+    opacity: 0.65;
+}
+
+.scope-hint {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 14px 16px;
+    margin-bottom: 20px;
+    border-radius: var(--radius-lg);
+    background: var(--fill-primary-subtle);
+    color: var(--text-secondary);
+    font-size: var(--text-base);
+    font-weight: 600;
+}
+
+.scope-hint i {
+    color: var(--practiq-violet);
+}
+
+.submission-card--skeleton {
+    pointer-events: none;
+}
+.preview-skel {
+    border-radius: var(--radius-lg);
+}
+.mt-4 {
+    margin-top: 4px;
+}
+
+.empty-state {
+    padding: 64px 24px;
+}
+
+.empty-icon {
+    width: 64px;
+    height: 64px;
+    border-radius: var(--radius-xl);
+    background: var(--fill-primary-subtle);
+    display: grid;
+    place-items: center;
+    margin: 0 auto 20px;
+    font-size: 28px;
+    color: var(--practiq-violet);
+}
+
+.empty-state h3 {
+    font-size: 20px;
+    font-weight: 700;
+    color: var(--text-primary);
+    margin-bottom: 8px;
+}
+
+.empty-state p {
+    font-size: var(--text-md);
+    color: var(--text-secondary);
+}
+
+.submissions-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(380px, 1fr));
+    gap: 20px;
+}
+
+.submission-card {
+    background: var(--surface-elevated);
+    border-radius: var(--radius-2xl);
+    border: 1.5px solid var(--surface-elevated-strong);
+    box-shadow: var(--shadow-card);
+    padding: 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    transition: var(--transition);
+}
+
+.submission-card:hover {
+    box-shadow: var(--shadow-card-lg);
+}
+
+.submission-card--correct {
+    border-color: rgba(var(--color-success-rgb), 0.3);
+}
+
+.submission-card--incorrect {
+    border-color: rgba(var(--color-error-rgb), 0.3);
+}
+
+.submission-card--pending {
+    border-color: rgba(var(--color-warning-rgb), 0.3);
+}
+
+.submission-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 12px;
+}
+
+.student-info {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.student-avatar {
+    width: 42px;
+    height: 42px;
+    border-radius: var(--radius-lg);
+    background: var(--gradient-brand);
+    color: var(--color-on-primary);
+    font-weight: 800;
+    font-size: var(--text-lg);
+    display: grid;
+    place-items: center;
+    flex-shrink: 0;
+}
+
+.student-details {
+    min-width: 0;
+}
+
+.student-name {
+    font-size: var(--text-base);
+    font-weight: 700;
+    color: var(--text-primary);
+}
+
+.student-email {
+    font-size: var(--text-sm);
+    color: var(--text-secondary);
+}
+
+.submission-badges {
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+}
+
+.badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 4px 10px;
+    border-radius: var(--radius-pill);
+    font-size: var(--text-xs);
+    font-weight: 700;
+}
+
+.badge--success {
+    background: var(--color-success-bg);
+    color: var(--color-success-dark);
+}
+
+.badge--error {
+    background: var(--color-error-bg);
+    color: var(--color-error-dark);
+}
+
+.badge--pending {
+    background: var(--color-warning-bg);
+    color: var(--color-warning-dark);
+}
+
+.badge--teacher {
+    background: var(--fill-primary-soft);
+    color: var(--practiq-violet);
+}
+
+.badge--review {
+    background: rgba(var(--color-warning-rgb), 0.16);
+    color: var(--color-warning-dark);
+}
+
+.submission-card--needs-review {
+    box-shadow:
+        inset 3px 0 0 var(--color-warning),
+        var(--elevation-tint-shadow);
+}
+
+.submission-meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+}
+
+.meta-item {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: var(--text-sm);
+    color: var(--text-secondary);
+}
+
+.meta-item i {
+    font-size: 14px;
+    color: var(--text-muted);
+}
+
+.canvas-preview {
+    border-radius: var(--radius-lg);
+    overflow: hidden;
+    border: 1px solid rgba(var(--surface-border-rgb), 0.15);
+    cursor: pointer;
+}
+
+.preview-image {
+    width: 100%;
+    height: 180px;
+    object-fit: contain;
+    background: var(--surface-bg);
+    display: block;
+}
+
+.ai-feedback-box,
+.teacher-feedback-box {
+    padding: 12px 14px;
+    border-radius: var(--radius-md);
+    font-size: var(--text-sm);
+}
+
+.ai-feedback-box {
+    background: var(--fill-primary-faint);
+    border: 1px solid rgba(var(--practiq-violet-rgb), 0.15);
+}
+
+.teacher-feedback-box {
+    background: var(--color-success-bg);
+    border: 1px solid rgba(var(--color-success-rgb), 0.2);
+}
+
+.feedback-header {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-weight: 700;
+    color: var(--practiq-violet);
+    margin-bottom: 6px;
+}
+
+.teacher-feedback-box .feedback-header {
+    color: var(--color-success-dark);
+}
+
+.feedback-text {
+    margin: 0;
+    color: var(--text-secondary);
+    line-height: 1.5;
+}
+
+.review-badge {
+    display: inline-block;
+    margin-top: 8px;
+    padding: 3px 8px;
+    border-radius: var(--radius-pill);
+    font-size: var(--text-xs);
+    font-weight: 700;
+}
+
+.review-badge--correct {
+    background: rgba(var(--color-success-rgb), 0.15);
+    color: var(--color-success-dark);
+}
+
+.review-badge--incorrect {
+    background: rgba(var(--color-error-rgb), 0.15);
+    color: var(--color-error-dark);
+}
+
+.submission-actions {
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+    margin-top: auto;
+}
+
+.btn-sm {
+    padding: 8px 14px;
+    font-size: var(--text-sm);
+}
+
+.modal-box--large {
+    max-width: 800px;
+    width: 90vw;
+}
+
+.preview-content {
+    padding: 20px;
+    background: var(--surface-bg);
+    border-radius: var(--radius-md);
+}
+
+.full-preview-image {
+    width: 100%;
+    max-height: 70vh;
+    object-fit: contain;
+}
+
+.review-form {
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+}
+
+.review-student-info {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    padding: 14px;
+    background: var(--surface-subtle);
+    border-radius: var(--radius-lg);
+}
+
+.review-preview {
+    border-radius: var(--radius-md);
+    overflow: hidden;
+    border: 1px solid rgba(var(--surface-border-rgb), 0.15);
+}
+
+.review-preview .preview-image {
+    height: 200px;
+}
+
+.ai-feedback-mini {
+    padding: 10px 14px;
+    background: var(--fill-primary-faint);
+    border-radius: var(--radius-md);
+    font-size: var(--text-sm);
+    color: var(--text-secondary);
+}
+
+.correctness-toggle {
+    display: flex;
+    gap: 10px;
+}
+
+.toggle-btn {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    padding: 12px 16px;
+    border-radius: var(--radius-md);
+    border: 2px solid rgba(var(--color-success-rgb), 0.3);
+    background: transparent;
+    font-size: var(--text-base);
+    font-weight: 600;
+    color: var(--color-success-dark);
+    cursor: pointer;
+    transition: all 0.15s;
+}
+
+.toggle-btn:hover {
+    background: rgba(var(--color-success-rgb), 0.08);
+}
+
+.toggle-btn--active {
+    background: var(--color-success);
+    color: white;
+    border-color: var(--color-success);
+}
+
+.toggle-btn--danger {
+    border-color: rgba(var(--color-error-rgb), 0.3);
+    color: var(--color-error-dark);
+}
+
+.toggle-btn--danger:hover {
+    background: rgba(var(--color-error-rgb), 0.08);
+}
+
+.toggle-btn--danger.toggle-btn--active {
+    background: var(--color-error);
+    border-color: var(--color-error);
+}
+
+.pagination-controls {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    margin-top: 24px;
+    padding: 16px 20px;
+    background: var(--surface-elevated);
+    border-radius: var(--radius-xl);
+    border: 1px solid var(--surface-elevated-strong);
+}
+
+.pagination-info {
+    font-size: var(--text-base);
+    font-weight: 600;
+    color: var(--text-secondary);
+}
+
+.btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+@media (max-width: 1024px) {
     .review-dashboard {
-        padding: 24px 28px 40px;
-        max-width: 1280px;
+        padding: 20px 16px 40px;
     }
 
+    .submissions-grid {
+        grid-template-columns: 1fr;
+    }
+}
+
+@media (max-width: 768px) {
     .page-header {
-        margin-bottom: 20px;
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 16px;
+        padding: 20px;
+    }
+
+    .filters-bar {
+        flex-direction: column;
+        gap: 10px;
     }
 
     .filters-panel {
-        padding: 14px 16px 16px;
-        background: var(--surface-elevated);
-        border-radius: var(--radius-xl);
-        border: 1px solid var(--surface-elevated-strong);
-        margin-bottom: 20px;
-    }
-    .filters-panel__head {
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        gap: 12px;
-        margin-bottom: 12px;
-        color: var(--text-heading);
-        font-size: var(--text-sm);
-    }
-    .filters-panel__head > div {
-        display: flex;
-        align-items: center;
-        gap: 8px;
-    }
-    .filters-panel__head span {
-        padding: 2px 7px;
-        border-radius: var(--radius-pill);
-        background: var(--fill-primary-soft);
-        color: var(--practiq-violet-dark);
-        font-size: var(--text-xs);
-        font-weight: 800;
-    }
-    .filters-clear {
-        display: inline-flex;
-        align-items: center;
-        gap: 6px;
-        min-height: 32px;
-        padding: 5px 8px;
-        border: 0;
-        border-radius: var(--radius-md);
-        background: transparent;
-        color: var(--practiq-violet-dark);
-        font: inherit;
-        font-size: var(--text-xs);
-        font-weight: 800;
-        cursor: pointer;
-    }
-    .filters-clear:hover {
-        background: var(--fill-primary-soft);
-    }
-    .filters-bar {
-        display: flex;
-        gap: 16px;
-        flex-wrap: wrap;
+        padding: 12px;
     }
 
     .filter-group {
-        display: flex;
-        flex-direction: column;
-        gap: 6px;
-        min-width: 180px;
-    }
-
-    .filter-group--search {
-        flex: 1;
-        min-width: 220px;
-    }
-
-    .filter-label {
-        font-size: var(--text-xs);
-        font-weight: 700;
-        color: var(--text-secondary);
-        text-transform: uppercase;
-        letter-spacing: 0.06em;
+        width: 100%;
+        min-width: 0;
     }
 
     .filter-select,
     .filter-input {
-        padding: 10px 14px;
-        border-radius: var(--radius-md);
-        border: 1.5px solid rgba(var(--practiq-violet-rgb), 0.15);
-        font-size: var(--text-base);
-        color: var(--text-primary);
-        background: var(--surface-elevated-strong);
-        outline: none;
-        transition: border-color 0.15s;
-    }
-
-    .filter-select:focus,
-    .filter-input:focus {
-        border-color: var(--practiq-violet);
-    }
-
-    .filter-select:disabled {
-        cursor: not-allowed;
-        opacity: 0.65;
-    }
-
-    .scope-hint {
-        display: flex;
-        align-items: center;
-        gap: 10px;
-        padding: 14px 16px;
-        margin-bottom: 20px;
-        border-radius: var(--radius-lg);
-        background: var(--fill-primary-subtle);
-        color: var(--text-secondary);
-        font-size: var(--text-base);
-        font-weight: 600;
-    }
-
-    .scope-hint i {
-        color: var(--practiq-violet);
-    }
-
-    .submission-card--skeleton {
-        pointer-events: none;
-    }
-    .preview-skel {
-        border-radius: var(--radius-lg);
-    }
-    .mt-4 {
-        margin-top: 4px;
-    }
-
-    .empty-state {
-        padding: 64px 24px;
-    }
-
-    .empty-icon {
-        width: 64px;
-        height: 64px;
-        border-radius: var(--radius-xl);
-        background: var(--fill-primary-subtle);
-        display: grid;
-        place-items: center;
-        margin: 0 auto 20px;
-        font-size: 28px;
-        color: var(--practiq-violet);
-    }
-
-    .empty-state h3 {
-        font-size: 20px;
-        font-weight: 700;
-        color: var(--text-primary);
-        margin-bottom: 8px;
-    }
-
-    .empty-state p {
-        font-size: var(--text-md);
-        color: var(--text-secondary);
-    }
-
-    .submissions-grid {
-        display: grid;
-        grid-template-columns: repeat(auto-fill, minmax(380px, 1fr));
-        gap: 20px;
-    }
-
-    .submission-card {
-        background: var(--surface-elevated);
-        border-radius: var(--radius-2xl);
-        border: 1.5px solid var(--surface-elevated-strong);
-        box-shadow: var(--shadow-card);
-        padding: 20px;
-        display: flex;
-        flex-direction: column;
-        gap: 16px;
-        transition: var(--transition);
-    }
-
-    .submission-card:hover {
-        box-shadow: var(--shadow-card-lg);
-    }
-
-    .submission-card--correct {
-        border-color: rgba(var(--color-success-rgb), 0.3);
-    }
-
-    .submission-card--incorrect {
-        border-color: rgba(var(--color-error-rgb), 0.3);
-    }
-
-    .submission-card--pending {
-        border-color: rgba(var(--color-warning-rgb), 0.3);
+        width: 100%;
+        min-height: 46px;
     }
 
     .submission-header {
-        display: flex;
-        justify-content: space-between;
-        align-items: flex-start;
-        gap: 12px;
-    }
-
-    .student-info {
-        display: flex;
-        align-items: center;
-        gap: 12px;
-    }
-
-    .student-avatar {
-        width: 42px;
-        height: 42px;
-        border-radius: var(--radius-lg);
-        background: var(--gradient-brand);
-        color: var(--color-on-primary);
-        font-weight: 800;
-        font-size: var(--text-lg);
-        display: grid;
-        place-items: center;
-        flex-shrink: 0;
-    }
-
-    .student-details {
-        min-width: 0;
-    }
-
-    .student-name {
-        font-size: var(--text-base);
-        font-weight: 700;
-        color: var(--text-primary);
-    }
-
-    .student-email {
-        font-size: var(--text-sm);
-        color: var(--text-secondary);
+        flex-direction: column;
     }
 
     .submission-badges {
-        display: flex;
-        gap: 6px;
-        flex-wrap: wrap;
-    }
-
-    .badge {
-        display: inline-flex;
-        align-items: center;
-        gap: 4px;
-        padding: 4px 10px;
-        border-radius: var(--radius-pill);
-        font-size: var(--text-xs);
-        font-weight: 700;
-    }
-
-    .badge--success {
-        background: var(--color-success-bg);
-        color: var(--color-success-dark);
-    }
-
-    .badge--error {
-        background: var(--color-error-bg);
-        color: var(--color-error-dark);
-    }
-
-    .badge--pending {
-        background: var(--color-warning-bg);
-        color: var(--color-warning-dark);
-    }
-
-    .badge--teacher {
-        background: var(--fill-primary-soft);
-        color: var(--practiq-violet);
-    }
-
-    .badge--review {
-        background: rgba(var(--color-warning-rgb), 0.16);
-        color: var(--color-warning-dark);
-    }
-
-    .submission-card--needs-review {
-        box-shadow:
-            inset 3px 0 0 var(--color-warning),
-            var(--elevation-tint-shadow);
-    }
-
-    .submission-meta {
-        display: flex;
-        flex-wrap: wrap;
-        gap: 12px;
-    }
-
-    .meta-item {
-        display: flex;
-        align-items: center;
-        gap: 6px;
-        font-size: var(--text-sm);
-        color: var(--text-secondary);
-    }
-
-    .meta-item i {
-        font-size: 14px;
-        color: var(--text-muted);
-    }
-
-    .canvas-preview {
-        border-radius: var(--radius-lg);
-        overflow: hidden;
-        border: 1px solid rgba(var(--surface-border-rgb), 0.15);
-        cursor: pointer;
-    }
-
-    .preview-image {
         width: 100%;
-        height: 180px;
-        object-fit: contain;
-        background: var(--surface-bg);
-        display: block;
-    }
-
-    .ai-feedback-box,
-    .teacher-feedback-box {
-        padding: 12px 14px;
-        border-radius: var(--radius-md);
-        font-size: var(--text-sm);
-    }
-
-    .ai-feedback-box {
-        background: var(--fill-primary-faint);
-        border: 1px solid rgba(var(--practiq-violet-rgb), 0.15);
-    }
-
-    .teacher-feedback-box {
-        background: var(--color-success-bg);
-        border: 1px solid rgba(var(--color-success-rgb), 0.2);
-    }
-
-    .feedback-header {
-        display: flex;
-        align-items: center;
-        gap: 6px;
-        font-weight: 700;
-        color: var(--practiq-violet);
-        margin-bottom: 6px;
-    }
-
-    .teacher-feedback-box .feedback-header {
-        color: var(--color-success-dark);
-    }
-
-    .feedback-text {
-        margin: 0;
-        color: var(--text-secondary);
-        line-height: 1.5;
-    }
-
-    .review-badge {
-        display: inline-block;
-        margin-top: 8px;
-        padding: 3px 8px;
-        border-radius: var(--radius-pill);
-        font-size: var(--text-xs);
-        font-weight: 700;
-    }
-
-    .review-badge--correct {
-        background: rgba(var(--color-success-rgb), 0.15);
-        color: var(--color-success-dark);
-    }
-
-    .review-badge--incorrect {
-        background: rgba(var(--color-error-rgb), 0.15);
-        color: var(--color-error-dark);
-    }
-
-    .submission-actions {
-        display: flex;
-        gap: 10px;
-        flex-wrap: wrap;
-        margin-top: auto;
-    }
-
-    .btn-sm {
-        padding: 8px 14px;
-        font-size: var(--text-sm);
-    }
-
-    .modal-box--large {
-        max-width: 800px;
-        width: 90vw;
-    }
-
-    .preview-content {
-        padding: 20px;
-        background: var(--surface-bg);
-        border-radius: var(--radius-md);
-    }
-
-    .full-preview-image {
-        width: 100%;
-        max-height: 70vh;
-        object-fit: contain;
-    }
-
-    .review-form {
-        display: flex;
-        flex-direction: column;
-        gap: 20px;
-    }
-
-    .review-student-info {
-        display: flex;
-        align-items: center;
-        gap: 14px;
-        padding: 14px;
-        background: var(--surface-subtle);
-        border-radius: var(--radius-lg);
-    }
-
-    .review-preview {
-        border-radius: var(--radius-md);
-        overflow: hidden;
-        border: 1px solid rgba(var(--surface-border-rgb), 0.15);
-    }
-
-    .review-preview .preview-image {
-        height: 200px;
-    }
-
-    .ai-feedback-mini {
-        padding: 10px 14px;
-        background: var(--fill-primary-faint);
-        border-radius: var(--radius-md);
-        font-size: var(--text-sm);
-        color: var(--text-secondary);
     }
 
     .correctness-toggle {
-        display: flex;
-        gap: 10px;
+        flex-direction: column;
     }
 
-    .toggle-btn {
-        flex: 1;
-        display: flex;
-        align-items: center;
+    .submission-actions {
+        flex-direction: column;
+    }
+
+    .submission-actions > * {
+        width: 100%;
         justify-content: center;
-        gap: 6px;
-        padding: 12px 16px;
-        border-radius: var(--radius-md);
-        border: 2px solid rgba(var(--color-success-rgb), 0.3);
-        background: transparent;
-        font-size: var(--text-base);
-        font-weight: 600;
-        color: var(--color-success-dark);
-        cursor: pointer;
-        transition: all 0.15s;
+        min-height: 44px;
     }
-
-    .toggle-btn:hover {
-        background: rgba(var(--color-success-rgb), 0.08);
-    }
-
-    .toggle-btn--active {
-        background: var(--color-success);
-        color: white;
-        border-color: var(--color-success);
-    }
-
-    .toggle-btn--danger {
-        border-color: rgba(var(--color-error-rgb), 0.3);
-        color: var(--color-error-dark);
-    }
-
-    .toggle-btn--danger:hover {
-        background: rgba(var(--color-error-rgb), 0.08);
-    }
-
-    .toggle-btn--danger.toggle-btn--active {
-        background: var(--color-error);
-        border-color: var(--color-error);
-    }
-
-    .pagination-controls {
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        gap: 16px;
-        margin-top: 24px;
-        padding: 16px 20px;
-        background: var(--surface-elevated);
-        border-radius: var(--radius-xl);
-        border: 1px solid var(--surface-elevated-strong);
-    }
-
-    .pagination-info {
-        font-size: var(--text-base);
-        font-weight: 600;
-        color: var(--text-secondary);
-    }
-
-    .btn:disabled {
-        opacity: 0.5;
-        cursor: not-allowed;
-    }
-
-    @media (max-width: 1024px) {
-        .review-dashboard {
-            padding: 20px 16px 40px;
-        }
-
-        .submissions-grid {
-            grid-template-columns: 1fr;
-        }
-    }
-
-    @media (max-width: 768px) {
-        .page-header {
-            flex-direction: column;
-            align-items: flex-start;
-            gap: 16px;
-            padding: 20px;
-        }
-
-        .filters-bar {
-            flex-direction: column;
-            gap: 10px;
-        }
-
-        .filters-panel {
-            padding: 12px;
-        }
-
-        .filter-group {
-            width: 100%;
-            min-width: 0;
-        }
-
-        .filter-select,
-        .filter-input {
-            width: 100%;
-            min-height: 46px;
-        }
-
-        .submission-header {
-            flex-direction: column;
-        }
-
-        .submission-badges {
-            width: 100%;
-        }
-
-        .correctness-toggle {
-            flex-direction: column;
-        }
-
-        .submission-actions {
-            flex-direction: column;
-        }
-
-        .submission-actions > * {
-            width: 100%;
-            justify-content: center;
-            min-height: 44px;
-        }
-    }
+}
 </style>

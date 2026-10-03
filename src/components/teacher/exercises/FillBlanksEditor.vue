@@ -1,64 +1,54 @@
 <script setup lang="ts">
-    import { computed } from 'vue';
-    import {
-        blankIdsIn,
-        repeatedBlankIdsIn,
-        buildOptions,
-        splitStatement,
-        type FillBlanksConfig,
-    } from '@/utils/fillBlanks';
+import { computed } from 'vue';
+import { blankIdsIn, repeatedBlankIdsIn, buildOptions, splitStatement } from '@/utils/fillBlanks';
+import type { FillBlanksConfig } from '@/types/fillBlanks';
+import type { FillBlanksEditorEmits, FillBlanksEditorProps } from './FillBlanksEditor.types';
 
-    const props = defineProps<{
-        statement: string;
-        modelValue: FillBlanksConfig;
-    }>();
-    const emit = defineEmits<{
-        (e: 'update:modelValue', value: FillBlanksConfig): void;
-        (e: 'insert-blank', marker: string): void;
-    }>();
+const props = defineProps<FillBlanksEditorProps>();
+const emit = defineEmits<FillBlanksEditorEmits>();
 
-    const ids = computed(() => blankIdsIn(props.statement));
-    const repeatedIds = computed(() => repeatedBlankIdsIn(props.statement));
-    const segments = computed(() => splitStatement(props.statement));
+const ids = computed(() => blankIdsIn(props.statement));
+const repeatedIds = computed(() => repeatedBlankIdsIn(props.statement));
+const segments = computed(() => splitStatement(props.statement));
 
-    const answerById = computed<Record<number, string>>(() => {
-        const map: Record<number, string> = {};
-        for (const blank of props.modelValue.blanks) map[blank.id] = blank.answer;
-        return map;
-    });
+const answerById = computed<Record<number, string>>(() => {
+    const map: Record<number, string> = {};
+    for (const blank of props.modelValue.blanks) map[blank.id] = blank.answer;
+    return map;
+});
 
-    const pool = computed(() => buildOptions(props.modelValue));
+const pool = computed(() => buildOptions(props.modelValue));
 
-    function emitConfig(patch: Partial<FillBlanksConfig>) {
-        emit('update:modelValue', { ...props.modelValue, ...patch });
-    }
+function emitConfig(patch: Partial<FillBlanksConfig>) {
+    emit('update:modelValue', { ...props.modelValue, ...patch });
+}
 
-    function setAnswer(id: number, answer: string) {
-        const blanks = ids.value.map((blankId) => ({
-            id: blankId,
-            answer: blankId === id ? answer : (answerById.value[blankId] ?? ''),
-        }));
-        emitConfig({ blanks });
-    }
+function setAnswer(id: number, answer: string) {
+    const blanks = ids.value.map((blankId) => ({
+        id: blankId,
+        answer: blankId === id ? answer : (answerById.value[blankId] ?? ''),
+    }));
+    emitConfig({ blanks });
+}
 
-    function setDistractors(raw: string) {
-        emitConfig({ distractors: raw.split('\n') });
-    }
+function setDistractors(raw: string) {
+    emitConfig({ distractors: raw.split('\n') });
+}
 
-    function setLayout(layout: 'text' | 'code') {
-        emitConfig({ layout });
-    }
+function setLayout(layout: 'text' | 'code') {
+    emitConfig({ layout });
+}
 
-    function insertBlank() {
-        const next = ids.value.length ? Math.max(...ids.value) + 1 : 1;
-        emit('insert-blank', `{{${next}}}`);
-    }
+function insertBlank() {
+    const next = ids.value.length ? Math.max(...ids.value) + 1 : 1;
+    emit('insert-blank', `{{${next}}}`);
+}
 
-    const markerExamples = ['{{1}}', '{{2}}'];
+const markerExamples = ['{{1}}', '{{2}}'];
 
-    const missingAnswers = computed(() =>
-        ids.value.filter((id) => !(answerById.value[id] ?? '').trim()),
-    );
+const missingAnswers = computed(() =>
+    ids.value.filter((id) => !(answerById.value[id] ?? '').trim()),
+);
 </script>
 
 <template>
@@ -149,152 +139,152 @@
 </template>
 
 <style scoped>
-    .fb-editor {
-        display: flex;
-        flex-direction: column;
-        gap: 10px;
-    }
+.fb-editor {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
 
+.fb-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    flex-wrap: wrap;
+}
+
+.fb-layout {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: var(--text-sm);
+    color: var(--text-secondary);
+    cursor: pointer;
+}
+
+.fb-hint {
+    color: var(--text-secondary);
+    font-size: var(--text-xs);
+    line-height: 1.5;
+}
+
+.fb-warning {
+    color: var(--danger, #dc2626);
+    font-size: var(--text-xs);
+    line-height: 1.5;
+}
+
+.fb-blanks {
+    display: grid;
+    gap: 8px;
+}
+
+.fb-blank {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.fb-blank-num {
+    display: grid;
+    place-items: center;
+    width: 28px;
+    height: 28px;
+    flex: 0 0 auto;
+    border-radius: 8px;
+    background: var(--fill-primary-soft);
+    color: var(--practiq-violet);
+    font-weight: 800;
+    font-size: var(--text-sm);
+}
+
+.fb-preview {
+    padding: 12px;
+    border-radius: 12px;
+    border: 1px dashed var(--surface-elevated-strong);
+    background: var(--surface-elevated);
+}
+
+.fb-preview-label {
+    font-size: var(--text-xs);
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: var(--text-secondary);
+    margin-bottom: 8px;
+}
+
+.fb-statement {
+    margin: 0 0 10px;
+    color: var(--text-primary);
+    line-height: 2;
+    white-space: pre-wrap;
+}
+
+.fb-statement--code {
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: var(--text-sm);
+}
+
+.fb-slot {
+    display: inline-block;
+    min-width: 60px;
+    padding: 2px 10px;
+    margin: 0 2px;
+    border-radius: 8px;
+    background: var(--fill-primary-soft);
+    color: var(--practiq-violet);
+    font-weight: 700;
+    text-align: center;
+}
+
+.fb-pool {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+}
+
+.fb-chip {
+    padding: 4px 10px;
+    border-radius: 999px;
+    background: var(--surface-card);
+    border: 1px solid var(--surface-elevated-strong);
+    font-size: var(--text-sm);
+}
+
+.fb-warning {
+    margin: 0;
+    color: var(--color-warning-dark, #92400e);
+    font-size: var(--text-sm);
+}
+
+.fb-empty {
+    margin: 0;
+    color: var(--text-secondary);
+    font-size: var(--text-sm);
+}
+
+@media (max-width: 600px) {
     .fb-row {
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        gap: 12px;
-        flex-wrap: wrap;
+        align-items: stretch;
+        flex-direction: column;
     }
-
+    .fb-row .btn {
+        width: 100%;
+        min-height: 44px;
+        justify-content: center;
+    }
     .fb-layout {
-        display: inline-flex;
-        align-items: center;
-        gap: 6px;
-        font-size: var(--text-sm);
-        color: var(--text-secondary);
-        cursor: pointer;
+        min-height: 44px;
     }
-
-    .fb-hint {
-        color: var(--text-secondary);
-        font-size: var(--text-xs);
-        line-height: 1.5;
-    }
-
-    .fb-warning {
-        color: var(--danger, #dc2626);
-        font-size: var(--text-xs);
-        line-height: 1.5;
-    }
-
-    .fb-blanks {
-        display: grid;
-        gap: 8px;
-    }
-
     .fb-blank {
-        display: flex;
-        align-items: center;
-        gap: 8px;
+        align-items: stretch;
     }
-
-    .fb-blank-num {
-        display: grid;
-        place-items: center;
-        width: 28px;
-        height: 28px;
-        flex: 0 0 auto;
-        border-radius: 8px;
-        background: var(--fill-primary-soft);
-        color: var(--practiq-violet);
-        font-weight: 800;
-        font-size: var(--text-sm);
+    .fb-blank .form-input {
+        min-width: 0;
     }
-
-    .fb-preview {
-        padding: 12px;
-        border-radius: 12px;
-        border: 1px dashed var(--surface-elevated-strong);
-        background: var(--surface-elevated);
-    }
-
-    .fb-preview-label {
-        font-size: var(--text-xs);
-        font-weight: 700;
-        text-transform: uppercase;
-        letter-spacing: 0.1em;
-        color: var(--text-secondary);
-        margin-bottom: 8px;
-    }
-
     .fb-statement {
-        margin: 0 0 10px;
-        color: var(--text-primary);
-        line-height: 2;
-        white-space: pre-wrap;
+        overflow-wrap: anywhere;
     }
-
-    .fb-statement--code {
-        font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-        font-size: var(--text-sm);
-    }
-
-    .fb-slot {
-        display: inline-block;
-        min-width: 60px;
-        padding: 2px 10px;
-        margin: 0 2px;
-        border-radius: 8px;
-        background: var(--fill-primary-soft);
-        color: var(--practiq-violet);
-        font-weight: 700;
-        text-align: center;
-    }
-
-    .fb-pool {
-        display: flex;
-        flex-wrap: wrap;
-        gap: 6px;
-    }
-
-    .fb-chip {
-        padding: 4px 10px;
-        border-radius: 999px;
-        background: var(--surface-card);
-        border: 1px solid var(--surface-elevated-strong);
-        font-size: var(--text-sm);
-    }
-
-    .fb-warning {
-        margin: 0;
-        color: var(--color-warning-dark, #92400e);
-        font-size: var(--text-sm);
-    }
-
-    .fb-empty {
-        margin: 0;
-        color: var(--text-secondary);
-        font-size: var(--text-sm);
-    }
-
-    @media (max-width: 600px) {
-        .fb-row {
-            align-items: stretch;
-            flex-direction: column;
-        }
-        .fb-row .btn {
-            width: 100%;
-            min-height: 44px;
-            justify-content: center;
-        }
-        .fb-layout {
-            min-height: 44px;
-        }
-        .fb-blank {
-            align-items: stretch;
-        }
-        .fb-blank .form-input {
-            min-width: 0;
-        }
-        .fb-statement {
-            overflow-wrap: anywhere;
-        }
-    }
+}
 </style>

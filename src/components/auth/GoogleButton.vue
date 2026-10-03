@@ -1,51 +1,51 @@
 <script setup lang="ts">
-    import { onMounted, ref } from 'vue';
-    import type { GoogleButtonEmits, GoogleClient, GoogleResponse } from './GoogleButton.types';
+import { onMounted, ref } from 'vue';
+import type { GoogleButtonEmits, GoogleClient, GoogleResponse } from './GoogleButton.types';
 
-    const emit = defineEmits<GoogleButtonEmits>();
+const emit = defineEmits<GoogleButtonEmits>();
 
-    declare global {
-        interface Window {
-            google?: {
-                accounts?: {
-                    oauth2?: {
-                        initCodeClient: (config: {
-                            client_id: string;
-                            scope: string;
-                            ux_mode: string;
-                            callback: (response: GoogleResponse) => void;
-                        }) => GoogleClient;
-                    };
+declare global {
+    interface Window {
+        google?: {
+            accounts?: {
+                oauth2?: {
+                    initCodeClient: (config: {
+                        client_id: string;
+                        scope: string;
+                        ux_mode: string;
+                        callback: (response: GoogleResponse) => void;
+                    }) => GoogleClient;
                 };
             };
-        }
+        };
     }
+}
 
-    const googleClient = ref<GoogleClient | null>(null);
-    const isLoading = ref(false);
+const googleClient = ref<GoogleClient | null>(null);
+const isLoading = ref(false);
 
-    onMounted(() => {
-        const google = window.google;
-        const clientId = import.meta.env.VITE_GOOGLE_CLIENT_ID;
+onMounted(() => {
+    const google = window.google;
+    const clientId = import.meta.env.VITE_GOOGLE_CLIENT_ID;
 
-        if (!clientId || !google?.accounts?.oauth2) return;
+    if (!clientId || !google?.accounts?.oauth2) return;
 
-        googleClient.value = google.accounts.oauth2.initCodeClient({
-            client_id: clientId,
-            scope: 'openid email profile',
-            ux_mode: 'popup',
-            callback: (response: GoogleResponse) => {
-                isLoading.value = false;
-                emit('code', response.code);
-            },
-        });
+    googleClient.value = google.accounts.oauth2.initCodeClient({
+        client_id: clientId,
+        scope: 'openid email profile',
+        ux_mode: 'popup',
+        callback: (response: GoogleResponse) => {
+            isLoading.value = false;
+            emit('code', response.code);
+        },
     });
+});
 
-    function loginWithGoogle() {
-        if (!googleClient.value) return;
-        isLoading.value = true;
-        googleClient.value.requestCode();
-    }
+function loginWithGoogle() {
+    if (!googleClient.value) return;
+    isLoading.value = true;
+    googleClient.value.requestCode();
+}
 </script>
 
 <template>
@@ -83,38 +83,38 @@
 </template>
 
 <style scoped>
-    .google-button {
-        width: 100%;
-        min-height: 52px;
-        display: inline-flex;
-        align-items: center;
-        justify-content: center;
-        gap: 12px;
-        padding: 0 16px;
-        border-radius: var(--radius-xl);
-        border: 1px solid rgba(var(--surface-border-rgb), 0.18);
-        background: rgba(var(--surface-card-rgb), 0.82);
-        color: var(--text-heading);
-        font-weight: 600;
-        cursor: pointer;
-        transition: var(--transition);
-        box-shadow: var(--shadow-card);
-    }
+.google-button {
+    width: 100%;
+    min-height: 52px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+    padding: 0 16px;
+    border-radius: var(--radius-xl);
+    border: 1px solid rgba(var(--surface-border-rgb), 0.18);
+    background: rgba(var(--surface-card-rgb), 0.82);
+    color: var(--text-heading);
+    font-weight: 600;
+    cursor: pointer;
+    transition: var(--transition);
+    box-shadow: var(--shadow-card);
+}
 
-    .google-button:hover:not(:disabled) {
-        transform: translateY(-1px);
-        border-color: rgba(var(--practiq-violet-rgb), 0.18);
-        box-shadow: var(--shadow-card-lg);
-    }
+.google-button:hover:not(:disabled) {
+    transform: translateY(-1px);
+    border-color: rgba(var(--practiq-violet-rgb), 0.18);
+    box-shadow: var(--shadow-card-lg);
+}
 
-    .google-button:disabled {
-        opacity: 0.55;
-        cursor: not-allowed;
-    }
+.google-button:disabled {
+    opacity: 0.55;
+    cursor: not-allowed;
+}
 
-    .google-icon {
-        width: 20px;
-        height: 20px;
-        flex-shrink: 0;
-    }
+.google-icon {
+    width: 20px;
+    height: 20px;
+    flex-shrink: 0;
+}
 </style>

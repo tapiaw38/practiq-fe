@@ -1,40 +1,33 @@
 <script setup lang="ts">
-    import { computed, ref, watchEffect } from 'vue';
-    import { avatarSvg } from '@/utils/avatar';
+import { computed, ref, watchEffect } from 'vue';
+import { avatarSvg } from '@/utils/avatar';
+import type { UserAvatarProps } from './UserAvatar.types';
 
-    const props = withDefaults(
-        defineProps<{
-            seed: string;
-            size?: number;
+const props = withDefaults(defineProps<UserAvatarProps>(), { size: 48, label: '' });
 
-            label?: string;
-        }>(),
-        { size: 48, label: '' },
-    );
+const svg = ref('');
+const loading = ref(false);
+const initial = computed(() => props.label.trim().charAt(0).toUpperCase() || '?');
 
-    const svg = ref('');
-    const loading = ref(false);
-    const initial = computed(() => props.label.trim().charAt(0).toUpperCase() || '?');
-
-    watchEffect(async () => {
-        const seed = props.seed;
-        if (!seed) {
-            svg.value = '';
-            loading.value = false;
-            return;
-        }
-        loading.value = true;
+watchEffect(async () => {
+    const seed = props.seed;
+    if (!seed) {
         svg.value = '';
-        try {
-            const drawn = await avatarSvg(seed);
+        loading.value = false;
+        return;
+    }
+    loading.value = true;
+    svg.value = '';
+    try {
+        const drawn = await avatarSvg(seed);
 
-            if (props.seed === seed) svg.value = drawn;
-        } catch {
-            if (props.seed === seed) svg.value = '';
-        } finally {
-            if (props.seed === seed) loading.value = false;
-        }
-    });
+        if (props.seed === seed) svg.value = drawn;
+    } catch {
+        if (props.seed === seed) svg.value = '';
+    } finally {
+        if (props.seed === seed) loading.value = false;
+    }
+});
 </script>
 
 <template>
@@ -72,41 +65,41 @@
 </template>
 
 <style scoped>
-    .user-avatar {
-        display: inline-grid;
-        place-items: center;
-        flex: none;
-        overflow: hidden;
-        border-radius: 50%;
-        background: var(--fill-primary-soft);
+.user-avatar {
+    display: inline-grid;
+    place-items: center;
+    flex: none;
+    overflow: hidden;
+    border-radius: 50%;
+    background: var(--fill-primary-soft);
+}
+.user-avatar :deep(svg) {
+    width: 100%;
+    height: 100%;
+    display: block;
+}
+.user-avatar--initial {
+    color: var(--practiq-violet-dark);
+    font-weight: 800;
+}
+.user-avatar--skeleton {
+    background: linear-gradient(
+        90deg,
+        var(--fill-primary-soft) 20%,
+        var(--surface-elevated-strong) 50%,
+        var(--fill-primary-soft) 80%
+    );
+    background-size: 200% 100%;
+    animation: avatar-shimmer 1.1s ease-in-out infinite;
+}
+@keyframes avatar-shimmer {
+    to {
+        background-position: -200% 0;
     }
-    .user-avatar :deep(svg) {
-        width: 100%;
-        height: 100%;
-        display: block;
-    }
-    .user-avatar--initial {
-        color: var(--practiq-violet-dark);
-        font-weight: 800;
-    }
+}
+@media (prefers-reduced-motion: reduce) {
     .user-avatar--skeleton {
-        background: linear-gradient(
-            90deg,
-            var(--fill-primary-soft) 20%,
-            var(--surface-elevated-strong) 50%,
-            var(--fill-primary-soft) 80%
-        );
-        background-size: 200% 100%;
-        animation: avatar-shimmer 1.1s ease-in-out infinite;
+        animation: none;
     }
-    @keyframes avatar-shimmer {
-        to {
-            background-position: -200% 0;
-        }
-    }
-    @media (prefers-reduced-motion: reduce) {
-        .user-avatar--skeleton {
-            animation: none;
-        }
-    }
+}
 </style>

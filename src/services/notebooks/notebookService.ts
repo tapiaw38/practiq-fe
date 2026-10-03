@@ -36,6 +36,7 @@ export interface INotebookService {
         },
     ): Promise<void>;
     deletePage(pageId: string): Promise<void>;
+    generatePageDrafts(notebookId: string, form: FormData): Promise<{ data: unknown[] }>;
     update(
         id: string,
         params: { title: string; description?: string; topic_id: string },
@@ -119,6 +120,13 @@ export class NotebookService implements INotebookService {
 
     async deletePage(pageId: string): Promise<void> {
         await this.api.delete(`/notebook-pages/${pageId}`);
+    }
+
+    async generatePageDrafts(notebookId: string, form: FormData): Promise<{ data: unknown[] }> {
+        const { data } = await this.api.post(`/notebooks/${notebookId}/page-drafts/ai`, form, {
+            headers: { 'Content-Type': 'multipart/form-data' },
+        });
+        return data;
     }
 
     async update(

@@ -1,332 +1,328 @@
 <script setup lang="ts">
-    import { computed, onMounted, ref, watch } from 'vue';
-    import { useToast } from '@/composables/useToast';
-    import { ensureFreshAccessToken, practiqApi } from '@/api/request/server';
-    import TeacherLayout from '@/layouts/TeacherLayout.vue';
-    import Skeleton from '@/components/ui/Skeleton.vue';
-    import UiModal from '@/components/ui/UiModal.vue';
-    import CheckoutModal from '@/components/teacher/subscription/CheckoutModal.vue';
-    import { authService } from '@/services/auth/authService';
-    import type { CardToken } from '@/utils/mercadopago';
-    import {
-        SubscriptionService,
-        type CatalogPlan,
-        type DowngradeState,
-        type DowngradeStudent,
-        type TeacherSubscription,
-    } from '@/services/subscription/subscriptionService';
+import { computed, onMounted, ref, watch } from 'vue';
+import { useToast } from '@/composables/useToast';
+import { ensureFreshAccessToken, practiqApi } from '@/api/request/server';
+import TeacherLayout from '@/layouts/TeacherLayout.vue';
+import Skeleton from '@/components/ui/Skeleton.vue';
+import UiModal from '@/components/ui/UiModal.vue';
+import CheckoutModal from '@/components/teacher/subscription/CheckoutModal.vue';
+import { authService } from '@/services/auth/authService';
+import type { CardToken } from '@/types/payments';
+import type {
+    CatalogPlan,
+    DowngradeState,
+    DowngradeStudent,
+    TeacherSubscription,
+} from '@/types/subscription';
+import { SubscriptionService } from '@/services/subscription/subscriptionService';
 
-    const toast = useToast();
-    const service = new SubscriptionService(practiqApi);
+const toast = useToast();
+const service = new SubscriptionService(practiqApi);
 
-    const subscription = ref<TeacherSubscription | null>(null);
-    const plans = ref<CatalogPlan[]>([]);
-    const loading = ref(true);
-    const loadError = ref(false);
-    const working = ref(false);
+const subscription = ref<TeacherSubscription | null>(null);
+const plans = ref<CatalogPlan[]>([]);
+const loading = ref(true);
+const loadError = ref(false);
+const working = ref(false);
 
-    const showLeaveModal = ref(false);
-    const showPauseModal = ref(false);
+const showLeaveModal = ref(false);
+const showPauseModal = ref(false);
 
-    const isPaused = computed(() => subscription.value?.status === 'paused');
+const isPaused = computed(() => subscription.value?.status === 'paused');
 
-    const isPending = computed(() => subscription.value?.status === 'pending');
+const isPending = computed(() => subscription.value?.status === 'pending');
 
-    const graceEndsLabel = computed(() => {
-        const ends = subscription.value?.grace_ends_at;
-        if (!ends) return '';
-        return new Date(ends).toLocaleDateString('es-AR', {
-            day: 'numeric',
-            month: 'long',
-            year: 'numeric',
-        });
+const graceEndsLabel = computed(() => {
+    const ends = subscription.value?.grace_ends_at;
+    if (!ends) return '';
+    return new Date(ends).toLocaleDateString('es-AR', {
+        day: 'numeric',
+        month: 'long',
+        year: 'numeric',
     });
+});
 
-    const downgrade = ref<DowngradeState | null>(null);
-    const overLimit = computed(() => (downgrade.value?.deactivated.length ?? 0) > 0);
+const downgrade = ref<DowngradeState | null>(null);
+const overLimit = computed(() => (downgrade.value?.deactivated.length ?? 0) > 0);
 
-    const keep = ref<string[]>([]);
+const keep = ref<string[]>([]);
 
-    watch(downgrade, (state) => {
-        keep.value = (state?.students ?? []).filter((s) => s.keeps).map((s) => s.id);
-    });
+watch(downgrade, (state) => {
+    keep.value = (state?.students ?? []).filter((s) => s.keeps).map((s) => s.id);
+});
 
-    const keepIsFull = computed(() => keep.value.length >= (downgrade.value?.max_students ?? 0));
+const keepIsFull = computed(() => keep.value.length >= (downgrade.value?.max_students ?? 0));
 
-    function toggleKeep(id: string) {
-        const at = keep.value.indexOf(id);
-        if (at >= 0) {
-            keep.value.splice(at, 1);
-            return;
+function toggleKeep(id: string) {
+    const at = keep.value.indexOf(id);
+    if (at >= 0) {
+        keep.value.splice(at, 1);
+        return;
+    }
+
+    if (!keepIsFull.value) keep.value.push(id);
+}
+
+function lastPracticedLabel(student: DowngradeStudent) {
+    if (!student.last_practiced_at) return 'Nunca practicó';
+    return `Última práctica: ${new Date(student.last_practiced_at).toLocaleDateString('es-AR', {
+        day: 'numeric',
+        month: 'short',
+        year: 'numeric',
+    })}`;
+}
+
+async function applyDowngrade() {
+    await run(async () => {
+        await service.applyDowngrade(keep.value);
+        const { data } = await service.downgradePreview();
+        downgrade.value = data;
+    }, 'Plan ajustado');
+}
+
+const checkoutPlan = ref<CatalogPlan | null>(null);
+const publicKey = ref('');
+
+const accountEmail = ref('');
+const checkoutError = ref('');
+
+function paymentErrorMessage(error: unknown) {
+    const data = (
+        error as {
+            response?: { data?: { message?: string; detail?: string | { message?: string } } };
+            message?: string;
         }
+    )?.response?.data;
+    if (typeof data?.message === 'string' && data.message) return data.message;
+    if (typeof data?.detail === 'string' && data.detail) return data.detail;
+    if (
+        data?.detail &&
+        typeof data.detail !== 'string' &&
+        typeof data.detail.message === 'string' &&
+        data.detail.message
+    )
+        return data.detail.message;
+    return 'No se pudo autorizar la tarjeta. Revisá los datos o probá otra tarjeta.';
+}
 
-        if (!keepIsFull.value) keep.value.push(id);
+async function onceMore<T>(request: () => Promise<T>): Promise<T> {
+    try {
+        return await request();
+    } catch {
+        await new Promise((resolve) => window.setTimeout(resolve, 350));
+        return request();
     }
+}
 
-    function lastPracticedLabel(student: DowngradeStudent) {
-        if (!student.last_practiced_at) return 'Nunca practicó';
-        return `Última práctica: ${new Date(student.last_practiced_at).toLocaleDateString('es-AR', {
-            day: 'numeric',
-            month: 'short',
-            year: 'numeric',
-        })}`;
-    }
-
-    async function applyDowngrade() {
-        await run(async () => {
-            await service.applyDowngrade(keep.value);
-            const { data } = await service.downgradePreview();
-            downgrade.value = data;
-        }, 'Plan ajustado');
-    }
-
-    const checkoutPlan = ref<CatalogPlan | null>(null);
-    const publicKey = ref('');
-
-    const accountEmail = ref('');
-    const checkoutError = ref('');
-
-    function paymentErrorMessage(error: unknown) {
-        const data = (
-            error as {
-                response?: { data?: { message?: string; detail?: string | { message?: string } } };
-                message?: string;
-            }
-        )?.response?.data;
-        if (typeof data?.message === 'string' && data.message) return data.message;
-        if (typeof data?.detail === 'string' && data.detail) return data.detail;
-        if (
-            data?.detail &&
-            typeof data.detail !== 'string' &&
-            typeof data.detail.message === 'string' &&
-            data.detail.message
-        )
-            return data.detail.message;
-        return 'No se pudo autorizar la tarjeta. Revisá los datos o probá otra tarjeta.';
-    }
-
-    async function onceMore<T>(request: () => Promise<T>): Promise<T> {
+async function openCheckout(plan: CatalogPlan) {
+    checkoutError.value = '';
+    if (!publicKey.value) {
         try {
-            return await request();
+            const { data } = await service.checkoutConfig();
+            publicKey.value = data.public_key;
         } catch {
-            await new Promise((resolve) => window.setTimeout(resolve, 350));
-            return request();
+            publicKey.value = '';
         }
     }
+    if (!publicKey.value) {
+        toast.add({
+            severity: 'warn',
+            summary: 'Pagos no disponible',
+            detail: 'Todavía no está configurado el cobro con tarjeta.',
+            life: 4000,
+        });
+        return;
+    }
+    checkoutPlan.value = plan;
+}
 
-    async function openCheckout(plan: CatalogPlan) {
-        checkoutError.value = '';
-        if (!publicKey.value) {
-            try {
-                const { data } = await service.checkoutConfig();
-                publicKey.value = data.public_key;
-            } catch {
-                publicKey.value = '';
-            }
-        }
-        if (!publicKey.value) {
+async function confirmCheckout(token: CardToken) {
+    const plan = checkoutPlan.value;
+    if (!plan) return;
+    checkoutError.value = '';
+    working.value = true;
+    try {
+        if (subscription.value?.active) {
+            const charged = await service.changePlan(plan.plan_id, token.id, token.paymentMethodId);
+            checkoutPlan.value = null;
+            await reload();
             toast.add({
-                severity: 'warn',
-                summary: 'Pagos no disponible',
-                detail: 'Todavía no está configurado el cobro con tarjeta.',
+                severity: 'success',
+                summary: 'Plan actualizado',
+                detail:
+                    charged > 0
+                        ? `Cobramos ${formatMoney(charged, plan.currency || 'ARS')} por lo que queda del mes.`
+                        : 'El nuevo precio empieza en la próxima renovación.',
                 life: 4000,
             });
             return;
         }
-        checkoutPlan.value = plan;
+        await service.subscribe(plan.plan_id, token.id);
+        checkoutPlan.value = null;
+        await reload();
+        toast.add({ severity: 'success', summary: 'Suscripción activada', life: 2500 });
+    } catch (error: unknown) {
+        checkoutError.value = paymentErrorMessage(error);
+    } finally {
+        working.value = false;
     }
+}
 
-    async function confirmCheckout(token: CardToken) {
-        const plan = checkoutPlan.value;
-        if (!plan) return;
-        checkoutError.value = '';
-        working.value = true;
-        try {
-            if (subscription.value?.active) {
-                const charged = await service.changePlan(
-                    plan.plan_id,
-                    token.id,
-                    token.paymentMethodId,
-                );
-                checkoutPlan.value = null;
-                await reload();
-                toast.add({
-                    severity: 'success',
-                    summary: 'Plan actualizado',
-                    detail:
-                        charged > 0
-                            ? `Cobramos ${formatMoney(charged, plan.currency || 'ARS')} por lo que queda del mes.`
-                            : 'El nuevo precio empieza en la próxima renovación.',
-                    life: 4000,
-                });
-                return;
-            }
-            await service.subscribe(plan.plan_id, token.id);
+async function payWithWallet(payerEmail: string) {
+    const plan = checkoutPlan.value;
+    if (!plan) return;
+    checkoutError.value = '';
+    working.value = true;
+    try {
+        if (subscription.value?.active) {
+            await service.changePlan(plan.plan_id);
             checkoutPlan.value = null;
             await reload();
-            toast.add({ severity: 'success', summary: 'Suscripción activada', life: 2500 });
-        } catch (error: unknown) {
-            checkoutError.value = paymentErrorMessage(error);
-        } finally {
-            working.value = false;
-        }
-    }
-
-    async function payWithWallet(payerEmail: string) {
-        const plan = checkoutPlan.value;
-        if (!plan) return;
-        checkoutError.value = '';
-        working.value = true;
-        try {
-            if (subscription.value?.active) {
-                await service.changePlan(plan.plan_id);
-                checkoutPlan.value = null;
-                await reload();
-                toast.add({
-                    severity: 'success',
-                    summary: 'Plan actualizado',
-                    detail: 'El nuevo precio se cobra en la próxima renovación.',
-                    life: 4000,
-                });
-                return;
-            }
-
-            const initPoint = await service.startHostedCheckout(plan.plan_id, payerEmail);
-            if (!initPoint) {
-                checkoutError.value = 'No pudimos abrir el pago en Mercado Pago. Probá de nuevo.';
-                return;
-            }
-            window.location.assign(initPoint);
-        } catch (error: unknown) {
-            checkoutError.value = paymentErrorMessage(error);
-        } finally {
-            working.value = false;
-        }
-    }
-
-    const usedPct = computed(() => {
-        const s = subscription.value;
-        if (!s || s.plan.max_students <= 0) return 0;
-        return Math.min(100, Math.round((s.students_used / s.plan.max_students) * 100));
-    });
-
-    const planStateLabel = computed(() => {
-        const s = subscription.value;
-        if (!s) return '';
-        if (s.uncapped) return 'Sin límite';
-
-        if (graceEndsLabel.value) return 'Por vencer';
-        if (isPaused.value) return 'Pausado';
-        if (isPending.value) return 'Confirmando pago';
-        if (s.active) return 'Activo';
-        if (s.trial_expired) return 'Prueba terminada';
-        return 'Gratis';
-    });
-
-    const renewsLabel = computed(() => {
-        const renews = subscription.value?.renews_at;
-        if (!renews) return '';
-        return new Date(renews).toLocaleDateString('es-AR', {
-            day: 'numeric',
-            month: 'long',
-            year: 'numeric',
-        });
-    });
-
-    async function reload() {
-        const [mine, catalog, excess] = await Promise.allSettled([
-            onceMore(() => service.getMine()),
-            onceMore(() => service.listPlans()),
-            onceMore(() => service.downgradePreview()),
-        ]);
-        if (mine.status === 'fulfilled' && mine.value.data?.plan) {
-            subscription.value = mine.value.data;
-        }
-        if (excess.status === 'fulfilled') downgrade.value = excess.value.data;
-
-        if (catalog.status === 'fulfilled') plans.value = catalog.value.data;
-        if (mine.status === 'rejected' || !subscription.value) {
-            throw mine.status === 'rejected'
-                ? mine.reason
-                : new Error('subscription response is missing plan');
-        }
-    }
-
-    async function loadSubscription() {
-        loading.value = true;
-        loadError.value = false;
-        try {
-            if (!(await ensureFreshAccessToken())) {
-                window.location.assign('/login');
-                return;
-            }
-            await reload();
-        } catch {
-            loadError.value = true;
             toast.add({
-                severity: 'error',
-                summary: 'No se pudo cargar tu suscripción',
-                detail: 'Revisá tu conexión y probá de nuevo.',
-                life: 3500,
+                severity: 'success',
+                summary: 'Plan actualizado',
+                detail: 'El nuevo precio se cobra en la próxima renovación.',
+                life: 4000,
             });
-        } finally {
-            loading.value = false;
+            return;
         }
-    }
 
-    async function run(action: () => Promise<void>, done: string) {
-        if (working.value) return;
-        working.value = true;
-        try {
-            await action();
-            await reload();
-            toast.add({ severity: 'success', summary: done, life: 2500 });
-        } catch (error) {
-            toast.add({
-                severity: 'error',
-                summary: 'Error',
-                detail: paymentErrorMessage(error),
-                life: 3000,
-            });
-        } finally {
-            working.value = false;
-            showLeaveModal.value = false;
+        const initPoint = await service.startHostedCheckout(plan.plan_id, payerEmail);
+        if (!initPoint) {
+            checkoutError.value = 'No pudimos abrir el pago en Mercado Pago. Probá de nuevo.';
+            return;
         }
+        window.location.assign(initPoint);
+    } catch (error: unknown) {
+        checkoutError.value = paymentErrorMessage(error);
+    } finally {
+        working.value = false;
     }
+}
 
-    const pause = () =>
-        run(() => service.pause(), 'Suscripción pausada').finally(() => {
-            showPauseModal.value = false;
-            showLeaveModal.value = false;
-        });
-    const resume = () => run(() => service.resume(), 'Suscripción reanudada');
-    const cancel = () => run(() => service.cancel(), 'Suscripción cancelada');
+const usedPct = computed(() => {
+    const s = subscription.value;
+    if (!s || s.plan.max_students <= 0) return 0;
+    return Math.min(100, Math.round((s.students_used / s.plan.max_students) * 100));
+});
 
-    function formatMoney(amount: number, currency = 'ARS') {
-        return new Intl.NumberFormat('es-AR', {
-            style: 'currency',
-            currency,
-            maximumFractionDigits: 0,
-        }).format(amount);
-    }
+const planStateLabel = computed(() => {
+    const s = subscription.value;
+    if (!s) return '';
+    if (s.uncapped) return 'Sin límite';
 
-    function formatAmount(plan: CatalogPlan) {
-        return formatMoney(plan.amount, plan.currency || 'ARS');
-    }
+    if (graceEndsLabel.value) return 'Por vencer';
+    if (isPaused.value) return 'Pausado';
+    if (isPending.value) return 'Confirmando pago';
+    if (s.active) return 'Activo';
+    if (s.trial_expired) return 'Prueba terminada';
+    return 'Gratis';
+});
 
-    async function loadAccountEmail() {
-        try {
-            const { data } = await authService.meUser();
-            accountEmail.value = data?.email ?? '';
-        } catch {
-            accountEmail.value = '';
-        }
-    }
-
-    onMounted(() => {
-        loadSubscription();
-        loadAccountEmail();
+const renewsLabel = computed(() => {
+    const renews = subscription.value?.renews_at;
+    if (!renews) return '';
+    return new Date(renews).toLocaleDateString('es-AR', {
+        day: 'numeric',
+        month: 'long',
+        year: 'numeric',
     });
+});
+
+async function reload() {
+    const [mine, catalog, excess] = await Promise.allSettled([
+        onceMore(() => service.getMine()),
+        onceMore(() => service.listPlans()),
+        onceMore(() => service.downgradePreview()),
+    ]);
+    if (mine.status === 'fulfilled' && mine.value.data?.plan) {
+        subscription.value = mine.value.data;
+    }
+    if (excess.status === 'fulfilled') downgrade.value = excess.value.data;
+
+    if (catalog.status === 'fulfilled') plans.value = catalog.value.data;
+    if (mine.status === 'rejected' || !subscription.value) {
+        throw mine.status === 'rejected'
+            ? mine.reason
+            : new Error('subscription response is missing plan');
+    }
+}
+
+async function loadSubscription() {
+    loading.value = true;
+    loadError.value = false;
+    try {
+        if (!(await ensureFreshAccessToken())) {
+            window.location.assign('/login');
+            return;
+        }
+        await reload();
+    } catch {
+        loadError.value = true;
+        toast.add({
+            severity: 'error',
+            summary: 'No se pudo cargar tu suscripción',
+            detail: 'Revisá tu conexión y probá de nuevo.',
+            life: 3500,
+        });
+    } finally {
+        loading.value = false;
+    }
+}
+
+async function run(action: () => Promise<void>, done: string) {
+    if (working.value) return;
+    working.value = true;
+    try {
+        await action();
+        await reload();
+        toast.add({ severity: 'success', summary: done, life: 2500 });
+    } catch (error) {
+        toast.add({
+            severity: 'error',
+            summary: 'Error',
+            detail: paymentErrorMessage(error),
+            life: 3000,
+        });
+    } finally {
+        working.value = false;
+        showLeaveModal.value = false;
+    }
+}
+
+const pause = () =>
+    run(() => service.pause(), 'Suscripción pausada').finally(() => {
+        showPauseModal.value = false;
+        showLeaveModal.value = false;
+    });
+const resume = () => run(() => service.resume(), 'Suscripción reanudada');
+const cancel = () => run(() => service.cancel(), 'Suscripción cancelada');
+
+function formatMoney(amount: number, currency = 'ARS') {
+    return new Intl.NumberFormat('es-AR', {
+        style: 'currency',
+        currency,
+        maximumFractionDigits: 0,
+    }).format(amount);
+}
+
+function formatAmount(plan: CatalogPlan) {
+    return formatMoney(plan.amount, plan.currency || 'ARS');
+}
+
+async function loadAccountEmail() {
+    try {
+        const { data } = await authService.meUser();
+        accountEmail.value = data?.email ?? '';
+    } catch {
+        accountEmail.value = '';
+    }
+}
+
+onMounted(() => {
+    loadSubscription();
+    loadAccountEmail();
+});
 </script>
 
 <template>
@@ -686,720 +682,720 @@
 </template>
 
 <style scoped>
-    .subscription-shell {
-        width: 100%;
-        display: flex;
-        flex-direction: column;
-        gap: 1.25rem;
-        padding: 1.25rem;
-        max-width: 720px;
-    }
+.subscription-shell {
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    gap: 1.25rem;
+    padding: 1.25rem;
+    max-width: 720px;
+}
 
-    .page-header h1 {
-        margin: 0;
-        font-size: clamp(1.55rem, 2.5vw, 2rem);
-        color: var(--text-heading);
-    }
+.page-header h1 {
+    margin: 0;
+    font-size: clamp(1.55rem, 2.5vw, 2rem);
+    color: var(--text-heading);
+}
 
-    .page-sub {
-        margin: 0.25rem 0 0;
-        color: var(--text-secondary);
-        font-size: 0.9rem;
-    }
+.page-sub {
+    margin: 0.25rem 0 0;
+    color: var(--text-secondary);
+    font-size: 0.9rem;
+}
 
-    .plan-card {
-        display: flex;
-        flex-direction: column;
-        gap: 1.1rem;
-        padding: 1.25rem;
-        background: var(--surface-card);
-        border: 1px solid var(--surface-border);
-        border-radius: var(--radius-xl);
-        box-shadow: var(--shadow-card);
-    }
+.plan-card {
+    display: flex;
+    flex-direction: column;
+    gap: 1.1rem;
+    padding: 1.25rem;
+    background: var(--surface-card);
+    border: 1px solid var(--surface-border);
+    border-radius: var(--radius-xl);
+    box-shadow: var(--shadow-card);
+}
 
-    .plan-summary {
-        display: grid;
-        grid-template-columns: repeat(2, minmax(0, 1fr));
-        gap: 0.6rem;
-        padding: 0.7rem;
-        border-radius: var(--radius-lg);
-        background: rgba(var(--practiq-violet-rgb), 0.045);
-    }
+.plan-summary {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.6rem;
+    padding: 0.7rem;
+    border-radius: var(--radius-lg);
+    background: rgba(var(--practiq-violet-rgb), 0.045);
+}
 
-    .plan-summary__item {
-        display: grid;
-        grid-template-columns: 1.75rem minmax(0, 1fr);
-        column-gap: 0.45rem;
-        align-items: center;
-        min-width: 0;
-    }
+.plan-summary__item {
+    display: grid;
+    grid-template-columns: 1.75rem minmax(0, 1fr);
+    column-gap: 0.45rem;
+    align-items: center;
+    min-width: 0;
+}
 
-    .plan-summary__item i {
-        grid-row: span 2;
-        display: grid;
-        place-items: center;
-        width: 1.75rem;
-        height: 1.75rem;
-        border-radius: var(--radius-md);
-        background: var(--surface-card);
-        color: var(--practiq-violet);
-        font-size: 0.78rem;
-    }
+.plan-summary__item i {
+    grid-row: span 2;
+    display: grid;
+    place-items: center;
+    width: 1.75rem;
+    height: 1.75rem;
+    border-radius: var(--radius-md);
+    background: var(--surface-card);
+    color: var(--practiq-violet);
+    font-size: 0.78rem;
+}
 
-    .plan-summary__item span {
-        overflow: hidden;
-        color: var(--text-secondary);
-        font-size: 0.7rem;
-        text-overflow: ellipsis;
-        white-space: nowrap;
-    }
+.plan-summary__item span {
+    overflow: hidden;
+    color: var(--text-secondary);
+    font-size: 0.7rem;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
 
-    .plan-summary__item strong {
-        overflow: hidden;
-        color: var(--text-primary);
-        font-size: 0.8rem;
-        text-overflow: ellipsis;
-        white-space: nowrap;
-    }
+.plan-summary__item strong {
+    overflow: hidden;
+    color: var(--text-primary);
+    font-size: 0.8rem;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
 
-    .load-error {
-        align-items: flex-start;
-    }
+.load-error {
+    align-items: flex-start;
+}
 
-    .load-error__icon {
-        color: var(--practiq-violet);
-        font-size: 1.15rem;
-    }
+.load-error__icon {
+    color: var(--practiq-violet);
+    font-size: 1.15rem;
+}
 
-    .load-error h2,
-    .load-error p {
-        margin: 0;
-    }
+.load-error h2,
+.load-error p {
+    margin: 0;
+}
 
-    .load-error h2 {
-        color: var(--text-heading);
-        font-size: 1.05rem;
-    }
+.load-error h2 {
+    color: var(--text-heading);
+    font-size: 1.05rem;
+}
 
-    .load-error p {
-        color: var(--text-secondary);
-        font-size: 0.88rem;
-        margin-top: 0.25rem;
-    }
+.load-error p {
+    color: var(--text-secondary);
+    font-size: 0.88rem;
+    margin-top: 0.25rem;
+}
 
-    .plan-head {
-        display: flex;
-        align-items: flex-start;
-        justify-content: space-between;
-        gap: 1rem;
-    }
+.plan-head {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 1rem;
+}
 
-    .plan-label {
-        font-size: 0.75rem;
-        text-transform: uppercase;
-        letter-spacing: 0.06em;
-        color: var(--text-secondary);
-    }
+.plan-label {
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--text-secondary);
+}
 
-    .plan-name {
-        margin: 0.2rem 0 0;
-        font-size: 1.25rem;
-        color: var(--text-heading);
-    }
+.plan-name {
+    margin: 0.2rem 0 0;
+    font-size: 1.25rem;
+    color: var(--text-heading);
+}
 
-    .plan-state {
-        flex: 0 0 auto;
-        padding: 0.25rem 0.7rem;
-        border-radius: var(--radius-pill);
-        font-size: 0.78rem;
-        font-weight: 600;
-    }
+.plan-state {
+    flex: 0 0 auto;
+    padding: 0.25rem 0.7rem;
+    border-radius: var(--radius-pill);
+    font-size: 0.78rem;
+    font-weight: 600;
+}
 
-    .plan-state--paid {
-        background: var(--color-success-bg);
-        color: var(--color-success-dark);
-    }
+.plan-state--paid {
+    background: var(--color-success-bg);
+    color: var(--color-success-dark);
+}
 
-    .plan-state--free {
-        background: rgba(var(--practiq-violet-rgb), 0.1);
-        color: var(--practiq-violet-dark);
-    }
+.plan-state--free {
+    background: rgba(var(--practiq-violet-rgb), 0.1);
+    color: var(--practiq-violet-dark);
+}
 
-    .plan-pending {
-        display: flex;
-        align-items: flex-start;
-        gap: 0.5rem;
-        margin: 0 0 1rem;
-        padding: 0.7rem 0.85rem;
-        border-radius: var(--radius-md);
-        background: rgba(var(--practiq-violet-rgb), 0.07);
-        font-size: 0.85rem;
-        line-height: 1.5;
-        color: var(--text-secondary);
-    }
+.plan-pending {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.5rem;
+    margin: 0 0 1rem;
+    padding: 0.7rem 0.85rem;
+    border-radius: var(--radius-md);
+    background: rgba(var(--practiq-violet-rgb), 0.07);
+    font-size: 0.85rem;
+    line-height: 1.5;
+    color: var(--text-secondary);
+}
 
-    .plan-pending i {
-        margin-top: 0.15rem;
-        color: var(--practiq-violet);
-    }
+.plan-pending i {
+    margin-top: 0.15rem;
+    color: var(--practiq-violet);
+}
 
-    .keep-list {
-        list-style: none;
-        margin: 0.75rem 0 0.5rem;
-        padding: 0;
-        display: flex;
-        flex-direction: column;
-        gap: 0.35rem;
-        max-height: 16rem;
-        overflow-y: auto;
-    }
+.keep-list {
+    list-style: none;
+    margin: 0.75rem 0 0.5rem;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
+    max-height: 16rem;
+    overflow-y: auto;
+}
 
+.keep-item {
+    display: grid;
+    grid-template-columns: auto 1fr auto;
+    align-items: center;
+    gap: 0.6rem;
+    padding: 0.5rem 0.65rem;
+    border: 1px solid var(--surface-border);
+    border-radius: var(--radius-md);
+    cursor: pointer;
+}
+
+.keep-item--out {
+    opacity: 0.6;
+}
+
+.keep-name {
+    font-size: 0.88rem;
+    color: var(--text-primary);
+    min-width: 0;
+    overflow-wrap: anywhere;
+}
+
+.keep-activity {
+    font-size: 0.74rem;
+    color: var(--text-secondary);
+    text-align: right;
+}
+
+.keep-count {
+    margin: 0 0 0.6rem;
+    font-size: 0.8rem;
+    color: var(--text-secondary);
+}
+
+@media (max-width: 560px) {
     .keep-item {
-        display: grid;
-        grid-template-columns: auto 1fr auto;
-        align-items: center;
-        gap: 0.6rem;
-        padding: 0.5rem 0.65rem;
-        border: 1px solid var(--surface-border);
-        border-radius: var(--radius-md);
-        cursor: pointer;
-    }
-
-    .keep-item--out {
-        opacity: 0.6;
-    }
-
-    .keep-name {
-        font-size: 0.88rem;
-        color: var(--text-primary);
-        min-width: 0;
-        overflow-wrap: anywhere;
+        grid-template-columns: auto 1fr;
     }
 
     .keep-activity {
-        font-size: 0.74rem;
-        color: var(--text-secondary);
-        text-align: right;
+        grid-column: 2;
+        text-align: left;
+    }
+}
+
+.plan-warn {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.5rem;
+    margin: 0 0 1rem;
+    padding: 0.7rem 0.85rem;
+    border-radius: var(--radius-md);
+    background: var(--fill-warning-subtle);
+    font-size: 0.85rem;
+    line-height: 1.5;
+    color: var(--text-secondary);
+}
+
+.plan-warn i {
+    margin-top: 0.15rem;
+    color: var(--color-warning-dark);
+}
+
+.plan-state--pending {
+    background: rgba(var(--practiq-violet-rgb), 0.12);
+    color: var(--practiq-violet);
+}
+
+.plan-state--paused {
+    background: var(--color-warning-bg);
+    color: var(--color-warning-dark);
+}
+
+.plan-state--expired {
+    background: var(--color-error-bg);
+    color: var(--color-error-dark);
+}
+
+.over-limit {
+    display: flex;
+    flex-direction: column;
+    gap: 0.4rem;
+    padding: 0.85rem 1rem;
+    border-radius: var(--radius-lg);
+    background: var(--color-warning-bg);
+}
+
+.over-limit-title {
+    margin: 0;
+    font-weight: 600;
+    font-size: 0.92rem;
+    color: var(--color-warning-dark);
+}
+
+.over-limit-text {
+    margin: 0;
+    font-size: 0.85rem;
+    line-height: 1.5;
+    color: var(--text-secondary);
+}
+
+.over-limit .btn-secondary {
+    align-self: flex-start;
+    margin-top: 0.25rem;
+}
+
+.plan-actions {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    flex-wrap: wrap;
+    padding-top: 0.25rem;
+    border-top: 1px solid var(--surface-border);
+    margin-top: 0.25rem;
+}
+
+.btn-primary,
+.btn-secondary,
+.btn-danger,
+.btn-quiet {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    padding: 0.55rem 1rem;
+    border-radius: var(--radius-md);
+    font-size: 0.9rem;
+    font-weight: 600;
+    cursor: pointer;
+    border: 1px solid transparent;
+}
+
+.btn-primary {
+    background: var(--practiq-violet);
+    color: #fff;
+}
+
+.btn-secondary {
+    background: var(--surface-card);
+    border-color: rgba(var(--practiq-violet-rgb), 0.3);
+    color: var(--practiq-violet);
+}
+
+.btn-quiet {
+    background: transparent;
+    color: var(--text-secondary);
+}
+
+.btn-quiet--danger {
+    color: var(--color-error-dark, #b91c1c);
+}
+
+.btn-danger {
+    background: var(--color-error-dark, #b91c1c);
+    border-color: var(--color-error-dark, #b91c1c);
+    color: #fff;
+}
+
+.btn-primary:disabled,
+.btn-secondary:disabled,
+.btn-danger:disabled,
+.btn-quiet:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+
+.plans {
+    display: flex;
+    flex-direction: column;
+    gap: 0.6rem;
+}
+
+.plans-heading {
+    display: flex;
+    align-items: end;
+    justify-content: space-between;
+    gap: 1rem;
+}
+
+.plans-eyebrow {
+    display: block;
+    margin-bottom: 0.18rem;
+    color: var(--practiq-violet);
+    font-size: 0.7rem;
+    font-weight: 800;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+}
+
+.plans-title {
+    margin: 0;
+    font-size: 1.05rem;
+    color: var(--text-heading);
+}
+
+.plans-payment {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    flex: 0 0 auto;
+    color: var(--text-secondary);
+    font-size: 0.76rem;
+}
+
+.plans-payment i {
+    color: var(--color-success-dark);
+}
+
+.plan-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+
+.plan-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    padding: 0.9rem 1rem;
+    background: var(--surface-card);
+    border: 1px solid var(--surface-border);
+    border-radius: var(--radius-lg);
+    transition:
+        border-color 0.2s ease,
+        box-shadow 0.2s ease;
+}
+
+.plan-item:hover {
+    border-color: rgba(var(--practiq-violet-rgb), 0.3);
+    box-shadow: var(--shadow-card);
+}
+
+.plan-item--current {
+    border-color: var(--practiq-violet);
+    background: rgba(var(--practiq-violet-rgb), 0.035);
+}
+
+.plan-item-main {
+    display: flex;
+    flex-direction: column;
+    gap: 0.15rem;
+}
+
+.plan-item-name {
+    font-weight: 600;
+    color: var(--text-primary);
+}
+
+.plan-item-limit {
+    font-size: 0.82rem;
+    color: var(--text-secondary);
+}
+
+.plan-item-side {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 0.15rem;
+}
+
+.plan-item-price {
+    font-weight: 600;
+    color: var(--text-primary);
+}
+
+.plan-item-price small {
+    margin-left: 0.12rem;
+    color: var(--text-secondary);
+    font-size: 0.72em;
+    font-weight: 500;
+}
+
+.plan-item-current {
+    font-size: 0.75rem;
+    color: var(--practiq-violet);
+}
+
+.btn-plan {
+    padding: 0.4rem 0.85rem;
+    border-radius: var(--radius-md);
+    border: 1px solid rgba(var(--practiq-violet-rgb), 0.3);
+    background: var(--surface-card);
+    color: var(--practiq-violet);
+    font-size: 0.82rem;
+    font-weight: 600;
+    cursor: pointer;
+}
+
+.btn-plan:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+
+.btn-primary:focus-visible,
+.btn-secondary:focus-visible,
+.btn-quiet:focus-visible,
+.btn-plan:focus-visible {
+    outline: none;
+    box-shadow: var(--focus-ring-primary);
+}
+
+.plans-note {
+    margin: 0;
+    font-size: 0.82rem;
+    color: var(--text-secondary);
+}
+
+.leave-card {
+    width: min(440px, calc(100vw - 32px));
+    background: var(--surface-card);
+    border-radius: var(--radius-xl);
+    padding: 1.5rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+}
+
+.leave-warn {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.5rem;
+    margin: 0 0 1rem;
+    padding: 0.7rem 0.85rem;
+    border-radius: var(--radius-md);
+    background: var(--fill-warning-subtle);
+    font-size: 0.85rem;
+    line-height: 1.5;
+    color: var(--text-secondary);
+}
+
+.leave-warn i {
+    margin-top: 0.15rem;
+    color: var(--color-warning-dark);
+}
+
+.leave-title {
+    margin: 0;
+    font-size: 1.1rem;
+    color: var(--text-heading);
+}
+
+.leave-text {
+    margin: 0;
+    font-size: 0.9rem;
+    line-height: 1.55;
+    color: var(--text-secondary);
+}
+
+.leave-actions {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+    margin-top: 0.25rem;
+}
+
+.usage {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+
+.usage-head {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    font-size: 0.9rem;
+    color: var(--text-secondary);
+}
+
+.usage-head strong {
+    color: var(--text-primary);
+}
+
+.usage-bar {
+    height: 8px;
+    border-radius: var(--radius-pill);
+    background: rgba(var(--surface-border-rgb), 0.25);
+    overflow: hidden;
+}
+
+.usage-fill {
+    height: 100%;
+    background: var(--practiq-violet);
+    transition: width 0.25s ease;
+}
+
+.usage-fill--full {
+    background: var(--color-warning);
+}
+
+.usage-warn {
+    margin: 0;
+    font-size: 0.85rem;
+    color: var(--color-warning-dark);
+}
+
+.plan-renews {
+    margin: 0;
+    font-size: 0.85rem;
+    color: var(--text-secondary);
+}
+
+@media (max-width: 640px) {
+    .subscription-shell {
+        gap: 0.9rem;
     }
 
-    .keep-count {
-        margin: 0 0 0.6rem;
-        font-size: 0.8rem;
-        color: var(--text-secondary);
+    .page-header {
+        padding: 0.2rem 0;
     }
 
-    @media (max-width: 560px) {
-        .keep-item {
-            grid-template-columns: auto 1fr;
-        }
-
-        .keep-activity {
-            grid-column: 2;
-            text-align: left;
-        }
+    .page-kicker {
+        font-size: 0.7rem;
+        letter-spacing: 0.08em;
     }
 
-    .plan-warn {
-        display: flex;
-        align-items: flex-start;
-        gap: 0.5rem;
-        margin: 0 0 1rem;
-        padding: 0.7rem 0.85rem;
-        border-radius: var(--radius-md);
-        background: var(--fill-warning-subtle);
-        font-size: 0.85rem;
-        line-height: 1.5;
-        color: var(--text-secondary);
+    .page-header h1 {
+        font-size: 1.65rem;
+        line-height: 1.12;
     }
 
-    .plan-warn i {
-        margin-top: 0.15rem;
-        color: var(--color-warning-dark);
+    .page-sub {
+        max-width: 30ch;
+        font-size: 0.88rem;
+        line-height: 1.4;
     }
 
-    .plan-state--pending {
-        background: rgba(var(--practiq-violet-rgb), 0.12);
-        color: var(--practiq-violet);
-    }
-
-    .plan-state--paused {
-        background: var(--color-warning-bg);
-        color: var(--color-warning-dark);
-    }
-
-    .plan-state--expired {
-        background: var(--color-error-bg);
-        color: var(--color-error-dark);
-    }
-
-    .over-limit {
-        display: flex;
-        flex-direction: column;
-        gap: 0.4rem;
-        padding: 0.85rem 1rem;
+    .plan-card {
+        gap: 0.9rem;
+        padding: 1rem;
         border-radius: var(--radius-lg);
-        background: var(--color-warning-bg);
     }
 
-    .over-limit-title {
-        margin: 0;
-        font-weight: 600;
-        font-size: 0.92rem;
-        color: var(--color-warning-dark);
+    .plan-summary {
+        grid-template-columns: 1fr;
+        gap: 0.45rem;
     }
 
-    .over-limit-text {
-        margin: 0;
-        font-size: 0.85rem;
-        line-height: 1.5;
-        color: var(--text-secondary);
+    .plan-head {
+        align-items: center;
+        gap: 0.75rem;
     }
 
-    .over-limit .btn-secondary {
-        align-self: flex-start;
-        margin-top: 0.25rem;
+    .plan-name {
+        font-size: 1.15rem;
+    }
+    .plan-state {
+        padding: 0.24rem 0.55rem;
+        font-size: 0.72rem;
+    }
+
+    .usage-head {
+        font-size: 0.84rem;
+    }
+    .plan-renews,
+    .usage-warn {
+        font-size: 0.82rem;
+        line-height: 1.4;
     }
 
     .plan-actions {
-        display: flex;
-        align-items: center;
-        gap: 0.6rem;
-        flex-wrap: wrap;
-        padding-top: 0.25rem;
-        border-top: 1px solid var(--surface-border);
-        margin-top: 0.25rem;
+        display: grid;
+        grid-template-columns: 1fr;
+        align-items: stretch;
+    }
+
+    .leave-actions {
+        display: grid;
+        grid-template-columns: 1fr;
+        align-items: stretch;
+        gap: 0.45rem;
+    }
+
+    .leave-card {
+        width: 100%;
+        max-height: calc(100dvh - 1rem);
+        overflow-y: auto;
+        border-radius: var(--radius-xl) var(--radius-xl) 0 0;
+        padding: 1.1rem 1rem calc(1rem + env(safe-area-inset-bottom));
+    }
+
+    .leave-title {
+        font-size: 1.05rem;
+        line-height: 1.25;
+    }
+
+    .leave-text,
+    .leave-warn {
+        font-size: 0.85rem;
+        line-height: 1.45;
     }
 
     .btn-primary,
     .btn-secondary,
     .btn-danger,
     .btn-quiet {
-        display: inline-flex;
-        align-items: center;
-        gap: 0.4rem;
-        padding: 0.55rem 1rem;
-        border-radius: var(--radius-md);
-        font-size: 0.9rem;
-        font-weight: 600;
-        cursor: pointer;
-        border: 1px solid transparent;
-    }
-
-    .btn-primary {
-        background: var(--practiq-violet);
-        color: #fff;
-    }
-
-    .btn-secondary {
-        background: var(--surface-card);
-        border-color: rgba(var(--practiq-violet-rgb), 0.3);
-        color: var(--practiq-violet);
-    }
-
-    .btn-quiet {
-        background: transparent;
-        color: var(--text-secondary);
-    }
-
-    .btn-quiet--danger {
-        color: var(--color-error-dark, #b91c1c);
-    }
-
-    .btn-danger {
-        background: var(--color-error-dark, #b91c1c);
-        border-color: var(--color-error-dark, #b91c1c);
-        color: #fff;
-    }
-
-    .btn-primary:disabled,
-    .btn-secondary:disabled,
-    .btn-danger:disabled,
-    .btn-quiet:disabled {
-        opacity: 0.6;
-        cursor: not-allowed;
-    }
-
-    .plans {
-        display: flex;
-        flex-direction: column;
-        gap: 0.6rem;
-    }
-
-    .plans-heading {
-        display: flex;
-        align-items: end;
-        justify-content: space-between;
-        gap: 1rem;
-    }
-
-    .plans-eyebrow {
-        display: block;
-        margin-bottom: 0.18rem;
-        color: var(--practiq-violet);
-        font-size: 0.7rem;
-        font-weight: 800;
-        letter-spacing: 0.08em;
-        text-transform: uppercase;
-    }
-
-    .plans-title {
-        margin: 0;
-        font-size: 1.05rem;
-        color: var(--text-heading);
-    }
-
-    .plans-payment {
-        display: inline-flex;
-        align-items: center;
-        gap: 0.35rem;
-        flex: 0 0 auto;
-        color: var(--text-secondary);
-        font-size: 0.76rem;
-    }
-
-    .plans-payment i {
-        color: var(--color-success-dark);
-    }
-
-    .plan-list {
-        list-style: none;
-        margin: 0;
-        padding: 0;
-        display: flex;
-        flex-direction: column;
-        gap: 0.5rem;
+        justify-content: center;
+        min-height: 44px;
     }
 
     .plan-item {
-        display: flex;
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) auto;
         align-items: center;
-        justify-content: space-between;
-        gap: 1rem;
-        padding: 0.9rem 1rem;
-        background: var(--surface-card);
-        border: 1px solid var(--surface-border);
-        border-radius: var(--radius-lg);
-        transition:
-            border-color 0.2s ease,
-            box-shadow 0.2s ease;
+        gap: 0.75rem;
+        padding: 0.9rem;
     }
 
-    .plan-item:hover {
-        border-color: rgba(var(--practiq-violet-rgb), 0.3);
-        box-shadow: var(--shadow-card);
+    .plans-heading {
+        align-items: flex-start;
     }
-
-    .plan-item--current {
-        border-color: var(--practiq-violet);
-        background: rgba(var(--practiq-violet-rgb), 0.035);
-    }
-
-    .plan-item-main {
-        display: flex;
-        flex-direction: column;
-        gap: 0.15rem;
-    }
-
-    .plan-item-name {
-        font-weight: 600;
-        color: var(--text-primary);
-    }
-
-    .plan-item-limit {
-        font-size: 0.82rem;
-        color: var(--text-secondary);
+    .plans-payment {
+        margin-top: 0.15rem;
+        font-size: 0.7rem;
     }
 
     .plan-item-side {
-        display: flex;
-        flex-direction: column;
         align-items: flex-end;
-        gap: 0.15rem;
+        text-align: right;
     }
 
     .plan-item-price {
-        font-weight: 600;
-        color: var(--text-primary);
+        font-size: 0.92rem;
     }
-
-    .plan-item-price small {
-        margin-left: 0.12rem;
-        color: var(--text-secondary);
-        font-size: 0.72em;
-        font-weight: 500;
-    }
-
-    .plan-item-current {
-        font-size: 0.75rem;
-        color: var(--practiq-violet);
-    }
-
     .btn-plan {
-        padding: 0.4rem 0.85rem;
-        border-radius: var(--radius-md);
-        border: 1px solid rgba(var(--practiq-violet-rgb), 0.3);
-        background: var(--surface-card);
-        color: var(--practiq-violet);
-        font-size: 0.82rem;
-        font-weight: 600;
-        cursor: pointer;
+        min-height: 36px;
+        padding: 0.4rem 0.65rem;
     }
-
-    .btn-plan:disabled {
-        opacity: 0.6;
-        cursor: not-allowed;
-    }
-
-    .btn-primary:focus-visible,
-    .btn-secondary:focus-visible,
-    .btn-quiet:focus-visible,
-    .btn-plan:focus-visible {
-        outline: none;
-        box-shadow: var(--focus-ring-primary);
-    }
-
     .plans-note {
-        margin: 0;
-        font-size: 0.82rem;
-        color: var(--text-secondary);
+        font-size: 0.78rem;
+        line-height: 1.4;
     }
 
-    .leave-card {
-        width: min(440px, calc(100vw - 32px));
-        background: var(--surface-card);
-        border-radius: var(--radius-xl);
-        padding: 1.5rem;
-        display: flex;
-        flex-direction: column;
-        gap: 0.75rem;
+    .load-error {
+        align-items: stretch;
     }
+}
 
-    .leave-warn {
-        display: flex;
-        align-items: flex-start;
-        gap: 0.5rem;
-        margin: 0 0 1rem;
-        padding: 0.7rem 0.85rem;
-        border-radius: var(--radius-md);
-        background: var(--fill-warning-subtle);
-        font-size: 0.85rem;
-        line-height: 1.5;
-        color: var(--text-secondary);
-    }
-
-    .leave-warn i {
-        margin-top: 0.15rem;
-        color: var(--color-warning-dark);
-    }
-
-    .leave-title {
-        margin: 0;
-        font-size: 1.1rem;
-        color: var(--text-heading);
-    }
-
-    .leave-text {
-        margin: 0;
-        font-size: 0.9rem;
-        line-height: 1.55;
-        color: var(--text-secondary);
-    }
-
-    .leave-actions {
-        display: flex;
-        align-items: center;
-        gap: 0.5rem;
-        flex-wrap: wrap;
-        margin-top: 0.25rem;
-    }
-
-    .usage {
-        display: flex;
-        flex-direction: column;
-        gap: 0.5rem;
-    }
-
-    .usage-head {
-        display: flex;
-        align-items: baseline;
-        justify-content: space-between;
-        font-size: 0.9rem;
-        color: var(--text-secondary);
-    }
-
-    .usage-head strong {
-        color: var(--text-primary);
-    }
-
-    .usage-bar {
-        height: 8px;
-        border-radius: var(--radius-pill);
-        background: rgba(var(--surface-border-rgb), 0.25);
-        overflow: hidden;
-    }
-
+@media (prefers-reduced-motion: reduce) {
     .usage-fill {
-        height: 100%;
-        background: var(--practiq-violet);
-        transition: width 0.25s ease;
+        transition: none;
     }
-
-    .usage-fill--full {
-        background: var(--color-warning);
-    }
-
-    .usage-warn {
-        margin: 0;
-        font-size: 0.85rem;
-        color: var(--color-warning-dark);
-    }
-
-    .plan-renews {
-        margin: 0;
-        font-size: 0.85rem;
-        color: var(--text-secondary);
-    }
-
-    @media (max-width: 640px) {
-        .subscription-shell {
-            gap: 0.9rem;
-        }
-
-        .page-header {
-            padding: 0.2rem 0;
-        }
-
-        .page-kicker {
-            font-size: 0.7rem;
-            letter-spacing: 0.08em;
-        }
-
-        .page-header h1 {
-            font-size: 1.65rem;
-            line-height: 1.12;
-        }
-
-        .page-sub {
-            max-width: 30ch;
-            font-size: 0.88rem;
-            line-height: 1.4;
-        }
-
-        .plan-card {
-            gap: 0.9rem;
-            padding: 1rem;
-            border-radius: var(--radius-lg);
-        }
-
-        .plan-summary {
-            grid-template-columns: 1fr;
-            gap: 0.45rem;
-        }
-
-        .plan-head {
-            align-items: center;
-            gap: 0.75rem;
-        }
-
-        .plan-name {
-            font-size: 1.15rem;
-        }
-        .plan-state {
-            padding: 0.24rem 0.55rem;
-            font-size: 0.72rem;
-        }
-
-        .usage-head {
-            font-size: 0.84rem;
-        }
-        .plan-renews,
-        .usage-warn {
-            font-size: 0.82rem;
-            line-height: 1.4;
-        }
-
-        .plan-actions {
-            display: grid;
-            grid-template-columns: 1fr;
-            align-items: stretch;
-        }
-
-        .leave-actions {
-            display: grid;
-            grid-template-columns: 1fr;
-            align-items: stretch;
-            gap: 0.45rem;
-        }
-
-        .leave-card {
-            width: 100%;
-            max-height: calc(100dvh - 1rem);
-            overflow-y: auto;
-            border-radius: var(--radius-xl) var(--radius-xl) 0 0;
-            padding: 1.1rem 1rem calc(1rem + env(safe-area-inset-bottom));
-        }
-
-        .leave-title {
-            font-size: 1.05rem;
-            line-height: 1.25;
-        }
-
-        .leave-text,
-        .leave-warn {
-            font-size: 0.85rem;
-            line-height: 1.45;
-        }
-
-        .btn-primary,
-        .btn-secondary,
-        .btn-danger,
-        .btn-quiet {
-            justify-content: center;
-            min-height: 44px;
-        }
-
-        .plan-item {
-            display: grid;
-            grid-template-columns: minmax(0, 1fr) auto;
-            align-items: center;
-            gap: 0.75rem;
-            padding: 0.9rem;
-        }
-
-        .plans-heading {
-            align-items: flex-start;
-        }
-        .plans-payment {
-            margin-top: 0.15rem;
-            font-size: 0.7rem;
-        }
-
-        .plan-item-side {
-            align-items: flex-end;
-            text-align: right;
-        }
-
-        .plan-item-price {
-            font-size: 0.92rem;
-        }
-        .btn-plan {
-            min-height: 36px;
-            padding: 0.4rem 0.65rem;
-        }
-        .plans-note {
-            font-size: 0.78rem;
-            line-height: 1.4;
-        }
-
-        .load-error {
-            align-items: stretch;
-        }
-    }
-
-    @media (prefers-reduced-motion: reduce) {
-        .usage-fill {
-            transition: none;
-        }
-    }
+}
 </style>
