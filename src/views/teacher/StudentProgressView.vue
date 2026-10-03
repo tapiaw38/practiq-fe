@@ -347,7 +347,7 @@ function masteryClass(score: number) {
 
 <template>
     <TeacherLayout>
-        <div class="sp-page">
+        <div class="sp-page anim-stagger">
             <div class="sp-header">
                 <button class="back-btn" @click="router.back()">
                     <i class="pi pi-arrow-left"></i> Volver

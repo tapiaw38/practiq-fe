@@ -164,7 +164,7 @@ async function deleteStrategy() {
 
 <template>
     <TeacherLayout>
-        <div class="strategy-dashboard">
+        <div class="strategy-dashboard anim-stagger">
             <div class="page-header">
                 <div class="page-header__left">
                     <div class="page-kicker">Configuracion avanzada</div>

@@ -415,7 +415,7 @@ function clearCanvas() {
 
 <template>
     <TeacherLayout>
-        <div class="editor-shell">
+        <div class="editor-shell anim-stagger">
             <header class="editor-header">
                 <button class="btn-back" type="button" aria-label="Volver" @click="router.back()">
                     <i class="pi pi-arrow-left"></i>

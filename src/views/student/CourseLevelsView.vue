@@ -103,7 +103,7 @@ function openableURL(material: Material) {
 
 <template>
     <StudentLayout>
-        <div class="levels-shell">
+        <div class="levels-shell anim-stagger">
             <header class="levels-header">
                 <button class="btn-back" type="button" aria-label="Volver" @click="router.back()">
                     <i class="pi pi-arrow-left"></i>

@@ -367,7 +367,7 @@ async function setProfileType(item: UserRow, makeTeacher: boolean) {
 
 <template>
     <TeacherLayout>
-        <div class="admin-shell">
+        <div class="admin-shell anim-stagger">
             <div class="hero-card">
                 <div>
                     <div class="hero-kicker">Superadmin</div>

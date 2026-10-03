@@ -127,7 +127,7 @@ onMounted(load);
 
 <template>
     <TeacherLayout>
-        <div class="plans-shell">
+        <div class="plans-shell anim-stagger">
             <header class="page-header">
                 <div>
                     <div class="page-kicker">Administración de plataforma</div>

@@ -259,7 +259,7 @@ const statusLabel: Record<string, string> = {
 
 <template>
     <TeacherLayout>
-        <div class="dashboard">
+        <div class="dashboard anim-stagger">
             <header class="page-header">
                 <div class="page-header__left">
                     <div class="page-kicker">{{ dashboardKicker }}</div>

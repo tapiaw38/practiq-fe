@@ -670,7 +670,7 @@ function closeSuccessAndGoHome() {
 
 <template>
     <StudentLayout>
-        <div class="test-shell">
+        <div class="test-shell anim-stagger">
             <header class="test-header">
                 <button
                     class="btn-back"

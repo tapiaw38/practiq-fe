@@ -349,7 +349,7 @@ function goToPage(idx: number) {
 
 <template>
     <StudentLayout>
-        <div class="notebook-shell">
+        <div class="notebook-shell anim-stagger">
             <header class="nb-header">
                 <button class="btn-back" @click="router.back()">
                     <i class="pi pi-arrow-left"></i>

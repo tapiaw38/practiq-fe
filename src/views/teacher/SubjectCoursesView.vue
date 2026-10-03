@@ -99,7 +99,7 @@ function goBack() {
 
 <template>
     <TeacherLayout>
-        <div class="courses-page">
+        <div class="courses-page anim-stagger">
             <div class="hero-card">
                 <div>
                     <div class="hero-kicker">Materia</div>

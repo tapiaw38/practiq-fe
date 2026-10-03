@@ -261,7 +261,7 @@ onMounted(async () => {
 
 <template>
     <TeacherLayout>
-        <main class="school-users">
+        <main class="school-users anim-stagger">
             <header class="page-header">
                 <div class="page-header__left">
                     <p class="page-kicker">

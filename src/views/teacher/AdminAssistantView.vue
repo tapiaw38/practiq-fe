@@ -64,7 +64,7 @@ onMounted(load);
 
 <template>
     <TeacherLayout>
-        <main class="page">
+        <main class="page anim-stagger">
             <header class="page-header">
                 <div>
                     <p class="eyebrow">Plataforma</p>

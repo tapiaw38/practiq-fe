@@ -175,7 +175,7 @@ async function openStatementImage(item: AttemptReview) {
 
 <template>
     <TeacherLayout>
-        <div class="reviews-page">
+        <div class="reviews-page anim-stagger">
             <div class="page-header">
                 <div>
                     <div class="page-kicker">Corrección</div>

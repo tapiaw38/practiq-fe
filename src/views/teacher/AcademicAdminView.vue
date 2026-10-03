@@ -266,7 +266,7 @@ async function confirmDeleteSubject(id: string) {
 
 <template>
     <TeacherLayout>
-        <div class="ac-root">
+        <div class="ac-root anim-stagger">
             <header class="page-header ac-page-header">
                 <div class="page-header__left">
                     <p class="page-kicker">Organización de escuela</p>

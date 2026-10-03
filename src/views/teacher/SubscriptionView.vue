@@ -327,7 +327,7 @@ onMounted(() => {
 
 <template>
     <TeacherLayout>
-        <div class="subscription-shell">
+        <div class="subscription-shell anim-stagger">
             <header class="page-header">
                 <div>
                     <div class="page-kicker">Facturación</div>

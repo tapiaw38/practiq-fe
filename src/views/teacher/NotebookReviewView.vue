@@ -291,7 +291,7 @@ async function saveManualReview() {
 
 <template>
     <TeacherLayout>
-        <div class="review-dashboard">
+        <div class="review-dashboard anim-stagger">
             <div class="page-header">
                 <div class="page-header__left">
                     <div class="page-kicker">Revision de cuadernos</div>

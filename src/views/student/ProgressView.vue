@@ -137,7 +137,7 @@ function openTopic(courseId: string) {
 
 <template>
     <StudentLayout>
-        <div class="progress-shell">
+        <div class="progress-shell anim-stagger">
             <header class="progress-header">
                 <button class="btn-back" type="button" aria-label="Volver" @click="router.back()">
                     <i class="pi pi-arrow-left"></i>

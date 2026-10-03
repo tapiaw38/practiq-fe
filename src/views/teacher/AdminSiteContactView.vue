@@ -45,7 +45,7 @@ onMounted(load);
 </script>
 <template>
     <TeacherLayout
-        ><main class="page">
+        ><main class="page anim-stagger">
             <header class="page-header">
                 <div>
                     <p class="eyebrow">Landing pública</p>

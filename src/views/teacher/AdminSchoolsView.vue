@@ -272,7 +272,7 @@ onMounted(load);
 
 <template>
     <TeacherLayout>
-        <div class="schools-shell">
+        <div class="schools-shell anim-stagger">
             <header class="page-header">
                 <div>
                     <p class="eyebrow">Administración de plataforma</p>

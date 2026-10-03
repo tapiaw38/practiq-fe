@@ -1668,7 +1668,7 @@ async function deleteNotebook(id: string) {
 
 <template>
     <TeacherLayout>
-        <div class="course-detail">
+        <div class="course-detail anim-stagger">
             <div class="course-header">
                 <button class="btn btn-ghost btn-sm" @click="router.back()">
                     <i class="pi pi-arrow-left"></i> Volver
