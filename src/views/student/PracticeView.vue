@@ -2612,7 +2612,7 @@ function scoreColor(score: number) {
     }
     .practice-header {
         display: grid;
-        grid-template-columns: 44px minmax(0, 1fr) 44px;
+        grid-template-columns: 44px minmax(0, 1fr) auto;
         grid-template-rows: 44px 8px;
         padding: 10px 12px 12px;
         gap: 10px 8px;
@@ -2641,6 +2641,13 @@ function scoreColor(score: number) {
         grid-column: 3;
         grid-row: 1;
         justify-content: center;
+    }
+    .streak-chip {
+        padding: 6px 10px;
+        gap: 6px;
+    }
+    .streak-lbl {
+        display: none;
     }
     .header-right--skeleton :deep(.skeleton),
     .header-right--skeleton :deep(.skeleton-wrapper) {
