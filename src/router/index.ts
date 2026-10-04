@@ -33,6 +33,12 @@ const router = createRouter({
             meta: { requiresGuest: true },
         },
         {
+            path: '/auth/mobile-callback',
+            name: 'google-mobile-callback',
+            component: () => import('@/views/GoogleMobileCallbackView.vue'),
+            meta: { requiresAuth: false },
+        },
+        {
             path: '/teacher/dashboard',
             name: 'teacher-dashboard',
             component: () => import('@/views/teacher/DashboardView.vue'),
