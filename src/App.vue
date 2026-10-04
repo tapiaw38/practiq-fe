@@ -1,8 +1,11 @@
 <script setup lang="ts">
 import { computed, defineAsyncComponent, onMounted, watch } from 'vue';
+import { Capacitor } from '@capacitor/core';
+import { App as CapacitorApp } from '@capacitor/app';
 import { setUiTheme } from '@/composables/useUiTheme';
 import ToastHost from '@/components/ui/ToastHost.vue';
 import { RouterView, useRoute } from 'vue-router';
+import router from '@/router';
 import { useAuthStore } from '@/stores/authStore';
 import { useProfile } from '@/composables/useProfile';
 
@@ -24,6 +27,15 @@ onMounted(async () => {
         authStore.setProfile(await loadProfile());
     } catch {}
 });
+if (Capacitor.isNativePlatform()) {
+    CapacitorApp.addListener('backButton', () => {
+        if (window.history.state?.back) {
+            router.back();
+        } else {
+            CapacitorApp.minimizeApp();
+        }
+    });
+}
 const viewKey = computed(() => {
     const routeName = String(route.name ?? '');
     const routesWithResourceState = new Set([
