@@ -110,6 +110,7 @@ function routeAfterProfile(profile: UserProfile) {
 
 async function finalizeSession(response: LoginResponse, fallbackProfileType?: ProfileType) {
     authService.setToken(response.token);
+    if (response.refresh_token) authService.setRefreshToken(response.refresh_token);
     authStore.storeToken(response.token);
     if (response.data) authStore.setAuthUser(response.data);
 
@@ -206,6 +207,22 @@ async function handleGoogleLogin(code: string) {
     } finally {
         loading.value = false;
     }
+}
+
+async function handleGoogleMobileSession(response: LoginResponse) {
+    resetMessages();
+    loading.value = true;
+    try {
+        await finalizeSession(response, profileType.value);
+    } catch (err: any) {
+        errorMsg.value = err.response?.data?.message || 'No se pudo iniciar con Google.';
+    } finally {
+        loading.value = false;
+    }
+}
+
+function handleGoogleError(message: string) {
+    errorMsg.value = message;
 }
 
 async function completePendingProfile() {
@@ -586,7 +603,11 @@ async function completePendingProfile() {
 
                 <template v-if="currentView !== 'forgot' && currentView !== 'complete'">
                     <div class="auth-divider"><span>o continúa con</span></div>
-                    <GoogleButton @code="handleGoogleLogin" />
+                    <GoogleButton
+                        @code="handleGoogleLogin"
+                        @session="handleGoogleMobileSession"
+                        @error="handleGoogleError"
+                    />
                 </template>
 
                 <div v-if="currentView === 'login'" class="card-footer">

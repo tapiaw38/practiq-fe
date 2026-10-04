@@ -15,6 +15,7 @@ export interface IAuthService {
     changePassword(oldPassword: string, newPassword: string): Promise<void>;
     getToken(): string | null;
     setToken(token: string): void;
+    setRefreshToken(token: string): void;
     removeToken(): void;
     logout(): void;
     isAuthenticated(): boolean;
@@ -73,6 +74,10 @@ export class AuthService implements IAuthService {
 
     setToken(token: string): void {
         setToken(token);
+    }
+
+    setRefreshToken(token: string): void {
+        setRefreshToken(token);
     }
 
     removeToken(): void {

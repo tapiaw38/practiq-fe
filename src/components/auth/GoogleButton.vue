@@ -1,5 +1,7 @@
 <script setup lang="ts">
+import { Capacitor } from '@capacitor/core';
 import { onMounted, ref } from 'vue';
+import { loginWithGoogleNative } from '@/platform/useNativeGoogleLogin';
 import type { GoogleButtonEmits, GoogleClient, GoogleResponse } from './GoogleButton.types';
 
 const emit = defineEmits<GoogleButtonEmits>();
@@ -23,6 +25,7 @@ declare global {
 
 const googleClient = ref<GoogleClient | null>(null);
 const isLoading = ref(false);
+const isNativePlatform = Capacitor.isNativePlatform();
 
 onMounted(() => {
     const google = window.google;
@@ -41,7 +44,21 @@ onMounted(() => {
     });
 });
 
-function loginWithGoogle() {
+async function loginWithGoogle() {
+    if (isNativePlatform) {
+        isLoading.value = true;
+        try {
+            const session = await loginWithGoogleNative();
+            emit('session', session);
+        } catch (error) {
+            const message = error instanceof Error ? error.message : 'No se pudo iniciar con Google.';
+            emit('error', message);
+        } finally {
+            isLoading.value = false;
+        }
+        return;
+    }
+
     if (!googleClient.value) return;
     isLoading.value = true;
     googleClient.value.requestCode();
@@ -52,7 +69,7 @@ function loginWithGoogle() {
     <button
         type="button"
         class="google-button"
-        :disabled="isLoading || !googleClient"
+        :disabled="isLoading || (!isNativePlatform && !googleClient)"
         @click="loginWithGoogle"
     >
         <svg
