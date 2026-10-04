@@ -1671,30 +1671,26 @@ function scoreColor(score: number) {
 }
 
 .streak-chip {
+    position: relative;
     display: inline-flex;
+    width: 44px;
+    height: 44px;
+    flex: 0 0 44px;
     align-items: center;
-    gap: 8px;
-    padding: 8px 14px;
-    border-radius: var(--radius-lg);
-    background: var(--gradient-brand-soft);
-    border: 1.5px solid rgba(var(--practiq-violet-rgb), 0.1);
+    justify-content: center;
+    border: 0;
+    border-radius: 50%;
+    background: transparent;
+    box-shadow: none;
     transition: all 0.3s ease;
 }
 
 .streak-chip--active {
-    background: linear-gradient(135deg, #ff6b35, #f7931e);
-    border-color: rgba(255, 107, 53, 0.3);
-    box-shadow: none;
     animation: none;
 }
 
 .streak-chip--active .streak-val {
-    color: white;
-    font-size: 1.15rem;
-}
-
-.streak-chip--active .streak-lbl {
-    color: rgba(255, 255, 255, 0.85);
+    font-size: 0.62rem;
 }
 
 .streak-chip--active .streak-icon {
@@ -1711,8 +1707,8 @@ function scoreColor(score: number) {
 }
 
 .streak-icon {
-    width: 22px;
-    height: 22px;
+    width: 29px;
+    height: 29px;
     object-fit: contain;
     flex-shrink: 0;
 
@@ -1720,24 +1716,40 @@ function scoreColor(score: number) {
 }
 
 .streak-text {
+    position: absolute;
+    right: 0;
+    bottom: 0;
     display: flex;
-    flex-direction: column;
-    align-items: flex-start;
-    gap: 1px;
     line-height: 1;
 }
 
-.streak-val {
-    font-size: 1.1rem;
+.streak-val,
+.streak-lbl--invite::after {
+    display: grid;
+    min-width: 18px;
+    height: 18px;
+    padding: 0 3px;
+    place-items: center;
+    border: 2px solid var(--surface-card);
+    border-radius: 50%;
+    background: var(--practiq-violet);
+    color: var(--color-on-primary);
+    font-size: 0.62rem;
     font-weight: 800;
-    color: var(--text-primary);
     line-height: 1;
 }
 
 .streak-lbl {
-    font-size: 0.7rem;
-    line-height: 1;
-    color: var(--text-secondary);
+    display: none;
+}
+
+.streak-lbl--invite {
+    display: block;
+    font-size: 0;
+}
+
+.streak-lbl--invite::after {
+    content: '0';
 }
 
 .practice-progress-bar {
@@ -2642,13 +2654,6 @@ function scoreColor(score: number) {
         grid-row: 1;
         justify-content: center;
     }
-    .streak-chip {
-        padding: 6px 10px;
-        gap: 6px;
-    }
-    .streak-lbl {
-        display: none;
-    }
     .header-right--skeleton :deep(.skeleton),
     .header-right--skeleton :deep(.skeleton-wrapper) {
         display: none;
@@ -2675,55 +2680,14 @@ function scoreColor(score: number) {
         line-height: 1;
         white-space: nowrap;
     }
-    .streak-chip {
-        position: relative;
-        width: 44px;
-        height: 44px;
-        justify-content: center;
-        padding: 0;
-        border: 0;
-        border-radius: 50%;
-        background: transparent;
-        box-shadow: none;
-    }
     .mobile-practice-progress-skeleton {
         display: block;
         grid-column: 1 / -1;
         grid-row: 2;
         border-radius: var(--radius-pill);
     }
-    .streak-icon {
-        width: 29px;
-        height: 29px;
-    }
-    .streak-text {
-        position: absolute;
-        right: 0;
-        bottom: 0;
-    }
-    .streak-val,
-    .streak-lbl--invite::after {
-        display: grid;
-        place-items: center;
-        min-width: 18px;
-        height: 18px;
-        padding: 0 3px;
-        border: 2px solid var(--surface-card);
-        border-radius: 50%;
-        background: var(--practiq-violet);
-        color: var(--color-on-primary);
-        font-size: 0.62rem;
-        font-weight: 800;
-        line-height: 1;
-    }
-    .streak-chip--active .streak-val {
-        font-size: 0.62rem;
-    }
     .streak-lbl {
         display: none;
-    }
-    .streak-lbl--invite::after {
-        content: '0';
     }
     .mobile-practice-progress {
         display: block;
@@ -2939,20 +2903,10 @@ function scoreColor(score: number) {
     transform: translateY(1px);
 }
 
-.streak-lbl--invite {
-    line-height: 1.15;
-    max-width: 68px;
-}
-
 .btn-submit--idle {
     background: var(--surface-hover);
     color: var(--text-secondary);
     box-shadow: none;
-}
-
-.streak-lbl--invite {
-    line-height: 1.15;
-    max-width: 68px;
 }
 
 .btn-submit--idle {
