@@ -143,6 +143,23 @@ function poll() {
     frame = requestAnimationFrame(poll);
 }
 
+let fabObserver: MutationObserver | null = null;
+function watchForFab() {
+    if (anchor.value || typeof MutationObserver === 'undefined') return;
+    fabObserver = new MutationObserver(() => {
+        measure();
+        if (!anchor.value) return;
+        fabObserver?.disconnect();
+        fabObserver = null;
+    });
+    fabObserver.observe(document.body, {
+        childList: true,
+        subtree: true,
+        attributes: true,
+        attributeFilter: ['class'],
+    });
+}
+
 let leaveTimer: ReturnType<typeof setTimeout> | null = null;
 
 function onPointerOver(event: Event) {
@@ -161,6 +178,7 @@ function onPointerOver(event: Event) {
 
 onMounted(() => {
     poll();
+    watchForFab();
     if (hoverCapable) document.addEventListener('pointerover', onPointerOver);
 
     const chat = document.querySelector<HTMLElement>('.ia-chat-container');
@@ -174,6 +192,8 @@ onMounted(() => {
 
 onUnmounted(() => {
     cancelAnimationFrame(frame);
+    fabObserver?.disconnect();
+    fabObserver = null;
     document.removeEventListener('pointerover', onPointerOver);
     if (hideTimer) clearTimeout(hideTimer);
     if (typeTimer) clearInterval(typeTimer);
