@@ -1,4 +1,5 @@
 import { Browser } from '@capacitor/browser';
+import { App as CapacitorApp, type URLOpenListenerEvent } from '@capacitor/app';
 import type { LoginResponse } from '@/types/auth';
 
 const authBaseURL = import.meta.env.VITE_AUTH_API_URL || 'http://localhost:8082';
@@ -14,8 +15,13 @@ interface GoogleMobilePollResponse {
     message?: string;
 }
 
+let wakePoll: (() => void) | null = null;
+
 function waitForPollInterval() {
-    return new Promise<void>((resolve) => setTimeout(resolve, pollIntervalMs));
+    return new Promise<void>((resolve) => {
+        wakePoll = resolve;
+        setTimeout(resolve, pollIntervalMs);
+    });
 }
 
 export async function loginWithGoogleNative(): Promise<LoginResponse> {
@@ -34,12 +40,37 @@ export async function loginWithGoogleNative(): Promise<LoginResponse> {
     await Browser.open({ url: authURL.toString() });
 
     const startedAt = Date.now();
+    const resumeListener = await CapacitorApp.addListener('resume', () => wakePoll?.());
+    const appURLListener = await CapacitorApp.addListener(
+        'appUrlOpen',
+        (event: URLOpenListenerEvent) => {
+            const url = new URL(event.url);
+            const code = url.searchParams.get('code');
+            const callbackState = url.searchParams.get('state');
+
+            if (!code || !callbackState) return;
+
+            void fetch(`${authBaseURL}/auth/google/mobile/callback`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ code, state: callbackState }),
+            })
+                .catch(() => undefined)
+                .finally(() => wakePoll?.());
+        },
+    );
 
     try {
         while (Date.now() - startedAt < pollTimeoutMs) {
             await waitForPollInterval();
-            const response = await fetch(`${authBaseURL}/auth/google/mobile/poll/${state}`);
-            const body = (await response.json()) as GoogleMobilePollResponse;
+
+            let body: GoogleMobilePollResponse;
+            try {
+                const response = await fetch(`${authBaseURL}/auth/google/mobile/poll/${state}`);
+                body = (await response.json()) as GoogleMobilePollResponse;
+            } catch {
+                continue;
+            }
 
             if (body.status === 'done' && body.token && body.data) {
                 return {
@@ -56,6 +87,8 @@ export async function loginWithGoogleNative(): Promise<LoginResponse> {
 
         throw new Error('El inicio de sesión con Google tardó demasiado. Probá de nuevo.');
     } finally {
+        resumeListener.remove();
+        appURLListener.remove();
         await Browser.close().catch(() => undefined);
     }
 }
