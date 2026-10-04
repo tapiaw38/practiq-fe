@@ -1,10 +1,42 @@
-<template>
-  <Toast />
-  <AssistantWidget />
-  <RouterView />
-</template>
-
 <script setup lang="ts">
-import { RouterView } from 'vue-router'
-import AssistantWidget from '@/components/student/assistant/AssistantWidget.vue'
+import { computed, defineAsyncComponent, onMounted, watch } from 'vue';
+import { setUiTheme } from '@/composables/useUiTheme';
+import ToastHost from '@/components/ui/ToastHost.vue';
+import { RouterView, useRoute } from 'vue-router';
+import { useAuthStore } from '@/stores/authStore';
+import { useProfile } from '@/composables/useProfile';
+
+const authStore = useAuthStore();
+const { loadProfile } = useProfile();
+const route = useRoute();
+const AssistantWidget = defineAsyncComponent(
+    () => import('@/components/student/assistant/AssistantWidget.vue'),
+);
+const showAssistant = computed(() => authStore.isAuthenticated && authStore.isStudent);
+watch(
+    () => authStore.profile,
+    (profile) => setUiTheme(profile?.profile_type === 'teacher' ? 'teacher' : profile?.ui_theme),
+    { immediate: true },
+);
+onMounted(async () => {
+    if (!authStore.isAuthenticated) return;
+    try {
+        authStore.setProfile(await loadProfile());
+    } catch {}
+});
+const viewKey = computed(() => {
+    const routeName = String(route.name ?? '');
+    const routesWithResourceState = new Set([
+        'student-practice',
+        'student-level-test',
+        'student-notebook',
+    ]);
+    return routesWithResourceState.has(routeName) ? `${routeName}:${route.params.id}` : routeName;
+});
 </script>
+
+<template>
+    <ToastHost />
+    <AssistantWidget v-if="showAssistant" />
+    <RouterView :key="viewKey" />
+</template>

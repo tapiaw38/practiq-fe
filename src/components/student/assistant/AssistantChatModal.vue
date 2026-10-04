@@ -1,812 +1,1152 @@
 <template>
-  <Teleport to="body">
-    <Transition name="acm-fade">
-      <div v-if="show" class="acm-overlay" @click.self="$emit('close')">
-        <div class="acm-modal" role="dialog" aria-label="Asistente de práctica">
-          <!-- ── Header ── -->
-          <div class="acm-header">
-            <div class="acm-header-info">
-              <div class="acm-avatar" aria-hidden="true">
-                <img src="@/assets/robot.png" alt="" />
-              </div>
-              <div>
-                <div class="acm-title">Mi Asistente</div>
-                <div class="acm-status">
-                  <span
-                    class="acm-dot"
-                    :class="{ 'acm-dot--busy': isBusy }"
-                  ></span>
-                  {{ statusLabel }}
-                </div>
-              </div>
-            </div>
-            <button
-              class="acm-close"
-              @click="$emit('close')"
-              aria-label="Cerrar"
-            >
-              <i class="pi pi-times"></i>
-            </button>
-          </div>
-
-          <!-- ── PIZARRÓN mode body ── -->
-          <template v-if="mode === 'pizarron'">
-            <!-- Idle: intro card -->
-            <div v-if="pizState === 'idle'" class="acm-piz-idle">
-              <div class="acm-piz-intro-icon">🖊️</div>
-              <h3 class="acm-piz-intro-title">Modo Pizarrón</h3>
-              <p class="acm-piz-intro-desc">
-                Escribe el tema que quieres practicar y te generaré un
-                ejercicio.<br />
-                Luego lo resuelves en tu lienzo y lo evalúo al instante.
-              </p>
-            </div>
-
-            <!-- Generating spinner -->
-            <div v-else-if="pizState === 'generating'" class="acm-piz-loading">
-              <div class="spinner spinner-violet"></div>
-              <p>Generando tu ejercicio…</p>
-            </div>
-
-            <!-- Drawing: split layout -->
+    <Teleport to="body">
+        <Transition name="acm-fade">
             <div
-              v-else-if="pizState === 'drawing' || pizState === 'evaluating'"
-              class="acm-piz-split"
+                v-if="show"
+                class="acm-overlay"
+                :style="mobileViewportStyle"
+                @click.self="requestClose"
             >
-              <!-- Left: exercise -->
-              <div class="acm-piz-exercise">
-                <div class="acm-piz-panel-label">
-                  <i class="pi pi-book"></i> Ejercicio
-                </div>
-                <div
-                  class="acm-piz-exercise-content acm-bubble--md"
-                  v-html="renderContent(exerciseHtml)"
-                ></div>
-              </div>
+                <div class="acm-modal" role="dialog" aria-label="Quanty, el asistente de práctica">
+                    <div class="acm-header">
+                        <div class="acm-header-info">
+                            <div class="acm-avatar" aria-hidden="true">
+                                <img src="@/assets/quanty.png" alt="" />
+                            </div>
+                            <div>
+                                <div class="acm-title">Quanty</div>
+                                <div class="acm-status">
+                                    <span
+                                        class="acm-dot"
+                                        :class="{ 'acm-dot--busy': isBusy }"
+                                    ></span>
+                                    {{ statusLabel }}
+                                </div>
+                            </div>
+                        </div>
+                        <div class="acm-header-actions">
+                            <button
+                                class="acm-close"
+                                :class="{ 'acm-voice-on': voiceReplies }"
+                                :aria-pressed="voiceReplies"
+                                :title="
+                                    voiceReplies
+                                        ? 'Respuestas con voz activadas'
+                                        : 'Respuestas con voz desactivadas'
+                                "
+                                aria-label="Activar o desactivar respuestas con voz"
+                                @click="toggleVoiceReplies"
+                            >
+                                <i
+                                    :class="voiceReplies ? 'pi pi-volume-up' : 'pi pi-volume-off'"
+                                ></i>
+                            </button>
+                            <button class="acm-close" @click="requestClose" aria-label="Cerrar">
+                                <i class="pi pi-times"></i>
+                            </button>
+                        </div>
+                    </div>
 
-              <!-- Right: canvas -->
-              <div class="acm-piz-canvas-area">
-                <div class="acm-piz-panel-label">
-                  <i class="pi pi-pencil"></i> Tu respuesta
-                  <div class="acm-canvas-tools">
-                    <button
-                      class="acm-tool-btn"
-                      :class="{ 'acm-tool-btn--active': activeTool === 'pen' }"
-                      title="Lápiz"
-                      @click="activeTool = 'pen'"
+                    <div
+                        v-if="activeGuidedPractice && !needsPracticeSetup"
+                        class="acm-practice-context"
                     >
-                      <i class="pi pi-pencil"></i>
-                    </button>
-                    <button
-                      class="acm-tool-btn"
-                      :class="{
-                        'acm-tool-btn--active': activeTool === 'eraser',
-                      }"
-                      title="Borrador"
-                      @click="activeTool = 'eraser'"
+                        <i
+                            :class="mode === 'pizarron' ? 'pi pi-pencil' : 'pi pi-comments'"
+                            aria-hidden="true"
+                        ></i>
+                        <span>{{ activeGuidedPractice.course.title }}</span>
+                        <i class="pi pi-angle-right" aria-hidden="true"></i>
+                        <strong>{{ activeGuidedPractice.topic.title }}</strong>
+                        <span class="acm-practice-context__mode">{{ modeLabel }}</span>
+                    </div>
+
+                    <template v-if="needsPracticeSetup">
+                        <div class="acm-practice-picker">
+                            <div class="acm-practice-picker__intro">
+                                <span class="acm-practice-picker__eyebrow">Práctica guiada</span>
+                                <h3>¿Qué querés practicar?</h3>
+                                <p>
+                                    Elegí un curso y un tema. Quanty preparará ejercicios solo sobre
+                                    esa elección.
+                                </p>
+                            </div>
+
+                            <div class="acm-practice-picker__group">
+                                <span class="acm-practice-picker__label">Curso</span>
+                                <div
+                                    class="acm-practice-picker__chips"
+                                    role="listbox"
+                                    aria-label="Elegí un curso"
+                                >
+                                    <button
+                                        v-for="course in studentContext?.courses ?? []"
+                                        :key="course.id"
+                                        type="button"
+                                        class="acm-practice-chip"
+                                        :class="{
+                                            'acm-practice-chip--selected':
+                                                selectedCourseId === course.id,
+                                        }"
+                                        :aria-selected="selectedCourseId === course.id"
+                                        @click="selectCourse(course.id)"
+                                    >
+                                        {{ course.title }}
+                                    </button>
+                                </div>
+                            </div>
+
+                            <div v-if="selectedCourseId" class="acm-practice-picker__group">
+                                <span class="acm-practice-picker__label">Tema</span>
+                                <div v-if="topicsLoading" class="acm-practice-picker__loading">
+                                    <i class="pi pi-spin pi-spinner" aria-hidden="true"></i>
+                                    Cargando temas…
+                                </div>
+                                <div
+                                    v-else-if="topics.length"
+                                    class="acm-practice-picker__chips"
+                                    role="listbox"
+                                    aria-label="Elegí un tema"
+                                >
+                                    <button
+                                        v-for="topic in topics"
+                                        :key="topic.id"
+                                        type="button"
+                                        class="acm-practice-chip"
+                                        :class="{
+                                            'acm-practice-chip--selected':
+                                                selectedTopicId === topic.id,
+                                        }"
+                                        :aria-selected="selectedTopicId === topic.id"
+                                        @click="selectedTopicId = topic.id"
+                                    >
+                                        {{ topic.title }}
+                                    </button>
+                                </div>
+                                <p v-else class="acm-practice-picker__empty">
+                                    Este curso todavía no tiene temas para practicar.
+                                </p>
+                            </div>
+
+                            <div v-if="selectedTopic" class="acm-practice-picker__group">
+                                <span class="acm-practice-picker__label">Modalidad</span>
+                                <div
+                                    class="acm-practice-picker__modes"
+                                    role="radiogroup"
+                                    aria-label="Elegí una modalidad"
+                                >
+                                    <button
+                                        v-for="item in modes"
+                                        :key="item.value"
+                                        type="button"
+                                        class="acm-practice-mode"
+                                        :class="{
+                                            'acm-practice-mode--selected':
+                                                selectedPracticeMode === item.value,
+                                        }"
+                                        :aria-checked="selectedPracticeMode === item.value"
+                                        role="radio"
+                                        @click="selectedPracticeMode = item.value"
+                                    >
+                                        <i class="pi" :class="item.icon" aria-hidden="true"></i>
+                                        <span
+                                            ><strong>{{ item.label }}</strong
+                                            ><small>{{
+                                                item.value === 'pizarron'
+                                                    ? 'Resolvé en lienzo'
+                                                    : 'Practicá conversando'
+                                            }}</small></span
+                                        >
+                                    </button>
+                                </div>
+                            </div>
+
+                            <button
+                                type="button"
+                                class="btn btn-primary acm-practice-picker__start"
+                                :disabled="!selectedCourse || !selectedTopic || topicsLoading"
+                                @click="startGuidedPractice"
+                            >
+                                <i class="pi pi-play"></i> Empezar práctica
+                            </button>
+                        </div>
+                    </template>
+
+                    <template v-else-if="mode === 'pizarron'">
+                        <div v-if="pizState === 'idle'" class="acm-piz-idle">
+                            <template v-if="activeGuidedPractice">
+                                <div class="acm-piz-intro-icon">
+                                    <i class="pi pi-pencil" aria-hidden="true"></i>
+                                </div>
+                                <h3 class="acm-piz-intro-title">
+                                    Seguimos con {{ activeGuidedPractice.topic.title }}
+                                </h3>
+                                <p class="acm-piz-intro-desc">
+                                    Tu práctica sigue enfocada en este tema.
+                                </p>
+                                <button
+                                    class="btn btn-primary acm-next-btn"
+                                    @click="nextPizarronExercise"
+                                >
+                                    <i class="pi pi-refresh" aria-hidden="true"></i> Generar
+                                    ejercicio
+                                </button>
+                            </template>
+                            <template v-else>
+                                <div class="acm-piz-intro-icon">
+                                    <i class="pi pi-pencil" aria-hidden="true"></i>
+                                </div>
+                                <h3 class="acm-piz-intro-title">Modo Pizarrón</h3>
+                                <p class="acm-piz-intro-desc">
+                                    Escribe el tema que quieres practicar, o mantené presionado el
+                                    micrófono para decirlo, y te generaré un ejercicio.<br />
+                                    Luego lo resuelves en tu lienzo y lo evalúo al instante.
+                                </p>
+                            </template>
+                        </div>
+
+                        <div v-else-if="pizState === 'generating'" class="acm-piz-loading">
+                            <div class="spinner spinner-violet"></div>
+                            <p>Generando tu ejercicio…</p>
+                        </div>
+
+                        <div
+                            v-else-if="pizState === 'drawing' || pizState === 'evaluating'"
+                            class="acm-piz-split"
+                        >
+                            <div class="acm-piz-exercise">
+                                <div class="acm-piz-panel-label">
+                                    <i class="pi pi-book"></i> Ejercicio
+                                </div>
+                                <div
+                                    class="acm-piz-exercise-content acm-bubble--md"
+                                    v-html="renderContent(exerciseHtml)"
+                                ></div>
+                                <audio
+                                    v-if="exerciseAudio"
+                                    :src="exerciseAudio"
+                                    controls
+                                    autoplay
+                                    preload="metadata"
+                                    @canplay="playIncomingAudio"
+                                    class="acm-audio-player acm-audio-player--block"
+                                ></audio>
+                            </div>
+
+                            <div class="acm-piz-canvas-area">
+                                <div class="acm-piz-panel-label">
+                                    <i class="pi pi-pencil"></i> Tu respuesta
+                                    <div class="acm-canvas-tools">
+                                        <ColorPalette
+                                            :model-value="activeColor"
+                                            compact
+                                            @update:model-value="selectCanvasColor"
+                                        />
+
+                                        <button
+                                            class="acm-tool-btn"
+                                            :class="{
+                                                'acm-tool-btn--active': activeTool === 'pen',
+                                            }"
+                                            title="Lápiz"
+                                            @click="activeTool = 'pen'"
+                                        >
+                                            <i class="pi pi-pencil"></i>
+                                        </button>
+                                        <button
+                                            class="acm-tool-btn"
+                                            :class="{
+                                                'acm-tool-btn--active': activeTool === 'eraser',
+                                            }"
+                                            title="Borrador"
+                                            @click="activeTool = 'eraser'"
+                                        >
+                                            <i class="pi pi-eraser"></i>
+                                        </button>
+                                        <button
+                                            class="acm-tool-btn"
+                                            title="Limpiar lienzo"
+                                            @click="clearCanvas"
+                                        >
+                                            <i class="pi pi-trash"></i>
+                                        </button>
+                                    </div>
+                                </div>
+                                <canvas
+                                    ref="canvasEl"
+                                    class="acm-canvas"
+                                    @mousedown="onCanvasDown"
+                                    @mousemove="onCanvasMove"
+                                    @mouseup="onCanvasUp"
+                                    @mouseleave="onCanvasUp"
+                                    @touchstart.prevent="onTouchStart"
+                                    @touchmove.prevent="onTouchMove"
+                                    @touchend.prevent="onTouchEnd"
+                                ></canvas>
+                                <button
+                                    class="btn btn-primary acm-evaluar-btn"
+                                    :disabled="pizState === 'evaluating'"
+                                    @click="evaluateCanvas"
+                                >
+                                    <i
+                                        :class="
+                                            pizState === 'evaluating'
+                                                ? 'pi pi-spin pi-spinner'
+                                                : 'pi pi-check-circle'
+                                        "
+                                    ></i>
+                                    {{
+                                        pizState === 'evaluating'
+                                            ? 'Evaluando…'
+                                            : 'Evaluar mi respuesta'
+                                    }}
+                                </button>
+                            </div>
+                        </div>
+
+                        <div v-else-if="pizState === 'feedback'" class="acm-piz-feedback">
+                            <div class="acm-piz-feedback-header">
+                                <i class="pi pi-comments"></i> Retroalimentación
+                            </div>
+                            <div
+                                class="acm-piz-feedback-content acm-bubble--md"
+                                v-html="renderContent(feedbackHtml)"
+                            ></div>
+                            <audio
+                                v-if="feedbackAudio"
+                                :src="feedbackAudio"
+                                controls
+                                autoplay
+                                preload="metadata"
+                                @canplay="playIncomingAudio"
+                                class="acm-audio-player acm-audio-player--block"
+                            ></audio>
+                            <button
+                                class="btn btn-primary acm-next-btn"
+                                @click="nextPizarronExercise"
+                            >
+                                <i class="pi pi-refresh"></i> Siguiente ejercicio
+                            </button>
+                        </div>
+                    </template>
+
+                    <template v-else>
+                        <div class="acm-messages" ref="messagesEl">
+                            <div
+                                v-for="msg in messages"
+                                :key="msg.id"
+                                class="acm-msg"
+                                :class="
+                                    msg.sender === 'user' ? 'acm-msg--user' : 'acm-msg--assistant'
+                                "
+                            >
+                                <div
+                                    class="acm-bubble"
+                                    :class="{
+                                        'acm-bubble--md':
+                                            msg.sender === 'assistant' && !!msg.content,
+                                        'acm-bubble--audio': !msg.content,
+                                    }"
+                                >
+                                    <div
+                                        v-if="msg.content"
+                                        v-html="
+                                            msg.sender === 'assistant'
+                                                ? renderContent(msg.content)
+                                                : escapeHtml(msg.content)
+                                        "
+                                    ></div>
+                                    <template v-if="msg.audioSrc">
+                                        <i v-if="!msg.content" class="pi pi-microphone"></i>
+                                        <audio
+                                            :src="msg.audioSrc"
+                                            controls
+                                            :autoplay="msg.sender === 'assistant'"
+                                            preload="metadata"
+                                            @canplay="
+                                                msg.sender === 'assistant' &&
+                                                playIncomingAudio($event)
+                                            "
+                                            class="acm-audio-player"
+                                            :class="{ 'acm-audio-player--block': !!msg.content }"
+                                        ></audio>
+                                    </template>
+                                </div>
+                            </div>
+
+                            <div v-if="responding" class="acm-msg acm-msg--assistant">
+                                <div class="acm-bubble acm-bubble--typing">
+                                    <span></span><span></span><span></span>
+                                </div>
+                            </div>
+                        </div>
+                    </template>
+
+                    <div
+                        class="acm-footer"
+                        v-show="
+                            !needsPracticeSetup &&
+                            (mode !== 'pizarron' || (pizState === 'idle' && !activeGuidedPractice))
+                        "
                     >
-                      <i class="pi pi-eraser"></i>
-                    </button>
-                    <button
-                      class="acm-tool-btn"
-                      title="Limpiar lienzo"
-                      @click="clearCanvas"
-                    >
-                      <i class="pi pi-trash"></i>
-                    </button>
-                  </div>
+                        <div class="acm-mode-toggle-row">
+                            <button class="acm-mode-toggle-btn" @click="showModes = !showModes">
+                                <i
+                                    :class="showModes ? 'pi pi-chevron-down' : 'pi pi-chevron-up'"
+                                ></i>
+                                <span
+                                    >Modo: <strong>{{ modeLabel }}</strong></span
+                                >
+                            </button>
+                        </div>
+
+                        <Transition name="acm-slide">
+                            <div v-show="showModes" class="acm-mode-strip">
+                                <button
+                                    v-for="m in modes"
+                                    :key="m.value"
+                                    class="acm-mode-btn"
+                                    :class="{ 'acm-mode-btn--active': mode === m.value }"
+                                    @click="setMode(m.value)"
+                                >
+                                    <span class="acm-mode-icon">
+                                        <i class="pi" :class="m.icon" aria-hidden="true"></i>
+                                    </span>
+                                    <span class="acm-mode-label">{{ m.label }}</span>
+                                </button>
+                            </div>
+                        </Transition>
+
+                        <div class="acm-input-area">
+                            <textarea
+                                ref="inputEl"
+                                v-model="draft"
+                                class="acm-textarea"
+                                :placeholder="inputPlaceholder"
+                                rows="1"
+                                :disabled="responding"
+                                @keydown.enter.exact.prevent="sendText"
+                                @input="autoResize"
+                            ></textarea>
+
+                            <template v-if="!draft.trim()">
+                                <button
+                                    class="acm-send acm-send--mic"
+                                    :class="{ 'acm-send--recording': isRecording }"
+                                    :disabled="responding"
+                                    title="Mantén presionado para grabar audio"
+                                    aria-label="Grabar mensaje de audio"
+                                    @mousedown.prevent="startRecording"
+                                    @mouseup.prevent="stopRecording"
+                                    @touchstart.prevent="startRecording"
+                                    @touchend.prevent="stopRecording"
+                                    @mouseleave="isRecording ? stopRecording() : undefined"
+                                >
+                                    <i
+                                        :class="
+                                            isRecording ? 'pi pi-stop-circle' : 'pi pi-microphone'
+                                        "
+                                    ></i>
+                                </button>
+                            </template>
+
+                            <template v-else>
+                                <button
+                                    class="acm-send"
+                                    :disabled="!draft.trim() || responding"
+                                    @click="sendText"
+                                >
+                                    <i class="pi pi-send"></i>
+                                </button>
+                            </template>
+                        </div>
+
+                        <div v-if="recordingError" class="acm-piz-error">
+                            {{ recordingError }}
+                        </div>
+
+                        <div v-if="isRecording" class="acm-recording-bar">
+                            <span class="acm-recording-dot"></span>
+                            Grabando… suelta para enviar
+                        </div>
+                    </div>
                 </div>
-                <canvas
-                  ref="canvasEl"
-                  class="acm-canvas"
-                  @mousedown="onCanvasDown"
-                  @mousemove="onCanvasMove"
-                  @mouseup="onCanvasUp"
-                  @mouseleave="onCanvasUp"
-                  @touchstart.prevent="onTouchStart"
-                  @touchmove.prevent="onTouchMove"
-                  @touchend.prevent="onTouchEnd"
-                ></canvas>
-                <button
-                  class="btn btn-primary acm-evaluar-btn"
-                  :disabled="pizState === 'evaluating'"
-                  @click="evaluateCanvas"
-                >
-                  <i
-                    :class="
-                      pizState === 'evaluating'
-                        ? 'pi pi-spin pi-spinner'
-                        : 'pi pi-check-circle'
-                    "
-                  ></i>
-                  {{
-                    pizState === "evaluating"
-                      ? "Evaluando…"
-                      : "Evaluar mi respuesta"
-                  }}
-                </button>
-              </div>
             </div>
+        </Transition>
+    </Teleport>
 
-            <!-- Feedback -->
-            <div v-else-if="pizState === 'feedback'" class="acm-piz-feedback">
-              <div class="acm-piz-feedback-header">
-                <i class="pi pi-comments"></i> Retroalimentación
-              </div>
-              <div
-                class="acm-piz-feedback-content acm-bubble--md"
-                v-html="renderContent(feedbackHtml)"
-              ></div>
-              <button
-                class="btn btn-primary acm-next-btn"
-                @click="resetPizarron"
-              >
-                <i class="pi pi-refresh"></i> Siguiente ejercicio
-              </button>
-            </div>
-          </template>
+    <ConfirmModal v-bind="leaveConfirmState" @confirm="onLeaveConfirm" @cancel="onLeaveCancel" />
 
-          <!-- ── ORAL / ESCRITA: message list ── -->
-          <template v-else>
-            <div class="acm-messages" ref="messagesEl">
-              <!-- Oral mode empty-state hint -->
-              <div
-                v-if="mode === 'oral' && messages.length <= 1"
-                class="acm-oral-hint"
-              >
-                <div class="acm-oral-hint-icon">🎙️</div>
-                <p>
-                  Mantén presionado el botón de micrófono para grabar tu
-                  pregunta
-                </p>
-              </div>
-
-              <div
-                v-for="msg in messages"
-                :key="msg.id"
-                class="acm-msg"
-                :class="
-                  msg.sender === 'user' ? 'acm-msg--user' : 'acm-msg--assistant'
-                "
-              >
-                <div v-if="msg.isAudio" class="acm-bubble acm-bubble--audio">
-                  <i class="pi pi-microphone"></i>
-                  <audio
-                    :src="msg.audioSrc"
-                    controls
-                    class="acm-audio-player"
-                  ></audio>
-                </div>
-                <div
-                  v-else
-                  class="acm-bubble"
-                  :class="{ 'acm-bubble--md': msg.sender === 'assistant' }"
-                  v-html="
-                    msg.sender === 'assistant'
-                      ? renderContent(msg.content)
-                      : escapeHtml(msg.content)
-                  "
-                ></div>
-              </div>
-
-              <div v-if="responding" class="acm-msg acm-msg--assistant">
-                <div class="acm-bubble acm-bubble--typing">
-                  <span></span><span></span><span></span>
-                </div>
-              </div>
-            </div>
-          </template>
-
-          <!-- ── Footer: mode strip + input ── -->
-          <div
-            class="acm-footer"
-            v-show="mode !== 'pizarron' || pizState === 'idle'"
-          >
-            <!-- Mode strip toggle -->
-            <div class="acm-mode-toggle-row">
-              <button
-                class="acm-mode-toggle-btn"
-                @click="showModes = !showModes"
-              >
-                <i
-                  :class="showModes ? 'pi pi-chevron-down' : 'pi pi-chevron-up'"
-                ></i>
-                <span
-                  >Modo: <strong>{{ modeLabel }}</strong></span
-                >
-              </button>
-            </div>
-
-            <!-- Mode strip (collapsible) -->
-            <Transition name="acm-slide">
-              <div v-show="showModes" class="acm-mode-strip">
-                <button
-                  v-for="m in modes"
-                  :key="m.value"
-                  class="acm-mode-btn"
-                  :class="{ 'acm-mode-btn--active': mode === m.value }"
-                  @click="setMode(m.value)"
-                >
-                  <span class="acm-mode-icon">{{ m.icon }}</span>
-                  <span class="acm-mode-label">{{ m.label }}</span>
-                </button>
-              </div>
-            </Transition>
-
-            <!-- Input row -->
-            <div class="acm-input-area">
-              <!-- ORAL: big mic button -->
-              <template v-if="mode === 'oral'">
-                <div class="acm-oral-input">
-                  <button
-                    class="acm-mic-big"
-                    :class="{ 'acm-mic-big--recording': isRecording }"
-                    :disabled="responding"
-                    @mousedown.prevent="startRecording"
-                    @mouseup.prevent="stopRecording"
-                    @touchstart.prevent="startRecording"
-                    @touchend.prevent="stopRecording"
-                    @mouseleave="isRecording ? stopRecording() : undefined"
-                  >
-                    <i
-                      :class="
-                        isRecording ? 'pi pi-stop-circle' : 'pi pi-microphone'
-                      "
-                    ></i>
-                  </button>
-                  <p class="acm-oral-tip">
-                    {{
-                      isRecording
-                        ? "🔴 Grabando… suelta para enviar"
-                        : "Mantén presionado para grabar"
-                    }}
-                  </p>
-                </div>
-              </template>
-
-              <!-- ESCRITA / PIZARRÓN-idle: textarea + buttons -->
-              <template v-else>
-                <textarea
-                  ref="inputEl"
-                  v-model="draft"
-                  class="acm-textarea"
-                  :placeholder="inputPlaceholder"
-                  rows="1"
-                  :disabled="responding"
-                  @keydown.enter.exact.prevent="sendText"
-                  @input="autoResize"
-                ></textarea>
-
-                <button
-                  class="acm-send"
-                  :disabled="!draft.trim() || responding"
-                  @click="sendText"
-                >
-                  <i class="pi pi-send"></i>
-                </button>
-              </template>
-            </div>
-
-            <!-- Recording bar (oral) -->
-            <div v-if="isRecording" class="acm-recording-bar">
-              <span class="acm-recording-dot"></span>
-              Grabando… suelta para enviar
-            </div>
-          </div>
-        </div>
-      </div>
-    </Transition>
-  </Teleport>
+    <AiLoadingModal
+        :show="pizState === 'evaluating'"
+        badge-label="IA evaluando"
+        title="Revisando tu respuesta"
+        message="Estoy mirando tu lienzo y preparando una devolución para vos…"
+    />
 </template>
 
 <script setup lang="ts">
-  import { ref, computed, watch, nextTick, onBeforeUnmount } from "vue";
-  import { useAuthStore } from "@/stores/authStore";
-  import { renderContent } from "@/composables/useContentRenderer";
-  import type {
+import { ref, computed, watch, nextTick, onMounted, onBeforeUnmount } from 'vue';
+import { useAuthStore } from '@/stores/authStore';
+import { renderContent } from '@/composables/useContentRenderer';
+import { parseAssistantReply, type AssistantReply } from '@/utils/assistantReply';
+import ColorPalette from '@/components/ui/ColorPalette.vue';
+import ConfirmModal from '@/components/ui/ConfirmModal.vue';
+import { useLeaveWarning } from '@/composables/useLeaveWarning';
+import { BASE_COLORS } from '@/utils/palette';
+import AiLoadingModal from '@/components/student/ai/AiLoadingModal.vue';
+import { getToken, refreshAssistantToken } from '@/api/request/server';
+import type {
     AssistantChatModalEmits,
     AssistantChatModalProps,
-  } from "./AssistantChatModal.types";
-  import type { AssistantMode, AssistantMessage, PizarronState } from "@/types";
+    AssistantStudentCourseContext,
+} from './AssistantChatModal.types';
+import type { AssistantMode, AssistantMessage, PizarronState, Topic } from '@/types';
+import { assistantVoiceEnabled, setAssistantVoiceEnabled } from '@/utils/assistantPreferences';
 
-  const props = defineProps<AssistantChatModalProps>();
-  defineEmits<AssistantChatModalEmits>();
+const props = defineProps<AssistantChatModalProps>();
+const emit = defineEmits<AssistantChatModalEmits>();
 
-  const authStore = useAuthStore();
-  const API_BASE = `${import.meta.env.VITE_PRACTIQ_API_URL || "http://localhost:8083"}/api/assistant-proxy`;
-  const STORAGE_KEY = "ai-client-id";
+const authStore = useAuthStore();
+const API_BASE = `${import.meta.env.VITE_PRACTIQ_API_URL || 'http://localhost:8083'}/api/assistant-proxy`;
+const PRACTIQ_API_BASE = `${import.meta.env.VITE_PRACTIQ_API_URL || 'http://localhost:8083'}/api`;
+const STORAGE_KEY = 'ai-client-id';
 
-  // State
+const mode = ref<AssistantMode>('escrita');
+const showModes = ref(false);
+const isMobile = ref(false);
+const mobileViewportHeight = ref(0);
+const mobileViewportTop = ref(0);
 
-  const mode = ref<AssistantMode>("escrita");
-  const showModes = ref(false);
+const messages = ref<AssistantMessage[]>([]);
+const draft = ref('');
+const responding = ref(false);
+const isRecording = ref(false);
+const messagesEl = ref<HTMLElement | null>(null);
+const inputEl = ref<HTMLTextAreaElement | null>(null);
+let conversationId: string | null = null;
+let msgCounter = 0;
 
-  const messages = ref<AssistantMessage[]>([]);
-  const draft = ref("");
-  const responding = ref(false);
-  const isRecording = ref(false);
-  const messagesEl = ref<HTMLElement | null>(null);
-  const inputEl = ref<HTMLTextAreaElement | null>(null);
-  let conversationId: string | null = null;
-  let msgCounter = 0;
+type GuidedPractice = {
+    course: AssistantStudentCourseContext;
+    topic: Topic;
+};
 
-  // Pizarrón
-  const pizState = ref<PizarronState>("idle");
-  const exerciseHtml = ref("");
-  const feedbackHtml = ref("");
-  const pizarronTopic = ref("");
+const selectedCourseId = ref('');
+const selectedTopicId = ref('');
+const topics = ref<Topic[]>([]);
+const topicsLoading = ref(false);
+const activeGuidedPractice = ref<GuidedPractice | null>(null);
+const selectedPracticeMode = ref<AssistantMode>('pizarron');
+let topicRequest = 0;
 
-  // Canvas
-  const canvasEl = ref<HTMLCanvasElement | null>(null);
-  const activeTool = ref<"pen" | "eraser">("pen");
-  let isDrawing = false;
-  let lastX = 0;
-  let lastY = 0;
-  let canvasResizeObserver: ResizeObserver | null = null;
-  let canvasInitialized = false;
+const voiceReplies = ref(assistantVoiceEnabled());
 
-  // Audio recording
-  let mediaRecorder: MediaRecorder | null = null;
-  let audioChunks: Blob[] = [];
-  let recordingStream: MediaStream | null = null;
+function toggleVoiceReplies() {
+    voiceReplies.value = !voiceReplies.value;
+    setAssistantVoiceEnabled(voiceReplies.value);
+}
 
-  // Computed
+function playIncomingAudio(event: Event) {
+    const audio = event.currentTarget as HTMLAudioElement;
+    void audio.play().catch(() => {});
+}
 
-  const modes = [
-    { value: "escrita" as AssistantMode, label: "Escrita", icon: "✍️" },
-    { value: "oral" as AssistantMode, label: "Oral", icon: "🎙️" },
-    { value: "pizarron" as AssistantMode, label: "Pizarrón", icon: "🖊️" },
-  ];
+const pizState = ref<PizarronState>('idle');
+const exerciseHtml = ref('');
+const exerciseAudio = ref('');
+const feedbackHtml = ref('');
+const feedbackAudio = ref('');
+const pizarronTopic = ref('');
+let exerciseGeneration = 0;
+const recordingError = ref('');
 
-  const modeLabel = computed(
-    () => modes.find((m) => m.value === mode.value)?.label ?? "",
-  );
+const hasDrawing = ref(false);
 
-  const isBusy = computed(
+const canvasEl = ref<HTMLCanvasElement | null>(null);
+const activeTool = ref<'pen' | 'eraser'>('pen');
+const activeColor = ref(BASE_COLORS[0].value);
+let isDrawing = false;
+let lastX = 0;
+let lastY = 0;
+let canvasResizeObserver: ResizeObserver | null = null;
+let canvasInitialized = false;
+
+let mediaRecorder: MediaRecorder | null = null;
+let audioChunks: Blob[] = [];
+let recordingStream: MediaStream | null = null;
+
+const modes = [
+    { value: 'escrita' as AssistantMode, label: 'Conversar', icon: 'pi-comments' },
+    { value: 'pizarron' as AssistantMode, label: 'Pizarrón', icon: 'pi-pencil' },
+];
+
+const modeLabel = computed(() => modes.find((m) => m.value === mode.value)?.label ?? '');
+
+const isBusy = computed(
     () =>
-      responding.value ||
-      isRecording.value ||
-      pizState.value === "generating" ||
-      pizState.value === "evaluating",
-  );
+        responding.value ||
+        isRecording.value ||
+        pizState.value === 'generating' ||
+        pizState.value === 'evaluating',
+);
 
-  const statusLabel = computed(() => {
-    if (isRecording.value) return "Grabando…";
-    if (pizState.value === "generating") return "Generando ejercicio…";
-    if (pizState.value === "evaluating") return "Evaluando…";
-    if (responding.value) return "Escribiendo…";
-    return "En línea";
-  });
+const mobileViewportStyle = computed(() =>
+    isMobile.value && mobileViewportHeight.value
+        ? {
+              height: `${mobileViewportHeight.value}px`,
+              top: `${mobileViewportTop.value}px`,
+              bottom: 'auto',
+          }
+        : undefined,
+);
 
-  const inputPlaceholder = computed(() =>
-    mode.value === "pizarron"
-      ? "¿Qué tema quieres practicar? (ej: ecuaciones de segundo grado)"
-      : "Escribe tu pregunta… (Enter para enviar)",
-  );
+const needsPracticeSetup = computed(() =>
+    Boolean(props.requirePracticeContext && !activeGuidedPractice.value),
+);
 
-  // Helpers
+const selectedCourse = computed(() =>
+    (props.studentContext?.courses ?? []).find((course) => course.id === selectedCourseId.value),
+);
 
-  function authHeaders(contentType?: string): Record<string, string> {
+const selectedTopic = computed(() =>
+    topics.value.find((topic) => topic.id === selectedTopicId.value),
+);
+
+const statusLabel = computed(() => {
+    if (isRecording.value) return 'Grabando…';
+    if (pizState.value === 'generating') return 'Generando ejercicio…';
+    if (pizState.value === 'evaluating') return 'Evaluando…';
+    if (responding.value) return 'Escribiendo…';
+    return 'En línea';
+});
+
+const inputPlaceholder = computed(() =>
+    mode.value === 'pizarron'
+        ? isMobile.value
+            ? 'Tema a practicar…'
+            : '¿Qué tema quieres practicar? (ej: ecuaciones de segundo grado)'
+        : isMobile.value
+          ? 'Escribí o mantené el micrófono…'
+          : 'Escribe o mantén el micrófono para hablar…',
+);
+
+const AI_TIMEOUT_MS = 300000;
+
+function authHeaders(contentType?: string): Record<string, string> {
     const h: Record<string, string> = {};
-    if (contentType) h["Content-Type"] = contentType;
-    const token = authStore.token;
-    if (token) h["Authorization"] = `Bearer ${token}`;
+    if (contentType) h['Content-Type'] = contentType;
+
+    const token = getToken() || authStore.token;
+    if (token) h['Authorization'] = `Bearer ${token}`;
     return h;
-  }
+}
 
-  function escapeHtml(s: string) {
+async function fetchWithTimeout(
+    url: string,
+    options: RequestInit,
+    timeoutMs = AI_TIMEOUT_MS,
+): Promise<Response> {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+    try {
+        return await fetch(url, { ...options, signal: controller.signal });
+    } finally {
+        clearTimeout(timeoutId);
+    }
+}
+
+async function fetchAssistant(url: string, options: RequestInit): Promise<Response> {
+    const response = await fetchWithTimeout(url, {
+        ...options,
+        headers: options.headers ?? authHeaders(),
+    });
+    if (response.status !== 401) return response;
+
+    const token = await refreshAssistantToken();
+    if (!token) return response;
+    const headers = new Headers(options.headers);
+    headers.set('Authorization', `Bearer ${token}`);
+    return fetchWithTimeout(url, { ...options, headers });
+}
+
+function escapeHtml(s: string) {
     return s
-      .replace(/&/g, "&amp;")
-      .replace(/</g, "&lt;")
-      .replace(/>/g, "&gt;")
-      .replace(/\n/g, "<br>");
-  }
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/\n/g, '<br>');
+}
 
-  function dataUrlToBlob(dataUrl: string): Blob {
-    const [meta, data] = dataUrl.split(",", 2);
+function dataUrlToBlob(dataUrl: string): Blob {
+    const [meta, data] = dataUrl.split(',', 2);
     const mimeMatch = meta.match(/^data:(.*?)(;base64)?$/);
-    const contentType = mimeMatch?.[1] || "image/png";
+    const contentType = mimeMatch?.[1] || 'image/png';
     const binary = atob(data);
     const bytes = new Uint8Array(binary.length);
     for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
     return new Blob([bytes], { type: contentType });
-  }
+}
 
-  function addMsg(
-    sender: AssistantMessage["sender"],
+function addMsg(
+    sender: AssistantMessage['sender'],
     content: string,
     html = false,
     audio?: { src: string },
-  ) {
+) {
     messages.value.push({
-      id: ++msgCounter,
-      sender,
-      content,
-      html,
-      isAudio: !!audio,
-      audioSrc: audio?.src,
+        id: ++msgCounter,
+        sender,
+        content,
+        html,
+        isAudio: !!audio,
+        audioSrc: audio?.src,
     });
     nextTick(scrollBottom);
-  }
+}
 
-  function scrollBottom() {
-    if (messagesEl.value)
-      messagesEl.value.scrollTop = messagesEl.value.scrollHeight;
-  }
+function notify(message: string) {
+    if (mode.value === 'pizarron') {
+        recordingError.value = message;
+        return;
+    }
+    addMsg('assistant', message);
+}
 
-  function autoResize() {
+function scrollBottom() {
+    if (messagesEl.value) messagesEl.value.scrollTop = messagesEl.value.scrollHeight;
+}
+
+function autoResize() {
     if (!inputEl.value) return;
-    inputEl.value.style.height = "auto";
-    inputEl.value.style.height =
-      Math.min(inputEl.value.scrollHeight, 140) + "px";
-  }
+    inputEl.value.style.height = 'auto';
+    inputEl.value.style.height = Math.min(inputEl.value.scrollHeight, 140) + 'px';
+}
 
-  function cssVar(
-    name: string,
-    fallback: string,
-    el?: Element | null,
-    depth = 0,
-  ) {
-    if (typeof window === "undefined") return fallback;
+function cssVar(name: string, fallback: string, el?: Element | null, depth = 0) {
+    if (typeof window === 'undefined') return fallback;
     const target = el ?? canvasEl.value ?? document.documentElement;
     const value = getComputedStyle(target).getPropertyValue(name).trim();
     if (!value) return fallback;
     const varMatch = value.match(/^var\((--[^,\s)]+)(?:,\s*(.+))?\)$/);
     if (varMatch && depth < 4) {
-      return cssVar(
-        varMatch[1],
-        varMatch[2]?.trim() || fallback,
-        target,
-        depth + 1,
-      );
+        return cssVar(varMatch[1], varMatch[2]?.trim() || fallback, target, depth + 1);
     }
     return value;
-  }
+}
 
-  function getCanvasDebugStats(canvas: HTMLCanvasElement) {
-    const ctx = canvas.getContext("2d");
+function getCanvasDebugStats(canvas: HTMLCanvasElement) {
+    const ctx = canvas.getContext('2d');
     if (!ctx || canvas.width <= 0 || canvas.height <= 0) {
-      return {
-        width: canvas.width,
-        height: canvas.height,
-        inkPixels: 0,
-        sampledPixels: 0,
-        inkRatio: 0,
-      };
+        return {
+            width: canvas.width,
+            height: canvas.height,
+            inkPixels: 0,
+            sampledPixels: 0,
+            inkRatio: 0,
+        };
     }
 
     const maxSide = 320;
     const scale = Math.min(1, maxSide / Math.max(canvas.width, canvas.height));
     const sampleW = Math.max(1, Math.floor(canvas.width * scale));
     const sampleH = Math.max(1, Math.floor(canvas.height * scale));
-    const sample = document.createElement("canvas");
+    const sample = document.createElement('canvas');
     sample.width = sampleW;
     sample.height = sampleH;
-    const sampleCtx = sample.getContext("2d");
+    const sampleCtx = sample.getContext('2d');
     if (!sampleCtx) {
-      return {
-        width: canvas.width,
-        height: canvas.height,
-        inkPixels: 0,
-        sampledPixels: 0,
-        inkRatio: 0,
-      };
+        return {
+            width: canvas.width,
+            height: canvas.height,
+            inkPixels: 0,
+            sampledPixels: 0,
+            inkRatio: 0,
+        };
     }
 
     sampleCtx.drawImage(canvas, 0, 0, sampleW, sampleH);
     const pixels = sampleCtx.getImageData(0, 0, sampleW, sampleH).data;
     let inkPixels = 0;
     for (let i = 0; i < pixels.length; i += 4) {
-      const alpha = pixels[i + 3];
-      if (alpha < 20) continue;
-      const r = pixels[i];
-      const g = pixels[i + 1];
-      const b = pixels[i + 2];
-      const max = Math.max(r, g, b);
-      const min = Math.min(r, g, b);
-      const gray = 0.299 * r + 0.587 * g + 0.114 * b;
-      if (gray < 210 || max - min > 25) inkPixels++;
+        const alpha = pixels[i + 3];
+        if (alpha < 20) continue;
+        const r = pixels[i];
+        const g = pixels[i + 1];
+        const b = pixels[i + 2];
+        const max = Math.max(r, g, b);
+        const min = Math.min(r, g, b);
+        const gray = 0.299 * r + 0.587 * g + 0.114 * b;
+        if (gray < 210 || max - min > 25) inkPixels++;
     }
 
     const sampledPixels = sampleW * sampleH;
     return {
-      width: canvas.width,
-      height: canvas.height,
-      cssWidth: Math.round(canvas.getBoundingClientRect().width),
-      cssHeight: Math.round(canvas.getBoundingClientRect().height),
-      inkPixels,
-      sampledPixels,
-      inkRatio: sampledPixels
-        ? Number((inkPixels / sampledPixels).toFixed(4))
-        : 0,
+        width: canvas.width,
+        height: canvas.height,
+        cssWidth: Math.round(canvas.getBoundingClientRect().width),
+        cssHeight: Math.round(canvas.getBoundingClientRect().height),
+        inkPixels,
+        sampledPixels,
+        inkRatio: sampledPixels ? Number((inkPixels / sampledPixels).toFixed(4)) : 0,
     };
-  }
+}
 
-  function buildContext(): string {
+function getStudentGrade(): string {
+    const grades = new Set(
+        (props.studentContext?.courses ?? []).map((course) => course.grade).filter(Boolean),
+    );
+    return grades.size === 1 ? [...grades][0] : '';
+}
+
+function buildContext(): string {
     const ctx = props.studentContext;
     const lines: string[] = [];
     if (ctx?.studentName) lines.push(`Estudiante: ${ctx.studentName}`);
     if (ctx?.courses?.length) {
-      lines.push("Cursos:");
-      ctx.courses.forEach((c) =>
-        lines.push(
-          `  - ${c.title} (${c.subject}, ${c.grade}) Nivel ${c.currentLevel}`,
-        ),
-      );
+        lines.push('Cursos:');
+        ctx.courses.forEach((c) =>
+            lines.push(`  - ${c.title} (${c.subject}, ${c.grade}) Nivel ${c.currentLevel}`),
+        );
     }
     if (ctx?.topicProgress?.length) {
-      lines.push("Progreso:");
-      ctx.topicProgress.forEach((p) =>
-        lines.push(
-          `  - ${p.topic}: ${Math.round(p.mastery)}% dominio, Nivel ${p.level}`,
-        ),
-      );
+        lines.push('Progreso:');
+        ctx.topicProgress.forEach((p) =>
+            lines.push(`  - ${p.topic}: ${Math.round(p.mastery)}% dominio, Nivel ${p.level}`),
+        );
+    }
+    if (activeGuidedPractice.value) {
+        const { course, topic } = activeGuidedPractice.value;
+        lines.push('Práctica guiada elegida (obligatoria):');
+        lines.push(`  - Curso: ${course.title} (id: ${course.id})`);
+        lines.push(`  - Tema: ${topic.title} (id: ${topic.id})`);
+        lines.push(`  - Nivel actual: ${course.currentLevel}`);
+        lines.push('Genera y explica contenido únicamente de este tema.');
     }
     const activityContext = getActivityContext();
     if (activityContext) {
-      lines.push("Contexto de la actividad actual:");
-      lines.push(JSON.stringify(activityContext));
+        lines.push('Contexto de la actividad actual:');
+        lines.push(JSON.stringify(activityContext));
     }
-    return lines.join("\n");
-  }
+    return lines.join('\n');
+}
 
-  function getActivityContext(): unknown {
+function getActivityContext(): unknown {
     try {
-      return window.__practiqAssistantContext?.() || null;
+        return window.__practiqAssistantContext?.() || null;
     } catch (error) {
-      console.warn("[assistant-modal] failed to read activity context", error);
-      return null;
+        console.warn('[assistant-modal] failed to read activity context', error);
+        return null;
     }
-  }
+}
 
-  async function attachActivityCapture(fd: FormData): Promise<boolean> {
+async function attachActivityCapture(fd: FormData): Promise<boolean> {
     try {
-      const capture = await window.__practiqAssistantCapture?.();
-      if (!capture?.dataUrl) return false;
-      fd.append(
-        "image_content",
-        dataUrlToBlob(capture.dataUrl),
-        capture.filename || "activity-work.jpg",
-      );
-      console.info("[assistant-modal] attached activity capture", {
-        filename: capture.filename,
-        contentType: capture.contentType,
-        dataUrlLength: capture.dataUrl.length,
-      });
-      return true;
+        const capture = await window.__practiqAssistantCapture?.();
+        if (!capture?.dataUrl) return false;
+        fd.append(
+            'image_content',
+            dataUrlToBlob(capture.dataUrl),
+            capture.filename || 'activity-work.jpg',
+        );
+        console.info('[assistant-modal] attached activity capture', {
+            filename: capture.filename,
+            contentType: capture.contentType,
+            dataUrlLength: capture.dataUrl.length,
+        });
+        return true;
     } catch (error) {
-      console.warn(
-        "[assistant-modal] failed to attach activity capture",
-        error,
-      );
-      return false;
+        console.warn('[assistant-modal] failed to attach activity capture', error);
+        return false;
     }
-  }
+}
 
-  function buildInstructionWrappedContent(
-    message: string,
-    hasImageAttachment: boolean,
-  ): string {
+function buildInstructionWrappedContent(message: string, hasImageAttachment: boolean): string {
     const trimmedMessage = message.trim();
+    const grade = getStudentGrade();
+    const gradeInstruction = grade
+        ? `El estudiante es de ${grade}. Usa los contenidos de los documentos de ${grade} para responder.`
+        : '';
     return [
-      "POLITICA OBLIGATORIA:",
-      "No des respuestas finales ni resuelvas completamente ejercicios evaluables.",
-      "Da solo pistas, explicaciones breves, preguntas guia o el siguiente paso.",
-      "Si existe contexto estructurado de Practiq, usalo para ubicar curso, hoja y numero de ejercicio.",
-      hasImageAttachment
-        ? [
-            "Hay una imagen adjunta de la actividad actual.",
-            "Si la imagen tiene secciones rotuladas, lee directamente cada seccion.",
-            "La seccion 'Consigna del docente' puede contener el enunciado manuscrito; usala como fuente principal del ejercicio.",
-            "La seccion 'Respuesta del alumno' contiene el trabajo manuscrito del alumno.",
-            "Si el contexto textual trae una pregunta generica como 'Suma correctamente' o similar, NO infieras otros numeros desde ejercicios anteriores: lee la consigna manuscrita en la imagen.",
-            "Si no puedes leer la consigna o la respuesta con claridad, dilo y pide una imagen mas clara.",
-          ].join("\n")
-        : "Si el alumno menciona trabajo manuscrito pero no hay imagen legible, pide que lo describa.",
-      "Si detectas la respuesta del alumno en la imagen, confirma que escribio y guia con una pista sin revelar la solucion final.",
-      "",
-      `Mensaje del alumno: ${trimmedMessage || "[sin texto, usa contexto e imagen adjunta]"}`,
-      "",
-      "Responde en espanol.",
-    ].join("\n");
-  }
+        'POLITICA OBLIGATORIA:',
+        'No des respuestas finales ni resuelvas completamente ejercicios evaluables.',
+        'Da solo pistas, explicaciones breves, preguntas guia o el siguiente paso.',
+        gradeInstruction,
+        'Si existe contexto estructurado de Practiq, usalo para ubicar curso, hoja y numero de ejercicio.',
+        'El contexto puede traer \'exercise_list\' con todos los ejercicios de la hoja y \'active_exercise\' con el que el alumno tiene abierto ahora. Cuando el alumno pregunta de forma generica ("este ejercicio", "el ejercicio actual", sin numero), respondele solo sobre active_exercise. Usa exercise_list unicamente si el alumno pide explicitamente otro ejercicio por numero.',
+        hasImageAttachment
+            ? [
+                  'Hay una imagen adjunta de la actividad actual.',
+                  'Si la imagen tiene secciones rotuladas, lee directamente cada seccion.',
+                  "La seccion 'Consigna del docente' puede contener el enunciado manuscrito; usala como fuente principal del ejercicio.",
+                  "La seccion 'Respuesta del alumno' contiene el trabajo manuscrito del alumno.",
+                  "Si el contexto textual trae una pregunta generica como 'Suma correctamente' o similar, NO infieras otros numeros desde ejercicios anteriores: lee la consigna manuscrita en la imagen.",
+                  'Si no puedes leer la consigna o la respuesta con claridad, dilo y pide una imagen mas clara.',
+              ].join('\n')
+            : 'Si el alumno menciona trabajo manuscrito pero no hay imagen legible, pide que lo describa.',
+        'Si detectas la respuesta del alumno en la imagen, confirma que escribio y guia con una pista sin revelar la solucion final.',
+        '',
+        `Mensaje del alumno: ${trimmedMessage || '[sin texto, usa contexto e imagen adjunta]'}`,
+        '',
+        'Responde en espanol.',
+    ].join('\n');
+}
 
-  // API
-
-  async function createConversation(title: string) {
-    const res = await fetch(`${API_BASE}/conversation/`, {
-      method: "POST",
-      headers: authHeaders("application/json"),
-      body: JSON.stringify({ title }),
+async function createConversation(title: string) {
+    const res = await fetchAssistant(`${API_BASE}/conversation/`, {
+        method: 'POST',
+        headers: authHeaders('application/json'),
+        body: JSON.stringify({ title }),
     });
     if (!res.ok) throw new Error(`create conversation ${res.status}`);
     const data = await res.json();
     conversationId = data.data.id;
     const clientId = data.data.client_id;
     if (clientId) localStorage.setItem(STORAGE_KEY, clientId);
-  }
+}
 
-  async function postFormData(
-    fd: FormData,
-    imageProcessor = false,
-  ): Promise<string> {
-    if (!conversationId) {
-      const text = (fd.get("content") as string) || "Nueva conversación";
-      await createConversation(text.substring(0, 30));
+async function selectCourse(courseId: string) {
+    selectedCourseId.value = courseId;
+    selectedTopicId.value = '';
+    topics.value = [];
+    topicsLoading.value = true;
+    const request = ++topicRequest;
+    try {
+        const res = await fetchAssistant(
+            `${PRACTIQ_API_BASE}/courses/${encodeURIComponent(courseId)}/topics`,
+            { headers: authHeaders() },
+        );
+        if (!res.ok) throw new Error(`list topics ${res.status}`);
+        const payload = await res.json();
+        if (request !== topicRequest) return;
+        topics.value = (payload?.data ?? []).sort(
+            (a: Topic, b: Topic) => a.order_index - b.order_index,
+        );
+    } catch {
+        if (request === topicRequest) topics.value = [];
+    } finally {
+        if (request === topicRequest) topicsLoading.value = false;
     }
-    const imgParam = imageProcessor ? "activate" : "deactivate";
-    const url = `${API_BASE}/conversation/${conversationId}/message?has_image_processor=${imgParam}&has_text_to_voice=deactivate`;
-    fd.set(
-      "content",
-      buildInstructionWrappedContent(
-        ((fd.get("content") as string) || "").trim(),
-        fd.has("image_content"),
-      ),
+}
+
+async function startGuidedPractice() {
+    if (!selectedCourse.value || !selectedTopic.value || topicsLoading.value) return;
+    activeGuidedPractice.value = {
+        course: selectedCourse.value,
+        topic: selectedTopic.value,
+    };
+    conversationId = null;
+    messages.value = [];
+    msgCounter = 0;
+    mode.value = selectedPracticeMode.value;
+    resetPizarron();
+    if (mode.value === 'pizarron') {
+        await generateExercise(selectedTopic.value.title);
+        return;
+    }
+    addMsg(
+        'assistant',
+        `Perfecto. Vamos a practicar ${selectedTopic.value.title}. ¿Qué parte querés repasar primero?`,
     );
-    const res = await fetch(url, {
-      method: "POST",
-      headers: authHeaders(),
-      body: fd,
+}
+
+function resetGuidedPractice() {
+    activeGuidedPractice.value = null;
+    selectedCourseId.value = '';
+    selectedTopicId.value = '';
+    selectedPracticeMode.value = 'pizarron';
+    topics.value = [];
+    topicsLoading.value = false;
+    topicRequest++;
+}
+
+async function postFormData(fd: FormData, imageProcessor = false): Promise<AssistantReply> {
+    if (!conversationId) {
+        const text = (fd.get('content') as string) || 'Nueva conversación';
+        await createConversation(text.substring(0, 30));
+    }
+    const imgParam = imageProcessor ? 'activate' : 'deactivate';
+    const voiceParam = voiceReplies.value ? 'activate' : 'deactivate';
+    const url = `${API_BASE}/conversation/${conversationId}/message?has_image_processor=${imgParam}&has_text_to_voice=${voiceParam}`;
+    fd.set(
+        'content',
+        buildInstructionWrappedContent(
+            ((fd.get('content') as string) || '').trim(),
+            fd.has('image_content'),
+        ),
+    );
+    const res = await fetchAssistant(url, {
+        method: 'POST',
+        headers: authHeaders(),
+        body: fd,
     });
     if (!res.ok) throw new Error(`send message ${res.status}`);
     const data = await res.json();
     const msgs: any[] = data?.data || [];
-    const assistantMsg = [...msgs]
-      .reverse()
-      .find((m: any) => m.sender === "assistant");
-    return assistantMsg?.content || "";
-  }
+    const assistantMsg = [...msgs].reverse().find((m: any) => m.sender === 'assistant');
+    return parseAssistantReply(assistantMsg?.content || '', assistantMsg?.audio_url);
+}
 
-  async function loadHistory() {
+async function loadHistory() {
     const storedClientId = localStorage.getItem(STORAGE_KEY);
     if (!storedClientId) return;
     try {
-      const res = await fetch(`${API_BASE}/conversation/user`, {
-        headers: authHeaders(),
-      });
-      if (!res.ok) return;
-      const data = await res.json();
-      const convs: any[] = data?.data || data || [];
-      const match = convs.find((c: any) => c.client_id === storedClientId);
-      if (!match) return;
-      conversationId = match.id;
-      const msgRes = await fetch(`${API_BASE}/conversation/${conversationId}`, {
-        headers: authHeaders(),
-      });
-      if (!msgRes.ok) return;
-      const msgData = await msgRes.json();
-      const rawMsgs: any[] = msgData?.data || [];
-      rawMsgs.forEach((m: any) =>
-        addMsg(m.sender === "user" ? "user" : "assistant", m.content, true),
-      );
-    } catch {
-      /* silent */
-    }
-  }
+        const res = await fetchAssistant(`${API_BASE}/conversation/user`, {
+            headers: authHeaders(),
+        });
+        if (!res.ok) return;
+        const data = await res.json();
+        const convs: any[] = data?.data || data || [];
+        const match = convs.find((c: any) => c.client_id === storedClientId);
+        if (!match) return;
+        conversationId = match.id;
+        const msgRes = await fetchAssistant(`${API_BASE}/conversation/${conversationId}`, {
+            headers: authHeaders(),
+        });
+        if (!msgRes.ok) return;
+        const msgData = await msgRes.json();
+        const rawMsgs: any[] = msgData?.data || [];
+        rawMsgs.forEach((m: any) => {
+            if (m.sender === 'user') {
+                addMsg('user', m.content || '');
+                return;
+            }
+            const reply = parseAssistantReply(m.content || '', m.audio_url);
+            if (reply.text || reply.audioUrl) {
+                addMsg(
+                    'assistant',
+                    reply.text,
+                    true,
+                    reply.audioUrl ? { src: reply.audioUrl } : undefined,
+                );
+            }
+        });
+    } catch {}
+}
 
-  // Send: escrita
-
-  async function sendText() {
+async function sendText() {
     const text = draft.value.trim();
     if (!text || responding.value) return;
-    draft.value = "";
-    if (inputEl.value) inputEl.value.style.height = "auto";
+    draft.value = '';
+    if (inputEl.value) inputEl.value.style.height = 'auto';
 
-    if (mode.value === "pizarron") {
-      await generateExercise(text);
-      return;
+    if (mode.value === 'pizarron') {
+        await generateExercise(text);
+        return;
     }
 
-    addMsg("user", text);
+    addMsg('user', text);
     responding.value = true;
     try {
-      const fd = new FormData();
-      fd.append("content", text);
-      fd.append("context", buildContext());
-      const hasImage = await attachActivityCapture(fd);
-      const reply = await postFormData(fd, hasImage);
-      if (reply) addMsg("assistant", reply, true);
+        const fd = new FormData();
+        fd.append('content', text);
+        fd.append('context', buildContext());
+        const hasImage = await attachActivityCapture(fd);
+        const reply = await postFormData(fd, hasImage);
+        if (reply.text || reply.audioUrl) {
+            addMsg(
+                'assistant',
+                reply.text,
+                true,
+                reply.audioUrl ? { src: reply.audioUrl } : undefined,
+            );
+        }
     } catch {
-      addMsg("assistant", "Ocurrió un error. Por favor intenta de nuevo.");
+        addMsg('assistant', 'Ocurrió un error. Por favor intenta de nuevo.');
     } finally {
-      responding.value = false;
-      nextTick(() => inputEl.value?.focus());
+        responding.value = false;
+        nextTick(() => inputEl.value?.focus());
     }
-  }
+}
 
-  // Send: oral
-
-  async function startRecording() {
+async function startRecording() {
     if (responding.value || isRecording.value) return;
+    recordingError.value = '';
     try {
-      if (
-        !navigator.mediaDevices?.getUserMedia ||
-        typeof MediaRecorder === "undefined"
-      ) {
-        addMsg(
-          "assistant",
-          "Tu navegador no soporta grabación de audio desde este modal.",
-        );
-        return;
-      }
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      recordingStream = stream;
-      audioChunks = [];
-      mediaRecorder = new MediaRecorder(stream);
-      mediaRecorder.ondataavailable = (e) => {
-        if (e.data.size > 0) audioChunks.push(e.data);
-      };
-      mediaRecorder.start();
-      isRecording.value = true;
+        if (!navigator.mediaDevices?.getUserMedia || typeof MediaRecorder === 'undefined') {
+            notify('Tu navegador no soporta grabación de audio desde este modal.');
+            return;
+        }
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        recordingStream = stream;
+        audioChunks = [];
+        mediaRecorder = new MediaRecorder(stream);
+        mediaRecorder.ondataavailable = (e) => {
+            if (e.data.size > 0) audioChunks.push(e.data);
+        };
+        mediaRecorder.start();
+        isRecording.value = true;
     } catch {
-      addMsg(
-        "assistant",
-        "No se pudo acceder al micrófono. Revisa los permisos del navegador.",
-      );
+        notify('No se pudo acceder al micrófono. Revisa los permisos del navegador.');
     }
-  }
+}
 
-  async function stopRecording() {
+async function stopRecording() {
     if (!isRecording.value || !mediaRecorder) return;
     isRecording.value = false;
     await new Promise<void>((resolve) => {
-      mediaRecorder!.onstop = () => resolve();
-      mediaRecorder!.stop();
-      stopRecordingStream();
+        mediaRecorder!.onstop = () => resolve();
+        mediaRecorder!.stop();
+        stopRecordingStream();
     });
     if (audioChunks.length === 0) return;
     try {
-      const webmBlob = new Blob(audioChunks, { type: "audio/webm" });
-      const wavBlob = await convertToWav(webmBlob);
-      if (wavBlob.size <= 44) {
-        addMsg(
-          "assistant",
-          "No se detectó audio. Mantén presionado y vuelve a intentar.",
-        );
-        return;
-      }
-      const localUrl = URL.createObjectURL(wavBlob);
-      addMsg("user", "", false, { src: localUrl });
-      responding.value = true;
-      const fd = new FormData();
-      fd.append("content", "");
-      fd.append("voice_content", wavBlob, "audio.wav");
-      fd.append("context", buildContext());
-      const hasImage = await attachActivityCapture(fd);
-      const reply = await postFormData(fd, hasImage);
-      if (reply) addMsg("assistant", reply, true);
-    } catch (error) {
-      console.error("Error processing audio:", error);
-      addMsg(
-        "assistant",
-        "Ocurrió un error procesando el audio. Por favor intenta de nuevo.",
-      );
-    } finally {
-      responding.value = false;
-      mediaRecorder = null;
-      audioChunks = [];
-    }
-  }
+        const webmBlob = new Blob(audioChunks, { type: 'audio/webm' });
+        const wavBlob = await convertToWav(webmBlob);
+        if (wavBlob.size <= 44) {
+            notify('No se detectó audio. Mantén presionado y vuelve a intentar.');
+            return;
+        }
+        if (mode.value === 'pizarron') {
+            await generateExercise('', wavBlob);
+            return;
+        }
 
-  function stopRecordingStream() {
+        const localUrl = URL.createObjectURL(wavBlob);
+        addMsg('user', '', false, { src: localUrl });
+        responding.value = true;
+        const fd = new FormData();
+        fd.append('content', '');
+        fd.append('voice_content', wavBlob, 'audio.wav');
+        fd.append('context', buildContext());
+        const hasImage = await attachActivityCapture(fd);
+        const reply = await postFormData(fd, hasImage);
+        if (reply.text || reply.audioUrl) {
+            addMsg(
+                'assistant',
+                reply.text,
+                true,
+                reply.audioUrl ? { src: reply.audioUrl } : undefined,
+            );
+        }
+    } catch (error) {
+        console.error('Error processing audio:', error);
+        addMsg('assistant', 'Ocurrió un error procesando el audio. Por favor intenta de nuevo.');
+    } finally {
+        responding.value = false;
+        mediaRecorder = null;
+        audioChunks = [];
+    }
+}
+
+function stopRecordingStream() {
     recordingStream?.getTracks().forEach((track) => track.stop());
     recordingStream = null;
-  }
+}
 
-  async function convertToWav(audioBlob: Blob): Promise<Blob> {
-    const AudioContextCtor =
-      window.AudioContext || (window as any).webkitAudioContext;
+async function convertToWav(audioBlob: Blob): Promise<Blob> {
+    const AudioContextCtor = window.AudioContext || (window as any).webkitAudioContext;
     const audioContext = new AudioContextCtor();
     try {
-      const arrayBuffer = await audioBlob.arrayBuffer();
-      const audioBuffer = await audioContext.decodeAudioData(arrayBuffer);
-      return audioBufferToWav(audioBuffer);
+        const arrayBuffer = await audioBlob.arrayBuffer();
+        const audioBuffer = await audioContext.decodeAudioData(arrayBuffer);
+        return audioBufferToWav(audioBuffer);
     } finally {
-      await audioContext.close().catch(() => undefined);
+        await audioContext.close().catch(() => undefined);
     }
-  }
+}
 
-  function audioBufferToWav(buffer: AudioBuffer): Blob {
+function audioBufferToWav(buffer: AudioBuffer): Blob {
     const length = buffer.length;
     const numberOfChannels = buffer.numberOfChannels;
     const sampleRate = buffer.sampleRate;
@@ -819,15 +1159,15 @@
     const view = new DataView(arrayBuffer);
 
     const writeString = (offset: number, value: string) => {
-      for (let i = 0; i < value.length; i++) {
-        view.setUint8(offset + i, value.charCodeAt(i));
-      }
+        for (let i = 0; i < value.length; i++) {
+            view.setUint8(offset + i, value.charCodeAt(i));
+        }
     };
 
-    writeString(0, "RIFF");
+    writeString(0, 'RIFF');
     view.setUint32(4, bufferSize - 8, true);
-    writeString(8, "WAVE");
-    writeString(12, "fmt ");
+    writeString(8, 'WAVE');
+    writeString(12, 'fmt ');
     view.setUint32(16, 16, true);
     view.setUint16(20, 1, true);
     view.setUint16(22, numberOfChannels, true);
@@ -835,125 +1175,147 @@
     view.setUint32(28, byteRate, true);
     view.setUint16(32, blockAlign, true);
     view.setUint16(34, 16, true);
-    writeString(36, "data");
+    writeString(36, 'data');
     view.setUint32(40, dataSize, true);
 
     let offset = 44;
     for (let i = 0; i < length; i++) {
-      for (let channel = 0; channel < numberOfChannels; channel++) {
-        const sample = Math.max(
-          -1,
-          Math.min(1, buffer.getChannelData(channel)[i]),
-        );
-        view.setInt16(
-          offset,
-          sample < 0 ? sample * 0x8000 : sample * 0x7fff,
-          true,
-        );
-        offset += 2;
-      }
+        for (let channel = 0; channel < numberOfChannels; channel++) {
+            const sample = Math.max(-1, Math.min(1, buffer.getChannelData(channel)[i]));
+            view.setInt16(offset, sample < 0 ? sample * 0x8000 : sample * 0x7fff, true);
+            offset += 2;
+        }
     }
 
-    return new Blob([arrayBuffer], { type: "audio/wav" });
-  }
+    return new Blob([arrayBuffer], { type: 'audio/wav' });
+}
 
-  // Pizarrón
-
-  async function generateExercise(topic: string) {
+async function generateExercise(topic: string, voice?: Blob) {
+    const generation = ++exerciseGeneration;
     pizarronTopic.value = topic;
-    pizState.value = "generating";
+    pizState.value = 'generating';
+    const grade = getStudentGrade();
+    const gradeContext = grade
+        ? `El estudiante es de ${grade}. Usa los contenidos de los documentos de ${grade} para generar el ejercicio.`
+        : '';
     try {
-      const prompt = [
-        "MODO PIZARRÓN - GENERACIÓN DE EJERCICIO:",
-        `Genera un ejercicio claro, bien estructurado y resolvible manualmente sobre el tema: "${topic}".`,
-        "Requisitos:",
-        "- Máximo 1 ejercicios numerados",
-        "- Enunciado claro con todos los datos necesarios",
-        "- Adecuado para resolver en un lienzo de dibujo a mano",
-        "- NO incluyas la solución",
-        "- Formato limpio, fácil de leer",
-        '- Incluye una instrucción breve al inicio indicando qué debe hacer el alumno (ej: "Resolvé cada ejercicio en el lienzo")',
-        "- Adapta la dificultad al nivel del alumno según el contexto enviado",
-        "- Usa lenguaje simple, adecuado para niños",
-        "Responde solo con los ejercicios, sin introducciones.",
-      ].join("\n");
+        const prompt = [
+            'MODO PIZARRÓN - GENERACIÓN DE EJERCICIO:',
+            gradeContext,
+            voice
+                ? 'El alumno dijo el tema en el audio adjunto. Escuchalo y genera un ejercicio sobre ese tema.'
+                : `Genera un ejercicio claro, bien estructurado y resolvible manualmente sobre el tema: "${topic}".`,
+            'Requisitos:',
+            '- Máximo 1 ejercicios numerados',
+            '- Enunciado claro con todos los datos necesarios',
+            '- Adecuado para resolver en un lienzo de dibujo a mano',
+            '- NO incluyas la solución',
+            '- Formato limpio, fácil de leer',
+            '- Incluye una instrucción breve al inicio indicando qué debe hacer el alumno (ej: "Resolvé cada ejercicio en el lienzo")',
+            '- Adapta la dificultad al nivel del alumno según el contexto enviado',
+            '- Usa lenguaje simple, adecuado para niños',
+            'Responde solo con los ejercicios, sin introducciones.',
+        ]
+            .filter(Boolean)
+            .join('\n');
 
-      const fd = new FormData();
-      fd.append("content", prompt);
-      fd.append("context", buildContext());
-      const reply = await postFormData(fd);
-      if (reply) {
-        exerciseHtml.value = reply;
-        pizState.value = "drawing";
-        nextTick(scheduleCanvasInit);
-      } else {
-        pizState.value = "idle";
-      }
+        const fd = new FormData();
+        fd.append('content', prompt);
+        fd.append('context', buildContext());
+        if (voice) fd.append('voice_content', voice, 'audio.wav');
+        const reply = await postFormData(fd);
+        if (reply.text || reply.audioUrl) {
+            if (generation !== exerciseGeneration) return;
+            exerciseHtml.value = reply.text;
+            exerciseAudio.value = reply.audioUrl;
+            pizState.value = 'drawing';
+            nextTick(scheduleCanvasInit);
+        } else {
+            if (generation === exerciseGeneration) pizState.value = 'idle';
+        }
     } catch {
-      pizState.value = "idle";
+        if (generation === exerciseGeneration) pizState.value = 'idle';
     }
-  }
+}
 
-  async function evaluateCanvas() {
-    if (!canvasEl.value || pizState.value === "evaluating") return;
-    pizState.value = "evaluating";
+async function evaluateCanvas() {
+    if (!canvasEl.value || pizState.value === 'evaluating') return;
+    pizState.value = 'evaluating';
     try {
-      await ensureCanvasReady();
-      const dataUrl = canvasEl.value.toDataURL("image/png");
-      const blob = dataUrlToBlob(dataUrl);
-      console.info("[assistant-modal] canvas capture", {
-        ...getCanvasDebugStats(canvasEl.value),
-        dataUrlLength: dataUrl.length,
-        blobSize: blob.size,
-        blobType: blob.type,
-      });
-      const prompt = [
-        "MODO PIZARRÓN - EVALUACIÓN DE RESPUESTA:",
-        "El alumno ha resuelto el ejercicio anterior en su lienzo. Analiza la imagen adjunta y:",
-        "1. Identifica lo que escribió o dibujó",
-        "2. Evalúa si la respuesta es correcta o no",
-        "3. Da retroalimentación constructiva (sin revelar la solución completa si está incompleta)",
-        "4. Si está bien resuelto, felicítalo brevemente",
-        "Responde en español con un tono amigable y educativo.",
-        "IMPORTANTE: La retroalimentación es para un niño. Sé breve, claro y usa palabras simples y fáciles de entender.",
-      ].join("\n");
+        await ensureCanvasReady();
+        const dataUrl = canvasEl.value.toDataURL('image/png');
+        const blob = dataUrlToBlob(dataUrl);
+        console.info('[assistant-modal] canvas capture', {
+            ...getCanvasDebugStats(canvasEl.value),
+            dataUrlLength: dataUrl.length,
+            blobSize: blob.size,
+            blobType: blob.type,
+        });
+        const grade = getStudentGrade();
+        const gradeContext = grade
+            ? `El estudiante es de ${grade}. Evalúa considerando los contenidos de los documentos de ${grade}.`
+            : '';
+        const prompt = [
+            'MODO PIZARRÓN - EVALUACIÓN DE RESPUESTA:',
+            gradeContext,
+            'El alumno ha resuelto el ejercicio anterior en su lienzo. Analiza la imagen adjunta y:',
+            '1. Identifica lo que escribió o dibujó',
+            '2. Evalúa si la respuesta es correcta o no',
+            '3. Da retroalimentación constructiva (sin revelar la solución completa si está incompleta)',
+            '4. Si está bien resuelto, felicítalo brevemente',
+            'Responde en español con un tono amigable y educativo.',
+            'IMPORTANTE: La retroalimentación es para un niño. Sé breve, claro y usa palabras simples y fáciles de entender.',
+        ]
+            .filter(Boolean)
+            .join('\n');
 
-      const fd = new FormData();
-      fd.append("content", prompt);
-      fd.append("context", buildContext());
-      fd.append("image_content", blob, "student_canvas.png");
-      const reply = await postFormData(fd, true);
-      if (reply) feedbackHtml.value = reply;
-      pizState.value = "feedback";
+        const fd = new FormData();
+        fd.append('content', prompt);
+        fd.append('context', buildContext());
+        fd.append('image_content', blob, 'student_canvas.png');
+
+        const reply = await postFormData(fd, false);
+        feedbackHtml.value = reply.text;
+        feedbackAudio.value = reply.audioUrl;
+        pizState.value = 'feedback';
     } catch {
-      feedbackHtml.value =
-        "Ocurrió un error al evaluar. Por favor intenta de nuevo.";
-      pizState.value = "feedback";
+        feedbackHtml.value = 'Ocurrió un error al evaluar. Por favor intenta de nuevo.';
+        pizState.value = 'feedback';
     }
-  }
+}
 
-  function resetPizarron() {
-    pizState.value = "idle";
-    exerciseHtml.value = "";
-    feedbackHtml.value = "";
-    pizarronTopic.value = "";
-    draft.value = "";
+function resetPizarron() {
+    exerciseGeneration++;
+    pizState.value = 'idle';
+    hasDrawing.value = false;
+    exerciseHtml.value = '';
+    exerciseAudio.value = '';
+    feedbackHtml.value = '';
+    feedbackAudio.value = '';
+    pizarronTopic.value = '';
+    draft.value = '';
     if (canvasEl.value) {
-      const ctx = canvasEl.value.getContext("2d");
-      if (ctx) ctx.clearRect(0, 0, canvasEl.value.width, canvasEl.value.height);
+        const ctx = canvasEl.value.getContext('2d');
+        if (ctx) ctx.clearRect(0, 0, canvasEl.value.width, canvasEl.value.height);
     }
     canvasInitialized = false;
-  }
+}
 
-  function setMode(m: AssistantMode) {
+async function nextPizarronExercise() {
+    const guidedTopic = activeGuidedPractice.value?.topic.title;
+    resetPizarron();
+    if (guidedTopic) {
+        await generateExercise(guidedTopic);
+    }
+}
+
+function setMode(m: AssistantMode) {
     mode.value = m;
     showModes.value = false;
-    if (m === "pizarron") resetPizarron();
-  }
+    if (m === 'pizarron') resetPizarron();
+}
 
-  // Canvas drawing
-
-  function initCanvas() {
+function initCanvas() {
     const canvas = canvasEl.value;
     if (!canvas) return;
 
@@ -962,87 +1324,87 @@
     if (width <= 0 || height <= 0) return;
 
     const previous =
-      canvasInitialized && canvas.width > 0 && canvas.height > 0
-        ? canvas.toDataURL("image/png")
-        : "";
+        canvasInitialized && canvas.width > 0 && canvas.height > 0
+            ? canvas.toDataURL('image/png')
+            : '';
 
     canvas.width = width * dpr;
     canvas.height = height * dpr;
-    const ctx = canvas.getContext("2d")!;
+    const ctx = canvas.getContext('2d')!;
     ctx.scale(dpr, dpr);
 
-    ctx.globalCompositeOperation = "source-over";
-    ctx.fillStyle = cssVar("--acm-canvas-bg", "Canvas", canvas);
+    ctx.globalCompositeOperation = 'source-over';
+    ctx.fillStyle = cssVar('--acm-canvas-bg', 'Canvas', canvas);
     ctx.fillRect(0, 0, width, height);
 
-    ctx.lineCap = "round";
-    ctx.lineJoin = "round";
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
     canvasInitialized = true;
 
     if (previous) {
-      const img = new Image();
-      img.onload = () => {
-        ctx.drawImage(img, 0, 0, width, height);
-      };
-      img.src = previous;
+        const img = new Image();
+        img.onload = () => {
+            ctx.drawImage(img, 0, 0, width, height);
+        };
+        img.src = previous;
     }
 
     if (!canvasResizeObserver) {
-      canvasResizeObserver = new ResizeObserver(() => {
-        scheduleCanvasInit();
-      });
-      canvasResizeObserver.observe(canvas);
+        canvasResizeObserver = new ResizeObserver(() => {
+            scheduleCanvasInit();
+        });
+        canvasResizeObserver.observe(canvas);
     }
-  }
+}
 
-  function scheduleCanvasInit() {
+function scheduleCanvasInit() {
     requestAnimationFrame(() => {
-      requestAnimationFrame(initCanvas);
+        requestAnimationFrame(initCanvas);
     });
-  }
+}
 
-  async function ensureCanvasReady() {
+async function ensureCanvasReady() {
     if (!canvasEl.value) return;
     const rect = canvasEl.value.getBoundingClientRect();
     if (canvasInitialized && rect.width > 0 && rect.height > 0) return;
     await nextTick();
-    await new Promise<void>((resolve) =>
-      requestAnimationFrame(() => resolve()),
-    );
+    await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
     initCanvas();
-  }
+}
 
-  function getPos(
-    e: MouseEvent | Touch,
-    canvas: HTMLCanvasElement,
-  ): [number, number] {
+function getPos(e: MouseEvent | Touch, canvas: HTMLCanvasElement): [number, number] {
     const rect = canvas.getBoundingClientRect();
     return [e.clientX - rect.left, e.clientY - rect.top];
-  }
+}
 
-  function getCtx(): CanvasRenderingContext2D | null {
-    return canvasEl.value?.getContext("2d") ?? null;
-  }
+function getCtx(): CanvasRenderingContext2D | null {
+    return canvasEl.value?.getContext('2d') ?? null;
+}
 
-  function applyTool(ctx: CanvasRenderingContext2D) {
-    if (activeTool.value === "eraser") {
-      ctx.globalCompositeOperation = "destination-out";
-      ctx.lineWidth = 24;
+function applyTool(ctx: CanvasRenderingContext2D) {
+    if (activeTool.value === 'eraser') {
+        ctx.globalCompositeOperation = 'destination-out';
+        ctx.lineWidth = 24;
     } else {
-      ctx.globalCompositeOperation = "source-over";
-      ctx.strokeStyle = cssVar("--acm-canvas-ink", "CanvasText");
-      ctx.lineWidth = 2.5;
+        ctx.globalCompositeOperation = 'source-over';
+        ctx.strokeStyle = activeColor.value;
+        ctx.lineWidth = 2.5;
     }
-  }
+}
 
-  function onCanvasDown(e: MouseEvent) {
+function selectCanvasColor(color: string) {
+    activeColor.value = color;
+    activeTool.value = 'pen';
+}
+
+function onCanvasDown(e: MouseEvent) {
     const canvas = canvasEl.value;
     if (!canvas) return;
     isDrawing = true;
     [lastX, lastY] = getPos(e, canvas);
-  }
+}
 
-  function onCanvasMove(e: MouseEvent) {
+function onCanvasMove(e: MouseEvent) {
     if (!isDrawing || !canvasEl.value) return;
     const ctx = getCtx();
     if (!ctx) return;
@@ -1052,21 +1414,41 @@
     ctx.moveTo(lastX, lastY);
     ctx.lineTo(x, y);
     ctx.stroke();
+    hasDrawing.value = true;
     [lastX, lastY] = [x, y];
-  }
+}
 
-  function onCanvasUp() {
+function onCanvasUp() {
     isDrawing = false;
-  }
+}
 
-  function onTouchStart(e: TouchEvent) {
+const hasPendingWork = computed(
+    () =>
+        (pizState.value === 'drawing' && hasDrawing.value) ||
+        pizState.value === 'generating' ||
+        pizState.value === 'evaluating' ||
+        responding.value,
+);
+
+const { leaveConfirmState, onLeaveConfirm, onLeaveCancel, discard } = useLeaveWarning(
+    () => hasPendingWork.value,
+);
+
+function requestClose() {
+    discard(() => {
+        resetPizarron();
+        emit('close');
+    });
+}
+
+function onTouchStart(e: TouchEvent) {
     const canvas = canvasEl.value;
     if (!canvas || !e.touches[0]) return;
     isDrawing = true;
     [lastX, lastY] = getPos(e.touches[0], canvas);
-  }
+}
 
-  function onTouchMove(e: TouchEvent) {
+function onTouchMove(e: TouchEvent) {
     if (!isDrawing || !canvasEl.value || !e.touches[0]) return;
     const ctx = getCtx();
     if (!ctx) return;
@@ -1076,69 +1458,83 @@
     ctx.moveTo(lastX, lastY);
     ctx.lineTo(x, y);
     ctx.stroke();
+    hasDrawing.value = true;
     [lastX, lastY] = [x, y];
-  }
+}
 
-  function onTouchEnd() {
+function onTouchEnd() {
     isDrawing = false;
-  }
+}
 
-  function clearCanvas() {
+function clearCanvas() {
+    hasDrawing.value = false;
     const canvas = canvasEl.value;
     if (!canvas) return;
     const ctx = getCtx();
     if (!ctx) return;
-    ctx.globalCompositeOperation = "source-over";
-    ctx.fillStyle = cssVar("--acm-canvas-bg", "Canvas", canvas);
+    ctx.globalCompositeOperation = 'source-over';
+    ctx.fillStyle = cssVar('--acm-canvas-bg', 'Canvas', canvas);
     ctx.fillRect(
-      0,
-      0,
-      canvas.width / (window.devicePixelRatio || 1),
-      canvas.height / (window.devicePixelRatio || 1),
+        0,
+        0,
+        canvas.width / (window.devicePixelRatio || 1),
+        canvas.height / (window.devicePixelRatio || 1),
     );
-  }
+}
 
-  // Init
+let initialized = false;
 
-  let initialized = false;
+function updateMobile() {
+    isMobile.value = window.matchMedia('(max-width: 640px)').matches;
 
-  watch(
+    mobileViewportTop.value = Math.round(window.visualViewport?.offsetTop ?? 0);
+    mobileViewportHeight.value = Math.round(window.visualViewport?.height ?? window.innerHeight);
+}
+
+onMounted(() => {
+    updateMobile();
+    window.addEventListener('resize', updateMobile);
+    window.visualViewport?.addEventListener('resize', updateMobile);
+    window.visualViewport?.addEventListener('scroll', updateMobile);
+});
+
+watch(
     () => authStore.token,
     async (token) => {
-      if (!token || initialized) return;
-      initialized = true;
-      messages.value = [];
-      conversationId = null;
-      addMsg(
-        "assistant",
-        "¡Hola! Soy tu asistente de práctica. ¿Qué hacemos hoy?",
-      );
-      await loadHistory();
+        if (!token || initialized) return;
+        initialized = true;
+        messages.value = [];
+        conversationId = null;
+        addMsg('assistant', '¡Hola! Soy Quanty. ¿Qué hacemos hoy?');
+        await loadHistory();
     },
     { immediate: true },
-  );
+);
 
-  watch(
+watch(
     () => props.show,
     (visible) => {
-      if (visible) {
-        document.body.classList.add("assistant-modal-open");
-      } else {
-        document.body.classList.remove("assistant-modal-open");
-      }
+        if (visible) {
+            document.body.classList.add('assistant-modal-open');
+        } else {
+            document.body.classList.remove('assistant-modal-open');
+            resetGuidedPractice();
+        }
     },
     { immediate: true },
-  );
+);
 
-  onBeforeUnmount(() => {
-    document.body.classList.remove("assistant-modal-open");
+onBeforeUnmount(() => {
+    document.body.classList.remove('assistant-modal-open');
     canvasResizeObserver?.disconnect();
-  });
+    window.removeEventListener('resize', updateMobile);
+    window.visualViewport?.removeEventListener('resize', updateMobile);
+    window.visualViewport?.removeEventListener('scroll', updateMobile);
+});
 </script>
 
 <style scoped>
-  /* Overlay & Modal */
-  .acm-overlay {
+.acm-overlay {
     position: fixed;
     inset: 0;
     background: rgba(var(--text-primary-rgb), 0.5);
@@ -1148,9 +1544,9 @@
     align-items: center;
     justify-content: center;
     padding: 5vh 5vw;
-  }
+}
 
-  .acm-modal {
+.acm-modal {
     --acm-canvas-bg: var(--surface-card);
     --acm-canvas-ink: var(--text-primary);
     background: var(--surface-card);
@@ -1162,27 +1558,26 @@
     display: flex;
     flex-direction: column;
     overflow: hidden;
-  }
+}
 
-  .acm-fade-enter-active,
-  .acm-fade-leave-active {
+.acm-fade-enter-active,
+.acm-fade-leave-active {
     transition: opacity 0.2s ease;
-  }
-  .acm-fade-enter-from,
-  .acm-fade-leave-to {
+}
+.acm-fade-enter-from,
+.acm-fade-leave-to {
     opacity: 0;
-  }
-  .acm-fade-enter-active .acm-modal,
-  .acm-fade-leave-active .acm-modal {
+}
+.acm-fade-enter-active .acm-modal,
+.acm-fade-leave-active .acm-modal {
     transition: transform 0.22s ease;
-  }
-  .acm-fade-enter-from .acm-modal,
-  .acm-fade-leave-to .acm-modal {
+}
+.acm-fade-enter-from .acm-modal,
+.acm-fade-leave-to .acm-modal {
     transform: translateY(18px);
-  }
+}
 
-  /* Header */
-  .acm-header {
+.acm-header {
     display: flex;
     align-items: center;
     justify-content: space-between;
@@ -1190,21 +1585,22 @@
     background: var(--gradient-brand);
     color: var(--color-on-primary);
     flex-shrink: 0;
-  }
+}
 
-  .acm-header-info {
+.acm-header-info {
     display: flex;
     align-items: center;
     gap: 14px;
     min-width: 0;
-  }
+}
 
-  .acm-avatar {
+.acm-avatar {
     width: 44px;
     height: 44px;
     min-width: 44px;
-    border-radius: 0;
-    background: transparent;
+    overflow: hidden;
+    border-radius: 50%;
+    background: var(--fill-primary-soft);
     border: none;
     color: var(--color-on-primary);
     display: flex;
@@ -1213,43 +1609,45 @@
     font-size: 21px;
     flex: 0 0 auto;
     box-shadow: none;
-  }
+}
 
-  .acm-avatar img {
+.acm-avatar img {
     display: block;
-    width: 42px;
-    height: 42px;
-    object-fit: contain;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    object-position: 50% 22%;
+    transform: scale(1.65);
     filter: drop-shadow(0 3px 6px rgba(var(--text-primary-rgb), 0.16));
-  }
+}
 
-  .acm-title {
+.acm-title {
     font-size: 16px;
     font-weight: 700;
-  }
+}
 
-  .acm-status {
+.acm-status {
     display: flex;
     align-items: center;
     gap: 6px;
     font-size: 12px;
     opacity: 0.85;
-  }
+}
 
-  .acm-dot {
+.acm-dot {
     width: 7px;
     height: 7px;
     border-radius: 50%;
     background: var(--color-success);
     flex-shrink: 0;
-  }
+}
 
-  .acm-dot--busy {
+.acm-dot--busy {
     background: var(--color-warning);
     animation: acm-pulse 1s infinite;
-  }
+}
 
-  .acm-close {
+.acm-close {
     background: rgba(var(--surface-card-rgb), 0.15);
     border: none;
     color: var(--color-on-primary);
@@ -1262,54 +1660,53 @@
     justify-content: center;
     font-size: 14px;
     transition: var(--transition-fast);
-  }
-  .acm-close:hover {
+}
+.acm-close:hover {
     background: rgba(var(--surface-card-rgb), 0.3);
-  }
+}
 
-  /* Messages (escrita/oral) */
-  .acm-messages {
+.acm-messages {
     flex: 1;
+    min-height: 0;
     overflow-y: auto;
     padding: 24px 28px;
     display: flex;
     flex-direction: column;
     gap: 12px;
     scroll-behavior: smooth;
-  }
+}
 
-  .acm-msg {
+.acm-msg {
     display: flex;
-  }
-  .acm-msg--user {
+}
+.acm-msg--user {
     justify-content: flex-end;
-  }
-  .acm-msg--assistant {
+}
+.acm-msg--assistant {
     justify-content: flex-start;
-  }
+}
 
-  .acm-bubble {
+.acm-bubble {
     max-width: 68%;
     padding: 11px 16px;
     border-radius: var(--radius-md);
     font-size: var(--font-body);
     line-height: 1.6;
-  }
+}
 
-  .acm-msg--user .acm-bubble {
+.acm-msg--user .acm-bubble {
     background: var(--practiq-violet);
     color: var(--color-on-primary);
     border-bottom-right-radius: var(--radius-xs);
-  }
+}
 
-  .acm-msg--assistant .acm-bubble {
+.acm-msg--assistant .acm-bubble {
     background: var(--practiq-violet-bg);
     color: var(--text-primary);
     border-bottom-left-radius: var(--radius-xs);
-  }
+}
 
-  /* Audio bubble */
-  .acm-bubble--audio {
+.acm-bubble--audio {
     display: flex;
     align-items: center;
     gap: 10px;
@@ -1317,41 +1714,106 @@
     background: var(--practiq-violet);
     color: var(--color-on-primary);
     border-bottom-right-radius: var(--radius-xs);
-  }
+}
 
-  .acm-audio-player {
+.acm-audio-player {
     height: 32px;
     max-width: 240px;
-    filter: invert(1);
-  }
+}
 
-  /* Typing */
-  .acm-bubble--typing {
+.acm-msg--user .acm-bubble--audio .acm-audio-player {
+    filter: invert(1);
+}
+
+.acm-audio-player--block {
+    display: block;
+    width: 100%;
+    max-width: none;
+    margin-top: 10px;
+}
+
+.acm-header-actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.acm-practice-context {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    min-height: 38px;
+    padding: 8px 20px;
+    overflow-x: auto;
+    background: var(--fill-primary-faint);
+    border-bottom: 1px solid rgba(var(--practiq-violet-rgb), 0.1);
+    color: var(--text-secondary);
+    font-size: 0.8rem;
+    white-space: nowrap;
+}
+
+.acm-practice-context > :first-child {
+    color: var(--practiq-violet);
+}
+
+.acm-practice-context strong {
+    color: var(--text-primary);
+}
+
+.acm-practice-context__mode {
+    margin-left: auto;
+    padding: 3px 8px;
+    border-radius: var(--radius-pill);
+    background: var(--surface-card);
+    color: var(--practiq-violet-dark);
+    font-weight: 700;
+}
+
+.acm-voice-on {
+    background: rgba(var(--surface-card-rgb), 0.35);
+}
+
+.acm-send--mic {
+    background: var(--surface-elevated-strong);
+    color: var(--practiq-violet);
+}
+
+.acm-send--recording {
+    background: var(--color-error, #dc2626);
+    color: var(--color-on-primary);
+}
+
+.acm-piz-error {
+    margin-top: 8px;
+    color: var(--color-error-dark, #b91c1c);
+    font-size: var(--text-sm);
+}
+
+.acm-bubble--typing {
     display: flex;
     align-items: center;
     gap: 5px;
     padding: 14px 18px;
     min-width: 60px;
-  }
+}
 
-  .acm-bubble--typing span {
+.acm-bubble--typing span {
     width: 7px;
     height: 7px;
     border-radius: 50%;
     background: var(--practiq-violet);
     opacity: 0.45;
     animation: acm-bounce 1.1s infinite;
-  }
+}
 
-  .acm-bubble--typing span:nth-child(2) {
+.acm-bubble--typing span:nth-child(2) {
     animation-delay: 0.18s;
-  }
-  .acm-bubble--typing span:nth-child(3) {
+}
+.acm-bubble--typing span:nth-child(3) {
     animation-delay: 0.36s;
-  }
+}
 
-  /* Oral hint */
-  .acm-oral-hint {
+.acm-oral-hint {
     display: flex;
     flex-direction: column;
     align-items: center;
@@ -1361,14 +1823,142 @@
     color: var(--text-muted);
     text-align: center;
     padding: 40px;
-  }
+}
 
-  .acm-oral-hint-icon {
+.acm-oral-hint-icon {
     font-size: 48px;
-  }
+}
 
-  /* PIZARRÓN: idle */
-  .acm-piz-idle {
+.acm-practice-picker {
+    flex: 1;
+    overflow-y: auto;
+    padding: 32px;
+    display: flex;
+    flex-direction: column;
+    gap: 24px;
+}
+
+.acm-practice-picker__intro h3 {
+    margin: 4px 0 8px;
+    color: var(--text-primary);
+    font-size: 1.3rem;
+}
+
+.acm-practice-picker__intro p,
+.acm-practice-picker__empty {
+    margin: 0;
+    color: var(--text-secondary);
+    line-height: 1.45;
+}
+
+.acm-practice-picker__eyebrow,
+.acm-practice-picker__label {
+    display: block;
+    color: var(--practiq-violet);
+    font-size: 0.78rem;
+    font-weight: 800;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+}
+
+.acm-practice-picker__group {
+    display: grid;
+    gap: 10px;
+}
+
+.acm-practice-picker__chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+.acm-practice-picker__modes {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+}
+
+.acm-practice-mode {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    min-height: 64px;
+    padding: 10px 12px;
+    border: 1.5px solid var(--surface-border);
+    border-radius: var(--radius-lg);
+    background: var(--surface-card);
+    color: var(--text-primary);
+    text-align: left;
+    cursor: pointer;
+    transition: var(--transition-fast);
+}
+
+.acm-practice-mode > i {
+    color: var(--practiq-violet);
+    font-size: 1.1rem;
+}
+
+.acm-practice-mode span {
+    display: grid;
+    gap: 2px;
+}
+
+.acm-practice-mode small {
+    color: var(--text-secondary);
+    font-size: 0.72rem;
+}
+
+.acm-practice-mode--selected {
+    border-color: var(--practiq-violet);
+    background: var(--fill-primary-subtle);
+    box-shadow: var(--shadow-violet);
+    color: var(--practiq-violet-dark);
+    transform: translateY(-1px);
+}
+
+.acm-practice-chip {
+    min-height: 40px;
+    padding: 8px 13px;
+    border: 0;
+    border-radius: var(--radius-pill);
+    background: var(--elevation-tint-bg);
+    box-shadow: var(--elevation-tint-shadow);
+    color: var(--text-primary);
+    font-family: var(--font-ui-family);
+    font-size: 0.9rem;
+    font-weight: 700;
+    cursor: pointer;
+    transition: var(--transition-fast);
+}
+
+.acm-practice-chip--selected {
+    background: var(--fill-primary-subtle);
+    color: var(--practiq-violet-dark);
+    box-shadow: var(--shadow-violet);
+    transform: translateY(-1px);
+}
+.acm-practice-chip:hover:not(.acm-practice-chip--selected),
+.acm-practice-mode:hover:not(.acm-practice-mode--selected) {
+    color: var(--practiq-violet-dark);
+}
+.acm-practice-chip:focus-visible,
+.acm-practice-mode:focus-visible {
+    outline: 3px solid rgba(var(--practiq-violet-rgb), 0.28);
+    outline-offset: 2px;
+}
+
+.acm-practice-picker__loading {
+    color: var(--text-secondary);
+    font-size: 0.9rem;
+}
+
+.acm-practice-picker__start {
+    align-self: flex-start;
+    min-height: 46px;
+    padding-inline: 20px;
+}
+
+.acm-piz-idle {
     flex: 1;
     display: flex;
     flex-direction: column;
@@ -1377,27 +1967,33 @@
     padding: 40px;
     text-align: center;
     gap: 16px;
-  }
+}
 
-  .acm-piz-intro-icon {
-    font-size: 52px;
-  }
+.acm-piz-intro-icon {
+    font-size: 46px;
+    line-height: 1;
+    color: var(--practiq-violet);
+}
+.acm-mode-icon {
+    display: inline-flex;
+    align-items: center;
+    font-size: 0.95em;
+}
 
-  .acm-piz-intro-title {
+.acm-piz-intro-title {
     font-size: 22px;
     font-weight: 700;
     color: var(--text-heading);
-  }
+}
 
-  .acm-piz-intro-desc {
+.acm-piz-intro-desc {
     font-size: var(--font-body);
     color: var(--text-secondary);
     max-width: 440px;
     line-height: 1.7;
-  }
+}
 
-  /* Loading */
-  .acm-piz-loading {
+.acm-piz-loading {
     flex: 1;
     display: flex;
     flex-direction: column;
@@ -1405,25 +2001,23 @@
     justify-content: center;
     gap: 16px;
     color: var(--text-secondary);
-  }
+}
 
-  /* PIZARRÓN: split layout */
-  .acm-piz-split {
+.acm-piz-split {
     flex: 1;
     display: flex;
     overflow: hidden;
-  }
+}
 
-  /* Exercise panel */
-  .acm-piz-exercise {
+.acm-piz-exercise {
     flex: 0 0 42%;
     display: flex;
     flex-direction: column;
     border-right: 1px solid var(--surface-border);
     overflow: hidden;
-  }
+}
 
-  .acm-piz-panel-label {
+.acm-piz-panel-label {
     display: flex;
     align-items: center;
     gap: 8px;
@@ -1436,36 +2030,36 @@
     text-transform: uppercase;
     letter-spacing: 0.05em;
     flex-shrink: 0;
-  }
+}
 
-  .acm-piz-exercise-content {
+.acm-piz-exercise-content {
     flex: 1;
     overflow-y: auto;
     padding: 20px;
     font-size: var(--font-body);
     line-height: 1.7;
     color: var(--text-primary);
-  }
+}
 
-  /* Canvas panel */
-  .acm-piz-canvas-area {
+.acm-piz-canvas-area {
     flex: 1;
     display: flex;
     flex-direction: column;
     overflow: hidden;
-  }
+}
 
-  .acm-piz-canvas-area .acm-piz-panel-label {
+.acm-piz-canvas-area .acm-piz-panel-label {
     justify-content: space-between;
-  }
+}
 
-  .acm-canvas-tools {
+.acm-canvas-tools {
     display: flex;
     gap: 4px;
     margin-left: auto;
-  }
+    align-items: center;
+}
 
-  .acm-tool-btn {
+.acm-tool-btn {
     width: 30px;
     height: 30px;
     border-radius: var(--radius-xs);
@@ -1478,20 +2072,20 @@
     justify-content: center;
     font-size: 13px;
     transition: var(--transition-fast);
-  }
+}
 
-  .acm-tool-btn:hover {
+.acm-tool-btn:hover {
     background: var(--practiq-violet-bg);
     color: var(--practiq-violet);
-  }
+}
 
-  .acm-tool-btn--active {
+.acm-tool-btn--active {
     background: var(--practiq-violet-bg);
     color: var(--practiq-violet);
     border-color: var(--practiq-violet-light);
-  }
+}
 
-  .acm-canvas {
+.acm-canvas {
     flex: 1;
     display: block;
     cursor: crosshair;
@@ -1499,37 +2093,36 @@
     touch-action: none;
     width: 100%;
     height: 100%;
-  }
+}
 
-  .acm-evaluar-btn {
+.acm-evaluar-btn {
     margin: 12px 16px;
     flex-shrink: 0;
     display: flex;
     align-items: center;
     gap: 8px;
     justify-content: center;
-  }
+}
 
-  /* PIZARRÓN: feedback */
-  .acm-piz-feedback {
+.acm-piz-feedback {
     flex: 1;
     display: flex;
     flex-direction: column;
     padding: 32px 36px;
     overflow-y: auto;
     gap: 20px;
-  }
+}
 
-  .acm-piz-feedback-header {
+.acm-piz-feedback-header {
     display: flex;
     align-items: center;
     gap: 10px;
     font-size: 16px;
     font-weight: 700;
     color: var(--text-heading);
-  }
+}
 
-  .acm-piz-feedback-content {
+.acm-piz-feedback-content {
     flex: 1;
     font-size: var(--font-body);
     line-height: 1.75;
@@ -1537,30 +2130,28 @@
     background: var(--practiq-violet-bg);
     border-radius: var(--radius-md);
     padding: 20px;
-  }
+}
 
-  .acm-next-btn {
+.acm-next-btn {
     align-self: flex-start;
     display: flex;
     align-items: center;
     gap: 8px;
-  }
+}
 
-  /* Footer */
-  .acm-footer {
+.acm-footer {
     flex-shrink: 0;
     border-top: 1px solid var(--surface-border);
     background: var(--surface-card);
-  }
+}
 
-  /* Mode toggle row */
-  .acm-mode-toggle-row {
+.acm-mode-toggle-row {
     display: flex;
     align-items: center;
     padding: 6px 16px 0;
-  }
+}
 
-  .acm-mode-toggle-btn {
+.acm-mode-toggle-btn {
     display: flex;
     align-items: center;
     gap: 6px;
@@ -1572,22 +2163,21 @@
     padding: 4px 8px;
     border-radius: var(--radius-xs);
     transition: var(--transition-fast);
-  }
+}
 
-  .acm-mode-toggle-btn:hover {
+.acm-mode-toggle-btn:hover {
     background: var(--surface-hover);
     color: var(--text-primary);
-  }
+}
 
-  /* Mode strip */
-  .acm-mode-strip {
+.acm-mode-strip {
     display: flex;
     gap: 8px;
     padding: 8px 16px;
     border-bottom: 1px solid var(--surface-border);
-  }
+}
 
-  .acm-mode-btn {
+.acm-mode-btn {
     display: flex;
     align-items: center;
     gap: 6px;
@@ -1600,29 +2190,28 @@
     font-weight: 500;
     color: var(--text-secondary);
     transition: var(--transition-fast);
-  }
+}
 
-  .acm-mode-btn:hover {
+.acm-mode-btn:hover {
     border-color: var(--practiq-violet-light);
     color: var(--practiq-violet);
     background: var(--practiq-violet-bg);
-  }
+}
 
-  .acm-mode-btn--active {
+.acm-mode-btn--active {
     background: var(--practiq-violet);
     color: var(--color-on-primary);
     border-color: var(--practiq-violet);
-  }
+}
 
-  /* Input area */
-  .acm-input-area {
+.acm-input-area {
     display: flex;
     align-items: flex-end;
     gap: 10px;
     padding: 12px 16px 14px;
-  }
+}
 
-  .acm-textarea {
+.acm-textarea {
     flex: 1;
     resize: none;
     border: 1.5px solid var(--surface-border);
@@ -1637,23 +2226,23 @@
     transition: var(--transition-fast);
     max-height: 140px;
     overflow-y: auto;
-  }
+}
 
-  .acm-textarea:focus {
+.acm-textarea:focus {
     border-color: var(--practiq-violet-light);
     box-shadow: 0 0 0 3px rgba(var(--practiq-violet-light-rgb), 0.1);
     background: var(--surface-card);
-  }
+}
 
-  .acm-textarea:disabled {
+.acm-textarea:disabled {
     opacity: 0.55;
     cursor: not-allowed;
-  }
-  .acm-textarea::placeholder {
+}
+.acm-textarea::placeholder {
     color: var(--text-muted);
-  }
+}
 
-  .acm-send {
+.acm-send {
     width: 42px;
     height: 42px;
     border-radius: 50%;
@@ -1667,30 +2256,29 @@
     justify-content: center;
     font-size: 16px;
     transition: var(--transition-fast);
-  }
+}
 
-  .acm-send:hover:not(:disabled) {
+.acm-send:hover:not(:disabled) {
     background: var(--practiq-violet-dark);
     transform: scale(1.07);
     box-shadow: var(--shadow-violet);
-  }
+}
 
-  .acm-send:disabled {
+.acm-send:disabled {
     opacity: 0.4;
     cursor: not-allowed;
-  }
+}
 
-  /* Oral input */
-  .acm-oral-input {
+.acm-oral-input {
     flex: 1;
     display: flex;
     flex-direction: column;
     align-items: center;
     gap: 10px;
     padding: 6px 0;
-  }
+}
 
-  .acm-mic-big {
+.acm-mic-big {
     width: 64px;
     height: 64px;
     border-radius: 50%;
@@ -1706,33 +2294,32 @@
     box-shadow: var(--shadow-violet);
     user-select: none;
     -webkit-user-select: none;
-  }
+}
 
-  .acm-mic-big:hover:not(:disabled) {
+.acm-mic-big:hover:not(:disabled) {
     background: var(--practiq-violet-dark);
     transform: scale(1.06);
-  }
+}
 
-  .acm-mic-big--recording {
+.acm-mic-big--recording {
     background: var(--color-error) !important;
     animation: acm-pulse 0.7s infinite;
     box-shadow: 0 0 0 8px rgba(var(--color-error-rgb), 0.15);
-  }
+}
 
-  .acm-mic-big:disabled {
+.acm-mic-big:disabled {
     opacity: 0.5;
     cursor: not-allowed;
-  }
+}
 
-  .acm-oral-tip {
+.acm-oral-tip {
     font-size: 12px;
     color: var(--text-muted);
     text-align: center;
     max-width: 260px;
-  }
+}
 
-  /* Recording bar */
-  .acm-recording-bar {
+.acm-recording-bar {
     display: flex;
     align-items: center;
     gap: 8px;
@@ -1741,163 +2328,248 @@
     border-top: 1px solid rgba(var(--color-error-rgb), 0.25);
     font-size: var(--text-sm);
     color: var(--color-error-dark);
-  }
+}
 
-  .acm-recording-dot {
+.acm-recording-dot {
     width: 8px;
     height: 8px;
     border-radius: 50%;
     background: var(--color-error);
     animation: acm-pulse 0.7s infinite;
-  }
+}
 
-  /* Slide transition for mode strip */
-  .acm-slide-enter-active,
-  .acm-slide-leave-active {
+.acm-slide-enter-active,
+.acm-slide-leave-active {
     transition: all 0.18s ease;
     overflow: hidden;
-  }
-  .acm-slide-enter-from,
-  .acm-slide-leave-to {
+}
+.acm-slide-enter-from,
+.acm-slide-leave-to {
     opacity: 0;
     max-height: 0;
-  }
-  .acm-slide-enter-to,
-  .acm-slide-leave-from {
+}
+.acm-slide-enter-to,
+.acm-slide-leave-from {
     opacity: 1;
     max-height: 80px;
-  }
+}
 
-  /* Animations */
-  @keyframes acm-pulse {
+@keyframes acm-pulse {
     0%,
     100% {
-      opacity: 1;
+        opacity: 1;
     }
     50% {
-      opacity: 0.35;
+        opacity: 0.35;
     }
-  }
+}
 
-  @keyframes acm-bounce {
+@keyframes acm-bounce {
     0%,
     80%,
     100% {
-      transform: translateY(0);
-      opacity: 0.45;
+        transform: translateY(0);
+        opacity: 0.45;
     }
     40% {
-      transform: translateY(-6px);
-      opacity: 1;
+        transform: translateY(-6px);
+        opacity: 1;
     }
-  }
+}
 
-  /* Tablet portrait */
-  @media (max-width: 768px) {
+@media (max-width: 768px) {
     .acm-modal {
-      width: 96vw;
-      height: 92vh;
+        width: 96vw;
+        height: 92vh;
     }
 
     .acm-piz-split {
-      flex-direction: column;
+        flex-direction: column;
     }
 
     .acm-piz-exercise {
-      flex: 0 0 45%;
-      border-right: none;
-      border-bottom: 1px solid var(--surface-border);
+        flex: 0 0 45%;
+        border-right: none;
+        border-bottom: 1px solid var(--surface-border);
     }
 
     .acm-bubble {
-      max-width: 80%;
+        max-width: 80%;
     }
 
     .acm-messages {
-      padding: 16px;
+        padding: 16px;
     }
-  }
+}
 
-  /* Mobile */
-  @media (max-width: 600px) {
+@media (max-width: 600px) {
     .acm-overlay {
-      padding: 0;
-      align-items: flex-end;
+        padding: 0;
+        align-items: stretch;
+        justify-content: stretch;
+        overflow: hidden;
     }
     .acm-modal {
-      width: 100vw;
-      height: 100dvh;
-      border-radius: 0;
+        width: 100vw;
+        height: 100%;
+        min-height: 0;
+        border-radius: 0;
+    }
+    .acm-header {
+        padding: 10px 16px;
+    }
+    .acm-avatar,
+    .acm-avatar img {
+        width: 36px;
+        height: 36px;
+        min-width: 36px;
+    }
+    .acm-title {
+        font-size: 0.98rem;
+    }
+    .acm-status {
+        font-size: 0.72rem;
     }
     .acm-bubble {
-      max-width: 85%;
+        max-width: 85%;
     }
 
     .acm-piz-split {
-      flex-direction: column;
+        flex-direction: column;
     }
     .acm-piz-exercise {
-      flex: 0 0 40%;
-      border-right: none;
-      border-bottom: 1px solid var(--surface-border);
+        flex: 0 0 40%;
+        border-right: none;
+        border-bottom: 1px solid var(--surface-border);
     }
-  }
 
-  /* Markdown + Math typography */
-  :deep(.acm-bubble--md) {
+    .acm-practice-picker {
+        padding: 18px 16px;
+        gap: 14px;
+    }
+    .acm-practice-picker__intro h3 {
+        margin: 2px 0 5px;
+        font-size: 1.12rem;
+    }
+    .acm-practice-picker__intro p {
+        font-size: 0.9rem;
+        line-height: 1.35;
+    }
+    .acm-practice-picker__eyebrow,
+    .acm-practice-picker__label {
+        font-size: 0.7rem;
+    }
+    .acm-practice-picker__group {
+        gap: 7px;
+    }
+    .acm-practice-picker__chips {
+        flex-wrap: nowrap;
+        gap: 7px;
+        overflow-x: auto;
+        padding-bottom: 2px;
+        scrollbar-width: none;
+    }
+    .acm-practice-picker__chips::-webkit-scrollbar {
+        display: none;
+    }
+    .acm-practice-context {
+        padding-inline: 14px;
+    }
+    .acm-practice-picker__modes {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 8px;
+    }
+    .acm-practice-chip {
+        flex: 0 0 auto;
+        min-height: 40px;
+        padding: 6px 11px;
+        font-size: 0.82rem;
+    }
+    .acm-practice-mode {
+        min-height: 58px;
+        gap: 7px;
+        padding: 8px;
+    }
+    .acm-practice-mode > i {
+        font-size: 0.95rem;
+    }
+    .acm-practice-mode strong {
+        font-size: 0.84rem;
+    }
+    .acm-practice-mode small {
+        font-size: 0.64rem;
+        line-height: 1.15;
+    }
+    .acm-practice-picker__start {
+        min-height: 44px;
+        font-size: 0.9rem;
+    }
+    .acm-practice-picker__start {
+        width: 100%;
+        justify-content: center;
+    }
+
+    .acm-close,
+    .acm-tool-btn {
+        width: 44px;
+        height: 44px;
+    }
+}
+
+:deep(.acm-bubble--md) {
     line-height: 1.7;
     overflow-wrap: break-word;
-  }
+}
 
-  :deep(.acm-bubble--md p) {
+:deep(.acm-bubble--md p) {
     margin: 0 0 10px;
-  }
-  :deep(.acm-bubble--md p:last-child) {
+}
+:deep(.acm-bubble--md p:last-child) {
     margin-bottom: 0;
-  }
+}
 
-  :deep(.acm-bubble--md strong) {
+:deep(.acm-bubble--md strong) {
     font-weight: 700;
-  }
-  :deep(.acm-bubble--md em) {
+}
+:deep(.acm-bubble--md em) {
     font-style: italic;
-  }
+}
 
-  :deep(.acm-bubble--md h1),
-  :deep(.acm-bubble--md h2),
-  :deep(.acm-bubble--md h3) {
+:deep(.acm-bubble--md h1),
+:deep(.acm-bubble--md h2),
+:deep(.acm-bubble--md h3) {
     font-weight: 700;
     margin: 14px 0 6px;
     line-height: 1.3;
-  }
-  :deep(.acm-bubble--md h1) {
+}
+:deep(.acm-bubble--md h1) {
     font-size: 1.15em;
-  }
-  :deep(.acm-bubble--md h2) {
+}
+:deep(.acm-bubble--md h2) {
     font-size: 1.05em;
-  }
-  :deep(.acm-bubble--md h3) {
+}
+:deep(.acm-bubble--md h3) {
     font-size: 1em;
-  }
+}
 
-  :deep(.acm-bubble--md ul),
-  :deep(.acm-bubble--md ol) {
+:deep(.acm-bubble--md ul),
+:deep(.acm-bubble--md ol) {
     padding-left: 20px;
     margin: 6px 0 10px;
-  }
-  :deep(.acm-bubble--md li) {
+}
+:deep(.acm-bubble--md li) {
     margin-bottom: 4px;
-  }
+}
 
-  :deep(.acm-bubble--md code) {
+:deep(.acm-bubble--md code) {
     background: rgba(var(--practiq-violet-rgb), 0.08);
     border-radius: 4px;
     padding: 1px 5px;
-    font-family: "JetBrains Mono", "Fira Code", monospace;
+    font-family: 'JetBrains Mono', 'Fira Code', monospace;
     font-size: 0.88em;
-  }
+}
 
-  :deep(.acm-bubble--md pre) {
+:deep(.acm-bubble--md pre) {
     background: #1e1e2e;
     color: #cdd6f4;
     border-radius: 8px;
@@ -1906,57 +2578,55 @@
     margin: 8px 0;
     font-size: 0.85em;
     line-height: 1.5;
-  }
+}
 
-  :deep(.acm-bubble--md pre code) {
+:deep(.acm-bubble--md pre code) {
     background: none;
     padding: 0;
     color: inherit;
     font-size: inherit;
-  }
+}
 
-  :deep(.acm-bubble--md blockquote) {
+:deep(.acm-bubble--md blockquote) {
     border-left: 3px solid var(--practiq-violet-light);
     padding: 4px 12px;
     margin: 8px 0;
     color: var(--text-secondary);
     background: var(--practiq-violet-bg);
     border-radius: 0 6px 6px 0;
-  }
+}
 
-  :deep(.acm-bubble--md table) {
+:deep(.acm-bubble--md table) {
     border-collapse: collapse;
     width: 100%;
     margin: 10px 0;
     font-size: 0.9em;
-  }
+}
 
-  :deep(.acm-bubble--md th),
-  :deep(.acm-bubble--md td) {
+:deep(.acm-bubble--md th),
+:deep(.acm-bubble--md td) {
     border: 1px solid var(--surface-border);
     padding: 6px 10px;
     text-align: left;
-  }
+}
 
-  :deep(.acm-bubble--md th) {
+:deep(.acm-bubble--md th) {
     background: var(--practiq-violet-bg);
     font-weight: 700;
-  }
+}
 
-  :deep(.acm-bubble--md hr) {
+:deep(.acm-bubble--md hr) {
     border: none;
     border-top: 1px solid var(--surface-border);
     margin: 12px 0;
-  }
+}
 
-  /* KaTeX display math centering */
-  :deep(.acm-bubble--md .katex-display) {
+:deep(.acm-bubble--md .katex-display) {
     margin: 10px 0;
     overflow-x: auto;
-  }
+}
 
-  /* Ensure KaTeX inline doesn't break layout */
-  :deep(.acm-bubble--md .katex) {
+:deep(.acm-bubble--md .katex) {
     font-size: 1.05em;
-  }
+}
 </style>
