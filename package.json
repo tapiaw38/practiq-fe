@@ -12,6 +12,9 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@capacitor/android": "^8.5.2",
+    "@capacitor/cli": "^8.5.2",
+    "@capacitor/core": "^8.5.2",
     "@dicebear/core": "^10.7.0",
     "@dicebear/styles": "^10.6.0",
     "@tanstack/vue-query": "^5.62.11",

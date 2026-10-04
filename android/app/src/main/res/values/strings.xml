@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Practiq</string>
+    <string name="title_activity_main">Practiq</string>
+    <string name="package_name">com.practiq.app</string>
+    <string name="custom_url_scheme">com.practiq.app</string>
+</resources>
