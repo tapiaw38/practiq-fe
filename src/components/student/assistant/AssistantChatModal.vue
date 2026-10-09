@@ -1018,6 +1018,7 @@ async function postStreamingFormData(fd: FormData, imageProcessor = false): Prom
     let nextAudioIndex = 0;
     let audioPlaying = false;
     let audioElement: HTMLAudioElement | null = null;
+    let processedResponseEvent = false;
     const playAvailableAudio = () => {
         if (audioPlaying) return;
         const index = audioPending.has(-1) ? -1 : nextAudioIndex;
@@ -1069,8 +1070,12 @@ async function postStreamingFormData(fd: FormData, imageProcessor = false): Prom
                 }
                 const message = messages.value.find((entry) => entry.id === assistantId);
                 if (typeof item === 'string') {
-                    if (message) message.content += item;
+                    if (item) {
+                        processedResponseEvent = true;
+                        if (message) message.content += item;
+                    }
                 } else if (item?.type === 'audio' && typeof item.url === 'string') {
+                    processedResponseEvent = true;
                     audioPending.set(Number(item.index), item.url);
                     playAvailableAudio();
                 }
@@ -1094,6 +1099,10 @@ async function postStreamingFormData(fd: FormData, imageProcessor = false): Prom
         if (currentAudio) {
             currentAudio.pause();
             currentAudio.src = '';
+        }
+        if (processedResponseEvent) {
+            addMsg('assistant', 'La respuesta se interrumpió, por favor reintentá.');
+            return;
         }
         messages.value = messages.value.filter((entry) => entry.id !== assistantId);
         fd = fallbackData;
