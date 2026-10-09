@@ -987,6 +987,123 @@ async function postFormData(fd: FormData, imageProcessor = false): Promise<Assis
     return parseAssistantReply(assistantMsg?.content || '', assistantMsg?.audio_url);
 }
 
+async function postStreamingFormData(fd: FormData, imageProcessor = false): Promise<void> {
+    if (!conversationId) {
+        const text = (fd.get('content') as string) || 'Nueva conversación';
+        await createConversation(text.substring(0, 30));
+    }
+    const fallbackData = new FormData();
+    fd.forEach((value, key) => fallbackData.append(key, value));
+    const imgParam = imageProcessor ? 'activate' : 'deactivate';
+    const voiceParam = voiceReplies.value ? 'activate' : 'deactivate';
+    const url = `${API_BASE}/conversation/${conversationId}/message/stream?has_image_processor=${imgParam}&has_text_to_voice=${voiceParam}`;
+    fd.set(
+        'content',
+        buildInstructionWrappedContent(
+            ((fd.get('content') as string) || '').trim(),
+            fd.has('image_content'),
+        ),
+    );
+    const assistantId = ++msgCounter;
+    messages.value.push({
+        id: assistantId,
+        sender: 'assistant',
+        content: '',
+        html: false,
+        isAudio: false,
+        audioSrc: undefined,
+    });
+    nextTick(scrollBottom);
+    const audioPending = new Map<number, string>();
+    let nextAudioIndex = 0;
+    let audioPlaying = false;
+    let audioElement: HTMLAudioElement | null = null;
+    const playAvailableAudio = () => {
+        if (audioPlaying) return;
+        const index = audioPending.has(-1) ? -1 : nextAudioIndex;
+        const audioUrl = audioPending.get(index);
+        if (!audioUrl) return;
+        audioPending.delete(index);
+        if (index >= 0) nextAudioIndex++;
+        audioElement = new Audio(audioUrl);
+        audioPlaying = true;
+        audioElement.onended = () => {
+            audioPlaying = false;
+            playAvailableAudio();
+        };
+        audioElement.onerror = () => {
+            audioPlaying = false;
+            playAvailableAudio();
+        };
+        void audioElement.play().catch(() => {
+            audioPlaying = false;
+            playAvailableAudio();
+        });
+    };
+    try {
+        const res = await fetchAssistant(url, { method: 'POST', headers: authHeaders(), body: fd });
+        if (!res.ok || !res.body) throw new Error(`stream message ${res.status}`);
+        const reader = res.body.getReader();
+        const decoder = new TextDecoder();
+        let buffer = '';
+        let finished = false;
+        while (!finished) {
+            const { value, done } = await reader.read();
+            buffer += decoder.decode(value, { stream: !done });
+            const events = buffer.split(/\r?\n\r?\n/);
+            buffer = events.pop() || '';
+            for (const event of events) {
+                const payload = event
+                    .split(/\r?\n/)
+                    .filter((line) => line.startsWith('data:'))
+                    .map((line) => line.slice(5).trim())
+                    .join('\n');
+                if (!payload) continue;
+                const item = JSON.parse(payload);
+                if (item === '[DONE]') {
+                    finished = true;
+                    break;
+                }
+                if (typeof item === 'string' && item.startsWith('[ERROR]')) {
+                    throw new Error(item);
+                }
+                const message = messages.value.find((entry) => entry.id === assistantId);
+                if (typeof item === 'string') {
+                    if (message) message.content += item;
+                } else if (item?.type === 'audio' && typeof item.url === 'string') {
+                    audioPending.set(Number(item.index), item.url);
+                    playAvailableAudio();
+                }
+                nextTick(scrollBottom);
+            }
+            if (done) break;
+        }
+        if (!finished && buffer.trim()) {
+            const payload = buffer.split(/\r?\n/).find((line) => line.startsWith('data:'))?.slice(5).trim();
+            if (payload) {
+                const item = JSON.parse(payload);
+                if (item === '[ERROR]' || (typeof item === 'string' && item.startsWith('[ERROR]'))) throw new Error(item);
+                if (typeof item === 'string' && item !== '[DONE]') {
+                    const message = messages.value.find((entry) => entry.id === assistantId);
+                    if (message) message.content += item;
+                }
+            }
+        }
+    } catch {
+        const currentAudio = audioElement as HTMLAudioElement | null;
+        if (currentAudio) {
+            currentAudio.pause();
+            currentAudio.src = '';
+        }
+        messages.value = messages.value.filter((entry) => entry.id !== assistantId);
+        fd = fallbackData;
+        const reply = await postFormData(fd, imageProcessor);
+        if (reply.text || reply.audioUrl) {
+            addMsg('assistant', reply.text, true, reply.audioUrl ? { src: reply.audioUrl } : undefined);
+        }
+    }
+}
+
 async function loadHistory() {
     const storedClientId = localStorage.getItem(STORAGE_KEY);
     if (!storedClientId) return;
@@ -1042,15 +1159,7 @@ async function sendText() {
         fd.append('content', text);
         fd.append('context', buildContext());
         const hasImage = await attachActivityCapture(fd);
-        const reply = await postFormData(fd, hasImage);
-        if (reply.text || reply.audioUrl) {
-            addMsg(
-                'assistant',
-                reply.text,
-                true,
-                reply.audioUrl ? { src: reply.audioUrl } : undefined,
-            );
-        }
+        await postStreamingFormData(fd, hasImage);
     } catch {
         addMsg('assistant', 'Ocurrió un error. Por favor intenta de nuevo.');
     } finally {
@@ -1110,15 +1219,7 @@ async function stopRecording() {
         fd.append('voice_content', wavBlob, 'audio.wav');
         fd.append('context', buildContext());
         const hasImage = await attachActivityCapture(fd);
-        const reply = await postFormData(fd, hasImage);
-        if (reply.text || reply.audioUrl) {
-            addMsg(
-                'assistant',
-                reply.text,
-                true,
-                reply.audioUrl ? { src: reply.audioUrl } : undefined,
-            );
-        }
+        await postStreamingFormData(fd, hasImage);
     } catch (error) {
         console.error('Error processing audio:', error);
         addMsg('assistant', 'Ocurrió un error procesando el audio. Por favor intenta de nuevo.');
