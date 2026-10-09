@@ -1,10 +1,11 @@
-import type { Material } from "@/types";
+import type { Material } from '@/types';
 
 export interface MaterialsListProps {
-  materials: Material[];
+    materials: Material[];
 }
 
 export interface MaterialsListEmits {
-  (e: "create"): void;
-  (e: "delete", materialId: string): void;
+    (e: 'create'): void;
+    (e: 'edit', material: Material): void;
+    (e: 'delete', materialId: string): void;
 }

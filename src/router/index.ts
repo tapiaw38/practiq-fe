@@ -1,164 +1,270 @@
-import { createRouter, createWebHistory } from "vue-router";
-import { getToken } from "@/api/request/server";
+import { createRouter, createWebHistory } from 'vue-router';
+import { getToken } from '@/api/request/server';
 
 const router = createRouter({
-  history: createWebHistory(),
-  routes: [
-    {
-      path: "/",
-      redirect: () => {
-        const token = getToken();
-        if (!token) return "/login";
-        return "/dashboard";
-      },
-    },
-    {
-      path: "/dashboard",
-      redirect: () => {
-        try {
-          const profileStr = localStorage.getItem("practiq_profile");
-          if (profileStr) {
-            const profile = JSON.parse(profileStr);
-            if (profile.profile_type === "teacher") return "/teacher/dashboard";
-            return "/student/dashboard";
-          }
-        } catch {}
-        return "/student/dashboard";
-      },
-    },
-    {
-      path: "/login",
-      name: "login",
-      component: () => import("@/views/LoginView.vue"),
-      meta: { requiresGuest: true },
-    },
-    {
-      path: "/teacher/dashboard",
-      name: "teacher-dashboard",
-      component: () => import("@/views/teacher/DashboardView.vue"),
-      meta: { requiresAuth: true, profileType: "teacher" },
-    },
-    {
-      path: "/teacher/admin/users",
-      name: "teacher-admin-users",
-      component: () => import("@/views/teacher/AdminUsersView.vue"),
-      meta: { requiresAuth: true, profileType: "teacher" },
-    },
-    {
-      path: "/teacher/admin/academic",
-      name: "teacher-admin-academic",
-      component: () => import("@/views/teacher/AcademicAdminView.vue"),
-      meta: { requiresAuth: true, profileType: "teacher" },
-    },
-    {
-      path: "/teacher/admin/academic/subjects/:subjectId/courses",
-      name: "teacher-subject-courses",
-      component: () => import("@/views/teacher/SubjectCoursesView.vue"),
-      meta: { requiresAuth: true, profileType: "teacher" },
-    },
-    {
-      path: "/teacher/courses/:id",
-      name: "teacher-course",
-      component: () => import("@/views/teacher/CourseDetailView.vue"),
-      meta: { requiresAuth: true, profileType: "teacher" },
-    },
-    {
-      path: "/student/dashboard",
-      name: "student-dashboard",
-      component: () => import("@/views/student/DashboardView.vue"),
-      meta: { requiresAuth: true, profileType: "student" },
-    },
-    {
-      path: "/student/practice/:id",
-      name: "student-practice",
-      component: () => import("@/views/student/PracticeView.vue"),
-      meta: { requiresAuth: true, profileType: "student" },
-    },
-    {
-      path: "/student/book/:id",
-      redirect: (to) => `/student/practice/${to.params.id}`,
-    },
-    {
-      path: "/student/level-test/:id",
-      name: "student-level-test",
-      component: () => import("@/views/student/LevelTestView.vue"),
-      meta: { requiresAuth: true, profileType: "student" },
-    },
-    {
-      path: "/student/notebook/:id",
-      name: "student-notebook",
-      component: () => import("@/views/student/NotebookView.vue"),
-      meta: { requiresAuth: true, profileType: "student" },
-    },
-    {
-      path: "/student/courses/:courseId/levels",
-      name: "student-course-levels",
-      component: () => import("@/views/student/CourseLevelsView.vue"),
-      meta: { requiresAuth: true, profileType: "student" },
-    },
-    {
-      path: "/teacher/courses/:courseId/notebooks/:id",
-      name: "teacher-notebook",
-      component: () => import("@/views/teacher/NotebookEditorView.vue"),
-      meta: { requiresAuth: true, profileType: "teacher" },
-    },
-    {
-      path: "/teacher/students/:studentId/progress",
-      name: "teacher-student-progress",
-      component: () => import("@/views/teacher/StudentProgressView.vue"),
-      meta: { requiresAuth: true, profileType: "teacher" },
-    },
-    {
-      path: "/teacher/notebook-reviews",
-      name: "teacher-notebook-reviews",
-      component: () => import("@/views/teacher/NotebookReviewView.vue"),
-      meta: { requiresAuth: true, profileType: "teacher" },
-    },
-    {
-      path: "/teacher/strategies",
-      name: "teacher-strategies",
-      component: () => import("@/views/teacher/StrategyManagementView.vue"),
-      meta: { requiresAuth: true, profileType: "teacher" },
-    },
-    {
-      path: "/:pathMatch(.*)*",
-      redirect: "/",
-    },
-  ],
+    history: createWebHistory(),
+    routes: [
+        {
+            path: '/',
+            redirect: () => {
+                const token = getToken();
+                if (!token) return '/login';
+                return '/dashboard';
+            },
+        },
+        {
+            path: '/dashboard',
+            redirect: () => {
+                try {
+                    const profileStr = localStorage.getItem('practiq_profile');
+                    if (profileStr) {
+                        const profile = JSON.parse(profileStr);
+                        if (profile.profile_type === 'teacher') return '/teacher/dashboard';
+                        return '/student/dashboard';
+                    }
+                } catch {}
+                return '/student/dashboard';
+            },
+        },
+        {
+            path: '/login',
+            name: 'login',
+            component: () => import('@/views/LoginView.vue'),
+            meta: { requiresGuest: true },
+        },
+        {
+            path: '/auth/mobile-callback',
+            name: 'google-mobile-callback',
+            component: () => import('@/views/GoogleMobileCallbackView.vue'),
+            meta: { requiresAuth: false },
+        },
+        {
+            path: '/teacher/dashboard',
+            name: 'teacher-dashboard',
+            component: () => import('@/views/teacher/DashboardView.vue'),
+            meta: { requiresAuth: true, profileType: 'teacher' },
+        },
+        {
+            path: '/teacher/admin/users',
+            name: 'teacher-admin-users',
+            component: () => import('@/views/teacher/AdminUsersView.vue'),
+            meta: { requiresAuth: true, profileType: 'teacher', roles: ['superadmin'] },
+        },
+        {
+            path: '/teacher/admin/academic',
+            name: 'teacher-admin-academic',
+            component: () => import('@/views/teacher/AcademicAdminView.vue'),
+
+            meta: { requiresAuth: true, profileType: 'teacher' },
+        },
+        {
+            path: '/teacher/admin/school-users',
+            name: 'teacher-admin-school-users',
+            component: () => import('@/views/teacher/SchoolUsersView.vue'),
+
+            meta: { requiresAuth: true, profileType: 'teacher' },
+        },
+        {
+            path: '/teacher/admin/academic/subjects/:subjectId/courses',
+            name: 'teacher-subject-courses',
+            component: () => import('@/views/teacher/SubjectCoursesView.vue'),
+
+            meta: { requiresAuth: true, profileType: 'teacher' },
+        },
+        {
+            path: '/teacher/courses/:id',
+            name: 'teacher-course',
+            component: () => import('@/views/teacher/CourseDetailView.vue'),
+            meta: { requiresAuth: true, profileType: 'teacher' },
+        },
+        {
+            path: '/student/dashboard',
+            name: 'student-dashboard',
+            component: () => import('@/views/student/DashboardView.vue'),
+            meta: { requiresAuth: true, profileType: 'student' },
+        },
+        {
+            path: '/student/practice/:id',
+            name: 'student-practice',
+            component: () => import('@/views/student/PracticeView.vue'),
+            meta: { requiresAuth: true, profileType: 'student' },
+        },
+        {
+            path: '/student/book/:id',
+            redirect: (to) => `/student/practice/${to.params.id}`,
+        },
+        {
+            path: '/student/level-test/:id',
+            name: 'student-level-test',
+            component: () => import('@/views/student/LevelTestView.vue'),
+            meta: { requiresAuth: true, profileType: 'student' },
+        },
+        {
+            path: '/student/notebook/:id',
+            name: 'student-notebook',
+            component: () => import('@/views/student/NotebookView.vue'),
+            meta: { requiresAuth: true, profileType: 'student' },
+        },
+        {
+            path: '/student/progress',
+            name: 'student-progress',
+            component: () => import('@/views/student/ProgressView.vue'),
+            meta: { requiresAuth: true, profileType: 'student' },
+        },
+        {
+            path: '/student/league',
+            name: 'student-league',
+            component: () => import('@/views/student/LeagueView.vue'),
+            meta: { requiresAuth: true, profileType: 'student' },
+        },
+        {
+            path: '/student/profile',
+            name: 'student-profile',
+            component: () => import('@/views/student/ProfileView.vue'),
+            meta: { requiresAuth: true, profileType: 'student' },
+        },
+        {
+            path: '/student/courses/:courseId/levels',
+            name: 'student-course-levels',
+            component: () => import('@/views/student/CourseLevelsView.vue'),
+            meta: { requiresAuth: true, profileType: 'student' },
+        },
+        {
+            path: '/teacher/courses/:courseId/notebooks/:id',
+            name: 'teacher-notebook',
+            component: () => import('@/views/teacher/NotebookEditorView.vue'),
+            meta: { requiresAuth: true, profileType: 'teacher' },
+        },
+        {
+            path: '/teacher/students/:studentId/progress',
+            name: 'teacher-student-progress',
+            component: () => import('@/views/teacher/StudentProgressView.vue'),
+            meta: { requiresAuth: true, profileType: 'teacher' },
+        },
+        {
+            path: '/teacher/attempt-reviews',
+            name: 'teacher-attempt-reviews',
+            component: () => import('@/views/teacher/AttemptReviewsView.vue'),
+            meta: { requiresAuth: true, profileType: 'teacher' },
+        },
+        {
+            path: '/teacher/notebook-reviews',
+            name: 'teacher-notebook-reviews',
+            component: () => import('@/views/teacher/NotebookReviewView.vue'),
+            meta: { requiresAuth: true, profileType: 'teacher' },
+        },
+        {
+            path: '/teacher/strategies',
+            name: 'teacher-strategies',
+            component: () => import('@/views/teacher/StrategyManagementView.vue'),
+            meta: { requiresAuth: true, profileType: 'teacher', roles: ['superadmin'] },
+        },
+        {
+            path: '/teacher/subscription',
+            name: 'teacher-subscription',
+            component: () => import('@/views/teacher/SubscriptionView.vue'),
+            meta: { requiresAuth: true, profileType: 'teacher' },
+        },
+        {
+            path: '/teacher/admin/schools',
+            name: 'teacher-admin-schools',
+            component: () => import('@/views/teacher/AdminSchoolsView.vue'),
+            meta: { requiresAuth: true, profileType: 'teacher', roles: ['superadmin'] },
+        },
+        {
+            path: '/teacher/admin/plans',
+            name: 'teacher-admin-plans',
+            component: () => import('@/views/teacher/AdminPlansView.vue'),
+            meta: { requiresAuth: true, profileType: 'teacher', roles: ['superadmin'] },
+        },
+        {
+            path: '/teacher/admin/site-contact',
+            name: 'teacher-admin-site-contact',
+            component: () => import('@/views/teacher/AdminSiteContactView.vue'),
+            meta: { requiresAuth: true, profileType: 'teacher', roles: ['superadmin'] },
+        },
+        {
+            path: '/teacher/admin/assistant',
+            name: 'teacher-admin-assistant',
+            component: () => import('@/views/teacher/AdminAssistantView.vue'),
+            meta: { requiresAuth: true, profileType: 'teacher', roles: ['superadmin'] },
+        },
+        {
+            path: '/:pathMatch(.*)*',
+            redirect: '/',
+        },
+    ],
 });
 
 router.beforeEach((to, _from, next) => {
-  const token = getToken();
-  const isAuthenticated = !!token;
+    const token = getToken();
+    const isAuthenticated = !!token;
 
-  if (to.meta.requiresAuth && !isAuthenticated) {
-    next("/login");
-    return;
-  }
+    if (to.meta.requiresAuth && !isAuthenticated) {
+        next('/login');
+        return;
+    }
 
-  if (to.meta.requiresGuest && isAuthenticated) {
-    next("/dashboard");
-    return;
-  }
+    if (to.meta.requiresGuest && isAuthenticated) {
+        next('/dashboard');
+        return;
+    }
 
-  if (to.meta.requiresAuth && to.meta.profileType) {
-    try {
-      const profileStr = localStorage.getItem("practiq_profile");
-      if (profileStr) {
-        const profile = JSON.parse(profileStr);
-        if (profile.profile_type !== to.meta.profileType) {
-          next(
-            profile.profile_type === "teacher"
-              ? "/teacher/dashboard"
-              : "/student/dashboard",
-          );
-          return;
+    if (to.meta.requiresAuth && to.meta.profileType) {
+        try {
+            const profileStr = localStorage.getItem('practiq_profile');
+            if (profileStr) {
+                const profile = JSON.parse(profileStr);
+                if (profile.profile_type !== to.meta.profileType) {
+                    next(
+                        profile.profile_type === 'teacher'
+                            ? '/teacher/dashboard'
+                            : '/student/dashboard',
+                    );
+                    return;
+                }
+            }
+        } catch {}
+    }
+
+    const requiredRoles = to.meta.roles as string[] | undefined;
+    if (to.meta.requiresAuth && requiredRoles?.length) {
+        try {
+            const authUserStr = localStorage.getItem('practiq_auth_user');
+            const roles: { name: string }[] = authUserStr
+                ? JSON.parse(authUserStr).roles || []
+                : [];
+            if (!roles.some((role) => requiredRoles.includes(role.name))) {
+                next('/teacher/dashboard');
+                return;
+            }
+        } catch {
+            next('/teacher/dashboard');
+            return;
         }
-      }
-    } catch {}
-  }
+    }
 
-  next();
+    next();
+});
+
+const CHUNK_RELOAD_KEY = 'practiq:chunk-reload-url';
+const isStaleChunkError = (error: unknown) =>
+    /dynamically imported module|importing a module script failed|loading module/i.test(
+        error instanceof Error ? error.message : String(error),
+    );
+
+router.onError((error) => {
+    if (!isStaleChunkError(error)) return;
+
+    const currentUrl = window.location.href;
+    if (sessionStorage.getItem(CHUNK_RELOAD_KEY) === currentUrl) return;
+
+    sessionStorage.setItem(CHUNK_RELOAD_KEY, currentUrl);
+    window.location.reload();
+});
+
+router.afterEach(() => {
+    sessionStorage.removeItem(CHUNK_RELOAD_KEY);
 });
 
 export default router;

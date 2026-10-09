@@ -1,1051 +1,1305 @@
 <script setup lang="ts">
-  import { ref, computed, onMounted, onUnmounted, nextTick } from "vue";
-  import { useRoute, useRouter } from "vue-router";
-  import StudentLayout from "@/layouts/StudentLayout.vue";
-  import Skeleton from "@/components/ui/Skeleton.vue";
-  import ConfirmModal from "@/components/ui/ConfirmModal.vue";
-  import { useConfirm } from "@/composables/useConfirm";
-  import { usePracticeSheet } from "@/composables/usePracticeSheet";
-  import { useAuthStore } from "@/stores/authStore";
-  import type {
-    PracticeSheet,
-    PracticeSheetExercise,
-    SubmitResult,
-  } from "@/types";
-  import {
+import { ref, computed, onMounted, onUnmounted, nextTick, watch, defineAsyncComponent } from 'vue';
+import { statementImageDataURL } from '@/utils/statementImage';
+import ExerciseStepper from '@/components/student/exercises/ExerciseStepper.vue';
+import { useRoute, useRouter } from 'vue-router';
+import { useToast } from '@/composables/useToast';
+import StudentLayout from '@/layouts/StudentLayout.vue';
+import Skeleton from '@/components/ui/Skeleton.vue';
+import ConfirmModal from '@/components/ui/ConfirmModal.vue';
+import XPBubbles from '@/components/ui/XPBubbles.vue';
+import DrawingCanvas from '@/components/ui/DrawingCanvas.vue';
+import ColorPalette from '@/components/ui/ColorPalette.vue';
+import { BASE_COLORS } from '@/utils/palette';
+import AttachmentAnswer from '@/components/student/exercises/AttachmentAnswer.vue';
+import ExerciseMedia from '@/components/ui/ExerciseMedia.vue';
+import FillBlanksAnswer from '@/components/student/exercises/FillBlanksAnswer.vue';
+import { useLeaveWarning } from '@/composables/useLeaveWarning';
+import { usePracticeSheet } from '@/composables/usePracticeSheet';
+import { useAuthStore } from '@/stores/authStore';
+import type { UploadedFile } from '@/types/uploads';
+import type { PracticeSheet, PracticeSheetExercise, SubmitResult } from '@/types';
+import {
     composeAssistantWorkImage,
     extractTeacherImageDataUrl,
     parseExerciseMetadata,
     pickBestStudentImage,
+    prepareHandwritingImage,
     summarizeExerciseMetadata,
-  } from "@/utils/assistantExerciseContext";
-  import { formatDuration } from "@/utils/formatters";
-  import {
-    renderContent,
-    renderEquation,
-  } from "@/composables/useContentRenderer";
-  import MathFieldEditor from "@/components/ui/MathFieldEditor.vue";
+    statementMediaAudioAttachment,
+    statementMediaDocumentAttachment,
+    statementMediaPreviewDataURL,
+} from '@/utils/assistantExerciseContext';
+import { formatDuration } from '@/utils/formatters';
+import { renderContent, renderEquation } from '@/composables/useContentRenderer';
+import { useConfetti } from '@/composables/useConfetti';
+import { useSound } from '@/composables/useSound';
+import { useCuriosities } from '@/composables/useCuriosities';
+import { tuckAssistantFab } from '@/composables/useAssistantFabOffset';
+import AiLoadingModal from '@/components/student/ai/AiLoadingModal.vue';
+import UiModal from '@/components/ui/UiModal.vue';
+import { buildFillBlanksAssistantContext } from '@/utils/fillBlanks';
+import {
+    loadingMessages,
+    levelUpMessages,
+    encourageMessages,
+    randomMessage,
+} from '@/utils/motivationalMessages';
 
-  const route = useRoute();
-  const router = useRouter();
-  const { confirmState, showConfirm, onConfirm, onCancel } = useConfirm();
-  const authStore = useAuthStore();
-  const { loadPracticeSheet, submitPracticeSheetAsync, loadSubmitJob } =
-    usePracticeSheet();
+const MathFieldEditor = defineAsyncComponent(() => import('@/components/ui/MathFieldEditor.vue'));
 
-  const sheet = ref<PracticeSheet | null>(null);
-  const loading = ref(true);
-  const submitted = ref(false);
-  const submitting = ref(false);
-  const result = ref<SubmitResult | null>(null);
-  const answers = ref<Record<string, string>>({});
+const toast = useToast();
+const route = useRoute();
+const router = useRouter();
+const { leaveConfirmState, onLeaveConfirm, onLeaveCancel, leave } = useLeaveWarning(
+    () => testStarted.value && !submitted.value,
+);
+const authStore = useAuthStore();
+const { loadPracticeSheet, submitPracticeSheetAsync, loadSubmitJob } = usePracticeSheet();
+const { fireLevelUp } = useConfetti();
+const { play: playSound } = useSound();
+const { curiosities, fetchCuriosities } = useCuriosities();
+const curiosityIndex = ref(0);
 
-  // Modal states
-  const showInstructionsModal = ref(true);
-  const showTimeWarning = ref(false);
-  const showRetryModal = ref(false);
-  const showSuccessModal = ref(false);
-  const testStarted = ref(false);
-  let warningShown = false;
+const sheet = ref<PracticeSheet | null>(null);
+const loading = ref(true);
+const submitted = ref(false);
+const submitting = ref(false);
 
-  // Canvas state
-  const canvasRefs: Record<string, HTMLCanvasElement | null> = {};
-  const initializedIds = new Set<string>();
-  const canvasData = ref<Record<string, string>>({});
-  const undoStacks: Record<string, ImageData[]> = {};
-  const isDrawing: Record<string, boolean> = {};
-  const activeId = ref<string>("");
-  const tool = ref<"pen" | "eraser">("pen");
-  const penColor = ref(cssVar("--text-primary", "#1e293b"));
-  const penSize = ref(3);
+const pendingSubmitJobId = ref<string | null>(null);
+const result = ref<SubmitResult | null>(null);
+const showAllErrors = ref(false);
 
-  const penCursor = `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24'%3E%3Cpath fill='%231e1e2e' d='M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04a1 1 0 0 0 0-1.41l-2.34-2.34a1 1 0 0 0-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z'/%3E%3C/svg%3E") 0 24, crosshair`;
-  const eraserCursor = `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='20' height='20' viewBox='0 0 20 20'%3E%3Ccircle cx='10' cy='10' r='8' fill='none' stroke='%23666' stroke-width='1.5'/%3E%3C/svg%3E") 10 10, cell`;
-  const canvasCursor = computed(() =>
-    tool.value === "eraser" ? eraserCursor : penCursor,
-  );
+const incorrectResults = computed(
+    () =>
+        result.value?.exercise_results?.filter((r) => !r.is_correct && !r.needs_teacher_review) ??
+        [],
+);
 
-  function cssVar(name: string, fallback: string, depth = 0): string {
-    if (typeof window === "undefined") return fallback;
-    const value = getComputedStyle(document.documentElement)
-      .getPropertyValue(name)
-      .trim();
-    if (!value) return fallback;
-    const varMatch = value.match(/^var\((--[^,\s)]+)(?:,\s*(.+))?\)$/);
-    if (varMatch && depth < 4) {
-      return cssVar(varMatch[1], varMatch[2]?.trim() || fallback, depth + 1);
-    }
-    return value;
-  }
+const pendingResults = computed(
+    () => result.value?.exercise_results?.filter((r) => r.needs_teacher_review) ?? [],
+);
 
-  // Timer — 30 min
-  const TEST_DURATION_SECONDS = 30 * 60;
-  const timeLeft = ref(TEST_DURATION_SECONDS);
-  let timer: ReturnType<typeof setInterval> | null = null;
+const visibleErrors = computed(() =>
+    showAllErrors.value ? incorrectResults.value : incorrectResults.value.slice(0, 3),
+);
 
-  function startTimer() {
+const hiddenErrorsCount = computed(() => Math.max(0, incorrectResults.value.length - 3));
+
+function formatStudentAnswer(answer: string): string {
+    if (!answer || answer.trim() === '') return '(vacío)';
+    if (answer.toUpperCase() === 'UNREADABLE') return '(no se pudo leer)';
+    if (answer.startsWith('data:image/')) return '(no se pudo leer)';
+    return answer;
+}
+
+const answers = ref<Record<string, string>>({});
+const attachments = ref<Record<string, UploadedFile | null>>({});
+
+const uploadingAttachments = ref<Set<string>>(new Set());
+
+function setUploading(exerciseId: string, value: boolean) {
+    const next = new Set(uploadingAttachments.value);
+    if (value) next.add(exerciseId);
+    else next.delete(exerciseId);
+    uploadingAttachments.value = next;
+}
+
+function setAttachment(exerciseId: string, value: UploadedFile | null) {
+    attachments.value = { ...attachments.value, [exerciseId]: value };
+}
+
+const showInstructionsModal = ref(true);
+const showTimeWarning = ref(false);
+const showRetryModal = ref(false);
+const showSuccessModal = ref(false);
+const testStarted = ref(false);
+let warningShown = false;
+
+watch(
+    [showInstructionsModal, showRetryModal, showSuccessModal],
+    ([instructions, retry, success]) => {
+        document.body.classList.toggle('assistant-modal-open', instructions || retry || success);
+    },
+    { immediate: true },
+);
+const loadingMessage = ref(randomMessage(loadingMessages));
+let loadingMsgInterval: ReturnType<typeof setInterval> | null = null;
+
+const canvasRefs: Record<string, InstanceType<typeof DrawingCanvas> | null> = {};
+const canvasData = ref<Record<string, string>>({});
+const activeId = ref<string>('');
+const tool = ref<'pen' | 'eraser'>('pen');
+
+const penColor = ref(BASE_COLORS[0].value);
+const penSize = ref(3);
+
+const TEST_DURATION_SECONDS = 30 * 60;
+const timeLeft = ref(TEST_DURATION_SECONDS);
+
+function secondsUntilDeadline(deadline?: string) {
+    if (!deadline) return null;
+    const remaining = Math.floor((new Date(deadline).getTime() - Date.now()) / 1000);
+    return Number.isFinite(remaining) ? Math.max(remaining, 0) : null;
+}
+let timer: ReturnType<typeof setInterval> | null = null;
+
+const hasTimeLimit = computed(() => (sheet.value?.time_limit_minutes ?? 0) > 0);
+const elapsedSeconds = ref(0);
+
+function startTimer() {
     if (timer) clearInterval(timer);
     timer = setInterval(() => {
-      if (timeLeft.value <= 0) {
-        clearInterval(timer!);
-        timer = null;
-        submit();
-      } else if (timeLeft.value === 300 && !warningShown) {
-        // Show 5 minute warning
-        showTimeWarning.value = true;
-        warningShown = true;
-        // Auto-hide after 10 seconds
-        setTimeout(() => {
-          showTimeWarning.value = false;
-        }, 10000);
-      } else {
-        timeLeft.value--;
-      }
+        if (testStarted.value) elapsedSeconds.value++;
+        if (!hasTimeLimit.value) return;
+
+        const remaining = secondsUntilDeadline(sheet.value?.deadline);
+        if (remaining !== null) timeLeft.value = remaining;
+        if (!testStarted.value) return;
+        if (timeLeft.value <= 0) {
+            clearInterval(timer!);
+            timer = null;
+            submit();
+        } else if (timeLeft.value <= 300 && !warningShown) {
+            showTimeWarning.value = true;
+            warningShown = true;
+
+            setTimeout(() => {
+                showTimeWarning.value = false;
+            }, 10000);
+        } else if (remaining === null) {
+            timeLeft.value--;
+        }
     }, 1000);
-  }
+}
 
-  const exercises = computed<PracticeSheetExercise[]>(
-    () => sheet.value?.exercises || [],
-  );
-  const isCanvas = computed(() => sheet.value?.test_style === "canvas");
-  const hasCanvasExercises = computed(() =>
+const teacherImages = ref<Record<string, string>>({});
+
+function teacherImageFor(exercise?: { id?: string; question?: string; metadata?: string } | null) {
+    if (!exercise?.id) return '';
+
+    return teacherImages.value[exercise.id] || extractTeacherImageDataUrl(exercise as never);
+}
+
+async function loadTeacherImages() {
+    const pending = (sheet.value?.exercises ?? [])
+        .map((item) => item.exercise)
+        .filter((exercise) => exercise?.has_teacher_image)
+        .map(async (exercise) => {
+            const dataUrl = await statementImageDataURL(exercise);
+            if (dataUrl) teacherImages.value[exercise.id] = dataUrl;
+        });
+    await Promise.all(pending);
+}
+
+const exercises = computed<PracticeSheetExercise[]>(() => sheet.value?.exercises || []);
+const isCanvas = computed(() => sheet.value?.test_style === 'canvas');
+const hasCanvasExercises = computed(() =>
     exercises.value.some((ex) => exerciseUsesCanvas(ex.exercise.type)),
-  );
+);
 
-  function isAnswered(exerciseId: string) {
-    const exercise = exercises.value.find(
-      (ex) => ex.exercise.id === exerciseId,
-    )?.exercise;
-    if (exercise && exerciseUsesCanvas(exercise.type))
-      return !!canvasData.value[exerciseId];
-    return (answers.value[exerciseId] || "").trim() !== "";
-  }
+function isAnswered(exerciseId: string) {
+    const exercise = exercises.value.find((ex) => ex.exercise.id === exerciseId)?.exercise;
+    if (exercise?.type === 'attachment') {
+        return !!attachments.value[exerciseId];
+    }
+    if (exercise && exerciseUsesCanvas(exercise.type)) return !!canvasData.value[exerciseId];
+    return (answers.value[exerciseId] || '').trim() !== '';
+}
 
-  function setActiveExercise(exerciseId: string) {
+const currentIdx = ref(0);
+
+const visibleExercises = computed(() => {
+    const current = exercises.value[currentIdx.value];
+    return current ? [current] : [];
+});
+
+const answeredFlags = computed(() => exercises.value.map((item) => isAnswered(item.exercise.id)));
+
+function goToExercise(index: number) {
+    if (index < 0 || index >= exercises.value.length) return;
+    if (index === currentIdx.value) return;
+    const target = exercises.value[index];
+    if (!target) return;
+    currentIdx.value = index;
+    setActiveExercise(target.exercise.id);
+}
+
+function setActiveExercise(exerciseId: string) {
     activeId.value = exerciseId;
-  }
-
-  function exerciseUsesCanvas(exerciseType: string) {
-    return (
-      isCanvas.value ||
-      exerciseType === "handwritten" ||
-      exerciseType === "canvas"
+    const index = exercises.value.findIndex((item) => item.exercise.id === exerciseId);
+    window.dispatchEvent(
+        new CustomEvent('practiq:assistant:active-context', {
+            detail: { label: index >= 0 ? `E${index + 1}` : '' },
+        }),
     );
-  }
+}
 
-  function exerciseOptions(metadata?: string) {
+const OWN_INPUT_TYPES = new Set(['multiple_choice', 'fill_blanks', 'attachment', 'equation']);
+
+function exerciseUsesCanvas(exerciseType: string) {
+    if (OWN_INPUT_TYPES.has(exerciseType)) return false;
+    return isCanvas.value || exerciseType === 'handwritten' || exerciseType === 'canvas';
+}
+
+function exerciseOptions(metadata?: string) {
     const options = parseExerciseMetadata(metadata)?.options;
-    return Array.isArray(options)
-      ? options.map((option) => String(option)).filter(Boolean)
-      : [];
-  }
+    return Array.isArray(options) ? options.map((option) => String(option)).filter(Boolean) : [];
+}
 
-  const answeredCount = computed(
+const answeredCount = computed(
     () => exercises.value.filter((ex) => isAnswered(ex.exercise.id)).length,
-  );
-  const unansweredCount = computed(
-    () => exercises.value.length - answeredCount.value,
-  );
-  const answeredPercent = computed(() =>
-    exercises.value.length
-      ? Math.round((answeredCount.value / exercises.value.length) * 100)
-      : 0,
-  );
-  const formattedTime = computed(() => formatDuration(timeLeft.value));
+);
+const unansweredCount = computed(() => exercises.value.length - answeredCount.value);
+const answeredPercent = computed(() =>
+    exercises.value.length ? Math.round((answeredCount.value / exercises.value.length) * 100) : 0,
+);
+const formattedTime = computed(() => formatDuration(timeLeft.value));
 
-  // Canvas helpers
+const timeLimitLabel = computed(() => {
+    const minutes = sheet.value?.time_limit_minutes ?? 0;
+    if (minutes <= 0) return '';
+    return minutes === 1 ? '1 minuto' : `${minutes} minutos`;
+});
 
-  function setCanvasRef(id: string, el: HTMLCanvasElement | null) {
-    if (!el) {
-      canvasRefs[id] = null;
-      initializedIds.delete(id);
-      return;
-    }
+const attemptsLeftLabel = computed(() => {
+    const allowed = sheet.value?.attempts_allowed ?? 0;
+    if (allowed <= 1) return '';
+    const left = Math.max(allowed - (sheet.value?.attempts_used ?? 0), 0);
+    return left === 1 ? 'Último intento' : `${left} intentos restantes`;
+});
+
+function setCanvasRef(id: string, el: InstanceType<typeof DrawingCanvas> | null) {
     canvasRefs[id] = el;
-    if (!initializedIds.has(id)) {
-      initializedIds.add(id);
-      initCanvas(id, el);
-    }
-  }
+}
 
-  function drawBackground(ctx: CanvasRenderingContext2D, w: number, h: number) {
-    ctx.fillStyle = cssVar("--surface-bg-soft", "#fafaf7");
-    ctx.fillRect(0, 0, w, h);
-    ctx.strokeStyle = `rgba(${cssVar("--color-error-rgb", "239, 68, 68")}, 0.25)`;
-    ctx.lineWidth = 1.5;
-    ctx.beginPath();
-    ctx.moveTo(56, 0);
-    ctx.lineTo(56, h);
-    ctx.stroke();
-    ctx.strokeStyle = `rgba(${cssVar("--practiq-violet-rgb", "124, 58, 237")}, 0.1)`;
-    ctx.lineWidth = 1;
-    for (let y = 32; y < h; y += 32) {
-      ctx.beginPath();
-      ctx.moveTo(0, y);
-      ctx.lineTo(w, y);
-      ctx.stroke();
-    }
-  }
-
-  function initCanvas(id: string, canvas: HTMLCanvasElement) {
-    requestAnimationFrame(() => {
-      const w = canvas.offsetWidth || 680;
-      const h = canvas.offsetHeight || 220;
-      canvas.width = w;
-      canvas.height = h;
-      const ctx = canvas.getContext("2d")!;
-      drawBackground(ctx, w, h);
-      undoStacks[id] = [];
-    });
-  }
-
-  function getPoint(e: MouseEvent, canvas: HTMLCanvasElement) {
-    const rect = canvas.getBoundingClientRect();
-    return {
-      x: (e.clientX - rect.left) * (canvas.width / rect.width),
-      y: (e.clientY - rect.top) * (canvas.height / rect.height),
-    };
-  }
-
-  function startDraw(e: MouseEvent, id: string) {
-    const canvas = canvasRefs[id];
-    if (!canvas) return;
-    const ctx = canvas.getContext("2d")!;
-    // save undo state
-    if (!undoStacks[id]) undoStacks[id] = [];
-    undoStacks[id].push(ctx.getImageData(0, 0, canvas.width, canvas.height));
-    isDrawing[id] = true;
-    activeId.value = id;
-    const { x, y } = getPoint(e, canvas);
-    ctx.beginPath();
-    ctx.moveTo(x, y);
-  }
-
-  function draw(e: MouseEvent, id: string) {
-    if (!isDrawing[id]) return;
-    const canvas = canvasRefs[id];
-    if (!canvas) return;
-    const ctx = canvas.getContext("2d")!;
-    const { x, y } = getPoint(e, canvas);
-    ctx.globalCompositeOperation =
-      tool.value === "eraser" ? "destination-out" : "source-over";
-    ctx.strokeStyle = penColor.value;
-    ctx.lineWidth = tool.value === "eraser" ? penSize.value * 4 : penSize.value;
-    ctx.lineCap = "round";
-    ctx.lineJoin = "round";
-    ctx.lineTo(x, y);
-    ctx.stroke();
-  }
-
-  function endDraw(id: string) {
-    if (!isDrawing[id]) return;
-    isDrawing[id] = false;
-    const canvas = canvasRefs[id];
-    if (!canvas) return;
-    canvas.getContext("2d")!.beginPath();
-    // snapshot for answeredCount tracking (non-reactive — won't trigger re-render of canvases)
-    canvasData.value = {
-      ...canvasData.value,
-      [id]: canvas.toDataURL("image/png"),
-    };
-  }
-
-  function startDrawTouch(e: TouchEvent, id: string) {
-    const t = e.touches[0];
-    startDraw({ clientX: t.clientX, clientY: t.clientY } as MouseEvent, id);
-  }
-
-  function drawTouch(e: TouchEvent, id: string) {
-    const t = e.touches[0];
-    draw({ clientX: t.clientX, clientY: t.clientY } as MouseEvent, id);
-  }
-
-  function undoActive() {
+function undoActive() {
     const id = activeId.value;
     if (!id) return;
     const canvas = canvasRefs[id];
-    const stack = undoStacks[id];
-    if (!canvas || !stack || stack.length === 0) return;
-    canvas.getContext("2d")!.putImageData(stack.pop()!, 0, 0);
-    if (!canvas.toDataURL().includes("data:image/png")) {
-      const copy = { ...canvasData.value };
-      delete copy[id];
-      canvasData.value = copy;
-    }
-  }
+    if (!canvas) return;
+    canvas.undo();
+}
 
-  function clearCanvas(id: string) {
+function clearCanvas(id: string) {
     const canvas = canvasRefs[id];
     if (!canvas) return;
-    const ctx = canvas.getContext("2d")!;
-    undoStacks[id] = [];
-    drawBackground(ctx, canvas.width, canvas.height);
+    canvas.clear();
     const copy = { ...canvasData.value };
     delete copy[id];
     canvasData.value = copy;
-  }
+}
 
-  // Lifecycle
+tuckAssistantFab('.test-footer');
 
-  onMounted(async () => {
+onMounted(async () => {
     const id = route.params.id as string;
     try {
-      sheet.value = await loadPracticeSheet(id);
-      for (const ex of exercises.value) {
-        answers.value[ex.exercise.id] = "";
-      }
-      // Timer starts when user clicks "Comenzar" in instructions modal
+        sheet.value = await loadPracticeSheet(id);
+        const remaining = secondsUntilDeadline(sheet.value.deadline);
+        if (remaining !== null) timeLeft.value = remaining;
+        loadTeacherImages();
+
+        const first = exercises.value[0]?.exercise.id;
+        if (first) setActiveExercise(first);
+        for (const ex of exercises.value) {
+            answers.value[ex.exercise.id] = '';
+        }
+
+        if (sheet.value.course_id) {
+            fetchCuriosities(sheet.value.course_id);
+        }
+
+        if (hasTimeLimit.value) startTimer();
     } finally {
-      loading.value = false;
+        loading.value = false;
     }
-  });
+});
 
-  onUnmounted(() => {
+onUnmounted(() => {
+    document.body.classList.remove('assistant-modal-open');
     if (timer) clearInterval(timer);
-    if ((window as any).__practiqAssistantHookSource === "level-test") {
-      delete window.__practiqAssistantCapture;
-      delete window.__practiqAssistantContext;
-      delete (window as any).__practiqAssistantHookSource;
+    if (loadingMsgInterval) clearInterval(loadingMsgInterval);
+    if ((window as any).__practiqAssistantHookSource === 'level-test') {
+        delete window.__practiqAssistantCapture;
+        delete window.__practiqAssistantContext;
+        delete window.__practiqAssistantMediaAttachments;
+        delete (window as any).__practiqAssistantHookSource;
     }
-  });
+});
 
-  function focusNext(idx: number) {
-    const inputs = document.querySelectorAll<HTMLInputElement>(".ex-input");
-    inputs[idx + 1]?.focus();
-  }
+async function confirmExit() {
+    await leave(() => router.back());
+}
 
-  async function confirmExit() {
-    const ok = await showConfirm("¿Salir de la prueba?", {
-      description: "Tu progreso no se guardará.",
-      confirmLabel: "Salir",
-      danger: false,
-    });
-    if (ok) router.back();
-  }
+function getNextCuriosity(): string {
+    if (curiosities.value.length > 0) {
+        const msg = curiosities.value[curiosityIndex.value % curiosities.value.length];
+        curiosityIndex.value++;
+        return msg;
+    }
+    return randomMessage(loadingMessages);
+}
 
-  async function submit() {
+async function submit() {
+    if (uploadingAttachments.value.size > 0) {
+        toast.add({
+            severity: 'warn',
+            summary: 'Esperá un momento',
+            detail: 'Todavía se está subiendo un archivo. Se enviaría sin él.',
+            life: 3500,
+        });
+        return;
+    }
+
     if (submitting.value) return;
     submitting.value = true;
     if (timer) clearInterval(timer);
 
-    const elapsedSeconds = TEST_DURATION_SECONDS - timeLeft.value;
-    const perExerciseSeconds = exercises.value.length
-      ? Math.round(elapsedSeconds / exercises.value.length)
-      : 0;
+    loadingMessage.value = getNextCuriosity();
+    loadingMsgInterval = setInterval(() => {
+        loadingMessage.value = getNextCuriosity();
+    }, 3000);
 
-    const attempts = exercises.value.map((ex) => ({
-      exercise_id: ex.exercise.id,
-      answer_text: exerciseUsesCanvas(ex.exercise.type)
-        ? ""
-        : answers.value[ex.exercise.id] || "",
-      canvas_data: exerciseUsesCanvas(ex.exercise.type)
-        ? buildCanvasDataForOCR(ex.exercise.id)
-        : "",
-      time_spent_seconds: perExerciseSeconds,
-      hints_used: 0,
-    }));
+    const perExerciseSeconds = exercises.value.length
+        ? Math.round(elapsedSeconds.value / exercises.value.length)
+        : 0;
 
     try {
-      const start = await submitPracticeSheetAsync(sheet.value!.id, {
-        attempts,
-      });
-      const jobId = start.job_id;
-      let jobDone = false;
-
-      while (!jobDone) {
-        await new Promise((resolve) => setTimeout(resolve, 1200));
-        const job = await loadSubmitJob(jobId);
-        if (job.status === "processing") {
-          continue;
+        if (!pendingSubmitJobId.value) {
+            const attempts = await Promise.all(
+                exercises.value.map(async (ex) => {
+                    if (ex.exercise.type === 'attachment') {
+                        const uploaded = attachments.value[ex.exercise.id];
+                        return {
+                            exercise_id: ex.exercise.id,
+                            answer_text: '',
+                            canvas_data: '',
+                            attachment_url: uploaded?.url ?? '',
+                            attachment_name: uploaded?.filename ?? '',
+                            attachment_content_type: uploaded?.content_type ?? '',
+                            time_spent_seconds: perExerciseSeconds,
+                            hints_used: 0,
+                        };
+                    }
+                    return {
+                        exercise_id: ex.exercise.id,
+                        answer_text: exerciseUsesCanvas(ex.exercise.type)
+                            ? ''
+                            : answers.value[ex.exercise.id] || '',
+                        canvas_data: exerciseUsesCanvas(ex.exercise.type)
+                            ? await buildCanvasDataForOCR(ex.exercise.id)
+                            : '',
+                        time_spent_seconds: perExerciseSeconds,
+                        hints_used: 0,
+                    };
+                }),
+            );
+            const start = await submitPracticeSheetAsync(sheet.value!.id, {
+                attempts,
+            });
+            pendingSubmitJobId.value = start.job_id;
         }
-        if (job.status === "failed") {
-          throw new Error(job.message || "No se pudo evaluar la prueba");
+
+        const jobId = pendingSubmitJobId.value;
+        let jobDone = false;
+
+        while (!jobDone) {
+            await new Promise((resolve) => setTimeout(resolve, 1200));
+            const job = await loadSubmitJob(jobId);
+            if (job.status === 'processing') {
+                continue;
+            }
+            if (job.status === 'failed') {
+                pendingSubmitJobId.value = null;
+                throw new Error(job.message || 'No se pudo evaluar la prueba');
+            }
+            result.value = job.result?.data || null;
+            jobDone = true;
         }
-        result.value = job.result?.data || null;
-        jobDone = true;
-      }
 
-      if (!result.value) {
-        throw new Error("No se recibió resultado de evaluación");
-      }
-      submitted.value = true;
+        if (!result.value) {
+            throw new Error('No se recibió resultado de evaluación');
+        }
+        showAllErrors.value = false;
+        submitted.value = true;
+        pendingSubmitJobId.value = null;
 
-      // Show success modal if passed
-      if (result.value.should_level_up) {
-        showSuccessModal.value = true;
-      }
+        if (!result.value.pending_review) {
+            if (result.value.should_level_up) {
+                showSuccessModal.value = true;
+                fireLevelUp();
+                playSound('levelup');
+            } else {
+                playSound('incorrect');
+            }
+        }
     } catch (err) {
-      console.error(err);
+        console.error(err);
+        const errorMessage = err instanceof Error ? err.message : '';
+
+        if (!submitted.value && !pendingSubmitJobId.value) {
+            if (timeLeft.value > 0) startTimer();
+            toast.add({
+                severity: 'error',
+                summary: 'No se pudo enviar',
+                detail:
+                    errorMessage === 'this level test was already submitted'
+                        ? 'Esta prueba ya fue enviada. Pedile a tu docente una nueva oportunidad.'
+                        : timeLeft.value > 0
+                          ? 'Revisá tu conexión y volvé a intentar. El tiempo sigue corriendo.'
+                          : 'Se acabó el tiempo y no pudimos enviar la prueba. Avisale a tu docente.',
+                life: 5000,
+            });
+        } else if (!submitted.value) {
+            toast.add({
+                severity: 'warn',
+                summary: 'Envío recibido',
+                detail: 'No pudimos consultar la evaluación. Volvé a intentarlo para ver el resultado.',
+                life: 5000,
+            });
+        }
     } finally {
-      submitting.value = false;
+        submitting.value = false;
+        if (loadingMsgInterval) {
+            clearInterval(loadingMsgInterval);
+            loadingMsgInterval = null;
+        }
     }
-  }
+}
 
-  function buildCanvasDataForOCR(exerciseId: string) {
-    const source = canvasRefs[exerciseId];
-    if (!source) {
-      return canvasData.value[exerciseId] || "";
-    }
+function buildCanvasDataForOCR(exerciseId: string) {
+    return prepareHandwritingImage(canvasData.value[exerciseId] || '');
+}
 
-    const scale = 2;
-    const out = document.createElement("canvas");
-    out.width = Math.max(1, Math.floor(source.width * scale));
-    out.height = Math.max(1, Math.floor(source.height * scale));
-    const ctx = out.getContext("2d");
-    if (!ctx) {
-      return canvasData.value[exerciseId] || "";
-    }
+function getAssistantExerciseId() {
+    const visible = exercises.value[currentIdx.value]?.exercise.id;
+    if (visible) return visible;
 
-    ctx.fillStyle = cssVar("--surface-card", "#ffffff");
-    ctx.fillRect(0, 0, out.width, out.height);
-    ctx.imageSmoothingEnabled = false;
-    ctx.drawImage(source, 0, 0, out.width, out.height);
-
-    const image = ctx.getImageData(0, 0, out.width, out.height);
-    const pixels = image.data;
-    for (let i = 0; i < pixels.length; i += 4) {
-      const r = pixels[i];
-      const g = pixels[i + 1];
-      const b = pixels[i + 2];
-      const alpha = pixels[i + 3];
-
-      if (alpha < 8) {
-        pixels[i] = 255;
-        pixels[i + 1] = 255;
-        pixels[i + 2] = 255;
-        pixels[i + 3] = 255;
-        continue;
-      }
-
-      const gray = 0.299 * r + 0.587 * g + 0.114 * b;
-      const value = gray > 205 ? 255 : 0;
-      pixels[i] = value;
-      pixels[i + 1] = value;
-      pixels[i + 2] = value;
-      pixels[i + 3] = 255;
-    }
-    ctx.putImageData(image, 0, 0);
-
-    return out.toDataURL("image/jpeg", 0.92);
-  }
-
-  function getAssistantExerciseId() {
     if (activeId.value) {
-      return activeId.value;
+        return activeId.value;
     }
 
     const answeredId = Object.keys(canvasData.value)[0];
     if (answeredId) return answeredId;
 
-    return exercises.value[0]?.exercise.id || "";
-  }
+    return exercises.value[0]?.exercise.id || '';
+}
 
-  function getAssistantExerciseIndex(exerciseId: string) {
+function getAssistantExerciseIndex(exerciseId: string) {
     return exercises.value.findIndex((item) => item.exercise.id === exerciseId);
-  }
+}
 
-  (window as any).__practiqAssistantHookSource = "level-test";
+function assistantMediaPath(exerciseId: string) {
+    if (!sheet.value?.id || !exerciseId) return '';
+    return `/practice-sheets/${encodeURIComponent(sheet.value.id)}/exercises/${encodeURIComponent(exerciseId)}/assistant-media`;
+}
 
-  window.__practiqAssistantContext = () => {
+(window as any).__practiqAssistantHookSource = 'level-test';
+
+window.__practiqAssistantContext = () => {
     if (!sheet.value) return null;
 
     const activeExerciseId = getAssistantExerciseId();
     const activeExerciseIndex = getAssistantExerciseIndex(activeExerciseId);
     const activeExercise =
-      activeExerciseIndex >= 0
-        ? exercises.value[activeExerciseIndex]?.exercise
-        : null;
-    const activeTeacherImage = extractTeacherImageDataUrl(activeExercise);
+        activeExerciseIndex >= 0 ? exercises.value[activeExerciseIndex]?.exercise : null;
+    const activeTeacherImage = teacherImageFor(activeExercise);
 
     return {
-      current_view: "student_level_test",
-      activity_type: "level_test",
-      sheet_id: sheet.value.id,
-      sheet_title: sheet.value.title,
-      level: sheet.value.level,
-      response_mode: hasCanvasExercises.value ? "mixed" : "keyboard",
-      exercise_count: exercises.value.length,
-      active_exercise: activeExercise
-        ? {
-            id: activeExercise.id,
-            number: activeExerciseIndex + 1,
-            type: activeExercise.type,
-            difficulty: activeExercise.difficulty,
+        current_view: 'student_level_test',
+        activity_type: 'level_test',
+        sheet_id: sheet.value.id,
+        sheet_title: sheet.value.title,
+        level: sheet.value.level,
+        response_mode: hasCanvasExercises.value ? 'mixed' : 'keyboard',
+        exercise_count: exercises.value.length,
+        active_exercise: activeExercise
+            ? {
+                  id: activeExercise.id,
+                  number: activeExerciseIndex + 1,
+                  type: activeExercise.type,
+                  difficulty: activeExercise.difficulty,
+                  question:
+                      activeExercise.type === 'handwritten' && activeTeacherImage
+                          ? '[consigna manuscrita en imagen adjunta]'
+                          : activeExercise.question,
+                  has_teacher_image: !!activeTeacherImage,
+                  has_statement_media: !!activeExercise.media_view_url,
+                  question_source:
+                      activeExercise.type === 'handwritten' && activeTeacherImage
+                          ? 'teacher_image_attachment'
+                          : 'text',
+                  student_answer:
+                      activeExercise.type === 'fill_blanks'
+                          ? buildFillBlanksAssistantContext(
+                                activeExercise,
+                                answers.value[activeExercise.id] || '',
+                            )
+                                .blanks.filter((blank) => blank.value)
+                                .map((blank) => `Hueco ${blank.id}: ${blank.value}`)
+                                .join(', ')
+                          : answers.value[activeExercise.id] || '',
+                  student_answer_raw:
+                      activeExercise.type === 'fill_blanks'
+                          ? answers.value[activeExercise.id] || ''
+                          : '',
+                  puzzle:
+                      activeExercise.type === 'fill_blanks'
+                          ? buildFillBlanksAssistantContext(
+                                activeExercise,
+                                answers.value[activeExercise.id] || '',
+                            )
+                          : null,
+                  metadata_summary:
+                      activeExercise.type === 'fill_blanks'
+                          ? ''
+                          : JSON.stringify(summarizeExerciseMetadata(activeExercise) || {}),
+              }
+            : null,
+        exercise_list: exercises.value.map((item, idx) => ({
+            id: item.exercise.id,
+            number: idx + 1,
+            type: item.exercise.type,
+            difficulty: item.exercise.difficulty,
             question:
-              activeExercise.type === "handwritten" && activeTeacherImage
-                ? "[consigna manuscrita en imagen adjunta]"
-                : activeExercise.question,
-            has_teacher_image: !!activeTeacherImage,
+                item.exercise.type === 'handwritten' && teacherImageFor(item.exercise)
+                    ? '[consigna manuscrita en imagen adjunta]'
+                    : item.exercise.question,
+            has_teacher_image: !!teacherImageFor(item.exercise),
             question_source:
-              activeExercise.type === "handwritten" && activeTeacherImage
-                ? "teacher_image_attachment"
-                : "text",
-            metadata_summary: JSON.stringify(
-              summarizeExerciseMetadata(activeExercise) || {},
-            ),
-          }
-        : null,
-      exercise_list: exercises.value.map((item, idx) => ({
-        id: item.exercise.id,
-        number: idx + 1,
-        type: item.exercise.type,
-        difficulty: item.exercise.difficulty,
-        question:
-          item.exercise.type === "handwritten" &&
-          extractTeacherImageDataUrl(item.exercise)
-            ? "[consigna manuscrita en imagen adjunta]"
-            : item.exercise.question,
-        has_teacher_image: !!extractTeacherImageDataUrl(item.exercise),
-        question_source:
-          item.exercise.type === "handwritten" &&
-          extractTeacherImageDataUrl(item.exercise)
-            ? "teacher_image_attachment"
-            : "text",
-      })),
-      answered_exercise_ids: exercises.value
-        .filter((item) => isAnswered(item.exercise.id))
-        .map((item) => item.exercise.id),
+                item.exercise.type === 'handwritten' && teacherImageFor(item.exercise)
+                    ? 'teacher_image_attachment'
+                    : 'text',
+        })),
+        answered_exercise_ids: exercises.value
+            .filter((item) => isAnswered(item.exercise.id))
+            .map((item) => item.exercise.id),
     };
-  };
+};
 
-  window.__practiqAssistantCapture = async () => {
+window.__practiqAssistantCapture = async () => {
     const exerciseId = getAssistantExerciseId();
     if (!exerciseId) return null;
     const exerciseIndex = getAssistantExerciseIndex(exerciseId);
-    const exercise =
-      exerciseIndex >= 0 ? exercises.value[exerciseIndex]?.exercise : null;
-    if (!exercise || !exerciseUsesCanvas(exercise.type)) return null;
+    const exercise = exerciseIndex >= 0 ? exercises.value[exerciseIndex]?.exercise : null;
+    if (!exercise) return null;
 
-    const studentDataUrl = await pickBestStudentImage([
-      buildCanvasDataForOCR(exerciseId),
-      canvasData.value[exerciseId],
-    ]);
-    const teacherDataUrl = extractTeacherImageDataUrl(exercise);
+    const studentDataUrl = exerciseUsesCanvas(exercise.type)
+        ? await pickBestStudentImage([
+              await buildCanvasDataForOCR(exerciseId),
+              canvasData.value[exerciseId],
+          ])
+        : '';
+
+    const teacherDataUrl =
+        (await statementMediaPreviewDataURL(exercise, assistantMediaPath(exerciseId))) ||
+        (await statementImageDataURL(exercise)) ||
+        teacherImageFor(exercise);
     const dataUrl = await composeAssistantWorkImage({
-      teacherDataUrl,
-      studentDataUrl,
-      teacherLabel: "Consigna del docente",
-      studentLabel: "Respuesta del alumno",
+        teacherDataUrl,
+        studentDataUrl,
+        teacherLabel: 'Consigna del docente',
+        studentLabel: 'Respuesta del alumno',
     });
 
     if (!dataUrl) return null;
 
     return {
-      dataUrl,
-      filename: `level-test-${exerciseId}.jpg`,
-      contentType: dataUrl.startsWith("data:image/png")
-        ? "image/png"
-        : "image/jpeg",
+        dataUrl,
+        filename: `level-test-${exerciseId}.jpg`,
+        contentType: dataUrl.startsWith('data:image/png') ? 'image/png' : 'image/jpeg',
     };
-  };
+};
 
-  function retry() {
+window.__practiqAssistantMediaAttachments = async () => {
+    const exerciseId = getAssistantExerciseId();
+    const exerciseIndex = getAssistantExerciseIndex(exerciseId);
+    const exercise = exerciseIndex >= 0 ? exercises.value[exerciseIndex]?.exercise : null;
+    const [audio, document] = await Promise.all([
+        statementMediaAudioAttachment(exercise, assistantMediaPath(exerciseId)),
+        statementMediaDocumentAttachment(exercise, assistantMediaPath(exerciseId)),
+    ]);
+
+    return [audio, document].filter((item) => item !== null);
+};
+
+function retry() {
     showRetryModal.value = true;
-  }
+}
 
-  function confirmRetry() {
+async function confirmRetry() {
     showRetryModal.value = false;
     submitted.value = false;
     result.value = null;
-    timeLeft.value = TEST_DURATION_SECONDS;
     warningShown = false;
+    elapsedSeconds.value = 0;
     canvasData.value = {};
-    for (const key in answers.value) answers.value[key] = "";
-    // Re-init canvases after DOM updates
-    nextTick(() => {
-      for (const id of initializedIds) {
-        initializedIds.delete(id);
-      }
-    });
+    for (const key in answers.value) answers.value[key] = '';
+
+    attachments.value = {};
+
+    try {
+        sheet.value = await loadPracticeSheet(route.params.id as string);
+    } catch {}
+    const remaining = secondsUntilDeadline(sheet.value?.deadline);
+    timeLeft.value = remaining ?? (sheet.value?.time_limit_minutes ?? 0) * 60;
     startTimer();
-  }
+}
 
-  function goBackFromInstructions() {
+function goBackFromInstructions() {
     router.back();
-  }
+}
 
-  function startTest() {
+const expiredBeforeStart = computed(
+    () => hasTimeLimit.value && !testStarted.value && timeLeft.value <= 0,
+);
+
+function startTest() {
+    if (expiredBeforeStart.value) return;
     showInstructionsModal.value = false;
     testStarted.value = true;
     startTimer();
-  }
+}
 
-  function closeSuccessAndGoHome() {
+function closeSuccessAndGoHome() {
     showSuccessModal.value = false;
-    router.push("/student/dashboard");
-  }
+    router.push('/student/dashboard');
+}
 </script>
 
 <template>
-  <StudentLayout>
-    <div class="test-shell">
-      <!-- Header -->
-      <header class="test-header">
-        <button
-          class="btn-back"
-          type="button"
-          aria-label="Salir de prueba"
-          @click="confirmExit"
-          title="Salir"
-        >
-          <i class="pi pi-arrow-left"></i>
-        </button>
-        <div class="test-header-info">
-          <div class="level-badge">Nivel {{ sheet?.level }}</div>
-          <h1 class="test-title">{{ sheet?.title }}</h1>
-          <span class="test-subtitle"
-            >Prueba de Nivel — respondé correctamente el 75% para avanzar</span
-          >
-        </div>
-        <div class="timer" :class="{ 'timer--warning': timeLeft < 120 }">
-          <i class="pi pi-clock"></i>
-          {{ formattedTime }}
-        </div>
-      </header>
-
-      <!-- Loading Skeleton -->
-      <template v-if="loading">
-        <div class="test-progress-bar">
-          <div class="test-progress-fill" style="width: 0%"></div>
-        </div>
-        <Skeleton width="120px" height="14px" class="progress-skel" />
-        <div class="exercises-list">
-          <div v-for="n in 3" :key="n" class="ex-card ex-card--skeleton">
-            <Skeleton
-              variant="avatar"
-              size="32px"
-              :rounded="false"
-              class="ex-num-skel"
-            />
-            <div class="ex-body ex-body--skeleton">
-              <Skeleton width="100%" height="18px" />
-              <Skeleton width="80%" height="16px" />
-              <Skeleton width="100%" height="180px" class="canvas-skel" />
-            </div>
-          </div>
-        </div>
-      </template>
-
-      <template v-else-if="sheet && !submitted">
-        <!-- Progress bar -->
-        <div class="test-progress-bar">
-          <div
-            class="test-progress-fill"
-            :style="{ width: answeredPercent + '%' }"
-          ></div>
-        </div>
-        <div class="test-progress-label">
-          {{ answeredCount }} / {{ exercises.length }} respondidas
-        </div>
-
-        <!-- Canvas toolbar (only in canvas mode) -->
-        <div v-if="hasCanvasExercises" class="draw-tools-bar">
-          <button
-            class="tool-btn"
-            type="button"
-            aria-label="Usar lápiz"
-            :class="{ 'tool-btn--active': tool === 'pen' }"
-            @click="tool = 'pen'"
-            title="Lápiz"
-          >
-            <i class="pi pi-pencil"></i>
-          </button>
-          <button
-            class="tool-btn"
-            type="button"
-            aria-label="Usar borrador"
-            :class="{ 'tool-btn--active': tool === 'eraser' }"
-            @click="tool = 'eraser'"
-            title="Borrador"
-          >
-            <i class="pi pi-times-circle"></i>
-          </button>
-          <button
-            class="tool-btn"
-            type="button"
-            aria-label="Deshacer trazo"
-            @click="undoActive"
-            title="Deshacer"
-          >
-            <i class="pi pi-undo"></i>
-          </button>
-          <div class="tool-sep"></div>
-          <input
-            type="color"
-            v-model="penColor"
-            class="color-picker"
-            title="Color"
-            aria-label="Color del lápiz"
-          />
-          <input
-            type="range"
-            v-model.number="penSize"
-            min="1"
-            max="20"
-            class="size-slider"
-            title="Grosor"
-            aria-label="Grosor del lápiz"
-          />
-          <span class="size-val">{{ penSize }}px</span>
-        </div>
-
-        <!-- Exercises -->
-        <div class="exercises-list">
-          <div
-            v-for="(ex, idx) in exercises"
-            :key="ex.id"
-            class="ex-card"
-            :class="{ 'ex-card--answered': isAnswered(ex.exercise.id) }"
-            @click="setActiveExercise(ex.exercise.id)"
-            @focusin="setActiveExercise(ex.exercise.id)"
-            @mouseenter="setActiveExercise(ex.exercise.id)"
-          >
-            <div class="ex-num">{{ idx + 1 }}</div>
-            <div class="ex-body">
-              <div
-                v-if="ex.exercise.type === 'equation'"
-                class="ex-question ex-question--math"
-                v-html="renderEquation(ex.exercise.question)"
-              ></div>
-              <div
-                v-else-if="
-                  ex.exercise.type !== 'handwritten' ||
-                  !extractTeacherImageDataUrl(ex.exercise)
-                "
-                class="ex-question"
-              >
-                {{ ex.exercise.question }}
-              </div>
-              <img
-                v-if="extractTeacherImageDataUrl(ex.exercise)"
-                :src="extractTeacherImageDataUrl(ex.exercise)"
-                class="teacher-handwritten-image"
-                alt="Consigna manuscrita del profesor"
-              />
-
-              <!-- Multiple choice -->
-              <div
-                v-if="ex.exercise.type === 'multiple_choice'"
-                class="choice-options"
-              >
-                <label
-                  v-for="option in exerciseOptions(ex.exercise.metadata)"
-                  :key="option"
-                  class="choice-option"
-                  :class="{
-                    'choice-option--selected':
-                      answers[ex.exercise.id] === option,
-                  }"
-                >
-                  <input
-                    v-model="answers[ex.exercise.id]"
-                    type="radio"
-                    :name="`level-test-exercise-${ex.exercise.id}`"
-                    :value="option"
-                  />
-                  <span>{{ option }}</span>
-                </label>
-                <input
-                  v-if="exerciseOptions(ex.exercise.metadata).length === 0"
-                  v-model="answers[ex.exercise.id]"
-                  class="ex-input"
-                  placeholder="Escribe la opción correcta..."
-                  @keydown.enter="focusNext(idx)"
-                />
-              </div>
-
-              <!-- Equation answer mode -->
-              <div
-                v-else-if="ex.exercise.type === 'equation'"
-                class="equation-answer-wrap"
-              >
-                <MathFieldEditor
-                  v-model="answers[ex.exercise.id]"
-                  :show-latex-toggle="false"
-                  virtual-keyboard-mode="onfocus"
-                />
-              </div>
-
-              <!-- Keyboard mode (text/open_text/multiple_choice) -->
-              <input
-                v-else-if="!exerciseUsesCanvas(ex.exercise.type)"
-                v-model="answers[ex.exercise.id]"
-                class="ex-input"
-                placeholder="Escribe tu respuesta..."
-                @keydown.enter="focusNext(idx)"
-              />
-
-              <!-- Canvas mode -->
-              <div v-else class="canvas-wrap">
-                <div class="canvas-header">
-                  <span class="canvas-label">Tu respuesta</span>
-                  <button
-                    class="btn-clear-canvas"
+    <StudentLayout>
+        <div class="test-shell anim-stagger">
+            <header class="test-header">
+                <button
+                    class="btn-back"
                     type="button"
-                    @click="clearCanvas(ex.exercise.id)"
-                    title="Borrar todo"
-                    aria-label="Limpiar respuesta"
-                  >
-                    <i class="pi pi-trash"></i> Limpiar
-                  </button>
+                    aria-label="Salir de prueba"
+                    @click="confirmExit"
+                    title="Salir"
+                >
+                    <i class="pi pi-arrow-left"></i>
+                </button>
+                <div class="test-header-info">
+                    <div class="level-badge">Nivel {{ sheet?.level }}</div>
+                    <h1 class="test-title">{{ sheet?.title }}</h1>
+                    <span class="test-subtitle"
+                        >Prueba de Nivel — respondé correctamente el 75% para avanzar</span
+                    >
                 </div>
-                <canvas
-                  :ref="
-                    (el) =>
-                      setCanvasRef(
-                        ex.exercise.id,
-                        el as HTMLCanvasElement | null,
-                      )
-                  "
-                  class="ex-canvas"
-                  :style="{ cursor: canvasCursor }"
-                  @mousedown="startDraw($event, ex.exercise.id)"
-                  @mousemove="draw($event, ex.exercise.id)"
-                  @mouseup="endDraw(ex.exercise.id)"
-                  @mouseleave="endDraw(ex.exercise.id)"
-                  @touchstart.prevent="startDrawTouch($event, ex.exercise.id)"
-                  @touchmove.prevent="drawTouch($event, ex.exercise.id)"
-                  @touchend="endDraw(ex.exercise.id)"
-                ></canvas>
-              </div>
+                <div class="test-header-aside">
+                    <span v-if="attemptsLeftLabel" class="attempts-left">{{
+                        attemptsLeftLabel
+                    }}</span>
+                    <div
+                        v-if="hasTimeLimit"
+                        class="timer"
+                        :class="{ 'timer--warning': timeLeft < 120 }"
+                    >
+                        <i class="pi pi-clock"></i>
+                        {{ formattedTime }}
+                    </div>
+                </div>
+            </header>
+
+            <template v-if="loading">
+                <div class="test-progress-bar">
+                    <div class="test-progress-fill" style="width: 0%"></div>
+                </div>
+                <Skeleton width="120px" height="14px" class="progress-skel" />
+                <div class="exercises-list">
+                    <div v-for="n in 3" :key="n" class="ex-card ex-card--skeleton">
+                        <Skeleton
+                            variant="avatar"
+                            size="32px"
+                            :rounded="false"
+                            class="ex-num-skel"
+                        />
+                        <div class="ex-body ex-body--skeleton">
+                            <Skeleton width="100%" height="18px" />
+                            <Skeleton width="80%" height="16px" />
+                            <Skeleton width="100%" height="180px" class="canvas-skel" />
+                        </div>
+                    </div>
+                </div>
+            </template>
+
+            <template v-else-if="sheet && !submitted">
+                <div class="test-progress-bar">
+                    <div class="test-progress-fill" :style="{ width: answeredPercent + '%' }"></div>
+                </div>
+                <div class="test-progress-label">
+                    {{ answeredCount }} / {{ exercises.length }} respondidas
+                </div>
+
+                <div v-if="hasCanvasExercises" class="draw-tools-bar">
+                    <button
+                        class="tool-btn"
+                        type="button"
+                        aria-label="Usar lápiz"
+                        :class="{
+                            'tool-btn--active': tool === 'pen',
+                            'tool-btn--pen-active': tool === 'pen',
+                        }"
+                        :style="{ backgroundColor: penColor }"
+                        @click="tool = 'pen'"
+                        title="Lápiz"
+                    >
+                        <i class="pi pi-pencil"></i>
+                    </button>
+                    <button
+                        class="tool-btn"
+                        type="button"
+                        aria-label="Usar borrador"
+                        :class="{ 'tool-btn--active': tool === 'eraser' }"
+                        @click="tool = 'eraser'"
+                        title="Borrador"
+                    >
+                        <i class="pi pi-times-circle"></i>
+                    </button>
+                    <button
+                        class="tool-btn"
+                        type="button"
+                        aria-label="Deshacer trazo"
+                        @click="undoActive"
+                        title="Deshacer"
+                    >
+                        <i class="pi pi-undo"></i>
+                    </button>
+                    <div class="tool-sep"></div>
+                    <ColorPalette v-model="penColor" />
+                    <input
+                        type="range"
+                        v-model.number="penSize"
+                        min="1"
+                        max="20"
+                        class="size-slider"
+                        title="Grosor"
+                        aria-label="Grosor del lápiz"
+                    />
+                    <span class="size-val">{{ penSize }}px</span>
+                </div>
+
+                <ExerciseStepper
+                    :total="exercises.length"
+                    :current="currentIdx"
+                    :answered="answeredFlags"
+                    @select="goToExercise"
+                />
+
+                <div class="exercises-list">
+                    <div
+                        v-for="ex in visibleExercises"
+                        :key="ex.id"
+                        class="ex-card"
+                        :class="{ 'ex-card--answered': isAnswered(ex.exercise.id) }"
+                    >
+                        <div class="ex-num">{{ currentIdx + 1 }}</div>
+                        <div class="ex-body">
+                            <div
+                                v-if="ex.exercise.type === 'equation'"
+                                class="ex-question ex-question--math"
+                                v-html="renderEquation(ex.exercise.question)"
+                            ></div>
+                            <div
+                                v-else-if="
+                                    ex.exercise.type !== 'fill_blanks' &&
+                                    (ex.exercise.type !== 'handwritten' ||
+                                        !teacherImageFor(ex.exercise))
+                                "
+                                class="ex-question"
+                            >
+                                {{ ex.exercise.question }}
+                            </div>
+                            <img
+                                v-if="teacherImageFor(ex.exercise)"
+                                :src="teacherImageFor(ex.exercise)"
+                                class="teacher-handwritten-image"
+                                alt="Consigna manuscrita del profesor"
+                            />
+                            <ExerciseMedia :url="ex.exercise.media_view_url" />
+
+                            <div
+                                v-if="ex.exercise.type === 'multiple_choice'"
+                                class="choice-options"
+                            >
+                                <label
+                                    v-for="option in exerciseOptions(ex.exercise.metadata)"
+                                    :key="option"
+                                    class="choice-option"
+                                    :class="{
+                                        'choice-option--selected':
+                                            answers[ex.exercise.id] === option,
+                                    }"
+                                >
+                                    <input
+                                        v-model="answers[ex.exercise.id]"
+                                        type="radio"
+                                        :name="`level-test-exercise-${ex.exercise.id}`"
+                                        :value="option"
+                                    />
+                                    <span>{{ option }}</span>
+                                </label>
+                                <input
+                                    v-if="exerciseOptions(ex.exercise.metadata).length === 0"
+                                    v-model="answers[ex.exercise.id]"
+                                    class="ex-input"
+                                    placeholder="Escribe la opción correcta..."
+                                    @keydown.enter="goToExercise(currentIdx + 1)"
+                                />
+                            </div>
+
+                            <div
+                                v-else-if="ex.exercise.type === 'fill_blanks'"
+                                class="fill-blanks-wrap"
+                            >
+                                <FillBlanksAnswer
+                                    :exercise="ex.exercise"
+                                    :model-value="answers[ex.exercise.id] || ''"
+                                    @update:model-value="
+                                        (value) => (answers[ex.exercise.id] = value)
+                                    "
+                                />
+                            </div>
+
+                            <div
+                                v-else-if="ex.exercise.type === 'attachment'"
+                                class="attachment-answer-wrap"
+                            >
+                                <AttachmentAnswer
+                                    :exercise="ex.exercise"
+                                    :model-value="attachments[ex.exercise.id] ?? null"
+                                    @update:model-value="
+                                        (value) => setAttachment(ex.exercise.id, value)
+                                    "
+                                    @update:uploading="
+                                        (v: boolean) => setUploading(ex.exercise.id, v)
+                                    "
+                                />
+                            </div>
+
+                            <div
+                                v-else-if="ex.exercise.type === 'equation'"
+                                class="equation-answer-wrap"
+                            >
+                                <MathFieldEditor
+                                    v-model="answers[ex.exercise.id]"
+                                    :show-latex-toggle="false"
+                                    placeholder="Escribí tu respuesta"
+                                    virtual-keyboard-mode="onfocus"
+                                />
+                            </div>
+
+                            <input
+                                v-else-if="!exerciseUsesCanvas(ex.exercise.type)"
+                                v-model="answers[ex.exercise.id]"
+                                class="ex-input"
+                                placeholder="Escribe tu respuesta..."
+                                @keydown.enter="goToExercise(currentIdx + 1)"
+                            />
+
+                            <div v-else class="canvas-wrap">
+                                <div class="canvas-header">
+                                    <span class="canvas-label">Tu respuesta</span>
+                                    <button
+                                        class="btn-clear-canvas"
+                                        type="button"
+                                        @click="clearCanvas(ex.exercise.id)"
+                                        title="Borrar todo"
+                                        aria-label="Limpiar respuesta"
+                                    >
+                                        <i class="pi pi-trash"></i> Limpiar
+                                    </button>
+                                </div>
+                                <DrawingCanvas
+                                    :ref="
+                                        (el) =>
+                                            setCanvasRef(
+                                                ex.exercise.id,
+                                                el as InstanceType<typeof DrawingCanvas> | null,
+                                            )
+                                    "
+                                    v-model="canvasData[ex.exercise.id]"
+                                    :height="220"
+                                    :tool="tool"
+                                    :pen-size="penSize"
+                                    :pen-color="penColor"
+                                    @click="activeId = ex.exercise.id"
+                                />
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="test-footer">
+                    <span class="footer-hint">{{ unansweredCount }} sin responder</span>
+                    <div class="footer-nav">
+                        <button
+                            class="btn-step"
+                            type="button"
+                            :disabled="currentIdx === 0"
+                            @click="goToExercise(currentIdx - 1)"
+                        >
+                            <i class="pi pi-chevron-left"></i>
+                            Anterior
+                        </button>
+                        <button
+                            class="btn-step"
+                            type="button"
+                            :disabled="currentIdx >= exercises.length - 1"
+                            @click="goToExercise(currentIdx + 1)"
+                        >
+                            Siguiente
+                            <i class="pi pi-chevron-right"></i>
+                        </button>
+                    </div>
+                    <div class="footer-actions">
+                        <button
+                            class="btn-submit"
+                            :disabled="submitting || uploadingAttachments.size > 0"
+                            @click="submit"
+                        >
+                            <i
+                                v-if="!submitting"
+                                :class="pendingSubmitJobId ? 'pi pi-refresh' : 'pi pi-send'"
+                            ></i>
+                            <span v-else class="spinner"></span>
+                            {{ pendingSubmitJobId ? 'Consultar evaluación' : 'Entregar prueba' }}
+                        </button>
+                    </div>
+                </div>
+            </template>
+
+            <div v-else-if="result" class="results-panel">
+                <div
+                    class="result-card"
+                    :class="
+                        result.pending_review
+                            ? 'result-card--pending'
+                            : result.should_level_up
+                              ? 'result-card--pass'
+                              : 'result-card--fail'
+                    "
+                >
+                    <div class="result-icon">
+                        <i
+                            class="pi"
+                            :class="
+                                result.pending_review
+                                    ? 'pi-clock'
+                                    : result.should_level_up
+                                      ? 'pi-trophy'
+                                      : 'pi-book'
+                            "
+                            aria-hidden="true"
+                        ></i>
+                    </div>
+                    <h2 class="result-heading">
+                        {{
+                            result.pending_review
+                                ? 'Esperando corrección'
+                                : result.should_level_up
+                                  ? '¡Aprobaste!'
+                                  : 'No pasaste esta vez'
+                        }}
+                    </h2>
+
+                    <div v-if="!result.pending_review" class="score-ring">
+                        <svg viewBox="0 0 120 120" class="ring-svg">
+                            <circle
+                                cx="60"
+                                cy="60"
+                                r="50"
+                                fill="none"
+                                stroke="var(--surface-border)"
+                                stroke-width="10"
+                            />
+                            <circle
+                                cx="60"
+                                cy="60"
+                                r="50"
+                                fill="none"
+                                :stroke="
+                                    result.should_level_up
+                                        ? 'var(--color-success)'
+                                        : 'var(--color-warning)'
+                                "
+                                stroke-width="10"
+                                stroke-linecap="round"
+                                stroke-dasharray="314"
+                                :stroke-dashoffset="314 - (314 * result.score) / 100"
+                                transform="rotate(-90 60 60)"
+                            />
+                        </svg>
+                        <div class="ring-label">
+                            <div class="ring-score">{{ Math.round(result.score) }}%</div>
+                            <div class="ring-sub">{{ result.correct }}/{{ result.total }}</div>
+                        </div>
+                    </div>
+
+                    <div
+                        v-if="!result.pending_review && result.should_level_up"
+                        class="level-up-badge"
+                    >
+                        <i class="pi pi-unlock" aria-hidden="true"></i>
+                        Nivel {{ result.next_level }} desbloqueado
+                    </div>
+
+                    <XPBubbles
+                        v-if="result.xp_gained > 0 && result.xp_breakdown?.length"
+                        :entries="result.xp_breakdown"
+                        :total="result.xp_gained"
+                        :course-total="result.course_xp"
+                    />
+
+                    <p class="result-rec">{{ result.recommendation }}</p>
+
+                    <div v-if="result.pending_review" class="pending-review-badge">
+                        <i class="pi pi-clock"></i>
+                        Tu entrega quedó esperando la corrección del docente.
+                    </div>
+
+                    <div
+                        v-if="
+                            incorrectResults.length === 0 &&
+                            result.exercise_results?.length &&
+                            !pendingResults.length
+                        "
+                        class="all-correct-badge"
+                    >
+                        <i class="pi pi-check-circle" aria-hidden="true"></i>
+                        ¡Todas las respuestas correctas!
+                    </div>
+
+                    <div v-else-if="incorrectResults.length > 0" class="exercise-results-section">
+                        <div
+                            class="exercise-results-list"
+                            :class="{ 'exercise-results-list--expanded': showAllErrors }"
+                        >
+                            <div
+                                v-for="exResult in visibleErrors"
+                                :key="exResult.exercise_id"
+                                class="exercise-result-item exercise-result--incorrect"
+                            >
+                                <div class="exercise-result-icon">
+                                    <i class="pi pi-times-circle" aria-hidden="true"></i>
+                                </div>
+                                <div class="exercise-result-content">
+                                    <div class="exercise-result-answers">
+                                        <span class="answer-label">Tu respuesta:</span>
+                                        <span class="answer-student">{{
+                                            formatStudentAnswer(exResult.student_answer)
+                                        }}</span>
+                                        <span class="answer-label">Correcta:</span>
+                                        <span class="answer-correct">{{
+                                            exResult.correct_answer
+                                        }}</span>
+                                    </div>
+                                    <div
+                                        v-if="
+                                            exResult.ai_feedback &&
+                                            !exResult.ai_feedback.includes('UNREADABLE')
+                                        "
+                                        class="exercise-result-feedback"
+                                    >
+                                        {{ exResult.ai_feedback }}
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <button
+                            v-if="hiddenErrorsCount > 0 && !showAllErrors"
+                            class="btn-show-more"
+                            @click="showAllErrors = true"
+                        >
+                            Ver {{ hiddenErrorsCount }} error{{ hiddenErrorsCount > 1 ? 'es' : '' }}
+                            más
+                        </button>
+                    </div>
+
+                    <div class="result-actions">
+                        <button class="btn-secondary" @click="router.push('/student/dashboard')">
+                            Ir al inicio
+                        </button>
+                    </div>
+                </div>
             </div>
-          </div>
         </div>
+    </StudentLayout>
 
-        <!-- Submit -->
-        <div class="test-footer">
-          <span class="footer-hint">{{ unansweredCount }} sin responder</span>
-          <button class="btn-submit" :disabled="submitting" @click="submit">
-            <i class="pi pi-send"></i>
-            {{ submitting ? "Evaluando con IA..." : "Entregar prueba" }}
-          </button>
-        </div>
-      </template>
+    <AiLoadingModal
+        :show="submitting"
+        badge-label="IA evaluando"
+        title="Evaluando prueba"
+        :message="loadingMessage"
+    />
 
-      <!-- Results -->
-      <div v-else-if="result" class="results-panel">
-        <div
-          class="result-card"
-          :class="
-            result.should_level_up ? 'result-card--pass' : 'result-card--fail'
-          "
-        >
-          <div class="result-icon">
-            {{ result.should_level_up ? "🏆" : "📚" }}
-          </div>
-          <h2 class="result-heading">
-            {{ result.should_level_up ? "¡Aprobaste!" : "No pasaste esta vez" }}
-          </h2>
+    <ConfirmModal v-bind="leaveConfirmState" @confirm="onLeaveConfirm" @cancel="onLeaveCancel" />
 
-          <div class="score-ring">
-            <svg viewBox="0 0 120 120" class="ring-svg">
-              <circle
-                cx="60"
-                cy="60"
-                r="50"
-                fill="none"
-                stroke="var(--surface-border)"
-                stroke-width="10"
-              />
-              <circle
-                cx="60"
-                cy="60"
-                r="50"
-                fill="none"
-                :stroke="
-                  result.should_level_up
-                    ? 'var(--color-success)'
-                    : 'var(--color-warning)'
-                "
-                stroke-width="10"
-                stroke-linecap="round"
-                stroke-dasharray="314"
-                :stroke-dashoffset="314 - (314 * result.score) / 100"
-                transform="rotate(-90 60 60)"
-              />
-            </svg>
-            <div class="ring-label">
-              <div class="ring-score">{{ Math.round(result.score) }}%</div>
-              <div class="ring-sub">
-                {{ result.correct }}/{{ result.total }}
-              </div>
+    <UiModal :visible="Boolean(showInstructionsModal)" @close="goBackFromInstructions">
+        <template v-if="showInstructionsModal">
+            <div class="modal-box instructions-modal">
+                <button
+                    type="button"
+                    class="modal-close instructions-close"
+                    aria-label="Cerrar"
+                    @click="goBackFromInstructions"
+                >
+                    <i class="pi pi-times"></i>
+                </button>
+                <div class="instructions-icon">
+                    <i class="pi pi-info-circle"></i>
+                </div>
+                <h3 class="modal-title">Prueba de Nivel {{ sheet?.level }}</h3>
+                <div class="instructions-content">
+                    <p class="instructions-intro">
+                        Estas a punto de comenzar una prueba de nivel. Lee atentamente las
+                        siguientes instrucciones:
+                    </p>
+                    <ul class="instructions-list">
+                        <li v-if="hasTimeLimit && expiredBeforeStart" class="instructions-expired">
+                            <i class="pi pi-clock"></i>
+                            Se acabó el tiempo de esta prueba. Volvé al inicio para empezarla de
+                            nuevo.
+                        </li>
+                        <li v-else-if="hasTimeLimit">
+                            <i class="pi pi-clock"></i>
+
+                            Tiempo restante: <strong>{{ formattedTime }}</strong>
+                            <small>de {{ timeLimitLabel }}</small>
+                        </li>
+                        <li v-else>
+                            <i class="pi pi-clock"></i>
+                            Sin tiempo limite: tomate el que necesites
+                        </li>
+                        <li>
+                            <i class="pi pi-check-circle"></i>
+                            Necesitas <strong>75%</strong> de respuestas correctas para aprobar
+                        </li>
+                        <li>
+                            <i class="pi pi-pencil"></i>
+                            Responde todos los ejercicios antes de enviar
+                        </li>
+                        <li>
+                            <i class="pi pi-exclamation-triangle"></i>
+                            No podras pausar la prueba una vez iniciada
+                        </li>
+                    </ul>
+                    <p class="instructions-tip">
+                        <strong>Consejo:</strong> Revisa todas tus respuestas antes de entregar.
+                    </p>
+                </div>
+                <div class="modal-actions">
+                    <button class="btn btn-secondary" @click="goBackFromInstructions">
+                        <i class="pi pi-arrow-left"></i> Volver
+                    </button>
+                    <button
+                        class="btn btn-primary"
+                        :disabled="expiredBeforeStart"
+                        @click="startTest"
+                    >
+                        <i class="pi pi-play"></i> Comenzar prueba
+                    </button>
+                </div>
             </div>
-          </div>
+        </template>
+    </UiModal>
 
-          <div v-if="result.should_level_up" class="level-up-badge">
-            Nivel {{ result.next_level }} desbloqueado 🎉
-          </div>
-
-          <p class="result-rec">{{ result.recommendation }}</p>
-
-          <div v-if="result.ai_feedback" class="result-ai-feedback">
-            <strong>Comentario del Asistente:</strong> {{ result.ai_feedback }}
-          </div>
-
-          <div class="result-actions">
-            <button
-              class="btn-secondary"
-              @click="router.push('/student/dashboard')"
-            >
-              Ir al inicio
-            </button>
-            <button
-              v-if="!result.should_level_up"
-              class="btn-retry"
-              @click="retry"
-            >
-              Intentar de nuevo
-            </button>
-          </div>
-        </div>
-      </div>
-    </div>
-  </StudentLayout>
-
-  <ConfirmModal v-bind="confirmState" @confirm="onConfirm" @cancel="onCancel" />
-
-  <!-- Instructions Modal (before test) -->
-  <Teleport to="body">
-    <Transition name="fade">
-      <div v-if="showInstructionsModal" class="modal-overlay">
-        <div class="modal-box instructions-modal">
-          <div class="instructions-icon">
-            <i class="pi pi-info-circle"></i>
-          </div>
-          <h3 class="modal-title">Prueba de Nivel {{ sheet?.level }}</h3>
-          <div class="instructions-content">
-            <p class="instructions-intro">
-              Estas a punto de comenzar una prueba de nivel. Lee atentamente las
-              siguientes instrucciones:
-            </p>
-            <ul class="instructions-list">
-              <li>
+    <Teleport to="body">
+        <Transition name="slide-up">
+            <div v-if="showTimeWarning" class="time-warning-toast">
                 <i class="pi pi-clock"></i>
-                Tiempo limite: <strong>30 minutos</strong>
-              </li>
-              <li>
-                <i class="pi pi-check-circle"></i>
-                Necesitas <strong>75%</strong> de respuestas correctas para
-                aprobar
-              </li>
-              <li>
-                <i class="pi pi-pencil"></i>
-                Responde todos los ejercicios antes de enviar
-              </li>
-              <li>
-                <i class="pi pi-exclamation-triangle"></i>
-                No podras pausar la prueba una vez iniciada
-              </li>
-            </ul>
-            <p class="instructions-tip">
-              <strong>Consejo:</strong> Revisa todas tus respuestas antes de
-              entregar.
-            </p>
-          </div>
-          <div class="modal-actions">
-            <button class="btn btn-secondary" @click="goBackFromInstructions">
-              <i class="pi pi-arrow-left"></i> Volver
-            </button>
-            <button class="btn btn-primary" @click="startTest">
-              <i class="pi pi-play"></i> Comenzar prueba
-            </button>
-          </div>
-        </div>
-      </div>
-    </Transition>
-  </Teleport>
-
-  <!-- Time Warning Toast -->
-  <Teleport to="body">
-    <Transition name="slide-up">
-      <div v-if="showTimeWarning" class="time-warning-toast">
-        <i class="pi pi-clock"></i>
-        <span>Quedan <strong>5 minutos</strong> para terminar la prueba</span>
-        <button class="toast-close" @click="showTimeWarning = false">
-          <i class="pi pi-times"></i>
-        </button>
-      </div>
-    </Transition>
-  </Teleport>
-
-  <!-- Retry Confirmation Modal -->
-  <Teleport to="body">
-    <Transition name="fade">
-      <div
-        v-if="showRetryModal"
-        class="modal-overlay"
-        @click.self="showRetryModal = false"
-      >
-        <div class="modal-box">
-          <h3 class="modal-title">
-            <i class="pi pi-refresh"></i> Reintentar prueba
-          </h3>
-          <p class="modal-desc">
-            ¿Estas seguro de que deseas reintentar la prueba de nivel?
-          </p>
-          <div class="retry-warning">
-            <i class="pi pi-exclamation-triangle"></i>
-            <div>
-              <strong>Ten en cuenta:</strong>
-              <ul>
-                <li>Tendras otros 30 minutos para completar la prueba</li>
-                <li>Tus respuestas anteriores no se conservaran</li>
-                <li>Necesitaras 75% de respuestas correctas para aprobar</li>
-              </ul>
+                <span>Quedan <strong>5 minutos</strong> para terminar la prueba</span>
+                <button class="toast-close" @click="showTimeWarning = false">
+                    <i class="pi pi-times"></i>
+                </button>
             </div>
-          </div>
-          <div class="modal-actions">
-            <button class="btn btn-secondary" @click="showRetryModal = false">
-              Cancelar
-            </button>
-            <button class="btn btn-primary" @click="confirmRetry">
-              <i class="pi pi-refresh"></i> Reintentar
-            </button>
-          </div>
-        </div>
-      </div>
-    </Transition>
-  </Teleport>
+        </Transition>
+    </Teleport>
 
-  <!-- Success Congratulations Modal -->
-  <Teleport to="body">
-    <Transition name="fade">
-      <div v-if="showSuccessModal" class="modal-overlay">
-        <div class="modal-box success-modal">
-          <div class="success-confetti">
-            <span class="confetti-piece">🎉</span>
-            <span class="confetti-piece">🏆</span>
-            <span class="confetti-piece">⭐</span>
-          </div>
-          <h3 class="modal-title success-title">Felicitaciones!</h3>
-          <p class="success-message">
-            Has aprobado la prueba de nivel {{ sheet?.level }} con un
-            <strong>{{ Math.round(result?.score || 0) }}%</strong>
-          </p>
-          <div class="level-unlock-badge">
-            <i class="pi pi-lock-open"></i>
-            Nivel
-            {{ result?.next_level || (sheet?.level || 0) + 1 }} desbloqueado
-          </div>
-          <p class="success-recommendation" v-if="result?.recommendation">
-            {{ result.recommendation }}
-          </p>
-          <div class="modal-actions">
-            <button
-              class="btn btn-primary btn-lg"
-              @click="closeSuccessAndGoHome"
-            >
-              <i class="pi pi-home"></i> Continuar
-            </button>
-          </div>
-        </div>
-      </div>
-    </Transition>
-  </Teleport>
+    <UiModal :visible="Boolean(showRetryModal)" @close="showRetryModal = false">
+        <template v-if="showRetryModal">
+            <div class="modal-box">
+                <div class="modal-header">
+                    <h3 class="modal-title"><i class="pi pi-refresh"></i> Reintentar prueba</h3>
+                    <button
+                        type="button"
+                        class="modal-close"
+                        aria-label="Cerrar"
+                        @click="showRetryModal = false"
+                    >
+                        <i class="pi pi-times"></i>
+                    </button>
+                </div>
+                <p class="modal-desc">¿Estas seguro de que deseas reintentar la prueba de nivel?</p>
+                <div class="retry-warning">
+                    <i class="pi pi-exclamation-triangle"></i>
+                    <div>
+                        <strong>Ten en cuenta:</strong>
+                        <ul>
+                            <li v-if="hasTimeLimit">
+                                Tendras otros {{ timeLimitLabel }} para completar la prueba
+                            </li>
+                            <li>Tus respuestas anteriores no se conservaran</li>
+                            <li>Necesitaras 75% de respuestas correctas para aprobar</li>
+                        </ul>
+                    </div>
+                </div>
+                <div class="modal-actions">
+                    <button class="btn btn-secondary" @click="showRetryModal = false">
+                        Cancelar
+                    </button>
+                    <button class="btn btn-primary" @click="confirmRetry">
+                        <i class="pi pi-refresh"></i> Reintentar
+                    </button>
+                </div>
+            </div>
+        </template>
+    </UiModal>
+
+    <UiModal :visible="Boolean(showSuccessModal)" @close="closeSuccessAndGoHome">
+        <template v-if="showSuccessModal">
+            <div class="modal-box success-modal">
+                <button
+                    type="button"
+                    class="modal-close instructions-close"
+                    aria-label="Cerrar"
+                    @click="closeSuccessAndGoHome"
+                >
+                    <i class="pi pi-times"></i>
+                </button>
+                <div class="success-confetti">
+                    <span class="confetti-piece"><i class="pi pi-star-fill"></i></span>
+                    <span class="confetti-piece"><i class="pi pi-trophy"></i></span>
+                    <span class="confetti-piece"><i class="pi pi-verified"></i></span>
+                </div>
+                <h3 class="modal-title success-title">Felicitaciones!</h3>
+                <p class="success-message">
+                    Has aprobado la prueba de nivel {{ sheet?.level }} con un
+                    <strong>{{ Math.round(result?.score || 0) }}%</strong>
+                </p>
+                <div class="level-unlock-badge">
+                    <i class="pi pi-lock-open"></i>
+                    Nivel
+                    {{ result?.next_level || (sheet?.level || 0) + 1 }} desbloqueado
+                </div>
+                <p class="success-recommendation" v-if="result?.recommendation">
+                    {{ result.recommendation }}
+                </p>
+                <div class="modal-actions">
+                    <button class="btn btn-primary btn-lg" @click="closeSuccessAndGoHome">
+                        <i class="pi pi-home"></i> Continuar
+                    </button>
+                </div>
+            </div>
+        </template>
+    </UiModal>
 </template>
 
 <style scoped>
-  .test-shell {
+.test-shell {
     max-width: 780px;
     margin: 0 auto;
     padding: 24px 20px 60px;
@@ -1053,10 +1307,9 @@
     flex-direction: column;
     gap: 16px;
     background: var(--gradient-app-bg);
-  }
+}
 
-  /* Header */
-  .test-header {
+.test-header {
     display: flex;
     align-items: flex-start;
     gap: 16px;
@@ -1065,9 +1318,9 @@
     border-radius: var(--radius-2xl);
     border: 1.5px solid rgba(var(--practiq-violet-rgb), 0.12);
     box-shadow: var(--shadow-card);
-  }
+}
 
-  .btn-back {
+.btn-back {
     width: 38px;
     height: 38px;
     border-radius: 50%;
@@ -1079,16 +1332,16 @@
     justify-content: center;
     flex-shrink: 0;
     margin-top: 2px;
-  }
-  .btn-back:hover {
+}
+.btn-back:hover {
     background: var(--fill-primary-faint);
-  }
+}
 
-  .test-header-info {
+.test-header-info {
     flex: 1;
-  }
+}
 
-  .level-badge {
+.level-badge {
     display: inline-block;
     padding: 3px 12px;
     border-radius: var(--radius-2xl);
@@ -1097,21 +1350,21 @@
     font-size: 0.75rem;
     font-weight: 700;
     margin-bottom: 6px;
-  }
+}
 
-  .test-title {
+.test-title {
     font-size: 1.3rem;
     font-weight: 800;
     color: var(--text-primary);
     margin: 0 0 4px;
-  }
+}
 
-  .test-subtitle {
+.test-subtitle {
     font-size: 0.82rem;
     color: var(--text-secondary);
-  }
+}
 
-  .timer {
+.timer {
     display: flex;
     align-items: center;
     gap: 6px;
@@ -1122,33 +1375,31 @@
     padding: 8px 16px;
     border-radius: var(--radius-md);
     flex-shrink: 0;
-  }
-  .timer--warning {
+}
+.timer--warning {
     color: var(--color-error-dark);
     background: var(--color-error-bg);
-  }
+}
 
-  /* Progress */
-  .test-progress-bar {
+.test-progress-bar {
     height: 6px;
     background: var(--fill-primary-soft);
     border-radius: var(--radius-pill);
     overflow: hidden;
-  }
-  .test-progress-fill {
+}
+.test-progress-fill {
     height: 100%;
     background: var(--gradient-brand);
     border-radius: var(--radius-pill);
     transition: width 0.3s ease;
-  }
-  .test-progress-label {
+}
+.test-progress-label {
     font-size: 0.8rem;
     color: var(--text-secondary);
     text-align: right;
-  }
+}
 
-  /* Draw toolbar */
-  .draw-tools-bar {
+.draw-tools-bar {
     display: flex;
     align-items: center;
     gap: 6px;
@@ -1157,11 +1408,11 @@
     border-radius: var(--radius-lg);
     border: 1.5px solid rgba(var(--practiq-violet-rgb), 0.1);
     flex-wrap: wrap;
-  }
+}
 
-  .tool-btn {
-    width: 34px;
-    height: 34px;
+.tool-btn {
+    width: 30px;
+    height: 30px;
     border-radius: var(--radius-sm);
     border: 1.5px solid rgba(var(--practiq-violet-rgb), 0.15);
     background: var(--surface-elevated);
@@ -1172,53 +1423,51 @@
     font-size: 0.9rem;
     color: var(--text-secondary);
     transition: all 0.15s;
-  }
-  .tool-btn:hover {
+}
+.tool-btn:hover:not(.tool-btn--active) {
     border-color: var(--practiq-violet);
     color: var(--practiq-violet);
-  }
-  .tool-btn--active {
+}
+.tool-btn--active:hover {
+    color: var(--color-on-primary);
+}
+.tool-btn--pen-active,
+.tool-btn--pen-active:hover {
+    border-color: transparent;
+    color: #fff;
+    box-shadow: none;
+}
+.tool-btn--active {
     background: var(--practiq-violet);
     color: var(--color-on-primary);
     border-color: var(--practiq-violet);
-  }
+}
 
-  .tool-sep {
+.tool-sep {
     width: 1px;
     height: 28px;
     background: rgba(var(--practiq-violet-rgb), 0.15);
     margin: 0 4px;
-  }
+}
 
-  .color-picker {
-    width: 34px;
-    height: 34px;
-    border-radius: var(--radius-sm);
-    border: 1.5px solid rgba(var(--practiq-violet-rgb), 0.15);
-    padding: 2px;
-    cursor: pointer;
-    background: none;
-  }
-
-  .size-slider {
+.size-slider {
     width: 80px;
     accent-color: var(--practiq-violet);
-  }
+}
 
-  .size-val {
+.size-val {
     font-size: 0.8rem;
     color: var(--text-secondary);
     min-width: 28px;
-  }
+}
 
-  /* Exercises */
-  .exercises-list {
+.exercises-list {
     display: flex;
     flex-direction: column;
     gap: 12px;
-  }
+}
 
-  .ex-card {
+.ex-card {
     display: flex;
     gap: 16px;
     align-items: flex-start;
@@ -1227,14 +1476,14 @@
     border-radius: var(--radius-xl);
     border: 1.5px solid rgba(var(--practiq-violet-rgb), 0.08);
     transition: border-color 0.15s;
-  }
+}
 
-  .ex-card--answered {
+.ex-card--answered {
     border-color: rgba(var(--color-success-rgb), 0.3);
     background: var(--color-success-bg);
-  }
+}
 
-  .ex-num {
+.ex-num {
     width: 32px;
     height: 32px;
     border-radius: var(--radius-sm);
@@ -1246,38 +1495,38 @@
     align-items: center;
     justify-content: center;
     flex-shrink: 0;
-  }
+}
 
-  .ex-card--answered .ex-num {
+.ex-card--answered .ex-num {
     background: rgba(var(--color-success-rgb), 0.15);
     color: var(--color-success-dark);
-  }
+}
 
-  .ex-body {
+.ex-body {
     flex: 1;
     display: flex;
     flex-direction: column;
     gap: 10px;
-  }
-  .ex-body--skeleton {
+}
+.ex-body--skeleton {
     gap: 12px;
-  }
+}
 
-  .ex-question {
+.ex-question {
     font-size: 1rem;
     font-weight: 600;
     color: var(--text-primary);
     line-height: 1.5;
-  }
+}
 
-  .ex-question--math {
+.ex-question--math {
     padding: 10px 12px;
     border-radius: var(--radius-sm);
     background: var(--surface-elevated-strong);
     border: 1px solid rgba(var(--practiq-violet-rgb), 0.12);
-  }
+}
 
-  .teacher-handwritten-image {
+.teacher-handwritten-image {
     width: 100%;
     max-height: 260px;
     object-fit: contain;
@@ -1285,9 +1534,9 @@
     border-radius: var(--radius-sm);
     background: var(--surface-card);
     box-shadow: var(--shadow-card);
-  }
+}
 
-  .ex-input {
+.ex-input {
     padding: 10px 14px;
     border-radius: var(--radius-sm);
     border: 1.5px solid rgba(var(--practiq-violet-rgb), 0.15);
@@ -1296,33 +1545,33 @@
     background: var(--surface-elevated-strong);
     outline: none;
     transition: border-color 0.15s;
-  }
-  .ex-input:focus {
+}
+.ex-input:focus {
     border-color: var(--practiq-violet);
-  }
+}
 
-  .equation-answer-wrap {
+.equation-answer-wrap {
     width: 100%;
-  }
-  .equation-answer-wrap :deep(.math-field-editor) {
+}
+.equation-answer-wrap :deep(.math-field-editor) {
     min-height: 44px;
     padding: 8px 12px;
     font-size: 1.1rem;
     border-radius: var(--radius-sm);
     border: 1.5px solid rgba(var(--practiq-violet-rgb), 0.15);
     background: var(--surface-elevated-strong);
-  }
-  .equation-answer-wrap :deep(.math-field-editor:focus-within) {
+}
+.equation-answer-wrap :deep(.math-field-editor:focus-within) {
     border-color: var(--practiq-violet);
     box-shadow: 0 0 0 3px rgba(var(--practiq-violet-rgb), 0.12);
-  }
+}
 
-  .choice-options {
+.choice-options {
     display: grid;
     gap: 10px;
-  }
+}
 
-  .choice-option {
+.choice-option {
     display: flex;
     align-items: center;
     gap: 10px;
@@ -1333,45 +1582,44 @@
     color: var(--text-primary);
     cursor: pointer;
     transition:
-      border-color 0.15s,
-      background 0.15s;
-  }
+        border-color 0.15s,
+        background 0.15s;
+}
 
-  .choice-option:hover,
-  .choice-option--selected {
+.choice-option:hover,
+.choice-option--selected {
     border-color: rgba(var(--practiq-violet-rgb), 0.36);
     background: var(--fill-primary-faint);
-  }
+}
 
-  .choice-option input {
+.choice-option input {
     width: 18px;
     height: 18px;
     accent-color: var(--practiq-violet);
     flex: 0 0 auto;
-  }
+}
 
-  /* Canvas */
-  .canvas-wrap {
+.canvas-wrap {
     display: flex;
     flex-direction: column;
     gap: 8px;
-  }
+}
 
-  .canvas-header {
+.canvas-header {
     display: flex;
     align-items: center;
     justify-content: space-between;
-  }
+}
 
-  .canvas-label {
+.canvas-label {
     font-size: 0.82rem;
     font-weight: 600;
     color: var(--text-secondary);
     text-transform: uppercase;
     letter-spacing: 0.04em;
-  }
+}
 
-  .btn-clear-canvas {
+.btn-clear-canvas {
     display: flex;
     align-items: center;
     gap: 4px;
@@ -1383,12 +1631,12 @@
     cursor: pointer;
     font-size: 0.78rem;
     transition: all 0.15s;
-  }
-  .btn-clear-canvas:hover {
+}
+.btn-clear-canvas:hover {
     background: rgba(var(--color-error-rgb), 0.08);
-  }
+}
 
-  .ex-canvas {
+.ex-canvas {
     width: 100%;
     height: 220px;
     border-radius: var(--radius-md);
@@ -1396,27 +1644,81 @@
     display: block;
     touch-action: none;
     box-shadow: var(--shadow-card);
-  }
+    background-color: var(--surface-bg-soft);
+    background-image:
+        linear-gradient(
+            90deg,
+            transparent 56px,
+            rgba(var(--color-error-rgb), 0.25) 56px,
+            rgba(var(--color-error-rgb), 0.25) 57.5px,
+            transparent 57.5px
+        ),
+        repeating-linear-gradient(
+            transparent,
+            transparent 31px,
+            rgba(var(--practiq-violet-rgb), 0.1) 31px,
+            rgba(var(--practiq-violet-rgb), 0.1) 32px
+        );
+    background-repeat: no-repeat, repeat;
+}
 
-  /* Footer */
-  .test-footer {
-    display: flex;
+.test-footer {
+    display: grid;
+    grid-template-columns: 1fr auto 1fr;
     align-items: center;
-    justify-content: space-between;
+    gap: 12px;
     padding: 16px 20px;
-    background: var(--surface-elevated-strong);
+
+    background: rgb(var(--surface-card-rgb));
     border-radius: var(--radius-xl);
     border: 1.5px solid rgba(var(--practiq-violet-rgb), 0.1);
     position: sticky;
     bottom: 16px;
-  }
+    z-index: 3;
+    scroll-margin-bottom: 24px;
+}
 
-  .footer-hint {
+.footer-nav {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    justify-content: center;
+}
+
+.footer-actions {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+}
+
+.footer-hint {
     font-size: 0.85rem;
     color: var(--text-secondary);
-  }
+}
 
-  .btn-submit {
+.btn-step {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 10px 18px;
+    border-radius: var(--radius-md);
+    border: 1.5px solid rgba(var(--practiq-violet-rgb), 0.2);
+    background: var(--surface-elevated-strong);
+    color: var(--practiq-violet);
+    font-weight: 600;
+    font-size: 0.9rem;
+    cursor: pointer;
+}
+.btn-step:hover:not(:disabled) {
+    background: var(--fill-primary-faint);
+    border-color: rgba(var(--practiq-violet-rgb), 0.35);
+}
+.btn-step:disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
+}
+
+.btn-submit {
     display: flex;
     align-items: center;
     gap: 8px;
@@ -1430,38 +1732,36 @@
     cursor: pointer;
     box-shadow: var(--shadow-indigo);
     transition: opacity 0.15s;
-  }
-  .btn-submit:hover:not(:disabled) {
+}
+.btn-submit:hover:not(:disabled) {
     opacity: 0.9;
-  }
-  .btn-submit:disabled {
+}
+.btn-submit:disabled {
     opacity: 0.6;
     cursor: not-allowed;
-  }
+}
 
-  /* Skeleton styles */
-  .progress-skel {
+.progress-skel {
     margin-left: auto;
-  }
-  .ex-card--skeleton {
+}
+.ex-card--skeleton {
     pointer-events: none;
-  }
-  .ex-num-skel {
+}
+.ex-num-skel {
     border-radius: var(--radius-sm);
-  }
-  .canvas-skel {
+}
+.canvas-skel {
     border-radius: var(--radius-md);
     margin-top: 8px;
-  }
+}
 
-  /* Results */
-  .results-panel {
+.results-panel {
     display: flex;
     justify-content: center;
     padding: 20px 0;
-  }
+}
 
-  .result-card {
+.result-card {
     background: var(--surface-elevated-strong);
     border-radius: 28px;
     padding: 40px 48px;
@@ -1474,81 +1774,90 @@
     flex-direction: column;
     align-items: center;
     gap: 20px;
-  }
+}
 
-  .result-card--pass {
+.result-card--pass {
     border-color: rgba(var(--color-success-rgb), 0.3);
-  }
-  .result-card--fail {
+}
+.result-card--fail {
     border-color: rgba(var(--color-warning-rgb), 0.3);
-  }
+}
 
-  .result-icon {
-    font-size: 3rem;
+.result-card--pending {
+    border-color: rgba(var(--color-info-rgb), 0.3);
+}
+
+.result-icon {
+    font-size: 2.7rem;
     line-height: 1;
-  }
+}
+.result-card--pass .result-icon {
+    color: var(--color-warning);
+}
+.result-card--fail .result-icon {
+    color: var(--practiq-violet);
+}
 
-  .result-heading {
+.result-heading {
     font-size: 1.6rem;
     font-weight: 800;
     color: var(--text-primary);
     margin: 0;
-  }
+}
 
-  .score-ring {
+.score-ring {
     position: relative;
     width: 140px;
     height: 140px;
-  }
+}
 
-  .ring-svg {
+.ring-svg {
     width: 140px;
     height: 140px;
     transform: scaleX(-1);
-  }
+}
 
-  .ring-label {
+.ring-label {
     position: absolute;
     inset: 0;
     display: flex;
     flex-direction: column;
     align-items: center;
     justify-content: center;
-  }
+}
 
-  .ring-score {
+.ring-score {
     font-size: 1.8rem;
     font-weight: 800;
     color: var(--text-primary);
     line-height: 1;
-  }
+}
 
-  .ring-sub {
+.ring-sub {
     font-size: 0.85rem;
     color: var(--text-secondary);
-  }
+}
 
-  .level-up-badge {
+.level-up-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
     padding: 8px 20px;
     border-radius: var(--radius-pill);
-    background: linear-gradient(
-      135deg,
-      var(--color-success),
-      var(--color-success-dark)
-    );
+    background: linear-gradient(135deg, var(--color-success), var(--color-success-dark));
     color: var(--color-on-primary);
     font-weight: 700;
     font-size: 0.95rem;
-  }
+}
 
-  .result-rec {
+.result-rec {
     font-size: 0.95rem;
     color: var(--text-secondary);
     line-height: 1.6;
     margin: 0;
-  }
+}
 
-  .result-ai-feedback {
+.result-ai-feedback {
     background: var(--fill-primary-faint);
     border: 1px solid rgba(var(--practiq-violet-rgb), 0.15);
     border-radius: var(--radius-sm);
@@ -1558,16 +1867,125 @@
     line-height: 1.5;
     width: 100%;
     text-align: left;
-  }
+}
 
-  .result-actions {
+.pending-review-badge {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin: 16px 0;
+    padding: 14px 16px;
+    border-radius: var(--radius-lg, 14px);
+    background: var(--color-warning-bg, rgba(245, 158, 11, 0.12));
+    color: var(--text-primary);
+    font-weight: 600;
+}
+.all-correct-badge {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    width: 100%;
+    padding: 14px 16px;
+    border-radius: var(--radius-lg);
+    background: var(--fill-success-subtle);
+    color: var(--color-success-dark, #166534);
+    font-weight: 600;
+    text-align: center;
+}
+
+.exercise-results-section {
+    width: 100%;
+}
+
+.exercise-results-list {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.exercise-results-list--expanded {
+    max-height: 250px;
+    overflow-y: auto;
+}
+
+.exercise-result-item {
+    display: flex;
+    gap: 10px;
+    padding: 12px;
+    border-radius: var(--radius-lg);
+    text-align: left;
+}
+
+.exercise-result--incorrect {
+    background: var(--fill-error-subtle, #fef2f2);
+}
+
+.exercise-result-icon {
+    font-size: 1.15rem;
+    line-height: 1;
+    flex-shrink: 0;
+    color: var(--color-error);
+}
+
+.exercise-result-content {
+    flex: 1;
+    font-size: 0.85rem;
+}
+
+.exercise-result-answers {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px 8px;
+    margin-bottom: 6px;
+}
+
+.answer-label {
+    color: var(--text-muted);
+    font-size: 0.75rem;
+}
+
+.answer-student {
+    color: var(--color-error, #dc2626);
+    font-weight: 600;
+}
+
+.answer-correct {
+    color: var(--color-success, #16a34a);
+    font-weight: 600;
+}
+
+.exercise-result-feedback {
+    color: var(--text-secondary);
+    line-height: 1.4;
+}
+
+.btn-show-more {
+    margin-top: 8px;
+    width: 100%;
+    padding: 10px;
+    border: 1px dashed var(--border-color);
+    border-radius: var(--radius-md);
+    background: transparent;
+    color: var(--text-secondary);
+    font-size: 0.85rem;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.btn-show-more:hover {
+    background: var(--surface-subtle);
+    color: var(--text-primary);
+}
+
+.result-actions {
     display: flex;
     gap: 12px;
     flex-wrap: wrap;
     justify-content: center;
-  }
+}
 
-  .btn-secondary {
+.btn-secondary {
     padding: 10px 22px;
     border-radius: var(--radius-md);
     border: 1.5px solid rgba(var(--practiq-violet-rgb), 0.2);
@@ -1577,36 +1995,38 @@
     cursor: pointer;
     font-size: 0.9rem;
     transition: all 0.15s;
-  }
-  .btn-secondary:hover {
+}
+.btn-secondary:hover {
     border-color: var(--practiq-violet);
-  }
+}
 
-  .btn-retry {
+.btn-retry {
     padding: 10px 22px;
     border-radius: var(--radius-md);
     border: none;
-    background: linear-gradient(
-      135deg,
-      var(--color-warning),
-      var(--color-warning-strong)
-    );
+    background: linear-gradient(135deg, var(--color-warning), var(--color-warning-strong));
     color: var(--color-on-primary);
     font-weight: 700;
     cursor: pointer;
     font-size: 0.9rem;
-  }
-  .btn-retry:hover {
+}
+.btn-retry:hover {
     opacity: 0.9;
-  }
+}
 
-  /* Instructions Modal */
-  .instructions-modal {
+.instructions-modal {
+    position: relative;
     max-width: 500px;
     text-align: center;
-  }
+}
 
-  .instructions-icon {
+.instructions-close {
+    position: absolute;
+    top: 16px;
+    right: 16px;
+}
+
+.instructions-icon {
     width: 64px;
     height: 64px;
     margin: 0 auto 20px;
@@ -1616,29 +2036,29 @@
     place-items: center;
     font-size: 28px;
     color: var(--practiq-violet);
-  }
+}
 
-  .instructions-content {
+.instructions-content {
     text-align: left;
     margin-bottom: 20px;
-  }
+}
 
-  .instructions-intro {
+.instructions-intro {
     font-size: var(--text-base);
     color: var(--text-secondary);
     margin-bottom: 16px;
-  }
+}
 
-  .instructions-list {
+.instructions-list {
     list-style: none;
     padding: 0;
     margin: 0;
     display: flex;
     flex-direction: column;
     gap: 12px;
-  }
+}
 
-  .instructions-list li {
+.instructions-list li {
     display: flex;
     align-items: center;
     gap: 12px;
@@ -1647,25 +2067,28 @@
     border-radius: var(--radius-md);
     font-size: var(--text-base);
     color: var(--text-primary);
-  }
+}
 
-  .instructions-list li i {
+.instructions-list li i {
     color: var(--practiq-violet);
     font-size: 18px;
     flex-shrink: 0;
-  }
+}
 
-  .instructions-tip {
+.instructions-expired {
+    color: var(--color-error, #b91c1c);
+    font-weight: 700;
+}
+.instructions-tip {
     margin-top: 16px;
     padding: 12px 16px;
     background: var(--fill-primary-faint);
     border-radius: var(--radius-md);
     font-size: var(--text-sm);
     color: var(--practiq-violet-dark);
-  }
+}
 
-  /* Time Warning Toast */
-  .time-warning-toast {
+.time-warning-toast {
     position: fixed;
     bottom: 100px;
     left: 50%;
@@ -1674,11 +2097,7 @@
     align-items: center;
     gap: 12px;
     padding: 14px 24px;
-    background: linear-gradient(
-      135deg,
-      var(--color-warning),
-      var(--color-warning-strong)
-    );
+    background: linear-gradient(135deg, var(--color-warning), var(--color-warning-strong));
     color: white;
     border-radius: var(--radius-xl);
     box-shadow: 0 8px 32px rgba(var(--color-warning-rgb), 0.3);
@@ -1686,19 +2105,19 @@
     font-weight: 600;
     z-index: 10000;
     animation: pulse 1s ease-in-out infinite;
-  }
+}
 
-  @keyframes pulse {
+@keyframes pulse {
     0%,
     100% {
-      transform: translateX(-50%) scale(1);
+        transform: translateX(-50%) scale(1);
     }
     50% {
-      transform: translateX(-50%) scale(1.02);
+        transform: translateX(-50%) scale(1.02);
     }
-  }
+}
 
-  .toast-close {
+.toast-close {
     width: 28px;
     height: 28px;
     border-radius: 50%;
@@ -1709,14 +2128,13 @@
     display: grid;
     place-items: center;
     margin-left: 8px;
-  }
+}
 
-  .toast-close:hover {
+.toast-close:hover {
     background: rgba(var(--surface-card-rgb), 0.3);
-  }
+}
 
-  /* Retry Warning */
-  .retry-warning {
+.retry-warning {
     display: flex;
     align-items: flex-start;
     gap: 12px;
@@ -1726,84 +2144,86 @@
     border-radius: var(--radius-md);
     margin: 16px 0;
     text-align: left;
-  }
+}
 
-  .retry-warning > i {
+.retry-warning > i {
     color: var(--color-warning-dark);
     font-size: 20px;
     flex-shrink: 0;
     margin-top: 2px;
-  }
+}
 
-  .retry-warning ul {
+.retry-warning ul {
     margin: 8px 0 0;
     padding-left: 20px;
     font-size: var(--text-sm);
     color: var(--text-secondary);
-  }
+}
 
-  .retry-warning li {
+.retry-warning li {
     margin-bottom: 4px;
-  }
+}
 
-  .modal-desc {
+.modal-desc {
     font-size: var(--text-base);
     color: var(--text-secondary);
     margin: 0;
-  }
+}
 
-  /* Success Modal */
-  .success-modal {
+.success-modal {
+    position: relative;
     max-width: 440px;
     text-align: center;
-  }
+}
 
-  .success-confetti {
+.success-confetti {
     display: flex;
     justify-content: center;
     gap: 16px;
     margin-bottom: 16px;
-  }
+}
 
-  .confetti-piece {
-    font-size: 42px;
+.confetti-piece {
+    font-size: 34px;
+    line-height: 1;
+    color: var(--color-warning);
     animation: bounce 0.6s ease-out;
-  }
+}
 
-  .confetti-piece:nth-child(2) {
+.confetti-piece:nth-child(2) {
     animation-delay: 0.1s;
-  }
+}
 
-  .confetti-piece:nth-child(3) {
+.confetti-piece:nth-child(3) {
     animation-delay: 0.2s;
-  }
+}
 
-  @keyframes bounce {
+@keyframes bounce {
     0% {
-      transform: translateY(20px) scale(0);
-      opacity: 0;
+        transform: translateY(20px) scale(0);
+        opacity: 0;
     }
     60% {
-      transform: translateY(-10px) scale(1.1);
+        transform: translateY(-10px) scale(1.1);
     }
     100% {
-      transform: translateY(0) scale(1);
-      opacity: 1;
+        transform: translateY(0) scale(1);
+        opacity: 1;
     }
-  }
+}
 
-  .success-title {
+.success-title {
     color: var(--color-success-dark);
     font-size: 1.8rem;
-  }
+}
 
-  .success-message {
+.success-message {
     font-size: var(--text-lg);
     color: var(--text-primary);
     margin-bottom: 20px;
-  }
+}
 
-  .level-unlock-badge {
+.level-unlock-badge {
     display: inline-flex;
     align-items: center;
     gap: 10px;
@@ -1814,122 +2234,345 @@
     font-size: var(--text-lg);
     font-weight: 700;
     margin-bottom: 16px;
-  }
+}
 
-  .success-recommendation {
+.success-recommendation {
     font-size: var(--text-sm);
     color: var(--text-secondary);
     padding: 12px 16px;
     background: var(--surface-subtle);
     border-radius: var(--radius-md);
     margin-bottom: 16px;
-  }
+}
 
-  .btn-lg {
+.btn-lg {
     padding: 14px 32px;
     font-size: var(--text-lg);
-  }
+}
 
-  /* Slide-up transition for toast */
-  .slide-up-enter-active,
-  .slide-up-leave-active {
+.slide-up-enter-active,
+.slide-up-leave-active {
     transition: all 0.3s ease;
-  }
+}
 
-  .slide-up-enter-from,
-  .slide-up-leave-to {
+.slide-up-enter-from,
+.slide-up-leave-to {
     transform: translateX(-50%) translateY(100px);
     opacity: 0;
-  }
+}
 
-  @media (max-width: 1024px) {
+@media (max-width: 1024px) {
     .test-shell {
-      padding: 20px 16px 48px;
+        padding: 20px 16px 48px;
     }
     .test-header {
-      padding: 16px 20px;
+        padding: 16px 20px;
     }
-  }
+}
 
-  @media (max-width: 768px) {
+@media (max-width: 768px) {
     .test-shell {
-      padding: 16px 12px 40px;
-      gap: 12px;
+        padding: 16px 12px 40px;
+        gap: 12px;
     }
     .test-header {
-      padding: 14px 16px;
-      gap: 10px;
-      flex-wrap: wrap;
+        padding: 14px 16px;
+        gap: 10px;
+        flex-wrap: wrap;
     }
     .test-title {
-      font-size: 1.1rem;
+        font-size: 1.1rem;
     }
     .test-subtitle {
-      font-size: 0.78rem;
+        font-size: 0.78rem;
     }
     .timer {
-      font-size: 0.95rem;
-      padding: 6px 12px;
+        font-size: 0.95rem;
+        padding: 6px 12px;
     }
     .ex-card {
-      padding: 14px 16px;
-      gap: 12px;
+        padding: 14px 16px;
+        gap: 12px;
     }
     .draw-tools-bar {
-      padding: 8px 12px;
+        padding: 8px 12px;
     }
     .test-footer {
-      padding: 12px 16px;
+        padding: 12px 16px;
     }
     .btn-submit {
-      padding: 10px 20px;
-      font-size: 0.88rem;
+        padding: 10px 20px;
+        font-size: 0.88rem;
     }
     .result-card {
-      padding: 28px 24px;
+        padding: 28px 24px;
     }
-  }
+}
 
-  @media (max-width: 600px) {
+@media (max-width: 600px) {
     .test-shell {
-      padding: 10px 8px 32px;
-      gap: 10px;
+        padding: 10px 8px 32px;
+        gap: 10px;
     }
     .test-header {
-      padding: 12px;
+        padding: 12px;
     }
     .ex-card {
-      padding: 12px;
-      flex-direction: column;
-      gap: 8px;
+        padding: 12px;
+        flex-direction: column;
+        gap: 8px;
     }
     .ex-num {
-      width: 28px;
-      height: 28px;
-      font-size: 0.82rem;
+        width: 28px;
+        height: 28px;
+        font-size: 0.82rem;
     }
     .ex-canvas {
-      height: 180px;
+        height: 180px;
     }
     .test-footer {
-      padding: 10px 12px;
-      flex-wrap: wrap;
-      gap: 8px;
+        grid-template-columns: 1fr;
+        padding: 10px 12px;
+        gap: 8px;
+
+        bottom: 0;
+        margin-left: -8px;
+        margin-right: -8px;
+        border-radius: var(--radius-xl) var(--radius-xl) 0 0;
+        border-bottom: 0;
+        padding-bottom: max(10px, env(safe-area-inset-bottom));
+    }
+
+    .draw-tools-bar {
+        flex-wrap: nowrap;
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+    }
+
+    .draw-tools-bar > * {
+        flex-shrink: 0;
+    }
+    .footer-nav .btn-step {
+        flex: 1;
+        justify-content: center;
     }
     .btn-submit {
-      width: 100%;
-      justify-content: center;
+        width: 100%;
+        justify-content: center;
     }
     .result-card {
-      padding: 20px 16px;
+        padding: 20px 16px;
     }
     .result-actions {
-      flex-direction: column;
-      align-items: stretch;
+        flex-direction: column;
+        align-items: stretch;
     }
     .btn-secondary,
     .btn-retry {
-      text-align: center;
+        text-align: center;
     }
-  }
+
+    .btn-back,
+    .toast-close {
+        width: 44px;
+        height: 44px;
+    }
+
+    .tool-btn {
+        width: 40px;
+        height: 40px;
+        font-size: 1rem;
+    }
+
+    .choice-option {
+        min-height: 52px;
+        padding: 12px 14px;
+    }
+
+    .choice-option input {
+        width: 22px;
+        height: 22px;
+    }
+
+    .btn-submit {
+        min-height: 50px;
+    }
+}
+
+@media (max-width: 680px) {
+    .test-shell {
+        padding: 16px 10px 80px;
+    }
+
+    .test-header {
+        display: grid;
+        grid-template-columns: 42px minmax(0, 1fr) auto;
+
+        padding: 14px 12px;
+        gap: 10px;
+        align-items: start;
+        border-radius: var(--radius-xl);
+    }
+
+    .test-header-info {
+        display: contents;
+    }
+    .btn-back {
+        grid-column: 1;
+        grid-row: 1 / span 2;
+    }
+    .test-title {
+        grid-column: 2;
+        grid-row: 1;
+        align-self: center;
+        font-size: 1.08rem;
+        margin: 0;
+    }
+    .test-subtitle {
+        grid-column: 2;
+        grid-row: 2;
+        display: -webkit-box;
+        overflow: hidden;
+
+        font-size: 0.82rem;
+        line-height: 1.3;
+        -webkit-box-orient: vertical;
+        -webkit-line-clamp: 2;
+    }
+    .timer {
+        grid-column: 3;
+        grid-row: 1;
+        padding: 5px 7px;
+        gap: 3px;
+        font-size: 0.78rem;
+        white-space: nowrap;
+    }
+    .level-badge {
+        grid-column: 3;
+        grid-row: 2;
+        align-self: end;
+        justify-self: end;
+        margin: 0;
+        padding: 3px 7px;
+        font-size: 0.68rem;
+        line-height: 1;
+        white-space: nowrap;
+    }
+
+    .ex-card {
+        padding: 14px 12px;
+        display: grid;
+        grid-template-columns: auto 1fr;
+        gap: 10px;
+        align-items: center;
+    }
+    .ex-card > .ex-body {
+        display: contents;
+    }
+    .ex-card > .ex-body > * {
+        grid-column: 1 / -1;
+    }
+    .ex-num {
+        width: 28px;
+        height: 28px;
+        font-size: 0.82rem;
+    }
+    .ex-canvas {
+        height: 320px;
+    }
+
+    .test-footer {
+        grid-template-columns: 1fr;
+        gap: 12px;
+        align-items: stretch;
+        padding: 12px 16px;
+        bottom: 0;
+        margin-left: -10px;
+        margin-right: -10px;
+        border-radius: var(--radius-xl) var(--radius-xl) 0 0;
+        border-bottom: 0;
+        padding-bottom: max(12px, env(safe-area-inset-bottom));
+        margin-top: 8px;
+    }
+    .footer-hint {
+        display: none;
+    }
+    .footer-nav,
+    .footer-actions {
+        width: 100%;
+        gap: 8px;
+    }
+    .footer-nav .btn-step,
+    .footer-actions .btn-submit {
+        flex: 1;
+    }
+    .btn-step {
+        padding: 12px 16px;
+        justify-content: center;
+        font-size: 0.875rem;
+    }
+    .btn-submit {
+        min-height: 50px;
+    }
+
+    .draw-tools-bar {
+        flex-wrap: nowrap;
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+        padding: 10px 12px;
+    }
+    .draw-tools-bar > * {
+        flex-shrink: 0;
+    }
+
+    .draw-tools-bar .size-slider {
+        width: 54px;
+    }
+    .draw-tools-bar .size-val {
+        min-width: 26px;
+    }
+    .tool-btn {
+        width: 40px;
+        height: 40px;
+    }
+}
+
+@media (min-width: 921px) {
+    :global(.practiq-assistant-focus-target--open .test-shell) {
+        width: calc(100% - var(--practiq-assistant-rail));
+        max-width: calc(100% - var(--practiq-assistant-rail));
+        margin-left: 0;
+        margin-right: auto;
+    }
+}
+
+.spinner {
+    width: 16px;
+    height: 16px;
+    border: 2px solid rgba(255, 255, 255, 0.3);
+    border-top-color: white;
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+    to {
+        transform: rotate(360deg);
+    }
+}
+.test-header-aside {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.attempts-left {
+    padding: 4px 10px;
+    border-radius: 999px;
+    background: var(--fill-primary-soft);
+    color: var(--practiq-violet-dark);
+    font-size: 12px;
+    font-weight: 800;
+    white-space: nowrap;
+}
 </style>
