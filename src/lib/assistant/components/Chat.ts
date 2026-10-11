@@ -1,18 +1,31 @@
 import { marked } from 'marked';
 import katex from 'katex';
-import clickSound from '@/assets/sounds/click.mp3';
+import recordStartSound from '@/assets/sounds/record-start.mp3';
+import recordStopSound from '@/assets/sounds/record-stop.mp3';
 import { vibrateRecordingStart, vibrateRecordingStop } from '@/utils/recordingFeedback';
 
-let recordingClickAudio: HTMLAudioElement | null = null;
+let recordStartAudio: HTMLAudioElement | null = null;
+let recordStopAudio: HTMLAudioElement | null = null;
 
-function playRecordingClick(): void {
+function playRecordStartSound(): void {
     try {
-        if (!recordingClickAudio) {
-            recordingClickAudio = new Audio(clickSound);
+        if (!recordStartAudio) {
+            recordStartAudio = new Audio(recordStartSound);
         }
-        recordingClickAudio.volume = 0.5;
-        recordingClickAudio.currentTime = 0;
-        recordingClickAudio.play().catch(() => {});
+        recordStartAudio.volume = 0.5;
+        recordStartAudio.currentTime = 0;
+        recordStartAudio.play().catch(() => {});
+    } catch {}
+}
+
+function playRecordStopSound(): void {
+    try {
+        if (!recordStopAudio) {
+            recordStopAudio = new Audio(recordStopSound);
+        }
+        recordStopAudio.volume = 0.5;
+        recordStopAudio.currentTime = 0;
+        recordStopAudio.play().catch(() => {});
     } catch {}
 }
 
@@ -527,7 +540,7 @@ export class Chat {
 
             this.mediaRecorder.start();
             vibrateRecordingStart();
-            playRecordingClick();
+            playRecordStartSound();
         } catch (error) {
             console.error('Error starting audio recording:', error);
             this.addMessage('Error: No se pudo acceder al micrófono', 'error');
@@ -545,7 +558,7 @@ export class Chat {
             this.mediaRecorder.stream.getTracks().forEach((track) => track.stop());
             this.isRecording = false;
             vibrateRecordingStop();
-            playRecordingClick();
+            playRecordStopSound();
 
             const recordButton = this.chatWindow.querySelector(
                 '.ia-chat-record',
