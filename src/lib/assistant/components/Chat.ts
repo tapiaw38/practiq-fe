@@ -611,8 +611,8 @@ export class Chat {
     }
 
     private async sendAudioMessage(textContent: string, audioBlob: Blob): Promise<void> {
-        const displayMessage = textContent || 'Mensaje de audio';
-        this.addMessage(displayMessage, 'user');
+        const localAudioUrl = URL.createObjectURL(audioBlob);
+        this.addMessage(textContent, 'user', false, localAudioUrl);
 
         this.showTypingIndicator();
 
@@ -813,6 +813,7 @@ export class Chat {
         text: string,
         sender: 'user' | 'assistant' | 'error',
         isHtml: boolean = false,
+        userAudioUrl?: string,
     ): void {
         const messageElement = document.createElement('div');
         messageElement.className = `ia-chat-message ${sender}`;
@@ -908,10 +909,20 @@ export class Chat {
         if (sender === 'assistant') {
             messageElement.classList.add('ia-md');
             messageElement.innerHTML = this.renderMarkdownAndMath(displayText);
-        } else {
+        } else if (displayText) {
             const sanitizedText = this.sanitizeText(displayText);
             const formattedText = this.formatText(sanitizedText);
             messageElement.innerHTML = formattedText;
+        }
+
+        if (sender === 'user' && userAudioUrl) {
+            messageElement.classList.add('ia-chat-message--user-audio');
+            const userAudioPlayer = document.createElement('audio');
+            userAudioPlayer.className = 'ia-user-audio-player';
+            userAudioPlayer.src = userAudioUrl;
+            userAudioPlayer.controls = true;
+            userAudioPlayer.preload = 'metadata';
+            messageElement.appendChild(userAudioPlayer);
         }
 
         if (this.options.audioAnswers && sender === 'assistant') {
@@ -2136,6 +2147,18 @@ export class Chat {
       .ia-chat-message p {
         margin: 6px 0;
         line-height: 1.5;
+      }
+
+      .ia-user-audio-player {
+        height: 32px;
+        max-width: 220px;
+        filter: invert(1);
+      }
+
+      .ia-chat-message--user-audio.ia-chat-message {
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
       }
 
       .ia-audio-container {
