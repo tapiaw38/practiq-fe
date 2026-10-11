@@ -1198,7 +1198,7 @@ async function startRecording() {
         mediaRecorder.start();
         isRecording.value = true;
         vibrateRecordingStart();
-        playSound('click');
+        playSound('record-start');
     } catch {
         notify('No se pudo acceder al micrófono. Revisa los permisos del navegador.');
     }
@@ -1208,7 +1208,7 @@ async function stopRecording() {
     if (!isRecording.value || !mediaRecorder) return;
     isRecording.value = false;
     vibrateRecordingStop();
-    playSound('click');
+    playSound('record-stop');
     await new Promise<void>((resolve) => {
         mediaRecorder!.onstop = () => resolve();
         mediaRecorder!.stop();
