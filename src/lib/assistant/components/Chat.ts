@@ -1,5 +1,20 @@
 import { marked } from 'marked';
 import katex from 'katex';
+import clickSound from '@/assets/sounds/click.mp3';
+import { vibrateRecordingStart, vibrateRecordingStop } from '@/utils/recordingFeedback';
+
+let recordingClickAudio: HTMLAudioElement | null = null;
+
+function playRecordingClick(): void {
+    try {
+        if (!recordingClickAudio) {
+            recordingClickAudio = new Audio(clickSound);
+        }
+        recordingClickAudio.volume = 0.5;
+        recordingClickAudio.currentTime = 0;
+        recordingClickAudio.play().catch(() => {});
+    } catch {}
+}
 
 export type ChatPosition = 'bottom-right' | 'bottom-left' | 'top-right' | 'top-left';
 
@@ -511,6 +526,8 @@ export class Chat {
             };
 
             this.mediaRecorder.start();
+            vibrateRecordingStart();
+            playRecordingClick();
         } catch (error) {
             console.error('Error starting audio recording:', error);
             this.addMessage('Error: No se pudo acceder al micrófono', 'error');
@@ -527,6 +544,8 @@ export class Chat {
             this.mediaRecorder.stop();
             this.mediaRecorder.stream.getTracks().forEach((track) => track.stop());
             this.isRecording = false;
+            vibrateRecordingStop();
+            playRecordingClick();
 
             const recordButton = this.chatWindow.querySelector(
                 '.ia-chat-record',

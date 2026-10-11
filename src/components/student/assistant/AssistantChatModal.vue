@@ -503,11 +503,14 @@ import type {
 } from './AssistantChatModal.types';
 import type { AssistantMode, AssistantMessage, PizarronState, Topic } from '@/types';
 import { assistantVoiceEnabled, setAssistantVoiceEnabled } from '@/utils/assistantPreferences';
+import { useSound } from '@/composables/useSound';
+import { vibrateRecordingStart, vibrateRecordingStop } from '@/utils/recordingFeedback';
 
 const props = defineProps<AssistantChatModalProps>();
 const emit = defineEmits<AssistantChatModalEmits>();
 
 const authStore = useAuthStore();
+const { play: playSound } = useSound();
 const API_BASE = `${import.meta.env.VITE_PRACTIQ_API_URL || 'http://localhost:8083'}/api/assistant-proxy`;
 const PRACTIQ_API_BASE = `${import.meta.env.VITE_PRACTIQ_API_URL || 'http://localhost:8083'}/api`;
 const STORAGE_KEY = 'ai-client-id';
@@ -1194,6 +1197,8 @@ async function startRecording() {
         };
         mediaRecorder.start();
         isRecording.value = true;
+        vibrateRecordingStart();
+        playSound('click');
     } catch {
         notify('No se pudo acceder al micrófono. Revisa los permisos del navegador.');
     }
@@ -1202,6 +1207,8 @@ async function startRecording() {
 async function stopRecording() {
     if (!isRecording.value || !mediaRecorder) return;
     isRecording.value = false;
+    vibrateRecordingStop();
+    playSound('click');
     await new Promise<void>((resolve) => {
         mediaRecorder!.onstop = () => resolve();
         mediaRecorder!.stop();
