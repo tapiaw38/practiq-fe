@@ -145,10 +145,6 @@ function applyDrawerVisibility() {
     }
 }
 
-function getCSSVar(name: string): string {
-    return getComputedStyle(document.documentElement).getPropertyValue(name).trim();
-}
-
 function mountAssistant() {
     const token = authStore.token;
     if (!token || !isEnabled.value) return;
@@ -156,9 +152,9 @@ function mountAssistant() {
 
     destroyAssistant();
 
-    const primaryColor = getCSSVar('--practiq-violet');
-    const backgroundColor = getCSSVar('--surface-card');
-    const textColor = getCSSVar('--text-primary');
+    const primaryColor = 'var(--practiq-violet)';
+    const backgroundColor = 'var(--surface-card)';
+    const textColor = 'var(--text-primary)';
 
     assistant = createAssistant({
         apiBaseUrl: proxyBaseUrl,
@@ -210,9 +206,9 @@ function mountAssistant() {
             backgroundColor: backgroundColor,
             userMessageBgColor: primaryColor,
             userMessageTextColor: '#ffffff',
-            assistantMessageBgColor: getCSSVar('--surface-elevated'),
+            assistantMessageBgColor: 'var(--surface-elevated)',
             assistantMessageTextColor: textColor,
-            inputBorderColor: getCSSVar('--surface-border'),
+            inputBorderColor: 'var(--surface-border)',
             inputBgColor: backgroundColor,
             inputTextColor: textColor,
         },

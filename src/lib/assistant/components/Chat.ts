@@ -1490,7 +1490,7 @@ export class Chat {
         width: min(${this.options.width}px, calc(100vw - 32px));
         height: min(${this.options.height}px, calc(100vh - 120px));
         background:
-          linear-gradient(180deg, rgba(255, 255, 255, 0.98) 0%, rgba(248, 251, 253, 0.98) 100%);
+          linear-gradient(180deg, rgba(var(--surface-card-rgb), 0.98) 0%, rgba(var(--surface-card-rgb), 0.98) 100%);
         background-color: ${backgroundColor};
         border: 1px solid rgba(18, 60, 82, 0.10);
         border-radius: 24px;
@@ -1626,7 +1626,7 @@ export class Chat {
       }
 
       .ia-chat-header {
-        background: rgba(255,255,255,.88);
+        background: rgba(var(--surface-card-rgb),.88);
         color: #4f3891;
         padding: 16px 18px 14px;
         display: flex;
@@ -1747,7 +1747,7 @@ export class Chat {
         gap: 10px;
         background:
           radial-gradient(circle at top left, rgba(18, 60, 82, 0.04), transparent 34%),
-          linear-gradient(180deg, rgba(248, 251, 253, 0.96) 0%, rgba(255, 255, 255, 1) 100%);
+          linear-gradient(180deg, rgba(var(--surface-card-rgb), 0.96) 0%, rgba(var(--surface-card-rgb), 1) 100%);
       }
 
       .ia-chat-message {
@@ -1778,8 +1778,8 @@ export class Chat {
       }
 
       .ia-chat-message.error {
-        background-color: #ffe6e6;
-        color: #d32f2f;
+        background-color: rgba(var(--color-error-rgb), 0.14);
+        color: var(--color-error);
         align-self: flex-start;
         border: 1px solid rgba(211, 47, 47, 0.18);
         border-bottom-left-radius: 6px;
@@ -1835,7 +1835,7 @@ export class Chat {
         display: flex;
         align-items: flex-end;
         gap: 8px;
-        background: rgba(255, 255, 255, 0.96);
+        background: rgba(var(--surface-card-rgb), 0.96);
       }
 
       .ia-chat-input-wrapper {
@@ -2137,7 +2137,7 @@ export class Chat {
 
       .ia-chat-checkbox-container {
         padding: 10px 14px 0;
-        background-color: rgba(255, 255, 255, 0.96);
+        background-color: rgba(var(--surface-card-rgb), 0.96);
         display: flex;
         align-items: center;
         gap: 8px;
@@ -2197,7 +2197,7 @@ export class Chat {
         margin-top: 10px;
         max-width: 260px;
       }
-      .ia-audio-controls { display:flex; align-items:center; gap:8px; padding:8px 10px; border-radius:18px; background:rgba(255,255,255,.68); border:1px solid rgba(18,60,82,.08); }
+      .ia-audio-controls { display:flex; align-items:center; gap:8px; padding:8px 10px; border-radius:18px; background:rgba(var(--surface-card-rgb),.68); border:1px solid rgba(18,60,82,.08); }
       .ia-audio-toggle { appearance:none; box-sizing:border-box; flex:0 0 36px; width:36px; min-width:36px; height:36px; border:0; border-radius:50%; background:${primaryColor}; color:white; cursor:pointer; font-size:13px; line-height:1; display:grid; place-items:center; padding:0 0 0 2px; }
       .ia-audio-time { white-space:nowrap; font-size:12px; font-weight:700; color:#475569; font-variant-numeric:tabular-nums; }
       .ia-audio-progress { min-width:0; width:100%; accent-color:${primaryColor}; cursor:pointer; }

@@ -207,7 +207,7 @@ defineExpose({
     touch-action: none;
     cursor: crosshair;
     box-shadow: var(--shadow-card);
-    background-color: var(--surface-bg-soft);
+    background-color: var(--canvas-paper-bg);
     background-image:
         linear-gradient(
             90deg,

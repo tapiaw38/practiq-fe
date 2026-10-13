@@ -1575,6 +1575,15 @@ function scoreColor(score: number) {
     background: var(--fill-primary-faint);
 }
 
+:root[data-color-scheme='dark'] .btn-back {
+    background: var(--practiq-violet);
+    border-color: var(--practiq-violet);
+    color: #fff;
+}
+:root[data-color-scheme='dark'] .btn-back:hover {
+    background: var(--practiq-violet-dark);
+}
+
 .practice-header-info {
     flex: 1;
 }
