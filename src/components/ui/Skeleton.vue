@@ -1,212 +1,203 @@
 <script setup lang="ts">
-  import { computed } from "vue";
-  import type { SkeletonProps } from "./Skeleton.types";
+import { computed } from 'vue';
+import type { SkeletonProps } from './Skeleton.types';
 
-  const props = withDefaults(defineProps<SkeletonProps>(), {
+const props = withDefaults(defineProps<SkeletonProps>(), {
     width: undefined,
     height: undefined,
     size: undefined,
-    variant: "rect",
+    variant: 'rect',
     rounded: false,
     rows: undefined,
-    rowGap: "8px",
+    rowGap: '8px',
     grid: undefined,
-    gridCols: "repeat(auto-fill, minmax(200px, 1fr))",
-    gridHeight: "120px",
+    gridCols: 'repeat(auto-fill, minmax(200px, 1fr))',
+    gridHeight: '120px',
     animate: true,
     wrapper: false,
-    wrapperClass: "",
+    wrapperClass: '',
     flex: false,
-    gap: "12px",
-  });
+    gap: '12px',
+});
 
-  const skeletonClasses = computed(() => [
+const skeletonClasses = computed(() => [
     `skeleton--${props.variant}`,
     {
-      "skeleton--circle":
-        props.variant === "circle" || props.variant === "avatar",
-      "skeleton--rounded": props.rounded === true,
-      "skeleton--no-animate": !props.animate,
+        'skeleton--circle': props.variant === 'circle' || props.variant === 'avatar',
+        'skeleton--rounded': props.rounded === true,
+        'skeleton--no-animate': !props.animate,
     },
-  ]);
+]);
 
-  const skeletonStyle = computed(() => {
+const skeletonStyle = computed(() => {
     const style: Record<string, string> = {};
 
     if (props.size) {
-      style.width = props.size;
-      style.height = props.size;
+        style.width = props.size;
+        style.height = props.size;
     } else {
-      if (props.width) style.width = props.width;
-      style.height = props.height || defaultHeight(props.variant);
+        if (props.width) style.width = props.width;
+        style.height = props.height || defaultHeight(props.variant);
     }
 
-    if (typeof props.rounded === "string") {
-      style.borderRadius = props.rounded;
+    if (typeof props.rounded === 'string') {
+        style.borderRadius = props.rounded;
     }
 
     return style;
-  });
+});
 
-  const wrapperClasses = computed(() => [
-    "skeleton-wrapper",
+const wrapperClasses = computed(() => [
+    'skeleton-wrapper',
     props.wrapperClass,
     {
-      "skeleton-wrapper--flex": props.flex,
-      "skeleton-wrapper--grid": !!props.grid,
-      "skeleton-wrapper--rows": !!props.rows,
+        'skeleton-wrapper--flex': props.flex,
+        'skeleton-wrapper--grid': !!props.grid,
+        'skeleton-wrapper--rows': !!props.rows,
     },
-  ]);
+]);
 
-  const wrapperStyle = computed(() => {
+const wrapperStyle = computed(() => {
     const style: Record<string, string> = {};
     if (props.flex || props.rows) style.gap = props.gap || props.rowGap;
     if (props.grid) {
-      style.display = "grid";
-      style.gridTemplateColumns = props.gridCols;
-      style.gap = props.gap;
+        style.display = 'grid';
+        style.gridTemplateColumns = props.gridCols;
+        style.gap = props.gap;
     }
     return style;
-  });
+});
 
-  function defaultHeight(variant: string): string {
+function defaultHeight(variant: string): string {
     switch (variant) {
-      case "text":
-        return "1em";
-      case "avatar":
-        return "40px";
-      case "circle":
-        return "40px";
-      case "card":
-        return "120px";
-      case "button":
-        return "38px";
-      case "badge":
-        return "24px";
-      default:
-        return "20px";
+        case 'text':
+            return '1em';
+        case 'avatar':
+            return '40px';
+        case 'circle':
+            return '40px';
+        case 'card':
+            return '120px';
+        case 'button':
+            return '38px';
+        case 'badge':
+            return '24px';
+        default:
+            return '20px';
     }
-  }
+}
 
-  function randomWidth(index: number): string {
+function randomWidth(index: number): string {
     if (props.width) return props.width;
-    // Vary width for text rows to look natural
-    const widths = ["100%", "92%", "85%", "78%", "95%", "88%"];
+
+    const widths = ['100%', '92%', '85%', '78%', '95%', '88%'];
     return widths[(index - 1) % widths.length];
-  }
+}
 </script>
 
 <template>
-  <component
-    :is="wrapper ? 'div' : 'span'"
-    :class="wrapperClasses"
-    :style="wrapperStyle"
-  >
-    <!-- Single skeleton element -->
-    <div
-      v-if="!rows && !grid"
-      class="skeleton"
-      :class="skeletonClasses"
-      :style="skeletonStyle"
-    ></div>
+    <component :is="wrapper ? 'div' : 'span'" :class="wrapperClasses" :style="wrapperStyle">
+        <div
+            v-if="!rows && !grid"
+            class="skeleton"
+            :class="skeletonClasses"
+            :style="skeletonStyle"
+        ></div>
 
-    <!-- Multiple rows -->
-    <template v-else-if="rows">
-      <div
-        v-for="i in rows"
-        :key="i"
-        class="skeleton"
-        :class="skeletonClasses"
-        :style="{ ...skeletonStyle, width: randomWidth(i) }"
-      ></div>
-    </template>
+        <template v-else-if="rows">
+            <div
+                v-for="i in rows"
+                :key="i"
+                class="skeleton"
+                :class="skeletonClasses"
+                :style="{ ...skeletonStyle, width: randomWidth(i) }"
+            ></div>
+        </template>
 
-    <!-- Grid layout -->
-    <template v-else-if="grid">
-      <div
-        v-for="i in grid"
-        :key="i"
-        class="skeleton skeleton--card"
-        :style="{ height: gridHeight }"
-      >
-        <slot :index="i"></slot>
-      </div>
-    </template>
-  </component>
+        <template v-else-if="grid">
+            <div
+                v-for="i in grid"
+                :key="i"
+                class="skeleton skeleton--card"
+                :style="{ height: gridHeight }"
+            >
+                <slot :index="i"></slot>
+            </div>
+        </template>
+    </component>
 </template>
 
 <style scoped>
-  .skeleton {
+.skeleton-wrapper {
+    display: block;
+}
+
+.skeleton {
     background: linear-gradient(
-      90deg,
-      rgba(var(--surface-border-rgb, 200, 200, 200), 0.12) 0%,
-      rgba(var(--surface-border-rgb, 200, 200, 200), 0.24) 50%,
-      rgba(var(--surface-border-rgb, 200, 200, 200), 0.12) 100%
+        90deg,
+        rgba(var(--surface-border-rgb, 200, 200, 200), 0.12) 0%,
+        rgba(var(--surface-border-rgb, 200, 200, 200), 0.24) 50%,
+        rgba(var(--surface-border-rgb, 200, 200, 200), 0.12) 100%
     );
     background-size: 200% 100%;
     animation: skeleton-shimmer 1.5s ease-in-out infinite;
     border-radius: var(--radius-sm, 4px);
-    margin-bottom: 6px;
-  }
-  .skeleton:last-child {
-    margin-bottom: 0;
-  }
+}
 
-  .skeleton--text {
+.skeleton--text {
     border-radius: var(--radius-xs, 2px);
     height: 1em;
-  }
+}
 
-  .skeleton--card {
+.skeleton--card {
     border-radius: var(--radius-xl, 16px);
     min-height: 80px;
-  }
+}
 
-  .skeleton--avatar,
-  .skeleton--circle {
+.skeleton--avatar,
+.skeleton--circle {
     border-radius: 50%;
     flex-shrink: 0;
-  }
+}
 
-  .skeleton--button {
+.skeleton--button {
     border-radius: var(--radius-md, 8px);
     width: 100px;
-  }
+}
 
-  .skeleton--badge {
+.skeleton--badge {
     border-radius: var(--radius-pill, 999px);
     width: 60px;
-  }
+}
 
-  .skeleton--rounded {
+.skeleton--rounded {
     border-radius: var(--radius-pill, 999px);
-  }
+}
 
-  .skeleton--no-animate {
+.skeleton--no-animate {
     animation: none;
-  }
+}
 
-  /* Wrapper styles */
-  .skeleton-wrapper--flex {
+.skeleton-wrapper--flex {
     display: flex;
     align-items: center;
-  }
+}
 
-  .skeleton-wrapper--rows {
+.skeleton-wrapper--rows {
     display: flex;
     flex-direction: column;
-  }
+}
 
-  .skeleton-wrapper--grid {
+.skeleton-wrapper--grid {
     display: grid;
-  }
+}
 
-  @keyframes skeleton-shimmer {
+@keyframes skeleton-shimmer {
     0% {
-      background-position: 200% 0;
+        background-position: 200% 0;
     }
     100% {
-      background-position: -200% 0;
+        background-position: -200% 0;
     }
-  }
+}
 </style>

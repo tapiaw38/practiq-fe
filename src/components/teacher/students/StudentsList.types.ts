@@ -1,5 +1,5 @@
-import type { Student } from "@/types";
+import type { Student } from '@/types';
 
 export interface StudentsListProps {
-  students: Student[];
+    students: Student[];
 }
