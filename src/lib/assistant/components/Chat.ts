@@ -1544,8 +1544,8 @@ export class Chat {
           width: calc(var(--practiq-assistant-rail) - 40px) !important;
           height: calc(100dvh - 48px) !important;
           border-radius: 28px;
-          color: #26354d;
-          background: linear-gradient(150deg, rgba(255,255,255,.93), rgba(247,248,255,.85));
+          color: var(--text-primary);
+          background: linear-gradient(150deg, rgba(var(--surface-card-rgb),.93), rgba(var(--surface-card-rgb),.85));
           border-color: rgba(123,77,255,.14);
           box-shadow: 0 20px 54px rgba(52,42,104,.16);
           backdrop-filter: blur(22px) saturate(1.05);
@@ -1553,9 +1553,9 @@ export class Chat {
         .ia-chat-window--desktop-focus .ia-chat-header {
           min-height: 76px;
           padding: 16px 12px 14px 104px;
-          background: rgba(255,255,255,.28);
+          background: rgba(var(--surface-card-rgb),.28);
           border-bottom-color: rgba(123,77,255,.10);
-          color: #4f3891;
+          color: var(--text-heading);
         }
         .ia-chat-window--desktop-focus .ia-chat-title,
         .ia-chat-window--desktop-focus .ia-chat-context-label { display: none !important; }
@@ -1567,7 +1567,7 @@ export class Chat {
         .ia-chat-window--desktop-focus .ia-chat-new-conv,
         .ia-chat-window--desktop-focus .ia-chat-close {
           background: rgba(123,77,255,.07);
-          color: rgba(79,56,145,.56);
+          color: var(--text-secondary);
           opacity: .72;
         }
         .ia-chat-window--desktop-focus .ia-chat-settings {
@@ -1579,7 +1579,7 @@ export class Chat {
           flex: 0 0 32px;
           border-radius: 999px;
           background: rgba(123,77,255,.07) !important;
-          color: #5c44aa !important;
+          color: var(--text-primary) !important;
           border: 1px solid rgba(123,77,255,.12) !important;
           opacity: .88;
         }
@@ -1588,7 +1588,7 @@ export class Chat {
           min-width: 32px;
           height: 32px;
           flex: 0 0 32px;
-          color: #5c44aa;
+          color: var(--text-primary);
           border: 1px solid rgba(123,77,255,.12);
         }
         .ia-chat-window--desktop-focus .ia-chat-new-conv:hover,
@@ -1599,35 +1599,35 @@ export class Chat {
           background: radial-gradient(circle at 20% 0%, rgba(127,97,255,.08), transparent 35%), transparent;
         }
         .ia-chat-window--desktop-focus .ia-chat-message.assistant {
-          color: #32415c;
-          background: rgba(255,255,255,.64);
+          color: var(--text-primary);
+          background: rgba(var(--surface-card-rgb),.64);
           border-color: rgba(123,77,255,.10);
           box-shadow: none;
         }
         .ia-chat-window--desktop-focus .ia-chat-message.user { box-shadow: none; }
         .ia-chat-window--desktop-focus .ia-chat-input-area,
         .ia-chat-window--desktop-focus .ia-chat-checkbox-container {
-          background: rgba(255,255,255,.44);
+          background: rgba(var(--surface-card-rgb),.44);
           border-color: rgba(123,77,255,.10);
         }
         .ia-chat-window--desktop-focus .ia-chat-input {
-          color: #32415c;
-          background: rgba(255,255,255,.78);
+          color: var(--text-primary);
+          background: rgba(var(--surface-card-rgb),.78);
           border-color: rgba(123,77,255,.16);
           box-shadow: none;
         }
-        .ia-chat-window--desktop-focus .ia-chat-input::placeholder { color: rgba(75,89,118,.46); }
+        .ia-chat-window--desktop-focus .ia-chat-input::placeholder { color: var(--text-muted); }
         .ia-chat-window--desktop-focus .ia-chat-send,
         .ia-chat-window--desktop-focus .ia-chat-record {
           opacity: .72;
           box-shadow: 0 0 0 1px rgba(123,77,255,.14), 0 8px 14px rgba(81,60,154,.14);
         }
-        .ia-chat-window--desktop-focus .ia-chat-checkbox-label { color: rgba(60,74,105,.62); }
+        .ia-chat-window--desktop-focus .ia-chat-checkbox-label { color: var(--text-secondary); }
       }
 
       .ia-chat-header {
         background: rgba(var(--surface-card-rgb),.88);
-        color: #4f3891;
+        color: var(--text-heading);
         padding: 16px 18px 14px;
         display: flex;
         justify-content: space-between;
@@ -1657,7 +1657,7 @@ export class Chat {
         appearance: none;
         border: 1px solid rgba(123,77,255,.12);
         background: rgba(123,77,255,.07);
-        color: #5c44aa;
+        color: var(--text-secondary);
         cursor: pointer;
         outline: none;
         transition: background-color 0.18s ease, transform 0.18s ease, opacity 0.18s ease;
@@ -1724,7 +1724,7 @@ export class Chat {
         flex: 0 0 32px;
         border-radius: 999px !important;
         background: rgba(123,77,255,.07) !important;
-        color: #5c44aa !important;
+        color: var(--text-primary) !important;
         border: 1px solid rgba(123,77,255,.12) !important;
       }
 
@@ -2199,7 +2199,7 @@ export class Chat {
       }
       .ia-audio-controls { display:flex; align-items:center; gap:8px; padding:8px 10px; border-radius:18px; background:rgba(var(--surface-card-rgb),.68); border:1px solid rgba(18,60,82,.08); }
       .ia-audio-toggle { appearance:none; box-sizing:border-box; flex:0 0 36px; width:36px; min-width:36px; height:36px; border:0; border-radius:50%; background:${primaryColor}; color:white; cursor:pointer; font-size:13px; line-height:1; display:grid; place-items:center; padding:0 0 0 2px; }
-      .ia-audio-time { white-space:nowrap; font-size:12px; font-weight:700; color:#475569; font-variant-numeric:tabular-nums; }
+      .ia-audio-time { white-space:nowrap; font-size:12px; font-weight:700; color:var(--text-secondary); font-variant-numeric:tabular-nums; }
       .ia-audio-progress { min-width:0; width:100%; accent-color:${primaryColor}; cursor:pointer; }
     `;
 
