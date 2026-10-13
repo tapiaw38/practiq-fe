@@ -2206,7 +2206,7 @@ onBeforeUnmount(() => {
     flex: 1;
     display: block;
     cursor: crosshair;
-    background: var(--surface-card);
+    background: var(--canvas-paper-bg);
     touch-action: none;
     width: 100%;
     height: 100%;
