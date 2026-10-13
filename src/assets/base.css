@@ -55,6 +55,7 @@
     --surface-bg-cool: #f8fbff;
     --surface-bg-muted: #f6f8fc;
     --surface-card: #ffffff;
+    --canvas-paper-bg: #f7f8ff;
     --surface-hover: #f1f5f9;
     --surface-border: #e2e8f0;
     --surface-subtle: rgba(248, 250, 252, 0.9);
@@ -202,26 +203,30 @@
 }
 
 :root[data-color-scheme='dark'] {
-    --surface-bg: #0f1117;
-    --surface-bg-soft: #13161f;
-    --surface-bg-cool: #11141b;
-    --surface-bg-muted: #15181f;
-    --surface-card: #1a1d27;
-    --surface-hover: #22262f;
-    --surface-border: #2d3139;
-    --surface-subtle: rgba(26, 29, 39, 0.9);
-    --surface-card-border: #2d3139;
-    --border-strong: #3a3f4a;
+    --surface-bg: #0b0d12;
+    --surface-bg-soft: #0e1016;
+    --surface-bg-cool: #0d0f14;
+    --surface-bg-muted: #0f1117;
+    --surface-card: #1f2330;
+    --surface-hover: #272c3b;
+    --surface-border: #363b47;
+    --surface-subtle: rgba(31, 35, 48, 0.9);
+    --surface-card-border: #363b47;
+    --border-strong: #454b58;
 
-    --surface-card-rgb: 26, 29, 39;
-    --surface-bg-rgb: 15, 17, 23;
-    --surface-border-rgb: 45, 49, 57;
+    --surface-card-rgb: 31, 35, 48;
+    --surface-bg-rgb: 11, 13, 18;
+    --surface-border-rgb: 54, 59, 71;
     --text-primary-rgb: 226, 232, 240;
 
     --text-heading: #f1f5f9;
     --text-primary: #e2e8f0;
     --text-secondary: #94a3b8;
     --text-muted: #64748b;
+
+    --color-success-bg: rgba(16, 185, 129, 0.14);
+    --color-error-bg: rgba(239, 68, 68, 0.14);
+    --color-warning-bg: rgba(245, 158, 11, 0.14);
 }
 
 *,

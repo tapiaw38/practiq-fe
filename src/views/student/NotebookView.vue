@@ -700,6 +700,15 @@ function goToPage(idx: number) {
     background: rgba(var(--practiq-violet-rgb), 0.06);
 }
 
+:root[data-color-scheme='dark'] .btn-back {
+    background: var(--practiq-violet);
+    border-color: var(--practiq-violet);
+    color: #fff;
+}
+:root[data-color-scheme='dark'] .btn-back:hover {
+    background: var(--practiq-violet-dark);
+}
+
 .nb-title-area {
     flex: 1;
 }

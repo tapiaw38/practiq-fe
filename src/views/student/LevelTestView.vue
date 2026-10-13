@@ -1337,6 +1337,15 @@ function closeSuccessAndGoHome() {
     background: var(--fill-primary-faint);
 }
 
+:root[data-color-scheme='dark'] .btn-back {
+    background: var(--practiq-violet);
+    border-color: var(--practiq-violet);
+    color: #fff;
+}
+:root[data-color-scheme='dark'] .btn-back:hover {
+    background: var(--practiq-violet-dark);
+}
+
 .test-header-info {
     flex: 1;
 }
