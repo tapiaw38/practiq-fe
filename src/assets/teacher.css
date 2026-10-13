@@ -1,12 +1,12 @@
 :root[data-ui-theme='teacher'] {
-    --brand-50: #eef2ff;
-    --brand-100: #e0e7ff;
-    --brand-200: #c7d2fe;
-    --brand-500: #6366f1;
-    --brand-600: #4f46e5;
-    --brand-700: #4338ca;
-    --brand-800: #3730a3;
-    --brand-900: #312e81;
+    --brand-50: #f5f3ff;
+    --brand-100: #ede9fe;
+    --brand-200: #ddd6fe;
+    --brand-500: #8b5cf6;
+    --brand-600: #7c3aed;
+    --brand-700: #6d28d9;
+    --brand-800: #5b21b6;
+    --brand-900: #4c1d95;
     --on-brand: #ffffff;
     --canvas: #f6f8fa;
     --surface: #ffffff;
@@ -33,8 +33,8 @@
     --space-10: 40px;
     --space-12: 48px;
     --shadow-xs: 0 1px 2px rgba(15, 23, 42, 0.06);
-    --shadow-sm: 0 1px 3px rgba(15, 23, 42, 0.08), 0 1px 2px rgba(15, 23, 42, 0.04);
-    --shadow-lg: 0 12px 32px rgba(15, 23, 42, 0.16);
+    --shadow-sm: 0 4px 14px rgba(93, 108, 146, 0.08);
+    --shadow-lg: 0 24px 52px rgba(93, 108, 146, 0.14);
     --sidebar-w: 248px;
     --topbar-h: 56px;
     --tabbar-h: 60px;
@@ -50,24 +50,24 @@
     --practiq-violet-50: var(--brand-50);
     --practiq-violet-100: var(--brand-100);
     --practiq-violet-200: var(--brand-200);
-    --practiq-violet-300: #a5b4fc;
-    --practiq-violet-400: #818cf8;
+    --practiq-violet-300: #c4b5fd;
+    --practiq-violet-400: #a78bfa;
     --practiq-violet-500: var(--brand-500);
     --practiq-violet-600: var(--brand-600);
     --practiq-violet-700: var(--brand-700);
     --practiq-violet-800: var(--brand-800);
     --practiq-violet-900: var(--brand-900);
-    --practiq-violet-950: #1e1b4b;
+    --practiq-violet-950: #2e1065;
     --practiq-violet: var(--brand-600);
-    --practiq-violet-light: var(--brand-600);
+    --practiq-violet-light: var(--brand-500);
     --practiq-violet-dark: var(--brand-800);
     --practiq-violet-pale: var(--brand-50);
     --practiq-violet-bg: var(--brand-50);
-    --practiq-indigo: var(--brand-700);
-    --practiq-indigo-soft: var(--brand-200);
-    --practiq-violet-rgb: 79, 70, 229;
-    --practiq-violet-light-rgb: 79, 70, 229;
-    --practiq-indigo-rgb: 67, 56, 202;
+    --practiq-indigo: #6366f1;
+    --practiq-indigo-soft: #c7d2fe;
+    --practiq-violet-rgb: 124, 58, 237;
+    --practiq-violet-light-rgb: 139, 92, 246;
+    --practiq-indigo-rgb: 99, 102, 241;
 
     --surface-bg: var(--canvas);
     --surface-bg-soft: var(--canvas);
@@ -108,12 +108,12 @@
     --color-info-dark: var(--info);
     --color-on-primary: var(--on-brand);
 
-    --radius-xs: 4px;
-    --radius-sm: 6px;
-    --radius-md: 8px;
-    --radius-lg: 12px;
+    --radius-xs: 6px;
+    --radius-sm: 8px;
+    --radius-md: 12px;
+    --radius-lg: 14px;
     --radius-xl: 16px;
-    --radius-2xl: 16px;
+    --radius-2xl: 20px;
 
     --shadow-sm: var(--shadow-xs);
     --shadow-md: var(--shadow-sm);
@@ -121,12 +121,12 @@
     --shadow-card-lg: var(--shadow-sm);
     --shadow-panel: var(--shadow-lg);
     --shadow-soft: var(--shadow-sm);
-    --shadow-violet: none;
-    --shadow-violet-lg: none;
-    --shadow-indigo: none;
+    --shadow-violet: 0 4px 14px rgba(124, 58, 237, 0.25);
+    --shadow-violet-lg: 0 6px 20px rgba(124, 58, 237, 0.3);
+    --shadow-indigo: 0 12px 22px rgba(99, 102, 241, 0.2);
 
     --gradient-app-bg: var(--canvas);
-    --gradient-brand: var(--brand-600);
+    --gradient-brand: linear-gradient(135deg, var(--brand-500), var(--practiq-indigo));
     --gradient-brand-panel: var(--brand-800);
     --gradient-brand-soft: var(--brand-50);
     --gradient-brand-avatar: var(--brand-100);

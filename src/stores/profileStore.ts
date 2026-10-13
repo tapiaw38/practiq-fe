@@ -3,6 +3,7 @@ import { ref } from 'vue';
 import type {
     AcademicStatusParams,
     AvatarParams,
+    ColorSchemeParams,
     UIThemeParams,
     IProfileService,
     ProfileTypeParams,
@@ -75,6 +76,18 @@ export const useProfileStore = (service: IProfileService) =>
             }
         };
 
+        const updateColorScheme = async (params: ColorSchemeParams) => {
+            loading.value = true;
+            try {
+                const response = await service.updateColorScheme(params);
+                currentProfile.value = response.data;
+                profilesById.value[response.data.id] = response.data;
+                return response.data;
+            } finally {
+                loading.value = false;
+            }
+        };
+
         const updateUIThemeById = async (id: string, params: UIThemeParams) => {
             loading.value = true;
             try {
@@ -119,6 +132,7 @@ export const useProfileStore = (service: IProfileService) =>
             fetchProfile,
             fetchProfileById,
             updateAvatar,
+            updateColorScheme,
             updateUITheme,
             updateUIThemeById,
             updateAcademicStatusById,
