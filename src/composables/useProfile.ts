@@ -5,6 +5,7 @@ import {
     ProfileService,
     type AcademicStatusParams,
     type AvatarParams,
+    type ColorSchemeParams,
     type UIThemeParams,
     type ProfileTypeParams,
     type SyncProfileParams,
@@ -102,6 +103,8 @@ export const useProfile = () => {
         }
     };
 
+    const updateColorScheme = async (params: ColorSchemeParams) => store.updateColorScheme(params);
+
     const updateUIThemeById = async (id: string, params: UIThemeParams) => {
         try {
             const profile = await store.updateUIThemeById(id, params);
@@ -160,6 +163,7 @@ export const useProfile = () => {
         loadProfileById,
         findByEmail,
         updateAvatar,
+        updateColorScheme,
         updateUITheme,
         updateUIThemeById,
         updateAcademicStatusById,

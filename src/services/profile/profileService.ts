@@ -15,6 +15,10 @@ export type AvatarParams = {
     avatar_seed: string;
 };
 
+export type ColorSchemeParams = {
+    color_scheme: 'light' | 'dark';
+};
+
 export type AcademicStatusParams = {
     academic_status: 'active' | 'blocked';
 };
@@ -37,6 +41,7 @@ export interface IProfileService {
     findByEmail(email: string): Promise<{ data: FoundUser }>;
     updateUITheme(params: UIThemeParams): Promise<{ data: UserProfile }>;
     updateAvatar(params: AvatarParams): Promise<{ data: UserProfile }>;
+    updateColorScheme(params: ColorSchemeParams): Promise<{ data: UserProfile }>;
     updateUIThemeById(id: string, params: UIThemeParams): Promise<{ data: UserProfile }>;
     updateAcademicStatusById(
         id: string,
@@ -88,6 +93,11 @@ export class ProfileService implements IProfileService {
 
     async updateAvatar(params: AvatarParams): Promise<{ data: UserProfile }> {
         const { data } = await this.api.put('/profile/avatar', params);
+        return data;
+    }
+
+    async updateColorScheme(params: ColorSchemeParams): Promise<{ data: UserProfile }> {
+        const { data } = await this.api.put('/profile/color-scheme', params);
         return data;
     }
 

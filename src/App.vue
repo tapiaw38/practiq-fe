@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, defineAsyncComponent, onMounted, watch } from 'vue';
 import { setUiTheme } from '@/composables/useUiTheme';
+import { applyColorScheme } from '@/utils/colorScheme';
 import ToastHost from '@/components/ui/ToastHost.vue';
 import { RouterView, useRoute } from 'vue-router';
 import { useAuthStore } from '@/stores/authStore';
@@ -16,6 +17,13 @@ const showAssistant = computed(() => authStore.isAuthenticated && authStore.isSt
 watch(
     () => authStore.profile,
     (profile) => setUiTheme(profile?.profile_type === 'teacher' ? 'teacher' : profile?.ui_theme),
+    { immediate: true },
+);
+watch(
+    () => authStore.profile?.color_scheme,
+    (scheme) => {
+        if (scheme === 'dark' || scheme === 'light') applyColorScheme(scheme);
+    },
     { immediate: true },
 );
 onMounted(async () => {

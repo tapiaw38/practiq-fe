@@ -8,6 +8,8 @@ import ChangePasswordModal from '@/components/auth/ChangePasswordModal.vue';
 import SetPasswordModal from '@/components/auth/SetPasswordModal.vue';
 import NotificationBell from '@/components/ui/NotificationBell.vue';
 import UserAvatar from '@/components/ui/UserAvatar.vue';
+import { useProfile } from '@/composables/useProfile';
+import { applyColorScheme, getStoredColorScheme } from '@/utils/colorScheme';
 import type { LevelData } from '@/types';
 
 interface CourseNavItem {
@@ -38,6 +40,22 @@ const showSetPassword = ref(false);
 const lastPracticedSheetId = ref('');
 let drawerSwipeStart: { x: number; y: number; wasOpen: boolean } | null = null;
 const isGoogleUser = computed(() => authStore.authMethod === 'google');
+const { updateColorScheme } = useProfile();
+const isDarkScheme = ref(getStoredColorScheme() === 'dark');
+async function toggleColorScheme() {
+    const next = isDarkScheme.value ? 'light' : 'dark';
+    isDarkScheme.value = !isDarkScheme.value;
+    applyColorScheme(next);
+    try {
+        await updateColorScheme({ color_scheme: next });
+    } catch {}
+}
+watch(
+    () => profile.value?.color_scheme,
+    (scheme) => {
+        if (scheme === 'dark' || scheme === 'light') isDarkScheme.value = scheme === 'dark';
+    },
+);
 const showMobileBottomNav = computed(
     () =>
         ![
@@ -226,6 +244,14 @@ function logout() {
             </div>
 
             <div class="topbar-right">
+                <button
+                    class="topbar-btn"
+                    type="button"
+                    :aria-label="isDarkScheme ? 'Cambiar a tema claro' : 'Cambiar a tema oscuro'"
+                    @click="toggleColorScheme"
+                >
+                    <i :class="isDarkScheme ? 'pi pi-sun' : 'pi pi-moon'"></i>
+                </button>
                 <NotificationBell />
                 <RouterLink to="/student/profile" class="topbar-avatar-link" aria-label="Tu perfil">
                     <UserAvatar v-if="avatarSeed" :seed="avatarSeed" :size="38" />
@@ -297,6 +323,13 @@ function logout() {
                     <span class="nav-icon"><i class="pi pi-user"></i></span>
                     <span>Mi perfil</span>
                 </RouterLink>
+
+                <button type="button" class="nav-item nav-item-btn" @click="toggleColorScheme">
+                    <span class="nav-icon"
+                        ><i :class="isDarkScheme ? 'pi pi-sun' : 'pi pi-moon'"></i
+                    ></span>
+                    <span>{{ isDarkScheme ? 'Modo claro' : 'Modo oscuro' }}</span>
+                </button>
 
                 <div class="nav-group">
                     <button

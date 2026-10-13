@@ -30,7 +30,7 @@ withDefaults(defineProps<AiLoadingModalProps>(), {
 .ai-loading-modal {
     width: min(92vw, 520px);
     border-radius: 28px;
-    background: #fff;
+    background: var(--surface-card);
     border: 1px solid rgba(var(--practiq-violet-rgb), 0.08);
     box-shadow: 0 24px 70px rgba(15, 23, 42, 0.18);
     padding: 28px 28px 24px;

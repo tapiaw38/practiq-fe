@@ -12,6 +12,7 @@ export interface UserProfile {
 
     assistant_enabled: boolean;
     ui_theme: 'primary' | 'secondary';
+    color_scheme: 'light' | 'dark';
 
     avatar_seed?: string;
     created_at: string;
