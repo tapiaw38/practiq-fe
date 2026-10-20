@@ -17,6 +17,7 @@
     "@capacitor/browser": "^8.0.5",
     "@capacitor/cli": "^8.5.2",
     "@capacitor/core": "^8.5.2",
+    "@capgo/capacitor-social-login": "^8.7.4",
     "@dicebear/core": "^10.7.0",
     "@dicebear/styles": "^10.6.0",
     "@tanstack/vue-query": "^5.62.11",

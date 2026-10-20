@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { Capacitor } from '@capacitor/core';
 import { onMounted, ref } from 'vue';
-import { loginWithGoogleNative } from '@/platform/useNativeGoogleLogin';
+import { isGoogleNativeLoginCancelled, loginWithGoogleNative } from '@/platform/useNativeGoogleLogin';
 import type { GoogleButtonEmits, GoogleClient, GoogleResponse } from './GoogleButton.types';
 
 const emit = defineEmits<GoogleButtonEmits>();
@@ -51,6 +51,7 @@ async function loginWithGoogle() {
             const session = await loginWithGoogleNative();
             emit('session', session);
         } catch (error) {
+            if (isGoogleNativeLoginCancelled(error)) return;
             const message = error instanceof Error ? error.message : 'No se pudo iniciar con Google.';
             emit('error', message);
         } finally {

@@ -1,94 +1,53 @@
-import { Browser } from '@capacitor/browser';
-import { App as CapacitorApp, type URLOpenListenerEvent } from '@capacitor/app';
+import { SocialLogin, type SocialLoginError } from '@capgo/capacitor-social-login';
 import type { LoginResponse } from '@/types/auth';
 
 const authBaseURL = import.meta.env.VITE_AUTH_API_URL || 'http://localhost:8082';
-const pollIntervalMs = 1500;
-const pollTimeoutMs = 180000;
-const mobileCallbackURL = 'https://app.practiq.com.ar/auth/mobile-callback';
 
-interface GoogleMobilePollResponse {
-    status: 'pending' | 'done' | 'error';
-    token?: string;
-    refresh_token?: string;
-    data?: LoginResponse['data'];
-    message?: string;
+class GoogleNativeLoginCancelledError extends Error {
+    constructor() {
+        super('Google login cancelled');
+        this.name = 'GoogleNativeLoginCancelledError';
+    }
 }
 
-let wakePoll: (() => void) | null = null;
-
-function waitForPollInterval() {
-    return new Promise<void>((resolve) => {
-        wakePoll = resolve;
-        setTimeout(resolve, pollIntervalMs);
-    });
+export function isGoogleNativeLoginCancelled(error: unknown): boolean {
+    return error instanceof GoogleNativeLoginCancelledError;
 }
 
 export async function loginWithGoogleNative(): Promise<LoginResponse> {
     const clientId = import.meta.env.VITE_GOOGLE_CLIENT_ID;
     if (!clientId) throw new Error('No se pudo iniciar sesión con Google.');
 
-    const state = crypto.randomUUID();
-    const authURL = new URL('https://accounts.google.com/o/oauth2/v2/auth');
-    authURL.searchParams.set('client_id', clientId);
-    authURL.searchParams.set('redirect_uri', mobileCallbackURL);
-    authURL.searchParams.set('response_type', 'code');
-    authURL.searchParams.set('scope', 'openid email profile');
-    authURL.searchParams.set('state', state);
-    authURL.searchParams.set('prompt', 'select_account');
-
-    await Browser.open({ url: authURL.toString() });
-
-    const startedAt = Date.now();
-    const resumeListener = await CapacitorApp.addListener('resume', () => wakePoll?.());
-    const appURLListener = await CapacitorApp.addListener(
-        'appUrlOpen',
-        (event: URLOpenListenerEvent) => {
-            const url = new URL(event.url);
-            const code = url.searchParams.get('code');
-            const callbackState = url.searchParams.get('state');
-
-            if (!code || !callbackState) return;
-
-            void fetch(`${authBaseURL}/auth/google/mobile/callback`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ code, state: callbackState }),
-            })
-                .catch(() => undefined)
-                .finally(() => wakePoll?.());
-        },
-    );
-
     try {
-        while (Date.now() - startedAt < pollTimeoutMs) {
-            await waitForPollInterval();
+        await SocialLogin.initialize({ google: { webClientId: clientId } });
+        const { result } = await SocialLogin.login({
+            provider: 'google',
+            options: {
+                scopes: ['email', 'profile'],
+                style: 'bottom',
+            },
+        });
 
-            let body: GoogleMobilePollResponse;
-            try {
-                const response = await fetch(`${authBaseURL}/auth/google/mobile/poll/${state}`);
-                body = (await response.json()) as GoogleMobilePollResponse;
-            } catch {
-                continue;
-            }
-
-            if (body.status === 'done' && body.token && body.data) {
-                return {
-                    token: body.token,
-                    refresh_token: body.refresh_token,
-                    data: body.data,
-                };
-            }
-
-            if (body.status === 'error') {
-                throw new Error(body.message || 'No se pudo iniciar sesión con Google.');
-            }
+        if (result.responseType !== 'online' || !result.idToken) {
+            throw new Error('Google no devolvió una credencial válida.');
         }
 
-        throw new Error('El inicio de sesión con Google tardó demasiado. Probá de nuevo.');
-    } finally {
-        resumeListener.remove();
-        appURLListener.remove();
-        await Browser.close().catch(() => undefined);
+        const response = await fetch(`${authBaseURL}/auth/google/native`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ id_token: result.idToken }),
+        });
+        const body = (await response.json()) as LoginResponse & { message?: string };
+
+        if (!response.ok || !body.token || !body.data) {
+            throw new Error(body.message || 'No se pudo iniciar sesión con Google.');
+        }
+
+        return body;
+    } catch (error) {
+        if ((error as SocialLoginError).code === 'USER_CANCELLED') {
+            throw new GoogleNativeLoginCancelledError();
+        }
+        throw error;
     }
 }
