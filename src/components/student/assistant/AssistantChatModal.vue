@@ -1664,8 +1664,8 @@ onBeforeUnmount(() => {
 }
 
 .acm-modal {
-    --acm-canvas-bg: var(--surface-card);
-    --acm-canvas-ink: var(--text-primary);
+    --acm-canvas-bg: var(--canvas-paper-bg);
+    --acm-canvas-ink: var(--canvas-paper-ink);
     background: var(--surface-card);
     border-radius: var(--radius-xl);
     box-shadow: var(--shadow-lg);

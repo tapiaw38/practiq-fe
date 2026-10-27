@@ -628,6 +628,19 @@ async function completePendingProfile() {
 
 <style scoped>
 .auth-page {
+    --surface-bg: #f8fafc;
+    --surface-card: #ffffff;
+    --surface-card-rgb: 255, 255, 255;
+    --surface-card-border: #e8ecf1;
+    --surface-border: #e2e8f0;
+    --surface-hover: #f1f5f9;
+    --surface-subtle: rgba(248, 250, 252, 0.9);
+    --text-primary: #1e293b;
+    --text-secondary: #64748b;
+    --text-muted: #94a3b8;
+    --color-success-bg: #ecfdf5;
+    --color-error-bg: #fef2f2;
+
     height: 100dvh;
     display: grid;
     grid-template-columns: 1.1fr 1fr;
