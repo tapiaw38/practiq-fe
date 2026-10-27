@@ -23,7 +23,6 @@ export async function loginWithGoogleNative(): Promise<LoginResponse> {
         const { result } = await SocialLogin.login({
             provider: 'google',
             options: {
-                scopes: ['email', 'profile'],
                 style: 'bottom',
             },
         });
