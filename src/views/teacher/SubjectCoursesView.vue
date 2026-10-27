@@ -151,16 +151,16 @@ function goBack() {
             </div>
 
             <div v-if="loading" class="courses-grid">
-                <div v-for="i in 4" :key="i" class="course-card course-card--skeleton">
-                    <div class="course-card__accent course-card__accent--skeleton"></div>
-                    <div class="course-card__body">
-                        <div class="course-card__top">
+                <div v-for="i in 4" :key="i" class="subject-course-card subject-course-card--skeleton">
+                    <div class="subject-course-card__accent subject-course-card__accent--skeleton"></div>
+                    <div class="subject-course-card__body">
+                        <div class="subject-course-card__top">
                             <Skeleton width="80px" height="22px" rounded />
                             <Skeleton width="50px" height="20px" rounded />
                         </div>
                         <Skeleton width="85%" height="18px" style="margin: 14px 0 8px" />
                         <Skeleton width="100%" height="14px" />
-                        <div class="course-card__footer" style="margin-top: 16px">
+                        <div class="subject-course-card__footer" style="margin-top: 16px">
                             <Skeleton width="100px" height="12px" />
                             <Skeleton width="60px" height="32px" rounded />
                         </div>
@@ -182,10 +182,10 @@ function goBack() {
             </div>
 
             <div v-else class="courses-grid">
-                <article v-for="course in filteredCourses" :key="course.id" class="course-card">
-                    <div class="course-card__accent"></div>
-                    <div class="course-card__body">
-                        <div class="course-card__top">
+                <article v-for="course in filteredCourses" :key="course.id" class="subject-course-card">
+                    <div class="subject-course-card__accent"></div>
+                    <div class="subject-course-card__body">
+                        <div class="subject-course-card__top">
                             <span class="course-grade-badge">{{
                                 course.grade_name || 'Sin grado'
                             }}</span>
@@ -204,7 +204,7 @@ function goBack() {
                         <p class="course-desc">
                             {{ course.description || 'Sin descripción' }}
                         </p>
-                        <div class="course-card__footer">
+                        <div class="subject-course-card__footer">
                             <span class="course-date">
                                 <i class="pi pi-calendar"></i>
                                 {{ formatDate(course.created_at) }}
@@ -463,7 +463,7 @@ function goBack() {
     gap: 16px;
 }
 
-.course-card {
+.subject-course-card {
     position: relative;
     border-radius: var(--radius-2xl);
     background: var(--surface-elevated);
@@ -485,7 +485,7 @@ function goBack() {
     inset: 0;
 }
 
-.course-card:focus-within {
+.subject-course-card:focus-within {
     border-color: var(--practiq-violet-light);
 }
 
@@ -498,25 +498,25 @@ function goBack() {
     font-weight: 700;
 }
 
-.course-card:hover {
+.subject-course-card:hover {
     transform: translateY(-3px);
     box-shadow: var(--shadow-card-lg);
     border-color: rgba(var(--practiq-violet-rgb), 0.22);
 }
 
-.course-card__accent {
+.subject-course-card__accent {
     height: 3px;
     background: var(--gradient-brand);
 }
 
-.course-card__body {
+.subject-course-card__body {
     padding: 16px 18px 14px;
     display: flex;
     flex-direction: column;
     gap: 7px;
 }
 
-.course-card__top {
+.subject-course-card__top {
     display: flex;
     align-items: center;
     gap: 8px;
@@ -560,7 +560,7 @@ function goBack() {
     overflow: hidden;
 }
 
-.course-card__footer {
+.subject-course-card__footer {
     display: flex;
     align-items: center;
     justify-content: space-between;

@@ -479,12 +479,12 @@ async function confirmDeleteSubject(id: string) {
                                 <article
                                     v-for="course in selectedCourses"
                                     :key="course.id"
-                                    class="course-card"
+                                    class="academic-course-card"
                                 >
-                                    <div class="course-card__subject-bar">
+                                    <div class="academic-course-card__subject-bar">
                                         <i class="pi pi-book"></i>
                                         {{ course.subject || 'Sin materia' }}
-                                        <div class="course-card__actions">
+                                        <div class="academic-course-card__actions">
                                             <button
                                                 class="card-action-btn"
                                                 title="Editar"
@@ -502,20 +502,20 @@ async function confirmDeleteSubject(id: string) {
                                         </div>
                                     </div>
                                     <RouterLink
-                                        class="course-card__open"
+                                        class="academic-course-card__open"
                                         :to="`/teacher/courses/${course.id}`"
                                     >
-                                        <div class="course-card__body">
-                                            <h4 class="course-card__title">{{ course.title }}</h4>
-                                            <p v-if="course.description" class="course-card__desc">
+                                        <div class="academic-course-card__body">
+                                            <h4 class="academic-course-card__title">{{ course.title }}</h4>
+                                            <p v-if="course.description" class="academic-course-card__desc">
                                                 {{ course.description }}
                                             </p>
                                         </div>
-                                        <div class="course-card__footer">
+                                        <div class="academic-course-card__footer">
                                             <span v-if="course.level" class="level-chip">{{
                                                 course.level
                                             }}</span>
-                                            <i class="pi pi-arrow-right course-card__go"></i>
+                                            <i class="pi pi-arrow-right academic-course-card__go"></i>
                                         </div>
                                     </RouterLink>
                                 </article>
@@ -1175,7 +1175,7 @@ async function confirmDeleteSubject(id: string) {
     gap: 14px;
 }
 
-.course-card {
+.academic-course-card {
     background: var(--surface-elevated);
     border: 1px solid var(--surface-elevated-strong);
     border-radius: var(--radius-2xl);
@@ -1186,13 +1186,13 @@ async function confirmDeleteSubject(id: string) {
     flex-direction: column;
     transition: var(--transition);
 }
-.course-card:hover {
+.academic-course-card:hover {
     border-color: rgba(var(--practiq-violet-rgb), 0.22);
     box-shadow: var(--shadow-card-lg);
     transform: translateY(-2px);
 }
 
-.course-card__open {
+.academic-course-card__open {
     display: flex;
     flex: 1;
     flex-direction: column;
@@ -1200,7 +1200,7 @@ async function confirmDeleteSubject(id: string) {
     text-decoration: none;
 }
 
-.course-card__subject-bar {
+.academic-course-card__subject-bar {
     display: flex;
     align-items: center;
     gap: 7px;
@@ -1212,14 +1212,14 @@ async function confirmDeleteSubject(id: string) {
     border-bottom: 1px solid rgba(var(--color-info-rgb), 0.14);
 }
 
-.course-card__actions {
+.academic-course-card__actions {
     display: flex;
     gap: 4px;
     margin-left: auto;
     opacity: 0;
     transition: opacity 0.15s;
 }
-.course-card:hover .course-card__actions {
+.academic-course-card:hover .academic-course-card__actions {
     opacity: 1;
 }
 
@@ -1243,12 +1243,12 @@ async function confirmDeleteSubject(id: string) {
     color: var(--color-error);
 }
 
-.course-card__body {
+.academic-course-card__body {
     padding: 10px;
     flex: 1;
 }
 
-.course-card__title {
+.academic-course-card__title {
     font-size: var(--text-base);
     font-weight: 700;
     color: var(--text-heading);
@@ -1256,7 +1256,7 @@ async function confirmDeleteSubject(id: string) {
     line-height: 1.4;
 }
 
-.course-card__desc {
+.academic-course-card__desc {
     font-size: var(--text-xs);
     color: var(--text-secondary);
     margin: 0;
@@ -1267,7 +1267,7 @@ async function confirmDeleteSubject(id: string) {
     overflow: hidden;
 }
 
-.course-card__footer {
+.academic-course-card__footer {
     display: flex;
     align-items: center;
     justify-content: space-between;
@@ -1284,14 +1284,14 @@ async function confirmDeleteSubject(id: string) {
     padding: 3px 9px;
 }
 
-.course-card__go {
+.academic-course-card__go {
     color: var(--practiq-violet-light);
     font-size: var(--text-sm);
     transition:
         color 0.12s,
         transform 0.12s;
 }
-.course-card:hover .course-card__go {
+.academic-course-card:hover .academic-course-card__go {
     color: var(--practiq-violet);
     transform: translateX(2px);
 }
