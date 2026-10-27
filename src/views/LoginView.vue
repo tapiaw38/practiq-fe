@@ -617,6 +617,8 @@ async function completePendingProfile() {
     --text-primary: #1e293b;
     --text-secondary: #64748b;
     --text-muted: #94a3b8;
+    --text-heading: #182136;
+    --surface-border-rgb: 148, 163, 184;
     --color-success-bg: #ecfdf5;
     --color-error-bg: #fef2f2;
     --gradient-auth-bg:
