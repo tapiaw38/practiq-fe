@@ -264,7 +264,7 @@ const statusLabel: Record<string, string> = {
                 <div class="page-header__left">
                     <div class="page-kicker">{{ dashboardKicker }}</div>
                     <div class="page-heading-row">
-                        <h1 class="page-title">Hola, {{ teacherName }}</h1>
+                        <h1 class="page-title">Hola, <span class="text-accent">{{ teacherName }}</span></h1>
                         <span class="badge badge-brand">
                             {{ isSuperAdmin ? 'Administrador' : 'Docente' }}
                         </span>

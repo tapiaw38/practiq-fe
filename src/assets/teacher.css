@@ -116,11 +116,11 @@
     --radius-2xl: 20px;
 
     --shadow-sm: var(--shadow-xs);
-    --shadow-md: var(--shadow-sm);
-    --shadow-card: var(--shadow-xs);
-    --shadow-card-lg: var(--shadow-sm);
+    --shadow-md: 0 4px 14px rgba(93, 108, 146, 0.08);
+    --shadow-card: 0 4px 14px rgba(93, 108, 146, 0.08);
+    --shadow-card-lg: 0 16px 35px rgba(57, 49, 104, 0.12);
     --shadow-panel: var(--shadow-lg);
-    --shadow-soft: var(--shadow-sm);
+    --shadow-soft: 0 4px 14px rgba(93, 108, 146, 0.08);
     --shadow-violet: 0 4px 14px rgba(124, 58, 237, 0.25);
     --shadow-violet-lg: 0 6px 20px rgba(124, 58, 237, 0.3);
     --shadow-indigo: 0 12px 22px rgba(99, 102, 241, 0.2);
@@ -179,9 +179,16 @@
 :root[data-ui-theme='teacher'] .btn-primary {
     background: var(--brand-600);
     color: var(--on-brand);
+    box-shadow: var(--shadow-violet);
+    transition:
+        background-color 0.15s,
+        box-shadow 0.18s ease,
+        transform 0.18s ease;
 }
 :root[data-ui-theme='teacher'] .btn-primary:hover:not(:disabled) {
     background: var(--brand-700);
+    box-shadow: var(--shadow-violet-lg);
+    transform: translateY(-1px);
 }
 :root[data-ui-theme='teacher'] .btn-secondary {
     background: var(--surface);
@@ -190,6 +197,7 @@
 }
 :root[data-ui-theme='teacher'] .btn-secondary:hover:not(:disabled) {
     background: var(--surface-sunken);
+    box-shadow: var(--shadow-xs);
 }
 :root[data-ui-theme='teacher'] .btn-ghost {
     background: transparent;
@@ -198,6 +206,7 @@
 :root[data-ui-theme='teacher'] .btn-ghost:hover:not(:disabled) {
     background: var(--surface-sunken);
     color: var(--ink);
+    box-shadow: var(--shadow-xs);
 }
 :root[data-ui-theme='teacher'] .btn-danger {
     background: var(--danger);
@@ -224,9 +233,10 @@
     color: var(--ink-soft);
     cursor: pointer;
 }
-:root[data-ui-theme='teacher'] .icon-btn:hover {
+:root[data-ui-theme='teacher'] .icon-btn:hover:not(:disabled) {
     background: var(--surface-sunken);
     color: var(--ink);
+    box-shadow: var(--shadow-xs);
 }
 
 :root[data-ui-theme='teacher'] .badge {
@@ -288,7 +298,8 @@
     padding: var(--space-5);
     background: var(--surface);
     border: 1px solid var(--line);
-    border-radius: var(--radius-lg);
+    border-radius: var(--radius-xl);
+    box-shadow: var(--shadow-card);
 }
 :root[data-ui-theme='teacher'] .page-header {
     display: flex;
@@ -327,9 +338,12 @@
 }
 :root[data-ui-theme='teacher'] .page-title {
     margin: 0;
-    font: 800 28px/34px var(--font-ui);
-    letter-spacing: -0.02em;
+    font: 900 32px/38px var(--font-ui);
+    letter-spacing: -0.025em;
     color: var(--ink);
+}
+:root[data-ui-theme='teacher'] .text-accent {
+    color: var(--brand-600);
 }
 :root[data-ui-theme='teacher'] .page-intro,
 :root[data-ui-theme='teacher'] .page-subtitle,
@@ -440,17 +454,23 @@
     padding: var(--space-4);
     background: var(--surface);
     border: 1px solid var(--line);
-    border-radius: var(--radius-lg);
+    border-radius: var(--radius-xl);
+    box-shadow: var(--shadow-card);
     color: inherit;
     text-align: left;
     font: inherit;
+    transition:
+        border-color 0.18s ease,
+        box-shadow 0.18s ease,
+        transform 0.18s ease;
 }
 :root[data-ui-theme='teacher'] button.stat-tile {
     cursor: pointer;
 }
 :root[data-ui-theme='teacher'] button.stat-tile:hover {
     border-color: var(--brand-200);
-    box-shadow: var(--shadow-xs);
+    box-shadow: var(--shadow-card-lg);
+    transform: translateY(-2px);
 }
 :root[data-ui-theme='teacher'] .stat-tile__icon {
     display: grid;
@@ -507,16 +527,19 @@
     padding: var(--space-4);
     background: var(--surface);
     border: 1px solid var(--line);
-    border-radius: var(--radius-lg);
+    border-radius: var(--radius-xl);
+    box-shadow: var(--shadow-card);
     color: inherit;
     text-decoration: none;
     transition:
-        border-color 0.15s,
-        box-shadow 0.15s;
+        border-color 0.18s ease,
+        box-shadow 0.18s ease,
+        transform 0.18s ease;
 }
 :root[data-ui-theme='teacher'] .course-card:hover {
     border-color: var(--brand-200);
-    box-shadow: var(--shadow-xs);
+    box-shadow: var(--shadow-card-lg);
+    transform: translateY(-2px);
 }
 :root[data-ui-theme='teacher'] .course-card__top {
     display: flex;
@@ -805,13 +828,14 @@
 :root[data-ui-theme='teacher'] .empty-state__icon {
     display: grid;
     place-items: center;
-    width: 48px;
-    height: 48px;
-    margin-bottom: var(--space-1);
+    width: 56px;
+    height: 56px;
+    margin-bottom: var(--space-2);
     border-radius: var(--radius-pill);
-    background: var(--brand-50);
+    background: linear-gradient(135deg, var(--brand-50), var(--brand-100));
+    box-shadow: 0 0 0 6px rgba(var(--practiq-violet-rgb), 0.04);
     color: var(--brand-800);
-    font-size: 20px;
+    font-size: 22px;
 }
 :root[data-ui-theme='teacher'] .empty-state h3 {
     font: 700 16px/22px var(--font-ui);
@@ -864,7 +888,11 @@
 
 :root[data-ui-theme='teacher'] .app-shell {
     min-height: 100dvh;
-    background: var(--canvas);
+    background:
+        radial-gradient(ellipse 900px 480px at 100% 0%, rgba(var(--practiq-violet-rgb), 0.06), transparent 60%),
+        radial-gradient(ellipse 700px 420px at 0% 100%, rgba(var(--practiq-indigo-rgb), 0.05), transparent 60%),
+        var(--canvas);
+    background-attachment: fixed;
     color: var(--ink);
     font-family: var(--font-body);
 }
@@ -970,6 +998,7 @@
     padding-top: var(--space-2);
 }
 :root[data-ui-theme='teacher'] .nav-item {
+    position: relative;
     display: flex;
     align-items: center;
     gap: var(--space-3);
@@ -997,6 +1026,7 @@
 :root[data-ui-theme='teacher'] .nav-item-active:hover {
     background: var(--brand-50);
     color: var(--brand-800);
+    box-shadow: inset 3px 0 0 var(--brand-600);
 }
 :root[data-ui-theme='teacher'] .nav-item-active i {
     color: var(--brand-600);
