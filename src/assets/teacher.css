@@ -998,7 +998,6 @@
     padding-top: var(--space-2);
 }
 :root[data-ui-theme='teacher'] .nav-item {
-    position: relative;
     display: flex;
     align-items: center;
     gap: var(--space-3);
@@ -1026,7 +1025,6 @@
 :root[data-ui-theme='teacher'] .nav-item-active:hover {
     background: var(--brand-50);
     color: var(--brand-800);
-    box-shadow: inset 3px 0 0 var(--brand-600);
 }
 :root[data-ui-theme='teacher'] .nav-item-active i {
     color: var(--brand-600);
