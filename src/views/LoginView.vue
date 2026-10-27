@@ -619,6 +619,10 @@ async function completePendingProfile() {
     --text-muted: #94a3b8;
     --color-success-bg: #ecfdf5;
     --color-error-bg: #fef2f2;
+    --gradient-auth-bg:
+        radial-gradient(ellipse at 90% 10%, rgba(var(--practiq-violet-rgb), 0.06), transparent 50%),
+        radial-gradient(ellipse at 10% 90%, rgba(var(--color-info-rgb), 0.06), transparent 50%),
+        var(--surface-bg);
 
     height: 100dvh;
     display: grid;
