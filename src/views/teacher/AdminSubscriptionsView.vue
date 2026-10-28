@@ -6,11 +6,16 @@ import { practiqApi } from '@/api/request/server';
 import TeacherLayout from '@/layouts/TeacherLayout.vue';
 import Skeleton from '@/components/ui/Skeleton.vue';
 import { SubscriptionService } from '@/services/subscription/subscriptionService';
+import type { AuthApiUser } from '@/types';
 import type { AdminSubscription } from '@/types/subscription';
 
 const toast = useToast();
 const service = new SubscriptionService(practiqApi);
 const { loadUsers } = useAuthAdmin();
+
+function practiqUserId(user: AuthApiUser) {
+    return user.username || user.id;
+}
 
 const subscriptions = ref<AdminSubscription[]>([]);
 const usersById = ref<Record<string, { name: string; email: string }>>({});
@@ -115,7 +120,7 @@ async function load() {
         subscriptions.value = subsResult.data;
         usersById.value = Object.fromEntries(
             usersResult.map((u) => [
-                u.id,
+                practiqUserId(u),
                 { name: `${u.first_name} ${u.last_name}`.trim(), email: u.email },
             ]),
         );
