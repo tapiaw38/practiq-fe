@@ -1,5 +1,6 @@
 import type { AxiosInstance } from 'axios';
 import type {
+    BillingHistory,
     CatalogPlan,
     CheckoutConfig,
     DowngradeState,
@@ -9,6 +10,7 @@ import type {
 
 export interface ISubscriptionService {
     getMine(): Promise<{ data: TeacherSubscription }>;
+    billingHistory(): Promise<{ data: BillingHistory }>;
     checkoutConfig(): Promise<{ data: CheckoutConfig }>;
     subscribe(planId: number, cardTokenId: string): Promise<void>;
     startHostedCheckout(planId: number, payerEmail: string): Promise<string>;
@@ -34,6 +36,11 @@ export class SubscriptionService implements ISubscriptionService {
 
     async getMine(): Promise<{ data: TeacherSubscription }> {
         const { data } = await this.api.get('/teachers/me/subscription');
+        return data;
+    }
+
+    async billingHistory(): Promise<{ data: BillingHistory }> {
+        const { data } = await this.api.get('/teachers/me/subscription/billing-history');
         return data;
     }
 

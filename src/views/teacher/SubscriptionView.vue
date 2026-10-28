@@ -9,6 +9,7 @@ import CheckoutModal from '@/components/teacher/subscription/CheckoutModal.vue';
 import { authService } from '@/services/auth/authService';
 import type { CardToken } from '@/types/payments';
 import type {
+    BillingHistory,
     CatalogPlan,
     DowngradeState,
     DowngradeStudent,
@@ -20,6 +21,8 @@ const toast = useToast();
 const service = new SubscriptionService(practiqApi);
 
 const subscription = ref<TeacherSubscription | null>(null);
+const billingHistory = ref<BillingHistory | null>(null);
+const billingHistoryError = ref(false);
 const plans = ref<CatalogPlan[]>([]);
 const loading = ref(true);
 const loadError = ref(false);
@@ -230,15 +233,18 @@ const renewsLabel = computed(() => {
 });
 
 async function reload() {
-    const [mine, catalog, excess] = await Promise.allSettled([
+    const [mine, catalog, excess, history] = await Promise.allSettled([
         onceMore(() => service.getMine()),
         onceMore(() => service.listPlans()),
         onceMore(() => service.downgradePreview()),
+        onceMore(() => service.billingHistory()),
     ]);
     if (mine.status === 'fulfilled' && mine.value.data?.plan) {
         subscription.value = mine.value.data;
     }
     if (excess.status === 'fulfilled') downgrade.value = excess.value.data;
+    billingHistory.value = history.status === 'fulfilled' ? history.value.data : null;
+    billingHistoryError.value = history.status === 'rejected';
 
     if (catalog.status === 'fulfilled') plans.value = catalog.value.data;
     if (mine.status === 'rejected' || !subscription.value) {
@@ -304,6 +310,33 @@ function formatMoney(amount: number, currency = 'ARS') {
         currency,
         maximumFractionDigits: 0,
     }).format(amount);
+}
+
+function formatBillingMoney(amount: number, currency = 'ARS') {
+    return new Intl.NumberFormat('es-AR', { style: 'currency', currency }).format(amount);
+}
+
+function formatBillingDate(value: string) {
+    return new Date(value).toLocaleDateString('es-AR', {
+        day: 'numeric',
+        month: 'short',
+        year: 'numeric',
+    });
+}
+
+function cycleStatusLabel(status: string) {
+    if (status === 'approved' || status === 'accredited') return 'Pagado';
+    if (status === 'pending' || status === 'in_process' || status === 'scheduled')
+        return 'Pendiente';
+    if (status === 'rejected' || status === 'cancelled') return 'Falló';
+    return status;
+}
+
+function cycleStatusVariant(status: string) {
+    if (status === 'approved' || status === 'accredited') return 'status-pill--ok';
+    if (status === 'pending' || status === 'in_process' || status === 'scheduled')
+        return 'status-pill--warn';
+    return 'status-pill--blocked';
 }
 
 function formatAmount(plan: CatalogPlan) {
@@ -428,6 +461,20 @@ onMounted(() => {
                     {{ graceEndsLabel }}; después, los alumnos que excedan el plan pasan a solo
                     lectura. Podés elegir cuáles se quedan activos.
                 </p>
+                <p v-if="graceEndsLabel && billingHistory" class="amount-owed" role="status">
+                    <strong v-if="billingHistory.amount_owed !== null">
+                        Monto adeudado:
+                        {{
+                            formatBillingMoney(
+                                billingHistory.amount_owed,
+                                billingHistory.currency || 'ARS',
+                            )
+                        }}
+                    </strong>
+                    <span v-else
+                        >No pudimos calcular el monto adeudado. Contactanos para revisarlo.</span
+                    >
+                </p>
                 <p v-else-if="isPaused" class="plan-renews">
                     Pausada: no se te cobra nada.
                     <template v-if="renewsLabel">
@@ -517,6 +564,45 @@ onMounted(() => {
                         Cancelar suscripción
                     </button>
                 </div>
+                <section class="billing-history" aria-label="Historial de pagos">
+                    <h2>Historial de pagos</h2>
+                    <p v-if="billingHistoryError" class="billing-history__empty">
+                        No pudimos cargar tus cobros. Recargá la página para intentarlo de nuevo.
+                    </p>
+                    <p v-else-if="!billingHistory?.cycles.length" class="billing-history__empty">
+                        Todavía no hay cobros registrados.
+                    </p>
+                    <div v-else class="billing-history__scroll">
+                        <table class="billing-history__table">
+                            <thead>
+                                <tr>
+                                    <th>Período</th>
+                                    <th>Monto</th>
+                                    <th>Resultado</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr
+                                    v-for="(cycle, index) in billingHistory.cycles"
+                                    :key="`${cycle.subscription_id}-${cycle.period_start}-${index}`"
+                                >
+                                    <td>
+                                        {{ formatBillingDate(cycle.period_start) }} –
+                                        {{ formatBillingDate(cycle.period_end) }}
+                                    </td>
+                                    <td>{{ formatBillingMoney(cycle.amount, cycle.currency) }}</td>
+                                    <td>
+                                        <span
+                                            class="status-pill"
+                                            :class="cycleStatusVariant(cycle.status)"
+                                            >{{ cycleStatusLabel(cycle.status) }}</span
+                                        >
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </section>
             </div>
 
             <div v-else-if="loadError" class="plan-card load-error" role="alert">
@@ -914,6 +1000,15 @@ onMounted(() => {
     color: var(--color-warning-dark);
 }
 
+.amount-owed {
+    margin: -0.7rem 0 0;
+    padding: 0.7rem 0.85rem;
+    border-radius: var(--radius-md);
+    background: var(--color-error-bg);
+    color: var(--color-error-dark);
+    font-size: 0.88rem;
+}
+
 .plan-state--pending {
     background: rgba(var(--practiq-violet-rgb), 0.12);
     color: var(--practiq-violet);
@@ -965,6 +1060,74 @@ onMounted(() => {
     padding-top: 0.25rem;
     border-top: 1px solid var(--surface-border);
     margin-top: 0.25rem;
+}
+
+.billing-history {
+    border-top: 1px solid var(--surface-border);
+    padding-top: 1rem;
+}
+
+.billing-history h2 {
+    margin: 0 0 0.75rem;
+    color: var(--text-heading);
+    font-size: 1.05rem;
+}
+
+.billing-history__empty {
+    margin: 0;
+    color: var(--text-secondary);
+    font-size: 0.88rem;
+}
+
+.billing-history__scroll {
+    width: 100%;
+    overflow-x: auto;
+}
+
+.billing-history__table {
+    width: 100%;
+    border-collapse: collapse;
+}
+
+.billing-history__table th,
+.billing-history__table td {
+    padding: 0.7rem 0.65rem;
+    text-align: left;
+    border-bottom: 1px solid var(--surface-border);
+    white-space: nowrap;
+}
+
+.billing-history__table th {
+    color: var(--text-secondary);
+    font-size: 0.76rem;
+}
+
+.billing-history__table td {
+    color: var(--text-primary);
+    font-size: 0.86rem;
+}
+
+.status-pill {
+    display: inline-flex;
+    padding: 0.22rem 0.65rem;
+    border-radius: var(--radius-pill);
+    font-size: 0.76rem;
+    font-weight: 600;
+}
+
+.status-pill--ok {
+    background: var(--color-success-bg);
+    color: var(--color-success-dark);
+}
+
+.status-pill--warn {
+    background: var(--color-warning-bg);
+    color: var(--color-warning-dark);
+}
+
+.status-pill--blocked {
+    background: var(--color-error-bg);
+    color: var(--color-error-dark);
 }
 
 .btn-primary,
@@ -1286,6 +1449,10 @@ onMounted(() => {
         gap: 0.9rem;
         padding: 1rem;
         border-radius: var(--radius-lg);
+    }
+
+    .billing-history__table {
+        min-width: 480px;
     }
 
     .plan-summary {

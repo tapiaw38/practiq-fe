@@ -53,3 +53,18 @@ export interface DowngradeState {
     deactivated: string[];
     students?: DowngradeStudent[];
 }
+
+export interface BillingCycleEntry {
+    subscription_id: number;
+    status: string;
+    amount: number;
+    currency: string;
+    period_start: string;
+    period_end: string;
+}
+
+export interface BillingHistory {
+    amount_owed: number | null;
+    currency: string;
+    cycles: BillingCycleEntry[];
+}
