@@ -238,6 +238,12 @@ const renewsLabel = computed(() => {
     });
 });
 
+const renewalAmountLabel = computed(() => {
+    const cycle = billingHistory.value?.cycles[0];
+    if (!cycle) return '';
+    return formatBillingMoney(cycle.amount, cycle.currency);
+});
+
 async function reload() {
     const [mine, catalog, excess, history] = await Promise.allSettled([
         onceMore(() => service.getMine()),
@@ -492,6 +498,9 @@ onMounted(() => {
                 <p v-else-if="renewsLabel" class="plan-renews">
                     {{ subscription.active ? 'Se renueva el' : 'Tu prueba termina el' }}
                     {{ renewsLabel }}
+                    <template v-if="subscription.active && renewalAmountLabel">
+                        · {{ renewalAmountLabel }}
+                    </template>
                 </p>
 
                 <div v-if="overLimit" class="over-limit">
