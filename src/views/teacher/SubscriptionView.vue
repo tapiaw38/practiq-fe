@@ -1455,8 +1455,15 @@ onMounted(() => {
         border-radius: var(--radius-lg);
     }
 
-    .billing-history__table {
-        min-width: 480px;
+    .billing-history__table th,
+    .billing-history__table td {
+        padding: 0.6rem 0.4rem;
+        font-size: 0.8rem;
+    }
+
+    .billing-history__table th:first-child,
+    .billing-history__table td:first-child {
+        white-space: normal;
     }
 
     .plan-summary {
