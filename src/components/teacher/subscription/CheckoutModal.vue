@@ -7,7 +7,8 @@ import type { CheckoutModalEmits, CheckoutModalProps } from './CheckoutModal.typ
 const props = defineProps<CheckoutModalProps>();
 const emit = defineEmits<CheckoutModalEmits>();
 
-const working = ref(false);
+const tokenizing = ref(false);
+const working = computed(() => tokenizing.value || Boolean(props.busy));
 const error = ref('');
 
 const walletOpen = ref(false);
@@ -27,6 +28,7 @@ const walletLabel = computed(() => {
 });
 
 function onWallet() {
+    if (working.value) return;
     if (props.changing) {
         emit('hosted', '');
         return;
@@ -36,6 +38,11 @@ function onWallet() {
         return;
     }
     emit('hosted', walletEmail.value.trim());
+}
+
+function onCancel() {
+    if (working.value) return;
+    emit('cancel');
 }
 
 const card = reactive({
@@ -59,7 +66,7 @@ function formatAmount(plan: CheckoutModalProps['plan']) {
 async function submit() {
     if (working.value) return;
     error.value = '';
-    working.value = true;
+    tokenizing.value = true;
     try {
         const token = await createCardToken(props.publicKey, { ...card });
         emit('confirm', token);
@@ -67,13 +74,13 @@ async function submit() {
         error.value =
             err instanceof Error ? err.message : 'No pudimos validar la tarjeta. Revisá los datos.';
     } finally {
-        working.value = false;
+        tokenizing.value = false;
     }
 }
 </script>
 
 <template>
-    <UiModal label="Suscripción" @close="emit('cancel')">
+    <UiModal label="Suscripción" @close="onCancel">
         <div class="checkout-card" aria-labelledby="checkout-title">
             <div class="checkout-head">
                 <div class="checkout-icon">
@@ -93,7 +100,7 @@ async function submit() {
                     class="checkout-close"
                     type="button"
                     aria-label="Cerrar"
-                    @click="emit('cancel')"
+                    @click="onCancel"
                 >
                     <i class="pi pi-times" aria-hidden="true"></i>
                 </button>
@@ -202,7 +209,7 @@ async function submit() {
                         class="btn-quiet"
                         type="button"
                         :disabled="working"
-                        @click="emit('cancel')"
+                        @click="onCancel"
                     >
                         Cancelar
                     </button>

@@ -7,6 +7,7 @@ export interface CheckoutModalProps {
     serverError?: string;
     accountEmail?: string;
     changing?: boolean;
+    busy?: boolean;
 }
 
 export interface CheckoutModalEmits {

@@ -249,6 +249,14 @@ function logout() {
                         <span>Planes</span>
                     </RouterLink>
                     <RouterLink
+                        to="/teacher/admin/subscriptions"
+                        class="nav-item"
+                        active-class="nav-item-active"
+                    >
+                        <i class="pi pi-wallet"></i>
+                        <span>Suscripciones</span>
+                    </RouterLink>
+                    <RouterLink
                         to="/teacher/admin/site-contact"
                         class="nav-item"
                         active-class="nav-item-active"

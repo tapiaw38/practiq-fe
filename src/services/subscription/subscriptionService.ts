@@ -1,5 +1,6 @@
 import type { AxiosInstance } from 'axios';
 import type {
+    AdminSubscription,
     BillingHistory,
     CatalogPlan,
     CheckoutConfig,
@@ -25,6 +26,7 @@ export interface ISubscriptionService {
     createPlan(input: PlanInput): Promise<{ data: CatalogPlan }>;
     updatePlan(planId: number, input: PlanInput): Promise<{ data: CatalogPlan }>;
     deactivatePlan(planId: number): Promise<{ data: CatalogPlan }>;
+    listAllSubscriptions(status?: string): Promise<{ data: AdminSubscription[] }>;
 }
 
 export class SubscriptionService implements ISubscriptionService {
@@ -120,6 +122,11 @@ export class SubscriptionService implements ISubscriptionService {
 
     async deactivatePlan(planId: number): Promise<{ data: CatalogPlan }> {
         const { data } = await this.api.delete(`/subscription-plans/${planId}`);
+        return data;
+    }
+
+    async listAllSubscriptions(status?: string): Promise<{ data: AdminSubscription[] }> {
+        const { data } = await this.api.get('/subscriptions', { params: status ? { status } : undefined });
         return data;
     }
 }

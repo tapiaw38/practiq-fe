@@ -68,3 +68,25 @@ export interface BillingHistory {
     currency: string;
     cycles: BillingCycleEntry[];
 }
+
+export interface AdminBillingCycle {
+    status: string;
+    amount: number;
+    currency: string;
+    period_start: string;
+    period_end: string;
+    gateway_payment_id?: string;
+}
+
+export interface AdminSubscription {
+    id: number;
+    user_id: string;
+    payer_email?: string;
+    plan_id: number;
+    plan_name: string;
+    status: string;
+    current_period_end?: string;
+    next_payment_at?: string;
+    created_at: string;
+    last_cycle?: AdminBillingCycle;
+}

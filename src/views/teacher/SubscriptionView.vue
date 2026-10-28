@@ -139,9 +139,15 @@ async function openCheckout(plan: CatalogPlan) {
     checkoutPlan.value = plan;
 }
 
+function closeCheckout() {
+    if (working.value) return;
+    checkoutPlan.value = null;
+    checkoutError.value = '';
+}
+
 async function confirmCheckout(token: CardToken) {
     const plan = checkoutPlan.value;
-    if (!plan) return;
+    if (!plan || working.value) return;
     checkoutError.value = '';
     working.value = true;
     try {
@@ -173,7 +179,7 @@ async function confirmCheckout(token: CardToken) {
 
 async function payWithWallet(payerEmail: string) {
     const plan = checkoutPlan.value;
-    if (!plan) return;
+    if (!plan || working.value) return;
     checkoutError.value = '';
     working.value = true;
     try {
@@ -675,12 +681,10 @@ onMounted(() => {
                 :server-error="checkoutError"
                 :account-email="accountEmail"
                 :changing="Boolean(subscription?.active)"
+                :busy="working"
                 @confirm="confirmCheckout"
                 @hosted="payWithWallet"
-                @cancel="
-                    checkoutPlan = null;
-                    checkoutError = '';
-                "
+                @cancel="closeCheckout"
             />
 
             <UiModal

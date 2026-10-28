@@ -178,6 +178,12 @@ const router = createRouter({
             meta: { requiresAuth: true, profileType: 'teacher', roles: ['superadmin'] },
         },
         {
+            path: '/teacher/admin/subscriptions',
+            name: 'teacher-admin-subscriptions',
+            component: () => import('@/views/teacher/AdminSubscriptionsView.vue'),
+            meta: { requiresAuth: true, profileType: 'teacher', roles: ['superadmin'] },
+        },
+        {
             path: '/teacher/admin/site-contact',
             name: 'teacher-admin-site-contact',
             component: () => import('@/views/teacher/AdminSiteContactView.vue'),
