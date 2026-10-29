@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import quantyIllustration from '@/assets/quanty.png';
+import quantyIllustration from '@/assets/quanty-working.gif';
 import UiModal from '@/components/ui/UiModal.vue';
 import type { AiLoadingModalProps } from './AiLoadingModal.types';
 
