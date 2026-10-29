@@ -1,332 +1,328 @@
 <script setup lang="ts">
 import { ref } from 'vue';
-import type { CourseLevelsPanelEmits, CourseLevelsPanelProps } from './CourseLevelsPanel.types';
+import type {
+    CourseLevelsPanelEmits,
+    CourseLevelsPanelProps,
+    TeacherLevelItem,
+} from './CourseLevelsPanel.types';
 
-defineProps<CourseLevelsPanelProps>();
+const props = defineProps<CourseLevelsPanelProps>();
 const emit = defineEmits<CourseLevelsPanelEmits>();
-const expandedLevels = ref(new Set<number>([1]));
+const addMenuLevel = ref<number | null>(null);
 
-function toggleLevel(level: number) {
-    const next = new Set(expandedLevels.value);
-    next.has(level) ? next.delete(level) : next.add(level);
-    expandedLevels.value = next;
+const countItems = (value: unknown) => (Array.isArray(value) ? value.length : Number(value || 0));
+
+function plural(count: number, one: string, many: string) {
+    return `${count} ${count === 1 ? one : many}`;
 }
 
-const isLevelExpanded = (level: number) => expandedLevels.value.has(level);
+function levelTitle(lv: TeacherLevelItem) {
+    const withTopic = [...lv.practices, ...(lv.levelTest ? [lv.levelTest] : []), ...lv.notebooks]
+        .map((item) => ('topic_title' in item ? item.topic_title : ''))
+        .find(Boolean);
+    return withTopic || `Nivel ${lv.level}`;
+}
 
-const countExercises = (value: unknown) =>
-    Array.isArray(value) ? value.length : Number(value || 0);
-const countPages = (value: unknown) => (Array.isArray(value) ? value.length : Number(value || 0));
+function levelMeta(lv: TeacherLevelItem) {
+    const total = lv.practices.length + (lv.levelTest ? 1 : 0) + lv.notebooks.length;
+    if (!total) return 'Sin actividades todavía';
+    return [
+        plural(lv.practices.length, 'práctica', 'prácticas'),
+        lv.levelTest ? '1 prueba' : 'sin prueba',
+        plural(lv.notebooks.length, 'cuaderno', 'cuadernos'),
+    ].join(' · ');
+}
+
+function toggleAddMenu(level: number) {
+    addMenuLevel.value = addMenuLevel.value === level ? null : level;
+}
+
+function add(kind: 'practice' | 'test' | 'notebook', lv: TeacherLevelItem) {
+    addMenuLevel.value = null;
+    if (kind === 'practice') emit('createPractice', lv.level);
+    else if (kind === 'notebook') emit('createNotebook', lv.level);
+    else if (lv.levelTest) emit('openSheet', lv.levelTest.id);
+    else emit('createLevelTest', lv.level);
+}
+
+const nextLevel = () => (props.levels.at(-1)?.level ?? 0) + 1;
 </script>
 
 <template>
-    <div class="tab-content">
-        <div class="section-header">
-            <div>
-                <h2>Niveles del curso</h2>
-                <p class="section-copy">
-                    Define aquí el contenido de cada nivel. El alumno verá actividad cuando existan
-                    prácticas, pruebas o cuadernos asignados a un nivel.
-                </p>
+    <div class="levels">
+        <p class="levels__intro">
+            Cada nivel tiene práctica, una prueba para avanzar y, si querés, un cuaderno. El alumno
+            ve actividad cuando hay algo asignado al nivel.
+        </p>
+
+        <section v-for="lv in levels" :key="lv.level" class="level-card">
+            <div class="level-card__head">
+                <span class="level-card__num">{{ lv.level }}</span>
+                <div class="level-card__text">
+                    <h3>{{ levelTitle(lv) }}</h3>
+                    <p>{{ levelMeta(lv) }}</p>
+                </div>
+                <div class="level-card__add">
+                    <button
+                        type="button"
+                        class="level-add-btn"
+                        aria-haspopup="menu"
+                        :aria-expanded="addMenuLevel === lv.level"
+                        @click="toggleAddMenu(lv.level)"
+                    >
+                        <i class="pi pi-plus" aria-hidden="true"></i> Agregar
+                    </button>
+                    <template v-if="addMenuLevel === lv.level">
+                        <div class="level-add-backdrop" @click="addMenuLevel = null"></div>
+                        <div class="level-add-menu" role="menu">
+                            <button type="button" role="menuitem" @click="add('practice', lv)">
+                                <i class="pi pi-copy" aria-hidden="true"></i> Hoja de práctica
+                            </button>
+                            <button type="button" role="menuitem" @click="add('test', lv)">
+                                <i class="pi pi-verified" aria-hidden="true"></i>
+                                {{ lv.levelTest ? 'Editar prueba de nivel' : 'Prueba de nivel' }}
+                            </button>
+                            <button type="button" role="menuitem" @click="add('notebook', lv)">
+                                <i class="pi pi-book" aria-hidden="true"></i> Cuaderno
+                            </button>
+                        </div>
+                    </template>
+                </div>
             </div>
-            <button class="btn btn-primary btn-sm" @click="emit('createNextLevel')">
-                <i class="pi pi-plus"></i> Agregar nivel
-            </button>
-        </div>
 
-        <div class="levels-grid">
-            <article
-                v-for="lv in levels"
-                :key="lv.level"
-                class="teacher-level-card"
-                :class="{ 'teacher-level-card--collapsed': !isLevelExpanded(lv.level) }"
+            <div
+                v-if="lv.practices.length || lv.levelTest || lv.notebooks.length"
+                class="level-acts"
             >
-                <div class="teacher-level-card__top">
-                    <div class="teacher-level-summary">
-                        <div class="teacher-level-label">Nivel {{ lv.level }}</div>
-                        <div class="teacher-level-meta">
-                            {{ lv.practices.length }} prácticas ·
-                            {{ lv.levelTest ? '1 prueba' : '0 pruebas' }} ·
-                            {{ lv.notebooks.length }} cuadernos
-                        </div>
-                        <button
-                            type="button"
-                            class="level-collapse-toggle"
-                            :aria-expanded="isLevelExpanded(lv.level)"
-                            :aria-label="
-                                isLevelExpanded(lv.level)
-                                    ? `Cerrar nivel ${lv.level}`
-                                    : `Abrir nivel ${lv.level}`
-                            "
-                            @click="toggleLevel(lv.level)"
-                        >
-                            <span>{{
-                                isLevelExpanded(lv.level) ? 'Ocultar' : 'Ver contenido'
-                            }}</span>
-                            <i
-                                :class="
-                                    isLevelExpanded(lv.level)
-                                        ? 'pi pi-chevron-up'
-                                        : 'pi pi-chevron-down'
-                                "
-                            ></i>
-                        </button>
-                    </div>
-                    <div class="teacher-level-actions">
-                        <button
-                            class="btn btn-secondary btn-sm"
-                            @click="emit('createPractice', lv.level)"
-                        >
-                            <i class="pi pi-pencil"></i> Práctica
-                        </button>
-                        <button
-                            class="btn btn-secondary btn-sm"
-                            @click="
-                                lv.levelTest
-                                    ? emit('openSheet', lv.levelTest.id)
-                                    : emit('createLevelTest', lv.level)
-                            "
-                        >
-                            <i :class="lv.levelTest ? 'pi pi-pencil' : 'pi pi-star'"></i>
-                            {{ lv.levelTest ? 'Editar prueba' : 'Prueba' }}
-                        </button>
-                        <button
-                            class="btn btn-secondary btn-sm"
-                            @click="emit('createNotebook', lv.level)"
-                        >
-                            <i class="pi pi-book"></i> Cuaderno
-                        </button>
-                    </div>
-                </div>
+                <button
+                    v-for="sheet in lv.practices"
+                    :key="sheet.id"
+                    type="button"
+                    class="level-act"
+                    @click="emit('openSheet', sheet.id)"
+                >
+                    <i class="pi pi-copy" aria-hidden="true"></i>
+                    <span>
+                        <strong>{{ sheet.title || 'Hoja de práctica' }}</strong>
+                        <small>{{
+                            plural(countItems(sheet.exercises), 'ejercicio', 'ejercicios')
+                        }}</small>
+                    </span>
+                </button>
+                <button
+                    v-if="lv.levelTest"
+                    type="button"
+                    class="level-act"
+                    @click="emit('openSheet', lv.levelTest.id)"
+                >
+                    <i class="pi pi-verified" aria-hidden="true"></i>
+                    <span>
+                        <strong>Prueba de nivel</strong>
+                        <small>{{
+                            plural(countItems(lv.levelTest.exercises), 'pregunta', 'preguntas')
+                        }}</small>
+                    </span>
+                </button>
+                <button
+                    v-for="nb in lv.notebooks"
+                    :key="nb.id"
+                    type="button"
+                    class="level-act"
+                    @click="emit('openNotebook', nb.id)"
+                >
+                    <i class="pi pi-book" aria-hidden="true"></i>
+                    <span>
+                        <strong>{{ nb.title || 'Cuaderno' }}</strong>
+                        <small>{{ plural(countItems(nb.pages), 'página', 'páginas') }}</small>
+                    </span>
+                </button>
+            </div>
+        </section>
 
-                <div class="teacher-level-sections">
-                    <div class="teacher-level-block">
-                        <div class="teacher-level-block__title">Prácticas</div>
-                        <div v-if="lv.practices.length" class="mini-list">
-                            <button
-                                v-for="sheet in lv.practices"
-                                :key="sheet.id"
-                                type="button"
-                                class="mini-item mini-item--link"
-                                @click="emit('openSheet', sheet.id)"
-                            >
-                                <span>{{ sheet.title }}</span>
-                                <small>{{ countExercises(sheet.exercises) }} ejercicios</small>
-                            </button>
-                        </div>
-                        <div v-else class="mini-empty">Sin prácticas</div>
-                    </div>
-
-                    <div class="teacher-level-block">
-                        <div class="teacher-level-block__title">Prueba de nivel</div>
-                        <div v-if="lv.levelTest" class="mini-list">
-                            <button
-                                type="button"
-                                class="mini-item mini-item--link"
-                                @click="emit('openSheet', lv.levelTest.id)"
-                            >
-                                <span>{{ lv.levelTest.title }}</span>
-                                <small
-                                    >{{ countExercises(lv.levelTest.exercises) }} ejercicios ·
-                                    {{ lv.levelTest.test_style }}</small
-                                >
-                            </button>
-                        </div>
-                        <div v-else class="mini-empty">Sin prueba asignada</div>
-                    </div>
-
-                    <div class="teacher-level-block">
-                        <div class="teacher-level-block__title">Cuadernos</div>
-                        <div v-if="lv.notebooks.length" class="mini-list">
-                            <button
-                                v-for="nb in lv.notebooks"
-                                :key="nb.id"
-                                type="button"
-                                class="mini-item mini-item--link"
-                                @click="emit('openNotebook', nb.id)"
-                            >
-                                <span>{{ nb.title }}</span>
-                                <small>{{ countPages(nb.pages) }} páginas</small>
-                            </button>
-                        </div>
-                        <div v-else class="mini-empty">Sin cuadernos</div>
-                    </div>
-                </div>
-            </article>
-        </div>
+        <button type="button" class="level-create" @click="emit('createNextLevel')">
+            <i class="pi pi-plus" aria-hidden="true"></i> Crear nivel {{ nextLevel() }}
+        </button>
     </div>
 </template>
 
 <style scoped>
-.tab-content {
-    background: var(--surface-elevated);
-    border: 1px solid var(--surface-elevated-strong);
-    border-radius: var(--radius-2xl);
-    box-shadow: var(--shadow-card);
-    padding: 20px;
+.levels {
+    display: grid;
+    gap: 12px;
 }
-.section-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: flex-start;
-    gap: 16px;
-    margin-bottom: 16px;
-}
-.section-header h2 {
+.levels__intro {
     margin: 0;
-    color: var(--text-heading);
-    font-size: 1.25rem;
-    font-weight: 800;
+    font-size: 13px;
+    line-height: 1.55;
+    color: var(--ink-muted);
 }
-.section-copy {
-    margin: 6px 0 0;
-    color: var(--text-secondary);
-    font-size: var(--text-sm);
-    max-width: 680px;
-}
-.levels-grid {
+.level-card {
     display: grid;
     gap: 10px;
+    padding: 16px;
+    border: 1px solid var(--line);
+    border-radius: var(--radius-md);
+    background: var(--surface);
 }
-.teacher-level-card {
-    background: var(--surface-card);
-    border: 1px solid var(--surface-border);
-    border-radius: var(--radius-xl);
-    padding: 12px;
-    transition: var(--transition-fast);
-}
-.teacher-level-card:hover {
-    transform: translateY(-1px);
-    box-shadow: var(--shadow-card);
-}
-.teacher-level-card__top,
-.teacher-level-actions,
-.teacher-level-sections {
+.level-card__head {
     display: flex;
-}
-.teacher-level-card__top {
-    justify-content: space-between;
-    gap: 12px;
-    align-items: center;
-}
-.teacher-level-actions {
-    gap: 6px;
     flex-wrap: wrap;
-    justify-content: flex-end;
+    align-items: center;
+    gap: 12px;
 }
-.teacher-level-label {
-    font-weight: 800;
-    color: var(--text-heading);
+.level-card__num {
+    display: grid;
+    place-items: center;
+    width: 36px;
+    height: 36px;
+    flex: 0 0 36px;
+    border-radius: 10px;
+    background: var(--deep-800);
+    color: var(--on-brand);
+    font: 900 15px/1 var(--font-ui);
 }
-.teacher-level-meta {
-    color: var(--text-secondary);
-    font-size: var(--text-sm);
-    margin-top: 4px;
+.level-card__text {
+    flex: 1;
+    min-width: 160px;
 }
-.level-collapse-toggle {
+.level-card__text h3 {
+    margin: 0;
+    font: 900 16px/1.3 var(--font-ui);
+    letter-spacing: -0.02em;
+    color: var(--ink);
+}
+.level-card__text p {
+    margin: 2px 0 0;
+    font-size: 12px;
+    color: var(--ink-muted);
+}
+.level-card__add {
+    position: relative;
+}
+.level-add-btn {
     display: inline-flex;
     align-items: center;
-    gap: 7px;
-    min-height: 28px;
-    margin-top: 7px;
-    padding: 0;
-    border: 0;
-    background: transparent;
-    color: var(--practiq-violet);
-    font: inherit;
-    font-size: var(--text-sm);
-    font-weight: 800;
+    gap: 6px;
+    min-height: 36px;
+    padding: 0 12px;
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    background: var(--surface);
+    color: var(--brand-700);
+    font: 900 12.5px/1 var(--font-ui);
     cursor: pointer;
 }
-.teacher-level-card--collapsed .teacher-level-actions,
-.teacher-level-card--collapsed .teacher-level-sections {
-    display: none;
+.level-add-btn i {
+    font-size: 11px;
 }
-.teacher-level-sections {
-    margin-top: 10px;
+.level-add-btn:hover {
+    background: var(--surface-sunken);
+}
+.level-add-backdrop {
+    position: fixed;
+    inset: 0;
+    z-index: 9;
+}
+.level-add-menu {
+    position: absolute;
+    top: calc(100% + 6px);
+    right: 0;
+    z-index: 10;
+    display: grid;
+    min-width: 220px;
+    padding: 6px;
+    border: 1px solid var(--line);
+    border-radius: var(--radius-md);
+    background: var(--surface);
+    box-shadow: var(--shadow-card-lg);
+}
+.level-add-menu button {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    min-height: 40px;
+    padding: 0 10px;
+    border: 0;
+    border-radius: 8px;
+    background: transparent;
+    color: var(--ink);
+    font: 600 13px/1 var(--font-body);
+    text-align: left;
+    cursor: pointer;
+}
+.level-add-menu button:hover {
+    background: var(--surface-sunken);
+}
+.level-add-menu i {
+    font-size: 13px;
+    color: var(--brand-700);
+}
+.level-acts {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 200px), 1fr));
     gap: 8px;
-    align-items: stretch;
 }
-.teacher-level-block {
+.level-act {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 12px;
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    background: var(--canvas);
+    text-align: left;
+    font-family: var(--font-body);
+    cursor: pointer;
+}
+.level-act:hover {
+    border-color: var(--brand-200);
+    background: var(--surface-sunken);
+}
+.level-act i {
+    font-size: 14px;
+    color: var(--brand-700);
+}
+.level-act span {
     flex: 1;
     min-width: 0;
-    background: var(--surface-hover);
-    border: 1px solid var(--surface-border);
-    border-radius: var(--radius-lg);
-    padding: 9px 10px;
 }
-.teacher-level-block__title {
-    font-size: var(--text-xs);
-    font-weight: 800;
-    text-transform: uppercase;
-    color: var(--text-secondary);
-    margin-bottom: 6px;
-}
-.mini-list {
-    display: grid;
-    gap: 5px;
-}
-.mini-item {
-    width: 100%;
-    border: 1px solid var(--surface-border);
-    border-radius: var(--radius-md);
-    background: var(--surface-elevated);
-    padding: 7px 8px;
-    text-align: left;
-    display: grid;
-    gap: 2px;
-}
-.mini-item--link {
-    cursor: pointer;
-    transition: var(--transition-fast);
-}
-.mini-item--link:hover {
-    border-color: var(--practiq-violet);
-    transform: translateY(-1px);
-}
-.mini-item span {
-    color: var(--text-primary);
-    font-weight: 700;
+.level-act strong {
+    display: block;
     overflow: hidden;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--ink);
     text-overflow: ellipsis;
     white-space: nowrap;
 }
-.mini-item small,
-.mini-empty {
-    color: var(--text-secondary);
-    font-size: var(--text-xs);
+.level-act small {
+    display: block;
+    font-size: 11.5px;
+    color: var(--ink-muted);
 }
-@media (max-width: 760px) {
-    .section-header,
-    .teacher-level-card__top,
-    .teacher-level-actions {
-        flex-direction: column;
-        align-items: stretch;
-    }
-    .teacher-level-sections {
-        flex-direction: column;
-    }
-    .teacher-level-card {
-        padding: 0;
-        overflow: hidden;
-    }
-    .teacher-level-card__top {
-        padding: 16px;
-        gap: 12px;
-    }
-    .teacher-level-summary {
-        width: 100%;
-    }
-    .level-collapse-toggle {
-        min-height: 32px;
-        margin-top: 8px;
-    }
-    .teacher-level-actions {
-        width: 100%;
-    }
-    .teacher-level-sections {
-        margin: 0;
-        padding: 0 16px 16px;
+.level-create {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    min-height: 52px;
+    border: 1px dashed var(--brand-200);
+    border-radius: var(--radius-md);
+    background: transparent;
+    color: var(--brand-700);
+    font: 900 14px/1 var(--font-ui);
+    cursor: pointer;
+}
+.level-create i {
+    font-size: 12px;
+}
+.level-create:hover {
+    background: var(--surface-sunken);
+}
+@media (max-width: 600px) {
+    .level-add-menu {
+        right: auto;
+        left: 0;
     }
 }
 </style>

@@ -100,6 +100,12 @@ function statusLabel(status: string) {
 }
 
 const pendingArchive = ref(false);
+const statusMenuOpen = ref(false);
+
+function pickStatus(next: CourseStatus) {
+    statusMenuOpen.value = false;
+    chooseStatus(next);
+}
 
 async function chooseStatus(next: CourseStatus) {
     if (!course.value || savingStatus.value) return;
@@ -1669,79 +1675,98 @@ async function deleteNotebook(id: string) {
 <template>
     <TeacherLayout>
         <div class="course-detail anim-stagger">
-            <div class="course-header">
-                <button class="btn btn-ghost btn-sm" @click="router.back()">
-                    <i class="pi pi-arrow-left"></i> Volver
-                </button>
-                <div v-if="course">
-                    <h1 class="page-title">{{ course.title }}</h1>
+            <button class="course-back" type="button" @click="router.back()">
+                <i class="pi pi-arrow-left" aria-hidden="true"></i> Volver
+            </button>
+            <header v-if="course" class="course-header">
+                <div class="course-header__main">
                     <div class="course-badges">
-                        <span class="badge badge-violet">{{ course.subject || 'General' }}</span>
-                        <span class="badge badge-muted">{{ course.level || 'Sin nivel' }}</span>
-                        <span class="badge" :class="`badge-status--${course.status}`">{{
-                            statusLabel(course.status)
+                        <span class="course-badge course-badge--brand">{{
+                            course.subject || 'General'
                         }}</span>
+                        <span v-if="course.grade_name" class="course-badge">{{
+                            course.grade_name
+                        }}</span>
+                        <span v-if="course.level" class="course-badge">{{ course.level }}</span>
                     </div>
-                    <div class="course-status" role="group" aria-label="Estado del curso">
+                    <h1 class="course-title">{{ course.title }}</h1>
+                    <p class="course-meta">
+                        {{ students.length }} {{ students.length === 1 ? 'alumno' : 'alumnos' }} ·
+                        {{ teacherLevels.length }}
+                        {{ teacherLevels.length === 1 ? 'nivel' : 'niveles' }}
+                    </p>
+                </div>
+                <div class="course-status">
+                    <button
+                        type="button"
+                        class="status-trigger"
+                        :class="`status-trigger--${course.status}`"
+                        aria-haspopup="menu"
+                        :aria-expanded="statusMenuOpen"
+                        :disabled="Boolean(savingStatus)"
+                        @click="statusMenuOpen = !statusMenuOpen"
+                    >
+                        <i v-if="savingStatus" class="pi pi-spinner pi-spin" aria-hidden="true"></i>
+                        <span v-else class="status-trigger__dot" aria-hidden="true"></span>
+                        {{ statusLabel(course.status) }}
+                        <i class="pi pi-angle-down" aria-hidden="true"></i>
+                    </button>
+                    <div
+                        v-if="statusMenuOpen"
+                        class="status-backdrop"
+                        @click="statusMenuOpen = false"
+                    ></div>
+                    <div v-if="statusMenuOpen" class="status-menu" role="menu">
                         <button
                             v-for="option in STATUS_OPTIONS"
                             :key="option.value"
                             type="button"
-                            class="status-option"
+                            role="menuitemradio"
+                            class="status-menu__item"
                             :class="{
-                                'status-option--current': course.status === option.value,
-                                'status-option--saving': savingStatus === option.value,
+                                'status-menu__item--current': course.status === option.value,
                             }"
-                            :aria-pressed="course.status === option.value"
-                            :disabled="Boolean(savingStatus)"
-                            @click="chooseStatus(option.value)"
+                            :aria-checked="course.status === option.value"
+                            @click="pickStatus(option.value)"
                         >
-                            <i
-                                class="pi"
-                                :class="
-                                    savingStatus === option.value
-                                        ? 'pi-spinner pi-spin'
-                                        : option.icon
-                                "
-                                aria-hidden="true"
-                            ></i>
-                            <span class="status-option-text">
+                            <i class="pi" :class="option.icon" aria-hidden="true"></i>
+                            <span>
                                 <strong>{{ option.label }}</strong>
                                 <small>{{ option.hint }}</small>
                             </span>
                         </button>
                     </div>
-
-                    <p v-if="pendingArchive" class="status-confirm">
-                        <i class="pi pi-exclamation-triangle" aria-hidden="true"></i>
-                        <span>
-                            Al archivar, quienes ya cursan siguen viendo el material y sus notas,
-                            pero nadie puede entregar ni matricularse.
-                        </span>
-                        <span class="status-confirm-actions">
-                            <button
-                                type="button"
-                                class="status-confirm-cancel"
-                                @click="pendingArchive = false"
-                            >
-                                Cancelar
-                            </button>
-                            <button
-                                type="button"
-                                class="status-confirm-go"
-                                @click="chooseStatus('archived')"
-                            >
-                                Archivar
-                            </button>
-                        </span>
-                    </p>
-
-                    <p v-if="statusError" class="status-error">
-                        <i class="pi pi-times-circle" aria-hidden="true"></i>
-                        {{ statusError }}
-                    </p>
                 </div>
-            </div>
+            </header>
+
+            <p v-if="pendingArchive" class="status-confirm">
+                <i class="pi pi-exclamation-triangle" aria-hidden="true"></i>
+                <span>
+                    Al archivar, quienes ya cursan siguen viendo el material y sus notas, pero nadie
+                    puede entregar ni matricularse.
+                </span>
+                <span class="status-confirm-actions">
+                    <button
+                        type="button"
+                        class="status-confirm-cancel"
+                        @click="pendingArchive = false"
+                    >
+                        Cancelar
+                    </button>
+                    <button
+                        type="button"
+                        class="status-confirm-go"
+                        @click="chooseStatus('archived')"
+                    >
+                        Archivar
+                    </button>
+                </span>
+            </p>
+
+            <p v-if="statusError" class="status-error">
+                <i class="pi pi-times-circle" aria-hidden="true"></i>
+                {{ statusError }}
+            </p>
 
             <div v-if="!course && loadingCourse" class="empty-state" role="status">
                 <div class="empty-state__icon"><i class="pi pi-spin pi-spinner"></i></div>
@@ -3394,94 +3419,157 @@ async function deleteNotebook(id: string) {
     max-width: 1180px;
 }
 
+.course-back {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    min-height: 36px;
+    margin: -6px 0 4px -10px;
+    padding: 0 10px;
+    border: 0;
+    border-radius: 10px;
+    background: transparent;
+    color: var(--brand-700);
+    font: 900 13px/1 var(--font-ui);
+    cursor: pointer;
+}
+.course-back i {
+    font-size: 12px;
+}
+.course-back:hover {
+    background: var(--surface-sunken);
+}
+
 .course-header {
-    position: relative;
-    margin-bottom: 16px;
-    padding: 22px 24px;
-    border-radius: var(--radius-2xl);
-    background: linear-gradient(115deg, var(--surface-elevated), var(--surface-card));
-    border: 1px solid var(--surface-elevated-strong);
-    box-shadow: var(--shadow-card);
-    backdrop-filter: blur(18px);
     display: flex;
-    flex-direction: column;
+    flex-wrap: wrap;
     align-items: flex-start;
+    justify-content: space-between;
     gap: 14px;
-    overflow: hidden;
+    margin-bottom: 20px;
 }
-
-.course-header > .btn {
-    align-self: flex-start;
-    width: auto;
-    flex: 0 0 auto;
+.course-header__main {
+    display: grid;
+    gap: 8px;
+    min-width: 0;
 }
-
-.course-header > * {
-    position: relative;
-    z-index: 1;
+.course-badges {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
 }
-
-.page-title {
-    font-size: clamp(1.55rem, 2.5vw, 2rem);
-    font-weight: 800;
-    color: var(--text-heading);
-    line-height: 1.12;
+.course-badge {
+    padding: 3px 9px;
+    border-radius: var(--radius-xs);
+    background: var(--surface-sunken);
+    color: var(--ink-muted);
+    font-size: 11px;
+    font-weight: 600;
+}
+.course-badge--brand {
+    color: var(--brand-700);
+    font-weight: 700;
+}
+.course-title {
     margin: 0;
+    font: 900 28px/1.06 var(--font-ui);
+    letter-spacing: -0.035em;
+    color: var(--ink);
+}
+.course-meta {
+    margin: 0;
+    font-size: 13px;
+    color: var(--ink-muted);
 }
 
 .course-status {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 8px;
-    margin-top: 12px;
+    position: relative;
 }
-.status-option {
-    display: flex;
+.status-trigger {
+    display: inline-flex;
     align-items: center;
-    gap: 9px;
-    flex: 1 1 210px;
-    padding: 10px 12px;
-    border: 1.5px solid var(--surface-border);
-    border-radius: var(--radius-lg);
-    background: var(--surface-card);
-    color: var(--text-secondary);
-    text-align: left;
+    gap: 10px;
+    min-height: 44px;
+    padding: 0 14px;
+    border: 1px solid var(--line);
+    border-radius: 11px;
+    background: var(--surface-sunken);
+    color: var(--ink-muted);
+    font: 900 13.5px/1 var(--font-ui);
     cursor: pointer;
-    transition: var(--transition-fast);
 }
-.status-option:hover:not(:disabled) {
-    border-color: rgba(var(--practiq-violet-rgb), 0.45);
-    color: var(--text-primary);
-}
-.status-option:disabled {
+.status-trigger:disabled {
     cursor: default;
 }
-.status-option--current {
-    border-color: var(--practiq-violet);
-    background: var(--fill-primary-faint);
-    color: var(--practiq-violet);
+.status-trigger__dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: currentColor;
 }
-.status-option i {
-    font-size: 1rem;
-    flex-shrink: 0;
+.status-trigger i.pi-angle-down {
+    font-size: 12px;
 }
-.status-option-text {
-    display: grid;
-    gap: 1px;
-    min-width: 0;
+.status-trigger--draft {
+    border-color: var(--warning-soft);
+    background: var(--warning-soft);
+    color: var(--warning);
 }
-.status-option-text strong {
-    font-size: var(--text-sm);
-    font-weight: 800;
+.status-trigger--published {
+    border-color: var(--success-soft);
+    background: var(--success-soft);
+    color: var(--success);
 }
-.status-option-text small {
-    font-size: var(--text-xs);
-    color: var(--text-muted);
-    line-height: 1.3;
+.status-backdrop {
+    position: fixed;
+    inset: 0;
+    z-index: 9;
 }
-.status-option--current .status-option-text small {
-    color: inherit;
-    opacity: 0.8;
+.status-menu {
+    position: absolute;
+    top: calc(100% + 6px);
+    right: 0;
+    z-index: 10;
+    width: 290px;
+    padding: 6px;
+    border: 1px solid var(--line);
+    border-radius: var(--radius-md);
+    background: var(--surface);
+    box-shadow: var(--shadow-card-lg);
+}
+.status-menu__item {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    width: 100%;
+    padding: 10px;
+    border: 0;
+    border-radius: 9px;
+    background: transparent;
+    color: var(--ink);
+    text-align: left;
+    font-family: var(--font-body);
+    cursor: pointer;
+}
+.status-menu__item:hover,
+.status-menu__item--current {
+    background: var(--surface-sunken);
+    color: var(--brand-700);
+}
+.status-menu__item i {
+    margin-top: 2px;
+    font-size: 13px;
+}
+.status-menu__item strong {
+    display: block;
+    font-size: 13px;
+    font-weight: 600;
+}
+.status-menu__item small {
+    display: block;
+    font-size: 11.5px;
+    line-height: 1.45;
+    color: var(--ink-muted);
 }
 .status-confirm,
 .status-error {
@@ -3489,15 +3577,15 @@ async function deleteNotebook(id: string) {
     align-items: center;
     flex-wrap: wrap;
     gap: 8px;
-    margin: 10px 0 0;
+    margin: 0 0 16px;
     padding: 10px 12px;
-    border-radius: var(--radius-lg);
+    border-radius: var(--radius-md);
     font-size: var(--text-xs);
     line-height: 1.35;
 }
 .status-confirm {
-    background: var(--color-warning-bg);
-    color: var(--color-warning-dark);
+    background: var(--warning-soft);
+    color: var(--warning);
 }
 .status-confirm span {
     flex: 1 1 200px;
@@ -3522,42 +3610,19 @@ async function deleteNotebook(id: string) {
     text-decoration: underline;
 }
 .status-confirm-go {
-    background: var(--color-warning-dark);
+    background: var(--warning);
     color: var(--on-brand);
 }
 .status-error {
-    background: var(--color-error-bg);
-    color: var(--color-error-dark);
-}
-.badge-status--draft {
-    background: var(--warning-soft);
-    color: var(--warning);
-}
-.badge-status--published {
-    background: var(--success-soft);
-    color: var(--success);
-}
-.badge-status--archived {
-    background: var(--surface-hover);
-    color: var(--text-muted);
-}
-.course-badges {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 8px;
-    margin-top: 10px;
-}
-
-.badge-muted {
-    background: var(--surface-hover);
-    color: var(--text-secondary);
+    background: var(--danger-soft);
+    color: var(--danger);
 }
 
 .tabs {
     display: flex;
     gap: 4px;
-    border-bottom: 1px solid var(--line, var(--surface-border));
-    margin-bottom: 24px;
+    border-bottom: 1px solid var(--line);
+    margin-bottom: 20px;
     overflow-x: auto;
     scrollbar-width: thin;
     scroll-snap-type: x proximity;
@@ -3574,8 +3639,7 @@ async function deleteNotebook(id: string) {
     background: transparent;
     border: 0;
     border-bottom: 2px solid transparent;
-    font-size: var(--text-base);
-    font-weight: 900;
+    font: 900 14px/1 var(--font-ui);
     color: var(--ink-muted, var(--text-secondary));
     cursor: pointer;
     transition: var(--transition);
@@ -3788,10 +3852,13 @@ async function deleteNotebook(id: string) {
         max-width: 100%;
         box-sizing: border-box;
     }
-    .course-header {
-        width: 100%;
-        padding: 22px 18px;
-        border-radius: 22px;
+    .course-detail > .course-back {
+        width: auto;
+    }
+    .status-menu {
+        right: auto;
+        left: 0;
+        width: min(290px, calc(100vw - 32px));
     }
 }
 
