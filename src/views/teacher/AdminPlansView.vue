@@ -1,17 +1,31 @@
 <script setup lang="ts">
-import { onMounted, reactive, ref } from 'vue';
+import { computed, onMounted, reactive, ref } from 'vue';
 import { useToast } from '@/composables/useToast';
-import { practiqApi } from '@/api/request/server';
 import TeacherLayout from '@/layouts/TeacherLayout.vue';
 import Skeleton from '@/components/ui/Skeleton.vue';
 import ConfirmModal from '@/components/ui/ConfirmModal.vue';
 import type { CatalogPlan, PlanInput } from '@/types/subscription';
-import { SubscriptionService } from '@/services/subscription/subscriptionService';
+import { useSubscription } from '@/composables/useSubscription';
 
 const toast = useToast();
-const service = new SubscriptionService(practiqApi);
-
-const plans = ref<CatalogPlan[]>([]);
+const {
+    plans,
+    adminSubscriptions,
+    listPlans,
+    listAllSubscriptions,
+    createPlan,
+    updatePlan,
+    deactivatePlan,
+} = useSubscription();
+const subscriptionsLoaded = ref(false);
+const subscriptionCounts = computed(() => {
+    const counts = new Map<number, number>();
+    for (const subscription of adminSubscriptions.value) {
+        if (subscription.status === 'cancelled') continue;
+        counts.set(subscription.plan_id, (counts.get(subscription.plan_id) || 0) + 1);
+    }
+    return counts;
+});
 const loading = ref(true);
 const saving = ref(false);
 const editingId = ref<number | null>(null);
@@ -48,8 +62,15 @@ function edit(plan: CatalogPlan) {
 
 async function load() {
     try {
-        const { data } = await service.listPlans();
-        plans.value = data;
+        await listPlans();
+        if (!subscriptionsLoaded.value) {
+            try {
+                await listAllSubscriptions();
+                subscriptionsLoaded.value = true;
+            } catch {
+                subscriptionsLoaded.value = false;
+            }
+        }
     } catch {
         toast.add({
             severity: 'error',
@@ -78,8 +99,8 @@ async function save() {
         max_students: Number(form.max_students),
     };
     try {
-        if (editingId.value) await service.updatePlan(editingId.value, input);
-        else await service.createPlan(input);
+        if (editingId.value) await updatePlan(editingId.value, input);
+        else await createPlan(input);
         await load();
         resetForm();
         toast.add({ severity: 'success', summary: 'Plan guardado', life: 2500 });
@@ -99,7 +120,7 @@ async function retire() {
     const plan = retiring.value;
     if (!plan) return;
     try {
-        await service.deactivatePlan(plan.plan_id);
+        await deactivatePlan(plan.plan_id);
         await load();
         toast.add({ severity: 'success', summary: 'Plan retirado', life: 2500 });
     } catch {
@@ -116,7 +137,7 @@ async function retire() {
 
 async function reactivate(plan: CatalogPlan) {
     try {
-        await service.updatePlan(plan.plan_id, { active: true });
+        await updatePlan(plan.plan_id, { active: true });
         await load();
         toast.add({ severity: 'success', summary: 'Plan reactivado', life: 2500 });
     } catch {
@@ -179,6 +200,14 @@ onMounted(load);
                                 <strong class="plan-price">{{ formatAmount(plan) }}</strong> / mes ·
                                 hasta {{ plan.max_students }}
                                 {{ plan.max_students === 1 ? 'alumno' : 'alumnos' }}
+                            </span>
+                            <span v-if="subscriptionsLoaded" class="plan-subs">
+                                {{ subscriptionCounts.get(plan.plan_id) || 0 }}
+                                {{
+                                    (subscriptionCounts.get(plan.plan_id) || 0) === 1
+                                        ? 'suscripción'
+                                        : 'suscripciones'
+                                }}
                             </span>
                             <ul v-if="features(plan).length" class="plan-features">
                                 <li v-for="feature in features(plan)" :key="feature">
@@ -440,6 +469,11 @@ onMounted(load);
 
 .plan-meta {
     font-size: 0.82rem;
+    color: var(--text-secondary);
+}
+
+.plan-subs {
+    font-size: 0.76rem;
     color: var(--text-secondary);
 }
 

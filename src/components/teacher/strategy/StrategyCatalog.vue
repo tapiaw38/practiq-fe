@@ -11,7 +11,7 @@ const emit = defineEmits<StrategyCatalogEmits>();
             <div>
                 <h2 class="section-title">Estrategias disponibles</h2>
                 <p class="section-subtitle">
-                    Configura como los estudiantes aprenden y progresan en cada curso.
+                    Cómo la IA acompaña a cada alumno. Los docentes eligen una por curso.
                 </p>
             </div>
         </div>

@@ -1,29 +1,38 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from 'vue';
 import { useToast } from '@/composables/useToast';
-import { ensureFreshAccessToken, practiqApi } from '@/api/request/server';
+import { ensureFreshAccessToken } from '@/api/request/server';
 import TeacherLayout from '@/layouts/TeacherLayout.vue';
 import Skeleton from '@/components/ui/Skeleton.vue';
 import UiModal from '@/components/ui/UiModal.vue';
 import CheckoutModal from '@/components/teacher/subscription/CheckoutModal.vue';
 import { authService } from '@/services/auth/authService';
 import type { CardToken } from '@/types/payments';
-import type {
-    BillingHistory,
-    CatalogPlan,
-    DowngradeState,
-    DowngradeStudent,
-    TeacherSubscription,
-} from '@/types/subscription';
-import { SubscriptionService } from '@/services/subscription/subscriptionService';
+import type { CatalogPlan, DowngradeState, DowngradeStudent } from '@/types/subscription';
+import { useSubscription } from '@/composables/useSubscription';
 
 const toast = useToast();
-const service = new SubscriptionService(practiqApi);
+const {
+    mySubscription: subscription,
+    billingHistory,
+    plans,
+    getMine,
+    clearMySubscription,
+    billingHistoryRequest,
+    clearBillingHistory,
+    checkoutConfig,
+    subscribe,
+    startHostedCheckout,
+    changePlan,
+    downgradePreview,
+    applyDowngrade: applyDowngradeRequest,
+    listPlans,
+    pause: pauseRequest,
+    resume: resumeRequest,
+    cancel: cancelRequest,
+} = useSubscription();
 
-const subscription = ref<TeacherSubscription | null>(null);
-const billingHistory = ref<BillingHistory | null>(null);
 const billingHistoryError = ref(false);
-const plans = ref<CatalogPlan[]>([]);
 const loading = ref(true);
 const loadError = ref(false);
 const working = ref(false);
@@ -77,8 +86,8 @@ function lastPracticedLabel(student: DowngradeStudent) {
 
 async function applyDowngrade() {
     await run(async () => {
-        await service.applyDowngrade(keep.value);
-        const { data } = await service.downgradePreview();
+        await applyDowngradeRequest(keep.value);
+        const { data } = await downgradePreview();
         downgrade.value = data;
     }, 'Plan ajustado');
 }
@@ -121,7 +130,7 @@ async function openCheckout(plan: CatalogPlan) {
     checkoutError.value = '';
     if (!publicKey.value) {
         try {
-            const { data } = await service.checkoutConfig();
+            const { data } = await checkoutConfig();
             publicKey.value = data.public_key;
         } catch {
             publicKey.value = '';
@@ -152,7 +161,7 @@ async function confirmCheckout(token: CardToken) {
     working.value = true;
     try {
         if (subscription.value?.active) {
-            const charged = await service.changePlan(plan.plan_id, token.id, token.paymentMethodId);
+            const charged = await changePlan(plan.plan_id, token.id, token.paymentMethodId);
             checkoutPlan.value = null;
             await reload();
             toast.add({
@@ -166,7 +175,7 @@ async function confirmCheckout(token: CardToken) {
             });
             return;
         }
-        await service.subscribe(plan.plan_id, token.id);
+        await subscribe(plan.plan_id, token.id);
         checkoutPlan.value = null;
         await reload();
         toast.add({ severity: 'success', summary: 'Suscripción activada', life: 2500 });
@@ -184,7 +193,7 @@ async function payWithWallet(payerEmail: string) {
     working.value = true;
     try {
         if (subscription.value?.active) {
-            await service.changePlan(plan.plan_id);
+            await changePlan(plan.plan_id);
             checkoutPlan.value = null;
             await reload();
             toast.add({
@@ -196,7 +205,7 @@ async function payWithWallet(payerEmail: string) {
             return;
         }
 
-        const initPoint = await service.startHostedCheckout(plan.plan_id, payerEmail);
+        const initPoint = await startHostedCheckout(plan.plan_id, payerEmail);
         if (!initPoint) {
             checkoutError.value = 'No pudimos abrir el pago en Mercado Pago. Probá de nuevo.';
             return;
@@ -245,20 +254,16 @@ const renewalAmountLabel = computed(() => {
 });
 
 async function reload() {
-    const [mine, catalog, excess, history] = await Promise.allSettled([
-        onceMore(() => service.getMine()),
-        onceMore(() => service.listPlans()),
-        onceMore(() => service.downgradePreview()),
-        onceMore(() => service.billingHistory()),
+    const [mine, , excess, history] = await Promise.allSettled([
+        onceMore(() => getMine()),
+        onceMore(() => listPlans()),
+        onceMore(() => downgradePreview()),
+        onceMore(() => billingHistoryRequest()),
     ]);
-    if (mine.status === 'fulfilled' && mine.value.data?.plan) {
-        subscription.value = mine.value.data;
-    }
     if (excess.status === 'fulfilled') downgrade.value = excess.value.data;
-    billingHistory.value = history.status === 'fulfilled' ? history.value.data : null;
+    if (history.status === 'rejected') clearBillingHistory();
     billingHistoryError.value = history.status === 'rejected';
 
-    if (catalog.status === 'fulfilled') plans.value = catalog.value.data;
     if (mine.status === 'rejected' || !subscription.value) {
         throw mine.status === 'rejected'
             ? mine.reason
@@ -274,6 +279,7 @@ async function loadSubscription() {
             window.location.assign('/login');
             return;
         }
+        clearMySubscription();
         await reload();
     } catch {
         loadError.value = true;
@@ -309,12 +315,12 @@ async function run(action: () => Promise<void>, done: string) {
 }
 
 const pause = () =>
-    run(() => service.pause(), 'Suscripción pausada').finally(() => {
+    run(() => pauseRequest(), 'Suscripción pausada').finally(() => {
         showPauseModal.value = false;
         showLeaveModal.value = false;
     });
-const resume = () => run(() => service.resume(), 'Suscripción reanudada');
-const cancel = () => run(() => service.cancel(), 'Suscripción cancelada');
+const resume = () => run(() => resumeRequest(), 'Suscripción reanudada');
+const cancel = () => run(() => cancelRequest(), 'Suscripción cancelada');
 
 function formatMoney(amount: number, currency = 'ARS') {
     return new Intl.NumberFormat('es-AR', {
@@ -463,6 +469,20 @@ onMounted(() => {
                             :style="{ width: `${usedPct}%` }"
                         ></div>
                     </div>
+                    <p
+                        v-if="subscription.can_add_student && subscription.plan.max_students > 0"
+                        class="usage-help"
+                    >
+                        Te quedan
+                        {{
+                            Math.max(0, subscription.plan.max_students - subscription.students_used)
+                        }}
+                        {{
+                            subscription.plan.max_students - subscription.students_used === 1
+                                ? 'lugar'
+                                : 'lugares'
+                        }}.
+                    </p>
                     <p v-if="subscription.trial_expired" class="usage-warn">
                         Tu mes de prueba terminó. Elegí un plan para volver a sumar alumnos.
                     </p>
@@ -1430,6 +1450,12 @@ onMounted(() => {
 
 .usage-fill--full {
     background: var(--color-warning);
+}
+
+.usage-help {
+    margin: 0;
+    font-size: 0.78rem;
+    color: var(--text-secondary);
 }
 
 .usage-warn {

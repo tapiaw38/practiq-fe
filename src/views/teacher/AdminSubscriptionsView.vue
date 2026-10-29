@@ -2,22 +2,20 @@
 import { computed, onMounted, ref } from 'vue';
 import { useToast } from '@/composables/useToast';
 import { useAuthAdmin } from '@/composables/useAuthAdmin';
-import { practiqApi } from '@/api/request/server';
 import TeacherLayout from '@/layouts/TeacherLayout.vue';
 import Skeleton from '@/components/ui/Skeleton.vue';
-import { SubscriptionService } from '@/services/subscription/subscriptionService';
+import { useSubscription } from '@/composables/useSubscription';
 import type { AuthApiUser } from '@/types';
 import type { AdminSubscription } from '@/types/subscription';
 
 const toast = useToast();
-const service = new SubscriptionService(practiqApi);
+const { adminSubscriptions: subscriptions, listAllSubscriptions } = useSubscription();
 const { loadUsers } = useAuthAdmin();
 
 function practiqUserId(user: AuthApiUser) {
     return user.username || user.id;
 }
 
-const subscriptions = ref<AdminSubscription[]>([]);
 const usersById = ref<Record<string, { name: string; email: string }>>({});
 const loading = ref(true);
 const activeFilter = ref('');
@@ -137,11 +135,10 @@ const filteredSubscriptions = computed(() =>
 async function load() {
     loading.value = true;
     try {
-        const [subsResult, usersResult] = await Promise.all([
-            service.listAllSubscriptions(),
+        const [, usersResult] = await Promise.all([
+            listAllSubscriptions(),
             loadUsers({ limit: 1000, offset: 0 }).catch(() => []),
         ]);
-        subscriptions.value = subsResult.data;
         usersById.value = Object.fromEntries(
             usersResult.map((u) => [
                 practiqUserId(u),

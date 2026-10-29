@@ -1226,15 +1226,47 @@
 
 @media (max-width: 1023px) {
     :root[data-ui-theme='teacher'] .sidebar {
-        width: min(320px, 86vw);
-        padding-bottom: calc(var(--space-3) + env(safe-area-inset-bottom));
+        top: auto;
+        right: 0;
+        bottom: 0;
+        width: 100%;
+        max-height: min(86dvh, 780px);
+        padding: var(--space-4) var(--space-4) calc(var(--space-4) + env(safe-area-inset-bottom));
+        border-right: 0;
+        border-radius: var(--radius-xl) var(--radius-xl) 0 0;
         box-shadow: var(--shadow-lg);
-        transform: translateX(-100%);
+        transform: translateY(100%);
         transition: transform 0.22s ease;
         z-index: 60;
     }
+    :root[data-ui-theme='teacher'] .sidebar::before {
+        content: '';
+        display: block;
+        flex: 0 0 auto;
+        width: 38px;
+        height: 4px;
+        margin: 0 auto var(--space-3);
+        border-radius: var(--radius-pill);
+        background: var(--line);
+    }
     :root[data-ui-theme='teacher'] .sidebar--open {
         transform: none;
+    }
+    :root[data-ui-theme='teacher'] .sidebar-brand,
+    :root[data-ui-theme='teacher'] .sidebar:not(.sidebar--context) .school-context,
+    :root[data-ui-theme='teacher'] .sidebar--context .sidebar-nav,
+    :root[data-ui-theme='teacher'] .sidebar--context .sidebar-footer {
+        display: none;
+    }
+    :root[data-ui-theme='teacher'] .sidebar--context .school-context {
+        overflow-y: auto;
+    }
+    :root[data-ui-theme='teacher'] .sidebar--context .school-popover {
+        position: static;
+        width: 100%;
+        max-width: none;
+        margin-top: var(--space-2);
+        box-shadow: none;
     }
     :root[data-ui-theme='teacher'] .close-btn {
         display: inline-grid;
@@ -1276,20 +1308,39 @@
     }
     :root[data-ui-theme='teacher'] .topbar-logo {
         display: block;
-        width: 88px;
+        width: 76px;
         height: auto;
     }
     :root[data-ui-theme='teacher'] .topbar-school {
         min-width: 0;
-        overflow: hidden;
-        padding-left: var(--space-3);
-        background: transparent;
-        border: 0;
-        border-left: 1px solid var(--line);
+        flex: 1;
+        display: flex;
+        align-items: center;
+        gap: var(--space-2);
+        min-height: 40px;
+        padding: var(--space-1) var(--space-3);
+        background: var(--canvas);
+        border: 1px solid var(--line);
+        border-radius: var(--radius-md);
         font: 700 13px/20px var(--font-ui);
-        color: var(--ink-soft);
+        color: var(--ink);
         cursor: pointer;
         text-align: left;
+    }
+    :root[data-ui-theme='teacher'] .topbar-school__label {
+        display: block;
+        color: var(--ink-muted);
+        font-size: 10px;
+        text-transform: uppercase;
+    }
+    :root[data-ui-theme='teacher'] .topbar-school__text {
+        min-width: 0;
+        flex: 1;
+    }
+    :root[data-ui-theme='teacher'] .topbar-school__name {
+        display: block;
+        min-width: 0;
+        overflow: hidden;
         text-overflow: ellipsis;
         white-space: nowrap;
     }

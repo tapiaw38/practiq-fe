@@ -8,8 +8,7 @@ import { useAssignment } from '@/composables/useAssignment';
 import { useGrade } from '@/composables/useGrade';
 import { useProfile } from '@/composables/useProfile';
 import type { SchoolMember, SchoolRole } from '@/services/schools/schoolService';
-import { authApi } from '@/api/request/server';
-import { AuthAdminService } from '@/services/auth/authAdminService';
+import { useAuthAdmin } from '@/composables/useAuthAdmin';
 import { useAuthStore } from '@/stores/authStore';
 import type { AssignedUser, AuthApiUser, Grade } from '@/types';
 
@@ -39,7 +38,7 @@ const themeSaveSuccess = ref(false);
 
 const form = reactive({ userId: '', userQuery: '', role: 'student' as SchoolRole });
 const matches = ref<AuthApiUser[]>([]);
-const authAdmin = new AuthAdminService(authApi);
+const { loadUsers } = useAuthAdmin();
 const isSuperAdmin = computed(
     () => authStore.authUser?.roles?.some((role) => role.name === 'superadmin') ?? false,
 );
@@ -159,7 +158,7 @@ async function searchUsers() {
         return;
     }
     try {
-        const { data } = await authAdmin.listUsers({ limit: 100 });
+        const data = await loadUsers({ limit: 100 });
         matches.value = data
             .filter((user) =>
                 [user.id, user.first_name, user.last_name, user.email]

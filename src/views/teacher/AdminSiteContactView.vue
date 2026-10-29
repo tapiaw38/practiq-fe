@@ -50,14 +50,18 @@ onMounted(load);
                 <div>
                     <p class="eyebrow">Plataforma</p>
                     <h1>Contacto institucional</h1>
-                    <p>Lo que ve una escuela en la landing cuando quiere hablar con ventas.</p>
+                    <p>Configurá los datos de contacto de toda la plataforma.</p>
                 </div>
             </header>
             <Skeleton v-if="loading" height="300px" />
             <form v-else class="settings-card" @submit.prevent="save">
-                <label>Email<input v-model.trim="form.email" type="email" required /></label
-                ><label>Teléfono<input v-model.trim="form.phone" type="tel" required /></label
-                ><label
+                <h2>Datos de contacto</h2>
+                <p>Lo que ve una escuela en la landing cuando quiere hablar con ventas.</p>
+                <div class="contact-pair">
+                    <label>Email<input v-model.trim="form.email" type="email" required /></label>
+                    <label>Teléfono<input v-model.trim="form.phone" type="tel" required /></label>
+                </div>
+                <label
                     >WhatsApp URL<input
                         v-model.trim="form.whatsapp"
                         type="url"
@@ -105,6 +109,22 @@ header p:last-child {
     background: var(--surface-card);
     box-shadow: var(--shadow-card);
 }
+.settings-card h2 {
+    margin: 0;
+    color: var(--text-heading);
+    font-size: 1.1rem;
+}
+.settings-card > p {
+    margin: -8px 0 0;
+    color: var(--text-secondary);
+    font-size: var(--text-sm);
+    line-height: 1.55;
+}
+.contact-pair {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+}
 label {
     display: grid;
     gap: 8px;
@@ -142,6 +162,9 @@ button:disabled {
     opacity: 0.6;
 }
 @media (max-width: 600px) {
+    .contact-pair {
+        grid-template-columns: 1fr;
+    }
     .page {
         padding: 20px 16px 36px;
     }

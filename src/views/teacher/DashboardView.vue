@@ -17,10 +17,7 @@ import { formatDate } from '@/utils/formatters';
 import { masteryTier } from '@/utils/mastery';
 import type { AssignedUser, Grade } from '@/types';
 import { useSchools } from '@/composables/useSchools';
-import { practiqApi } from '@/api/request/server';
-import { NotebookService } from '@/services/notebooks/notebookService';
-
-const notebookService = new NotebookService(practiqApi);
+import { useNotebook } from '@/composables/useNotebook';
 
 const router = useRouter();
 const authStore = useAuthStore();
@@ -36,6 +33,7 @@ const { loadProfile } = useProfile();
 const { loadMyStudents } = useAssignment();
 const { count: pendingReviews, hasMore: pendingHasMore, load: loadPending } = usePendingReviews();
 const { loadStudentProgress } = useProgress();
+const { loadSubmissions } = useNotebook();
 const assignedStudents = ref<AssignedUser[]>([]);
 const studentGrades = ref<Record<string, Grade[]>>({});
 const studentMastery = ref<Record<string, number | null>>({});
@@ -186,7 +184,7 @@ watch(activeId, async () => {
 
 async function loadNotebooksPending() {
     try {
-        const { data } = await notebookService.getSubmissions({ reviewed: false, limit: 200 });
+        const data = await loadSubmissions({ reviewed: false, limit: 200 });
         notebooksPendingCount.value = data.length;
         notebooksAiReviewedCount.value = data.filter((s) => s.ai_reviewed_at).length;
     } catch (err) {
@@ -336,7 +334,9 @@ const statusLabel: Record<string, string> = {
                 <div class="page-header__left">
                     <div class="page-kicker">{{ todayLabel }}</div>
                     <div class="page-heading-row">
-                        <h1 class="page-title">Hola, <span class="text-accent">{{ teacherName }}</span></h1>
+                        <h1 class="page-title">
+                            Hola, <span class="text-accent">{{ teacherName }}</span>
+                        </h1>
                     </div>
                     <p class="page-intro">{{ introLine }}</p>
                 </div>

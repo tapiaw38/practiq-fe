@@ -59,11 +59,18 @@ function pickSchool(id: string) {
     navOpen.value = false;
 }
 function openSchoolFromTopbar() {
+    sheetMode.value = 'school';
     navOpen.value = true;
     schoolOpen.value = hasChoice.value;
 }
+function openMoreSheet() {
+    sheetMode.value = 'menu';
+    schoolOpen.value = false;
+    navOpen.value = true;
+}
 const userInitial = computed(() => profile.value?.name?.[0]?.toUpperCase() || 'D');
 const navOpen = ref(false);
+const sheetMode = ref<'menu' | 'school'>('menu');
 const showChangePassword = ref(false);
 const showSetPassword = ref(false);
 const isGoogleUser = computed(() => authStore.authMethod === 'google');
@@ -151,15 +158,6 @@ function logout() {
 <template>
     <div class="app-shell">
         <header class="mobile-topbar">
-            <button
-                class="topbar-btn"
-                type="button"
-                aria-label="Abrir menú"
-                @click="navOpen = true"
-            >
-                <i class="pi pi-bars"></i>
-            </button>
-
             <div class="topbar-brand">
                 <img src="@/assets/logo.png" class="topbar-logo" alt="Practiq" />
                 <button
@@ -170,7 +168,11 @@ function logout() {
                     :aria-label="`Cambiar escuela activa: ${active.name}`"
                     @click="openSchoolFromTopbar"
                 >
-                    {{ active.name }}
+                    <span class="topbar-school__text">
+                        <span class="topbar-school__label">Escuela</span>
+                        <span class="topbar-school__name">{{ active.name }}</span>
+                    </span>
+                    <i class="pi pi-angle-down" aria-hidden="true"></i>
                 </button>
             </div>
 
@@ -178,7 +180,7 @@ function logout() {
                 class="avatar topbar-avatar"
                 type="button"
                 aria-label="Abrir menú de la cuenta"
-                @click="navOpen = true"
+                @click="openMoreSheet"
             >
                 {{ userInitial }}
             </button>
@@ -188,7 +190,7 @@ function logout() {
 
         <aside
             class="sidebar"
-            :class="{ 'sidebar--open': navOpen }"
+            :class="{ 'sidebar--open': navOpen, 'sidebar--context': sheetMode === 'school' }"
             aria-label="Menú del espacio docente"
         >
             <div class="sidebar-brand">
@@ -438,7 +440,7 @@ function logout() {
                 </span>
                 <span>{{ tab.label }}</span>
             </RouterLink>
-            <button class="tab-item" type="button" @click="navOpen = true">
+            <button class="tab-item" type="button" @click="openMoreSheet">
                 <span class="tab-item__icon"><i class="pi pi-ellipsis-h"></i></span>
                 <span>Más</span>
             </button>

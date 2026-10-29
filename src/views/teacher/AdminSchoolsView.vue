@@ -3,12 +3,11 @@ import { computed, onMounted, reactive, ref } from 'vue';
 import { useRouter } from 'vue-router';
 import { useToast } from '@/composables/useToast';
 import { practiqApi } from '@/api/request/server';
-import { authApi } from '@/api/request/server';
 import TeacherLayout from '@/layouts/TeacherLayout.vue';
 import Skeleton from '@/components/ui/Skeleton.vue';
 import { useSchools } from '@/composables/useSchools';
 import { SchoolService, type School, type SchoolArchive } from '@/services/schools/schoolService';
-import { AuthAdminService } from '@/services/auth/authAdminService';
+import { useAuthAdmin } from '@/composables/useAuthAdmin';
 import type { AuthApiUser } from '@/types';
 
 const toast = useToast();
@@ -29,7 +28,7 @@ const editingSchool = ref<School | null>(null);
 const adminQuery = ref('');
 const adminUserId = ref('');
 const adminMatches = ref<AuthApiUser[]>([]);
-const authAdmin = new AuthAdminService(authApi);
+const { loadUsers } = useAuthAdmin();
 
 const form = reactive({ name: '', billing: 'direct' as School['billing'] });
 const editForm = reactive({ name: '', billing: 'direct' as School['billing'] });
@@ -99,7 +98,7 @@ function rowMeta(school: School) {
     if (school.status === 'closed') {
         return school.kind === 'institution' ? 'Institución' : 'Escuela personal';
     }
-    return billingLabel(school);
+    return school.kind === 'institution' ? 'Institución' : 'Escuela personal';
 }
 
 function primaryLabel() {
@@ -208,7 +207,7 @@ async function searchAdmins() {
         return;
     }
     try {
-        const { data } = await authAdmin.listUsers({ limit: 100 });
+        const data = await loadUsers({ limit: 100 });
         adminMatches.value = data
             .filter((user) =>
                 [user.username, user.first_name, user.last_name, user.email]
@@ -505,10 +504,21 @@ onMounted(load);
                             </a>
                         </span>
                         <span class="school-meta">
-                            <span v-if="activeTab === 1" class="status-pill">Suspendida</span>
-                            <span v-if="activeTab === 3" class="status-pill">Cerrada</span>
                             {{ rowMeta(school) }}
                         </span>
+                    </div>
+                    <div class="school-badges">
+                        <span class="school-badge">{{ billingLabel(school) }}</span>
+                        <span
+                            v-if="school.status === 'suspended'"
+                            class="school-badge school-badge--warn"
+                            >Suspendida</span
+                        >
+                        <span
+                            v-else-if="school.status === 'closed'"
+                            class="school-badge school-badge--muted"
+                            >Cerrada</span
+                        >
                     </div>
                     <div class="row-actions">
                         <button
@@ -1079,6 +1089,30 @@ onMounted(load);
 .member-role {
     font-size: 0.8rem;
     color: var(--text-secondary);
+}
+
+.school-badges {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.375rem;
+}
+
+.school-badge {
+    padding: 0.2rem 0.55rem;
+    border-radius: var(--radius-sm);
+    background: var(--surface-sunken);
+    color: var(--text-secondary);
+    font-size: 0.7rem;
+    font-weight: 700;
+}
+
+.school-badge--warn {
+    background: var(--color-warning-bg);
+    color: var(--color-warning-dark);
+}
+
+.school-badge--muted {
+    background: var(--surface-subtle);
 }
 
 .btn-primary,
