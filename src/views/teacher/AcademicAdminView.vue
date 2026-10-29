@@ -37,7 +37,7 @@ const {
 } = useSubject();
 
 const loading = ref(false);
-const { activeId, active } = useSchools();
+const { activeId } = useSchools();
 const saving = ref(false);
 const selectedGradeId = ref<string | null>(null);
 
@@ -72,6 +72,10 @@ const selectedGrade = computed(
 const selectedCourses = computed(() =>
     courses.value.filter((c) => c.grade_id === selectedGradeId.value),
 );
+const missingSubjects = computed(() => {
+    const covered = new Set(selectedCourses.value.map((c) => c.subject_id));
+    return subjects.value.filter((s) => !covered.has(s.id));
+});
 
 function gradeCourses(gradeId: string) {
     return courses.value.filter((c) => c.grade_id === gradeId);
@@ -79,6 +83,10 @@ function gradeCourses(gradeId: string) {
 
 function subjectCourseCount(subjectId: string) {
     return courses.value.filter((c) => c.subject_id === subjectId).length;
+}
+
+function courseStatusLabel(status: Course['status']) {
+    return status === 'published' ? 'Publicado' : status === 'archived' ? 'Archivado' : 'Borrador';
 }
 
 onMounted(loadData);
@@ -157,9 +165,9 @@ async function confirmDeleteGrade(id: string) {
     }
 }
 
-function openCreateCourse() {
+function openCreateCourse(subjectId = '') {
     editingCourse.value = null;
-    courseForm.subjectId = '';
+    courseForm.subjectId = subjectId;
     courseForm.title = '';
     courseForm.description = '';
     courseForm.level = '';
@@ -269,17 +277,14 @@ async function confirmDeleteSubject(id: string) {
         <div class="ac-root anim-stagger">
             <header class="page-header ac-page-header">
                 <div class="page-header__left">
-                    <p class="page-kicker">Organización de escuela</p>
-                    <h1 class="page-title">Académico</h1>
-                    <p v-if="active" class="page-subtitle school-crumb">
-                        <i class="pi pi-building"></i> {{ active.name }}
+                    <p class="page-kicker">Gestión de escuela · Académico</p>
+                    <h1 class="page-title">Grados y cursos</h1>
+                    <p class="page-subtitle">
+                        Un curso une un grado, una materia y su contenido propio.
                     </p>
                 </div>
                 <div class="page-header__right">
-                    <button
-                        class="btn btn-primary catalog-button"
-                        @click="showSubjectCatalog = true"
-                    >
+                    <button class="catalog-button" @click="showSubjectCatalog = true">
                         <i class="pi pi-book"></i>
                         Catálogo de materias
                         <span class="catalog-button__badge">{{ subjects.length }}</span>
@@ -381,17 +386,9 @@ async function confirmDeleteSubject(id: string) {
                         <span class="sidebar-label">Grados</span>
                         <button class="sidebar-add-btn" type="button" @click="openCreateGrade">
                             <i class="pi pi-plus"></i>
-                            Nuevo grado
+                            Nuevo
                         </button>
                     </div>
-                    <label class="grade-mobile-select">
-                        <span>Grado activo</span>
-                        <select v-model="selectedGradeId">
-                            <option v-for="grade in grades" :key="grade.id" :value="grade.id">
-                                {{ grade.name }} · {{ gradeCourses(grade.id).length }} cursos
-                            </option>
-                        </select>
-                    </label>
                     <nav class="grade-nav">
                         <button
                             v-for="grade in grades"
@@ -402,7 +399,6 @@ async function confirmDeleteSubject(id: string) {
                             }"
                             @click="selectedGradeId = grade.id"
                         >
-                            <span class="grade-nav-item__dot"></span>
                             <span class="grade-nav-item__name">{{ grade.name }}</span>
                             <span class="grade-nav-item__count">{{
                                 gradeCourses(grade.id).length
@@ -421,8 +417,12 @@ async function confirmDeleteSubject(id: string) {
                         <div class="grade-header">
                             <div>
                                 <h2 class="grade-header__name">{{ selectedGrade.name }}</h2>
-                                <p v-if="selectedGrade.description" class="grade-header__desc">
-                                    {{ selectedGrade.description }}
+                                <p class="grade-header__desc">
+                                    {{ selectedCourses.length }}
+                                    {{ selectedCourses.length === 1 ? 'curso' : 'cursos' }}
+                                    <template v-if="selectedGrade.description">
+                                        · {{ selectedGrade.description }}
+                                    </template>
                                 </p>
                             </div>
                             <div class="grade-header__actions">
@@ -432,6 +432,13 @@ async function confirmDeleteSubject(id: string) {
                                     @click="openEditGrade(selectedGrade)"
                                 >
                                     <i class="pi pi-pencil"></i>
+                                </button>
+                                <button
+                                    v-if="selectedCourses.length"
+                                    class="btn-add-course"
+                                    @click="openCreateCourse()"
+                                >
+                                    <i class="pi pi-plus"></i> Nuevo curso
                                 </button>
                                 <button
                                     class="icon-btn icon-btn--danger"
@@ -444,24 +451,6 @@ async function confirmDeleteSubject(id: string) {
                         </div>
 
                         <div class="courses-area">
-                            <div class="courses-area__head">
-                                <div>
-                                    <h3>
-                                        Cursos en <em>{{ selectedGrade.name }}</em>
-                                    </h3>
-                                    <p class="courses-area__hint">
-                                        Cada curso combina este grado con una materia del catálogo.
-                                    </p>
-                                </div>
-                                <button
-                                    v-if="selectedCourses.length"
-                                    class="btn-add-course"
-                                    @click="openCreateCourse"
-                                >
-                                    <i class="pi pi-plus"></i> Nuevo curso
-                                </button>
-                            </div>
-
                             <div v-if="selectedCourses.length === 0" class="courses-empty">
                                 <div class="courses-empty__icon">
                                     <i class="pi pi-book"></i>
@@ -470,7 +459,7 @@ async function confirmDeleteSubject(id: string) {
                                 <p class="courses-empty__sub">
                                     Creá uno eligiendo una materia del catálogo.
                                 </p>
-                                <button class="btn-add-course" @click="openCreateCourse">
+                                <button class="btn-add-course" @click="openCreateCourse()">
                                     <i class="pi pi-plus"></i> Crear primer curso
                                 </button>
                             </div>
@@ -481,24 +470,32 @@ async function confirmDeleteSubject(id: string) {
                                     :key="course.id"
                                     class="academic-course-card"
                                 >
-                                    <div class="academic-course-card__subject-bar">
-                                        <i class="pi pi-book"></i>
-                                        {{ course.subject || 'Sin materia' }}
-                                        <div class="academic-course-card__actions">
-                                            <button
-                                                class="card-action-btn"
-                                                title="Editar"
-                                                @click.stop="openEditCourse(course)"
+                                    <div class="academic-course-card__top">
+                                        <span class="subject-pill">{{
+                                            course.subject || 'Sin materia'
+                                        }}</span>
+                                        <div class="academic-course-card__top-right">
+                                            <span
+                                                class="status-text"
+                                                :class="`status-text--${course.status}`"
+                                                >{{ courseStatusLabel(course.status) }}</span
                                             >
-                                                <i class="pi pi-pencil"></i>
-                                            </button>
-                                            <button
-                                                class="card-action-btn card-action-btn--danger"
-                                                title="Eliminar"
-                                                @click.stop="confirmDeleteCourse(course.id)"
-                                            >
-                                                <i class="pi pi-trash"></i>
-                                            </button>
+                                            <div class="academic-course-card__actions">
+                                                <button
+                                                    class="card-action-btn"
+                                                    title="Editar"
+                                                    @click.stop="openEditCourse(course)"
+                                                >
+                                                    <i class="pi pi-pencil"></i>
+                                                </button>
+                                                <button
+                                                    class="card-action-btn card-action-btn--danger"
+                                                    title="Eliminar"
+                                                    @click.stop="confirmDeleteCourse(course.id)"
+                                                >
+                                                    <i class="pi pi-trash"></i>
+                                                </button>
+                                            </div>
                                         </div>
                                     </div>
                                     <RouterLink
@@ -519,6 +516,20 @@ async function confirmDeleteSubject(id: string) {
                                         </div>
                                     </RouterLink>
                                 </article>
+                                <button
+                                    v-for="subject in missingSubjects"
+                                    :key="subject.id"
+                                    type="button"
+                                    class="missing-subject-card"
+                                    @click="openCreateCourse(subject.id)"
+                                >
+                                    <span class="missing-subject-card__name">{{
+                                        subject.name
+                                    }}</span>
+                                    <span class="missing-subject-card__hint"
+                                        >Sin curso en este grado · Crear</span
+                                    >
+                                </button>
                             </div>
                         </div>
                     </template>
@@ -777,14 +788,31 @@ async function confirmDeleteSubject(id: string) {
     gap: 18px;
 }
 
+.catalog-button {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    min-height: 44px;
+    padding: 0 16px;
+    border: 1px solid var(--line);
+    border-radius: var(--radius-md);
+    background: var(--surface);
+    color: var(--brand-700);
+    font: 900 13.5px/1 var(--font-ui);
+    cursor: pointer;
+    transition: background-color 0.15s;
+}
+.catalog-button:hover {
+    background: var(--surface-sunken);
+}
 .catalog-button__badge {
     min-width: 20px;
     height: 20px;
-    padding: 0 6px;
+    padding: 1px 8px;
     border-radius: var(--radius-pill);
-    background: rgba(255, 255, 255, 0.2);
-    color: var(--color-on-primary);
-    font-size: var(--text-xs);
+    background: var(--surface-sunken);
+    color: inherit;
+    font-size: 11.5px;
     font-weight: 800;
     display: grid;
     place-items: center;
@@ -953,15 +981,6 @@ async function confirmDeleteSubject(id: string) {
     flex-direction: column;
     gap: 2px;
 }
-.grade-mobile-select {
-    display: none;
-}
-.school-crumb {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-}
-
 .grade-nav-item {
     display: flex;
     align-items: center;
@@ -976,35 +995,19 @@ async function confirmDeleteSubject(id: string) {
     transition: var(--transition-fast);
 }
 .grade-nav-item:hover {
-    background: var(--fill-primary-faint);
+    background: var(--surface-hover);
 }
 .grade-nav-item--active {
-    background: var(--fill-primary-soft);
+    background: var(--surface-sunken);
 }
 .grade-nav-item--active .grade-nav-item__name {
-    color: var(--practiq-violet-dark);
-    font-weight: 700;
-}
-.grade-nav-item--active .grade-nav-item__dot {
-    background: var(--practiq-violet);
-}
-.grade-nav-item--active .grade-nav-item__count {
-    background: var(--fill-primary-soft);
-    color: var(--practiq-violet-dark);
-}
-
-.grade-nav-item__dot {
-    width: 7px;
-    height: 7px;
-    border-radius: 50%;
-    background: var(--surface-border);
-    flex-shrink: 0;
-    transition: background 0.12s;
+    color: var(--brand-700);
 }
 
 .grade-nav-item__name {
     flex: 1;
     font-size: var(--text-base);
+    font-weight: 600;
     color: var(--text-secondary);
     white-space: nowrap;
     overflow: hidden;
@@ -1015,11 +1018,7 @@ async function confirmDeleteSubject(id: string) {
     font-size: var(--text-xs);
     font-weight: 700;
     color: var(--text-muted);
-    background: var(--surface-hover);
-    border-radius: var(--radius-pill);
-    padding: 2px 8px;
     flex-shrink: 0;
-    transition: all 0.12s;
 }
 
 .sidebar-add-btn {
@@ -1092,7 +1091,7 @@ async function confirmDeleteSubject(id: string) {
 
 .grade-header__desc {
     font-size: var(--text-base);
-    color: var(--text-secondary);
+    color: var(--text-muted);
     margin: 0;
 }
 
@@ -1109,30 +1108,6 @@ async function confirmDeleteSubject(id: string) {
     display: flex;
     flex-direction: column;
     gap: 12px;
-}
-
-.courses-area__head {
-    display: flex;
-    align-items: flex-start;
-    justify-content: space-between;
-    gap: 16px;
-}
-
-.courses-area__head h3 {
-    font-size: var(--text-md);
-    font-weight: 700;
-    color: var(--text-heading);
-    margin: 0 0 4px;
-}
-.courses-area__head h3 em {
-    font-style: normal;
-    color: var(--practiq-violet);
-}
-
-.courses-area__hint {
-    font-size: var(--text-sm);
-    color: var(--text-muted);
-    margin: 0;
 }
 
 .courses-empty {
@@ -1200,22 +1175,46 @@ async function confirmDeleteSubject(id: string) {
     text-decoration: none;
 }
 
-.academic-course-card__subject-bar {
+.academic-course-card__top {
     display: flex;
     align-items: center;
-    gap: 7px;
-    padding: 7px 10px;
-    background: var(--color-info-bg);
-    color: var(--color-info-dark);
+    justify-content: space-between;
+    gap: 6px;
+    padding: 10px 10px 0;
+}
+
+.subject-pill {
+    padding: 3px 9px;
+    border-radius: var(--radius-xs);
+    background: var(--surface-sunken);
+    color: var(--brand-700);
     font-size: var(--text-xs);
     font-weight: 700;
-    border-bottom: 1px solid rgba(var(--color-info-rgb), 0.14);
+    white-space: nowrap;
+}
+
+.academic-course-card__top-right {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.status-text {
+    font-size: var(--text-xs);
+    font-weight: 700;
+    color: var(--success);
+    white-space: nowrap;
+}
+.status-text--draft {
+    color: var(--warning);
+}
+.status-text--archived {
+    color: var(--text-muted);
 }
 
 .academic-course-card__actions {
     display: flex;
     gap: 4px;
-    margin-left: auto;
     opacity: 0;
     transition: opacity 0.15s;
 }
@@ -1228,8 +1227,8 @@ async function confirmDeleteSubject(id: string) {
     height: 24px;
     border-radius: var(--radius-xs);
     border: none;
-    background: rgba(var(--surface-card-rgb), 0.7);
-    color: var(--color-info-dark);
+    background: var(--surface-sunken);
+    color: var(--text-secondary);
     cursor: pointer;
     display: grid;
     place-items: center;
@@ -1294,6 +1293,32 @@ async function confirmDeleteSubject(id: string) {
 .academic-course-card:hover .academic-course-card__go {
     color: var(--practiq-violet);
     transform: translateX(2px);
+}
+
+.missing-subject-card {
+    display: grid;
+    place-items: center;
+    gap: 4px;
+    min-height: 120px;
+    padding: 14px;
+    border: 1px dashed var(--brand-200);
+    border-radius: var(--radius-2xl);
+    background: transparent;
+    color: var(--brand-700);
+    font: inherit;
+    cursor: pointer;
+    text-align: center;
+    transition: background-color 0.15s;
+}
+.missing-subject-card:hover {
+    background: var(--surface-sunken);
+}
+.missing-subject-card__name {
+    font: 900 13.5px/1.3 var(--font-ui);
+}
+.missing-subject-card__hint {
+    font-size: var(--text-xs);
+    color: var(--text-muted);
 }
 
 .btn-add-course {
@@ -1687,25 +1712,16 @@ async function confirmDeleteSubject(id: string) {
         border-right: none;
     }
     .grade-nav {
-        display: none;
+        flex-direction: row;
+        overflow-x: auto;
+        overflow-y: hidden;
+        padding: 10px 12px;
+        gap: 6px;
     }
-    .grade-mobile-select {
-        display: grid;
-        gap: 5px;
-        padding: 10px 12px 12px;
-        color: var(--text-secondary);
-        font-size: var(--text-xs);
-        font-weight: 700;
-    }
-    .grade-mobile-select select {
-        min-height: 44px;
-        width: 100%;
-        padding: 0 10px;
-        border: 1px solid var(--surface-border);
-        border-radius: var(--radius-md);
-        background: var(--surface-card);
-        color: var(--text-primary);
-        font: inherit;
+    .grade-nav-item {
+        flex: 0 0 auto;
+        width: auto;
+        white-space: nowrap;
     }
     .subject-create-row {
         grid-template-columns: 1fr;

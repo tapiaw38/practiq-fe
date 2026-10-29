@@ -421,8 +421,14 @@ function clearCanvas() {
                     <i class="pi pi-arrow-left"></i>
                 </button>
                 <div class="header-info">
+                    <p class="editor-eyebrow">Cuaderno</p>
                     <h1 class="editor-title">{{ notebook?.title || 'Cuaderno' }}</h1>
-                    <span class="editor-desc">{{ notebook?.description }}</span>
+                    <span v-if="saveMsg" class="save-feedback">
+                        <i class="pi pi-check-circle"></i> {{ saveMsg }}
+                    </span>
+                    <span v-else-if="notebook?.description" class="editor-desc">{{
+                        notebook.description
+                    }}</span>
                 </div>
                 <div class="header-actions">
                     <button
@@ -431,13 +437,6 @@ function clearCanvas() {
                         @click="showAIPagesModal = true"
                     >
                         <i class="pi pi-sparkles"></i> Generar con IA
-                    </button>
-                    <button
-                        class="btn btn-primary btn-sm"
-                        type="button"
-                        @click="showAddPage = true"
-                    >
-                        <i class="pi pi-plus"></i> Agregar página
                     </button>
                 </div>
             </header>
@@ -505,12 +504,15 @@ function clearCanvas() {
                             </div>
                         </div>
                     </div>
+                    <button type="button" class="sidebar-add-btn" @click="showAddPage = true">
+                        <i class="pi pi-plus"></i> Nueva página
+                    </button>
                 </aside>
 
                 <div class="editor-main">
                     <div v-if="pages.length === 0" class="editor-empty">
                         <div class="empty-icon"><i class="pi pi-book"></i></div>
-                        <p>Agrega la primera página usando el botón de arriba.</p>
+                        <p>Agrega la primera página usando el botón del panel izquierdo.</p>
                     </div>
 
                     <template v-else-if="currentPage">
@@ -521,14 +523,32 @@ function clearCanvas() {
                                 placeholder="Título de la página"
                                 @blur="savePage"
                             />
-                            <select
-                                v-model="currentPage.content_type"
-                                class="type-select"
-                                @change="savePage"
-                            >
-                                <option value="canvas">Imagen / Dibujo</option>
-                                <option value="text">Texto</option>
-                            </select>
+                            <div class="type-toggle" role="tablist">
+                                <button
+                                    type="button"
+                                    role="tab"
+                                    class="type-toggle__btn"
+                                    :class="{ 'type-toggle__btn--on': currentPage.content_type === 'text' }"
+                                    @click="
+                                        currentPage.content_type = 'text';
+                                        savePage();
+                                    "
+                                >
+                                    <i class="pi pi-align-left"></i> Texto
+                                </button>
+                                <button
+                                    type="button"
+                                    role="tab"
+                                    class="type-toggle__btn"
+                                    :class="{ 'type-toggle__btn--on': currentPage.content_type === 'canvas' }"
+                                    @click="
+                                        currentPage.content_type = 'canvas';
+                                        savePage();
+                                    "
+                                >
+                                    <i class="pi pi-pencil"></i> Dibujo
+                                </button>
+                            </div>
                             <button
                                 class="page-delete-btn"
                                 type="button"
@@ -696,10 +716,6 @@ function clearCanvas() {
                                     statementMsg
                                 }}</span>
                             </div>
-                        </div>
-
-                        <div v-if="saveMsg" class="save-feedback">
-                            <i class="pi pi-check-circle"></i> {{ saveMsg }}
                         </div>
                     </template>
                 </div>
@@ -918,6 +934,14 @@ function clearCanvas() {
     flex-wrap: wrap;
     justify-content: flex-end;
 }
+.editor-eyebrow {
+    margin: 0 0 2px;
+    font-size: var(--text-xs);
+    font-weight: 800;
+    letter-spacing: 0.09em;
+    text-transform: uppercase;
+    color: var(--practiq-violet-dark);
+}
 .editor-title {
     font-size: 1.35rem;
     font-weight: 700;
@@ -1099,15 +1123,51 @@ function clearCanvas() {
     border-color: var(--practiq-violet);
 }
 
-.type-select {
-    padding: 10px 12px;
+.type-toggle {
+    display: flex;
+    gap: 2px;
+    padding: 3px;
+    border-radius: var(--radius-md);
+    background: var(--fill-primary-faint);
+}
+.type-toggle__btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    min-height: 34px;
+    padding: 0 12px;
+    border: 0;
     border-radius: var(--radius-sm);
-    border: 1.5px solid rgba(var(--practiq-violet-rgb), 0.15);
-    font-size: 0.9rem;
-    color: var(--text-primary);
-    outline: none;
-    background: var(--surface-card);
+    background: transparent;
+    color: var(--text-secondary);
+    font-size: 0.82rem;
+    font-weight: 600;
     cursor: pointer;
+    transition: var(--transition-fast);
+}
+.type-toggle__btn--on {
+    background: var(--surface-card);
+    color: var(--text-primary);
+    box-shadow: var(--shadow-xs, 0 1px 2px rgba(0, 0, 0, 0.08));
+}
+
+.sidebar-add-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    min-height: 44px;
+    margin-top: 2px;
+    border: 1.5px dashed rgba(var(--practiq-violet-rgb), 0.3);
+    border-radius: var(--radius-sm);
+    background: transparent;
+    color: var(--practiq-violet-dark);
+    font-size: 0.82rem;
+    font-weight: 700;
+    cursor: pointer;
+}
+.sidebar-add-btn:hover {
+    background: var(--fill-primary-faint);
 }
 
 .canvas-editor {

@@ -46,6 +46,17 @@ const isSuperAdmin = computed(() => {
     return roles.some((role) => role.name === 'superadmin');
 });
 
+const strategyUsageCounts = computed(() => {
+    const counts: Record<string, number> = {};
+    for (const assignments of Object.values(courseAssignments.value)) {
+        const seenStrategies = new Set(assignments.map((a) => a.strategy_id));
+        for (const strategyId of seenStrategies) {
+            counts[strategyId] = (counts[strategyId] || 0) + 1;
+        }
+    }
+    return counts;
+});
+
 onMounted(async () => {
     await loadData();
 });
@@ -167,7 +178,7 @@ async function deleteStrategy() {
         <div class="strategy-dashboard anim-stagger">
             <div class="page-header">
                 <div class="page-header__left">
-                    <div class="page-kicker">Configuracion avanzada</div>
+                    <div class="page-kicker">Configuración avanzada</div>
                     <h1 class="page-title">Estrategias de Aprendizaje</h1>
                 </div>
                 <div class="page-header__right">
@@ -210,6 +221,7 @@ async function deleteStrategy() {
                 <StrategyCatalog
                     :strategies="strategies"
                     :is-super-admin="isSuperAdmin"
+                    :usage-counts="strategyUsageCounts"
                     @create="openCreateModal"
                     @edit="editStrategy"
                     @delete="confirmDeleteStrategy"
@@ -259,7 +271,7 @@ async function deleteStrategy() {
                                 />
                             </div>
                             <div class="form-group">
-                                <label class="form-label">Descripcion</label>
+                                <label class="form-label">Descripción</label>
                                 <textarea
                                     v-model="strategyForm.description"
                                     class="form-textarea"
@@ -291,9 +303,9 @@ async function deleteStrategy() {
                     <div class="modal-box">
                         <h3 class="modal-title">Eliminar estrategia</h3>
                         <p class="submit-copy">
-                            ¿Estas seguro de eliminar la estrategia
+                            ¿Estás seguro de eliminar la estrategia
                             <strong>{{ deletingStrategy.name }}</strong
-                            >? Esta accion no se puede deshacer.
+                            >? Esta acción no se puede deshacer.
                         </p>
                         <div class="modal-actions">
                             <button class="btn btn-secondary" @click="deletingStrategy = null">

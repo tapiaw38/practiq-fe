@@ -2,6 +2,8 @@
     --brand-50: #f5f3ff;
     --brand-100: #ebe7ff;
     --brand-200: #d9d2fb;
+    --brand-300: #b7a9f6;
+    --brand-400: #8d7bea;
     --brand-500: #6557dc;
     --brand-600: #5546c6;
     --brand-700: #4535a4;
@@ -26,6 +28,9 @@
     --danger: #b3453f;
     --danger-soft: #fbe4e2;
     --danger-solid: #b3453f;
+    --color-success-rgb: 24, 134, 107;
+    --color-warning-rgb: 168, 107, 16;
+    --color-error-rgb: 179, 69, 63;
     --info: #1d4ed8;
     --info-soft: #eff6ff;
     --info-solid: #3b82f6;
@@ -51,8 +56,8 @@
     --practiq-violet-50: var(--brand-50);
     --practiq-violet-100: var(--brand-100);
     --practiq-violet-200: var(--brand-200);
-    --practiq-violet-300: #c4b5fd;
-    --practiq-violet-400: #a78bfa;
+    --practiq-violet-300: var(--brand-300);
+    --practiq-violet-400: var(--brand-400);
     --practiq-violet-500: var(--brand-500);
     --practiq-violet-600: var(--brand-600);
     --practiq-violet-700: var(--brand-700);
@@ -335,7 +340,7 @@
     font: 800 11px/14px var(--font-ui);
     letter-spacing: 0.09em;
     text-transform: uppercase;
-    color: var(--brand-800);
+    color: var(--brand-700);
 }
 :root[data-ui-theme='teacher'] .page-title {
     margin: 0;

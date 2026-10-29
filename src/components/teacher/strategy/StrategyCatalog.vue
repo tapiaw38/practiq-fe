@@ -1,6 +1,5 @@
 <script setup lang="ts">
 import type { StrategyCatalogEmits, StrategyCatalogProps } from './StrategyCatalog.types';
-import { formatDate } from '@/utils/formatters';
 
 defineProps<StrategyCatalogProps>();
 const emit = defineEmits<StrategyCatalogEmits>();
@@ -30,6 +29,17 @@ const emit = defineEmits<StrategyCatalogEmits>();
             <article v-for="strategy in strategies" :key="strategy.id" class="strategy-card">
                 <div class="strategy-header">
                     <h3 class="strategy-name">{{ strategy.name }}</h3>
+                    <code class="strategy-code">{{ strategy.code }}</code>
+                </div>
+                <p class="strategy-description">
+                    {{ strategy.description || 'Sin descripción' }}
+                </p>
+                <div class="strategy-footer">
+                    <span class="strategy-usage">{{
+                        (usageCounts?.[strategy.id] ?? 0) === 1
+                            ? 'Usada en 1 curso'
+                            : `Usada en ${usageCounts?.[strategy.id] ?? 0} cursos`
+                    }}</span>
                     <div v-if="isSuperAdmin" class="strategy-actions-mini">
                         <button class="icon-btn" title="Editar" @click="emit('edit', strategy)">
                             <i class="pi pi-pencil"></i>
@@ -42,16 +52,6 @@ const emit = defineEmits<StrategyCatalogEmits>();
                             <i class="pi pi-trash"></i>
                         </button>
                     </div>
-                </div>
-                <p class="strategy-description">
-                    {{ strategy.description || 'Sin descripcion' }}
-                </p>
-                <div class="strategy-meta">
-                    <span class="meta-item"><i class="pi pi-hashtag"></i>{{ strategy.code }}</span>
-                    <span class="meta-item"
-                        ><i class="pi pi-calendar"></i>Creada
-                        {{ formatDate(strategy.created_at) }}</span
-                    >
                 </div>
             </article>
         </div>
@@ -94,8 +94,7 @@ const emit = defineEmits<StrategyCatalogEmits>();
 }
 .strategy-header,
 .strategy-actions-mini,
-.strategy-meta,
-.meta-item {
+.strategy-footer {
     display: flex;
     align-items: center;
 }
@@ -105,9 +104,17 @@ const emit = defineEmits<StrategyCatalogEmits>();
 }
 .strategy-name {
     margin: 0;
+    flex: 1;
     font-size: 1rem;
     font-weight: 800;
     color: var(--text-heading);
+}
+.strategy-code {
+    padding: 2px 7px;
+    border-radius: var(--radius-xs);
+    background: var(--surface-sunken);
+    color: var(--text-secondary);
+    font-size: var(--text-xs);
 }
 .strategy-actions-mini {
     gap: 6px;
@@ -129,14 +136,13 @@ const emit = defineEmits<StrategyCatalogEmits>();
     font-size: var(--text-sm);
     min-height: 38px;
 }
-.strategy-meta {
+.strategy-footer {
+    justify-content: space-between;
     gap: 10px;
-    flex-wrap: wrap;
+    padding-top: 8px;
+    border-top: 1px solid var(--line);
     color: var(--text-muted);
     font-size: var(--text-xs);
-}
-.meta-item {
-    gap: 4px;
 }
 .empty-state {
     text-align: center;

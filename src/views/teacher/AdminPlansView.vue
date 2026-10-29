@@ -114,6 +114,28 @@ async function retire() {
     }
 }
 
+async function reactivate(plan: CatalogPlan) {
+    try {
+        await service.updatePlan(plan.plan_id, { active: true });
+        await load();
+        toast.add({ severity: 'success', summary: 'Plan reactivado', life: 2500 });
+    } catch {
+        toast.add({
+            severity: 'error',
+            summary: 'Error',
+            detail: 'No se pudo reactivar el plan',
+            life: 3000,
+        });
+    }
+}
+
+function features(plan: CatalogPlan) {
+    return (plan.description || '')
+        .split('\n')
+        .map((line) => line.trim())
+        .filter(Boolean);
+}
+
 function formatAmount(plan: CatalogPlan) {
     return new Intl.NumberFormat('es-AR', {
         style: 'currency',
@@ -136,25 +158,83 @@ onMounted(load);
                 </div>
             </header>
 
-            <form class="plan-form" @submit.prevent="save">
-                <h2 class="form-title">
-                    {{ editingId ? 'Editar plan' : 'Nuevo plan' }}
-                </h2>
+            <div class="plans-grid">
+                <div v-if="loading" class="plan-row">
+                    <Skeleton width="100%" height="18px" />
+                </div>
 
-                <div class="form-grid">
+                <ul v-else class="plan-list">
+                    <li
+                        v-for="plan in plans"
+                        :key="plan.plan_id"
+                        class="plan-row"
+                        :class="{ 'plan-row--retired': !plan.active }"
+                    >
+                        <div class="plan-main">
+                            <div class="plan-name-row">
+                                <span class="plan-name">{{ plan.name }}</span>
+                                <span v-if="!plan.active" class="plan-retired">Retirado</span>
+                            </div>
+                            <span class="plan-meta">
+                                <strong class="plan-price">{{ formatAmount(plan) }}</strong> / mes ·
+                                hasta {{ plan.max_students }}
+                                {{ plan.max_students === 1 ? 'alumno' : 'alumnos' }}
+                            </span>
+                            <ul v-if="features(plan).length" class="plan-features">
+                                <li v-for="feature in features(plan)" :key="feature">
+                                    ✓ {{ feature }}
+                                </li>
+                            </ul>
+                        </div>
+                        <div class="plan-row-actions">
+                            <button class="btn-quiet" type="button" @click="edit(plan)">
+                                Editar
+                            </button>
+                            <button
+                                v-if="plan.active"
+                                class="btn-quiet btn-quiet--danger"
+                                type="button"
+                                @click="retiring = plan"
+                            >
+                                Retirar
+                            </button>
+                            <button
+                                v-else
+                                class="btn-quiet"
+                                type="button"
+                                @click="reactivate(plan)"
+                            >
+                                Reactivar
+                            </button>
+                        </div>
+                    </li>
+                </ul>
+
+                <form class="plan-form" @submit.prevent="save">
+                    <h2 class="form-title">
+                        {{ editingId ? 'Editar plan' : 'Nuevo plan' }}
+                    </h2>
+
                     <label class="field">
                         <span>Nombre</span>
                         <input v-model="form.name" type="text" placeholder="Equipo" />
                     </label>
+                    <div class="field-pair">
+                        <label class="field">
+                            <span>Monto por mes</span>
+                            <input v-model.number="form.amount" type="number" min="0" step="100" />
+                        </label>
+                        <label class="field">
+                            <span>Máx. alumnos</span>
+                            <input
+                                v-model.number="form.max_students"
+                                type="number"
+                                min="1"
+                                step="1"
+                            />
+                        </label>
+                    </div>
                     <label class="field">
-                        <span>Monto por mes</span>
-                        <input v-model.number="form.amount" type="number" min="0" step="100" />
-                    </label>
-                    <label class="field">
-                        <span>Máximo de alumnos</span>
-                        <input v-model.number="form.max_students" type="number" min="1" step="1" />
-                    </label>
-                    <label class="field field--wide">
                         <span>Características</span>
                         <textarea
                             v-model="form.description"
@@ -162,69 +242,31 @@ onMounted(load);
                             placeholder="Una por línea, por ejemplo:&#10;Corrección automática con IA&#10;Casos pendientes para revisión docente&#10;Progreso e historial por alumno"
                         ></textarea>
                         <small class="field-hint">
-                            Una característica por línea. Así se listan en la landing, debajo del
-                            precio de este plan.
+                            Una por línea. Se listan en la landing, debajo del precio.
                         </small>
                     </label>
-                </div>
 
-                <p v-if="editingId" class="form-note">
-                    Cambiar el monto afecta a quienes se suscriban desde ahora. Los que ya están
-                    siguen pagando lo que aceptaron.
-                </p>
+                    <p v-if="editingId" class="form-note">
+                        Cambiar el monto afecta a quienes se suscriban desde ahora. Los actuales
+                        siguen pagando lo que aceptaron.
+                    </p>
 
-                <div class="form-actions">
-                    <button class="btn-primary" type="submit" :disabled="saving">
-                        {{ editingId ? 'Guardar cambios' : 'Crear plan' }}
-                    </button>
-                    <button
-                        v-if="editingId"
-                        class="btn-quiet"
-                        type="button"
-                        :disabled="saving"
-                        @click="resetForm"
-                    >
-                        Cancelar
-                    </button>
-                </div>
-            </form>
-
-            <div v-if="loading" class="plan-row">
-                <Skeleton width="100%" height="18px" />
-            </div>
-
-            <ul v-else class="plan-list">
-                <li
-                    v-for="plan in plans"
-                    :key="plan.plan_id"
-                    class="plan-row"
-                    :class="{ 'plan-row--retired': !plan.active }"
-                >
-                    <div class="plan-main">
-                        <span class="plan-name">{{ plan.name }}</span>
-                        <span class="plan-meta">
-                            Hasta {{ plan.max_students }}
-                            {{ plan.max_students === 1 ? 'alumno' : 'alumnos' }}
-                            · {{ formatAmount(plan) }}
-                        </span>
-                        <span v-if="plan.description" class="plan-description">
-                            {{ plan.description }}
-                        </span>
-                    </div>
-                    <div class="plan-row-actions">
-                        <span v-if="!plan.active" class="plan-retired">Retirado</span>
-                        <button class="btn-quiet" type="button" @click="edit(plan)">Editar</button>
+                    <div class="form-actions">
+                        <button class="btn-primary" type="submit" :disabled="saving">
+                            {{ editingId ? 'Guardar cambios' : 'Crear plan' }}
+                        </button>
                         <button
-                            v-if="plan.active"
-                            class="btn-quiet btn-quiet--danger"
+                            v-if="editingId"
+                            class="btn-quiet"
                             type="button"
-                            @click="retiring = plan"
+                            :disabled="saving"
+                            @click="resetForm"
                         >
-                            Retirar
+                            Cancelar
                         </button>
                     </div>
-                </li>
-            </ul>
+                </form>
+            </div>
 
             <ConfirmModal
                 :show="!!retiring"
@@ -245,7 +287,14 @@ onMounted(load);
     flex-direction: column;
     gap: 1.25rem;
     padding: 1.25rem;
-    max-width: 820px;
+    max-width: 1080px;
+}
+
+.plans-grid {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 320px;
+    gap: 0.9rem;
+    align-items: start;
 }
 
 .page-header h1 {
@@ -276,10 +325,10 @@ onMounted(load);
     color: var(--text-heading);
 }
 
-.form-grid {
+.field-pair {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
-    gap: 0.75rem;
+    grid-template-columns: 1fr 1fr;
+    gap: 0.6rem;
 }
 
 .field {
@@ -288,10 +337,6 @@ onMounted(load);
     gap: 0.3rem;
     font-size: 0.82rem;
     color: var(--text-secondary);
-}
-
-.field--wide {
-    grid-column: 1 / -1;
 }
 
 .field input,
@@ -328,8 +373,12 @@ onMounted(load);
 
 .form-note {
     margin: 0;
-    font-size: 0.82rem;
-    color: var(--color-warning-dark);
+    padding: 0.6rem 0.75rem;
+    border-radius: var(--radius-md);
+    background: var(--color-warning-bg);
+    font-size: 0.78rem;
+    line-height: 1.5;
+    color: var(--text-primary);
 }
 
 .form-actions {
@@ -348,10 +397,10 @@ onMounted(load);
 
 .plan-row {
     display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 1rem;
-    padding: 0.8rem 1rem;
+    flex-wrap: wrap;
+    align-items: flex-start;
+    gap: 0.75rem;
+    padding: 1rem;
     background: var(--surface-card);
     border: 1px solid var(--surface-border);
     border-radius: var(--radius-lg);
@@ -366,17 +415,26 @@ onMounted(load);
 }
 
 .plan-row--retired {
-    opacity: 0.65;
+    background: var(--canvas);
 }
 
 .plan-main {
+    flex: 1 1 220px;
+    min-width: 0;
     display: flex;
     flex-direction: column;
-    gap: 0.15rem;
+    gap: 0.3rem;
+}
+
+.plan-name-row {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
 }
 
 .plan-name {
-    font-weight: 600;
+    font-weight: 800;
+    font-size: 1.02rem;
     color: var(--text-primary);
 }
 
@@ -385,23 +443,35 @@ onMounted(load);
     color: var(--text-secondary);
 }
 
-.plan-description {
-    max-width: 52ch;
+.plan-price {
+    font-size: 0.95rem;
+    color: var(--text-primary);
+}
+
+.plan-features {
+    margin: 0.2rem 0 0;
+    padding: 0;
+    list-style: none;
+    display: flex;
+    flex-direction: column;
+    gap: 0.15rem;
     font-size: 0.8rem;
-    line-height: 1.4;
-    color: var(--text-muted);
-    white-space: pre-line;
+    color: var(--text-secondary);
 }
 
 .plan-row-actions {
     display: flex;
-    align-items: center;
+    align-items: flex-start;
     gap: 0.4rem;
 }
 
 .plan-retired {
-    font-size: 0.75rem;
+    padding: 0.1rem 0.5rem;
+    border-radius: var(--radius-pill);
+    background: var(--surface-sunken);
     color: var(--text-secondary);
+    font-size: 0.68rem;
+    font-weight: 700;
 }
 
 .btn-primary,
@@ -441,6 +511,12 @@ onMounted(load);
 .btn-quiet:disabled {
     opacity: 0.6;
     cursor: not-allowed;
+}
+
+@media (max-width: 860px) {
+    .plans-grid {
+        grid-template-columns: 1fr;
+    }
 }
 
 @media (max-width: 640px) {

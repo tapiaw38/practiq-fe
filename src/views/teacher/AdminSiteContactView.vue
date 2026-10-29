@@ -48,9 +48,9 @@ onMounted(load);
         ><main class="page anim-stagger">
             <header class="page-header">
                 <div>
-                    <p class="eyebrow">Landing pública</p>
+                    <p class="eyebrow">Plataforma</p>
                     <h1>Contacto institucional</h1>
-                    <p>Estos datos aparecen en el plan para escuelas e institutos.</p>
+                    <p>Lo que ve una escuela en la landing cuando quiere hablar con ventas.</p>
                 </div>
             </header>
             <Skeleton v-if="loading" height="300px" />

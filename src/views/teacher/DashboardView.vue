@@ -12,9 +12,15 @@ import { useGrade } from '@/composables/useGrade';
 import { useProfile } from '@/composables/useProfile';
 import { useSubject } from '@/composables/useSubject';
 import { usePendingReviews } from '@/composables/usePendingReviews';
+import { useProgress } from '@/composables/useProgress';
 import { formatDate } from '@/utils/formatters';
+import { masteryTier } from '@/utils/mastery';
 import type { AssignedUser, Grade } from '@/types';
 import { useSchools } from '@/composables/useSchools';
+import { practiqApi } from '@/api/request/server';
+import { NotebookService } from '@/services/notebooks/notebookService';
+
+const notebookService = new NotebookService(practiqApi);
 
 const router = useRouter();
 const authStore = useAuthStore();
@@ -29,8 +35,12 @@ const { subjects, loadSubjects } = useSubject();
 const { loadProfile } = useProfile();
 const { loadMyStudents } = useAssignment();
 const { count: pendingReviews, hasMore: pendingHasMore, load: loadPending } = usePendingReviews();
+const { loadStudentProgress } = useProgress();
 const assignedStudents = ref<AssignedUser[]>([]);
 const studentGrades = ref<Record<string, Grade[]>>({});
+const studentMastery = ref<Record<string, number | null>>({});
+const notebooksPendingCount = ref(0);
+const notebooksAiReviewedCount = ref(0);
 const loading = ref(true);
 const showCreateModal = ref(false);
 const showInviteModal = ref(false);
@@ -57,19 +67,22 @@ const teacherName = computed(() => {
     return name.split(' ')[0] || 'Docente';
 });
 
-const isSuperAdmin = computed(() => {
-    const roles = authStore.authUser?.roles || [];
-    return roles.some((role) => role.name === 'superadmin');
+const todayLabel = computed(() => {
+    const label = formatDate(new Date().toISOString(), {
+        weekday: 'long',
+        day: 'numeric',
+        month: 'long',
+    }).replace(',', '');
+    return label.charAt(0).toUpperCase() + label.slice(1);
 });
-const dashboardKicker = computed(() =>
-    isSuperAdmin.value ? 'Administración de plataforma' : 'Panel del docente',
-);
 
-const subjectCount = computed(() => {
-    const set = new Set(courses.value.map((c) => c.subject || 'general'));
-    return set.size;
-});
 const pendingShown = computed(() => (pendingHasMore.value ? '99+' : pendingReviews.value));
+const pendingTotal = computed(() => pendingReviews.value + notebooksPendingCount.value);
+const introLine = computed(() =>
+    pendingTotal.value > 0
+        ? `${pendingTotal.value} ${pendingTotal.value === 1 ? 'respuesta espera' : 'respuestas esperan'} tu criterio. El resto ya lo corrigió la IA.`
+        : 'Organizá tus cursos, alumnos y contenidos desde un solo lugar.',
+);
 
 const assignedStudentsByGrade = computed(() => {
     const buckets = new Map<
@@ -108,7 +121,7 @@ const filteredStudents = computed(() => {
             ? null
             : assignedStudentsByGrade.value.find((g) => g.gradeKey === gradeFilter.value);
     const allowed = inGrade ? new Set(inGrade.students.map((s) => s.id)) : null;
-    return assignedStudents.value.filter((student) => {
+    const matches = assignedStudents.value.filter((student) => {
         if (allowed && !allowed.has(student.id)) return false;
         if (!query) return true;
         return (
@@ -116,7 +129,24 @@ const filteredStudents = computed(() => {
             student.email.toLowerCase().includes(query)
         );
     });
+    // Los que menos dominan aparecen primero; sin datos de progreso van al final.
+    return [...matches].sort((a, b) => {
+        const ma = studentMastery.value[a.id];
+        const mb = studentMastery.value[b.id];
+        if (ma == null && mb == null) return 0;
+        if (ma == null) return 1;
+        if (mb == null) return -1;
+        return ma - mb;
+    });
 });
+
+function masteryColor(score: number | null) {
+    if (score == null) return 'var(--ink-muted)';
+    const tier = masteryTier(score);
+    if (tier === 'mastered') return 'var(--success)';
+    if (tier === 'progress') return 'var(--warning)';
+    return 'var(--danger)';
+}
 
 const paginatedStudents = computed(() => {
     const start = (currentStudentPage.value - 1) * studentsPerPage;
@@ -141,12 +171,30 @@ onMounted(async () => {
     await loadCoursesData();
     await loadCatalogs();
     await loadAssignedStudents();
-    await loadPending();
+    await Promise.all([loadPending(), loadNotebooksPending()]);
 });
 watch(activeId, async () => {
     gradeFilter.value = 'all';
-    await Promise.all([loadCoursesData(), loadCatalogs(), loadAssignedStudents(), loadPending()]);
+    await Promise.all([
+        loadCoursesData(),
+        loadCatalogs(),
+        loadAssignedStudents(),
+        loadPending(),
+        loadNotebooksPending(),
+    ]);
 });
+
+async function loadNotebooksPending() {
+    try {
+        const { data } = await notebookService.getSubmissions({ reviewed: false, limit: 200 });
+        notebooksPendingCount.value = data.length;
+        notebooksAiReviewedCount.value = data.filter((s) => s.ai_reviewed_at).length;
+    } catch (err) {
+        console.error(err);
+        notebooksPendingCount.value = 0;
+        notebooksAiReviewedCount.value = 0;
+    }
+}
 
 async function loadCoursesData() {
     loading.value = true;
@@ -230,6 +278,8 @@ async function loadAssignedStudents() {
             console.error(err);
             studentGrades.value = {};
         }
+
+        await loadStudentsMastery();
     } catch (err) {
         console.error(err);
         assignedStudents.value = [];
@@ -237,8 +287,30 @@ async function loadAssignedStudents() {
     }
 }
 
+async function loadStudentsMastery() {
+    const entries = await Promise.all(
+        assignedStudents.value.map(async (student) => {
+            try {
+                const topics = await loadStudentProgress(student.id);
+                const scores = (topics || []).map((t) => t.mastery_score);
+                const avg = scores.length
+                    ? Math.round(scores.reduce((sum, s) => sum + s, 0) / scores.length)
+                    : null;
+                return [student.id, avg] as const;
+            } catch {
+                return [student.id, null] as const;
+            }
+        }),
+    );
+    studentMastery.value = Object.fromEntries(entries);
+}
+
 function goToPendingReviews() {
     router.push('/teacher/attempt-reviews?reviewed=unreviewed');
+}
+
+function goToNotebookReviews() {
+    router.push('/teacher/notebook-reviews');
 }
 
 function subjectColor(subject?: string) {
@@ -262,16 +334,11 @@ const statusLabel: Record<string, string> = {
         <div class="dashboard anim-stagger">
             <header class="page-header">
                 <div class="page-header__left">
-                    <div class="page-kicker">{{ dashboardKicker }}</div>
+                    <div class="page-kicker">{{ todayLabel }}</div>
                     <div class="page-heading-row">
                         <h1 class="page-title">Hola, <span class="text-accent">{{ teacherName }}</span></h1>
-                        <span class="badge badge-brand">
-                            {{ isSuperAdmin ? 'Administrador' : 'Docente' }}
-                        </span>
                     </div>
-                    <p class="page-intro">
-                        Organizá tus cursos, alumnos y contenidos desde un solo lugar.
-                    </p>
+                    <p class="page-intro">{{ introLine }}</p>
                 </div>
                 <div class="page-header__right">
                     <button class="btn btn-secondary" type="button" @click="showInviteModal = true">
@@ -285,75 +352,59 @@ const statusLabel: Record<string, string> = {
                 </div>
             </header>
 
-            <div v-if="!loading && pendingReviews > 0" class="notice notice--warning" role="status">
-                <i class="pi pi-info-circle" aria-hidden="true"></i>
-                <span class="notice__text">
-                    {{ pendingHasMore ? 'Más de 99' : pendingReviews }}
-                    {{
-                        pendingReviews === 1 && !pendingHasMore
-                            ? 'prueba de nivel espera'
-                            : 'pruebas de nivel esperan'
-                    }}
-                    tu revisión.
-                </span>
-                <button class="btn btn-secondary btn-sm" type="button" @click="goToPendingReviews">
-                    Revisar
-                </button>
-            </div>
-
-            <div v-if="loading" class="stats-grid" aria-hidden="true">
-                <div class="stat-tile" v-for="i in 4" :key="i">
-                    <Skeleton variant="circle" size="40px" />
-                    <div class="skeleton-stack">
-                        <Skeleton width="40px" height="20px" />
-                        <Skeleton width="80px" height="12px" />
-                    </div>
+            <section
+                v-if="!loading && (pendingReviews > 0 || notebooksPendingCount > 0)"
+                class="review-panel"
+                aria-labelledby="review-title"
+            >
+                <div class="review-panel__head">
+                    <h2 id="review-title" class="review-panel__title">Para revisar</h2>
+                    <span class="review-panel__hint">Más antiguas primero</span>
                 </div>
-            </div>
-
-            <div class="stats-grid" v-else>
-                <div class="stat-tile">
-                    <span class="stat-tile__icon"><i class="pi pi-book"></i></span>
-                    <span class="stat-tile__body">
-                        <span class="stat-tile__value">{{ courses.length }}</span>
-                        <span class="stat-tile__label">{{
-                            courses.length === 1 ? 'Curso' : 'Cursos'
-                        }}</span>
-                    </span>
+                <div class="review-grid">
+                    <article v-if="pendingReviews > 0" class="review-card">
+                        <div class="review-card__row">
+                            <span class="review-card__icon review-card__icon--warning"
+                                ><i class="pi pi-paperclip"></i
+                            ></span>
+                            <div class="review-card__body">
+                                <div class="review-card__count">
+                                    <strong>{{ pendingShown }}</strong>
+                                    <span>pruebas de nivel</span>
+                                </div>
+                                <p>Están esperando tu corrección para que el alumno avance.</p>
+                            </div>
+                        </div>
+                        <button class="btn btn-primary" type="button" @click="goToPendingReviews">
+                            Empezar a corregir <i class="pi pi-arrow-right"></i>
+                        </button>
+                    </article>
+                    <article v-if="notebooksPendingCount > 0" class="review-card">
+                        <div class="review-card__row">
+                            <span class="review-card__icon review-card__icon--brand"
+                                ><i class="pi pi-book"></i
+                            ></span>
+                            <div class="review-card__body">
+                                <div class="review-card__count">
+                                    <strong>{{ notebooksPendingCount }}</strong>
+                                    <span>cuadernos entregados</span>
+                                </div>
+                                <p>
+                                    La IA ya dejó devolución en {{ notebooksAiReviewedCount }}.
+                                    Falta tu visto bueno.
+                                </p>
+                            </div>
+                        </div>
+                        <button
+                            class="btn btn-secondary"
+                            type="button"
+                            @click="goToNotebookReviews"
+                        >
+                            Revisar entregas
+                        </button>
+                    </article>
                 </div>
-                <div class="stat-tile">
-                    <span class="stat-tile__icon stat-tile__icon--info"
-                        ><i class="pi pi-graduation-cap"></i
-                    ></span>
-                    <span class="stat-tile__body">
-                        <span class="stat-tile__value">{{ assignedStudents.length }}</span>
-                        <span class="stat-tile__label">{{
-                            assignedStudents.length === 1 ? 'Alumno asignado' : 'Alumnos asignados'
-                        }}</span>
-                    </span>
-                </div>
-                <div class="stat-tile">
-                    <span class="stat-tile__icon stat-tile__icon--success"
-                        ><i class="pi pi-tag"></i
-                    ></span>
-                    <span class="stat-tile__body">
-                        <span class="stat-tile__value">{{ subjectCount }}</span>
-                        <span class="stat-tile__label">{{
-                            subjectCount === 1 ? 'Materia' : 'Materias'
-                        }}</span>
-                    </span>
-                </div>
-                <button class="stat-tile" type="button" @click="goToPendingReviews">
-                    <span class="stat-tile__icon stat-tile__icon--warning"
-                        ><i class="pi pi-check-square"></i
-                    ></span>
-                    <span class="stat-tile__body">
-                        <span class="stat-tile__value">{{ pendingShown }}</span>
-                        <span class="stat-tile__label">Pendientes</span>
-                    </span>
-                    <i class="pi pi-angle-right stat-tile__go" aria-hidden="true"></i>
-                </button>
-            </div>
+            </section>
 
             <template v-if="loading">
                 <p class="sr-only" role="status" aria-live="polite">Cargando tu panel…</p>
@@ -502,12 +553,10 @@ const statusLabel: Record<string, string> = {
                     <div class="section-header">
                         <div>
                             <div class="section-title-row">
-                                <h2 class="section-title">Estudiantes asignados</h2>
+                                <h2 class="section-title">Alumnos</h2>
                                 <span class="section-count">{{ assignedStudents.length }}</span>
                             </div>
-                            <p class="section-subtitle">
-                                Hacé click en un alumno para ver su progreso.
-                            </p>
+                            <p class="section-subtitle">Los que menos dominan aparecen primero.</p>
                         </div>
                         <label class="search">
                             <span class="sr-only">Buscar alumno</span>
@@ -549,30 +598,40 @@ const statusLabel: Record<string, string> = {
                         </button>
                     </div>
 
-                    <div v-if="filteredStudents.length" class="row-list">
-                        <div class="row-list__head" aria-hidden="true">
-                            <span></span><span>Alumno</span><span>Correo</span><span>Grado</span
-                            ><span></span>
-                        </div>
+                    <div v-if="filteredStudents.length" class="row-list student-list">
                         <RouterLink
                             v-for="student in paginatedStudents"
                             :key="student.id"
-                            class="row-item"
+                            class="row-item student-row"
                             :to="studentProgressRoute(student)"
                         >
                             <span class="avatar">{{ student.name.charAt(0).toUpperCase() }}</span>
-                            <span class="row-item__name">{{ student.name }}</span>
-                            <span class="row-item__meta">{{ student.email }}</span>
-                            <span class="row-item__tags">
+                            <span class="student-row__text">
+                                <span class="row-item__name">{{ student.name }}</span>
+                                <small class="student-row__sub">
+                                    {{ (studentGrades[student.id] || [])[0]?.name || 'Sin grado' }}
+                                    · {{ student.email }}
+                                </small>
+                            </span>
+                            <span class="student-row__mastery">
                                 <span
-                                    v-for="grade in studentGrades[student.id] || []"
-                                    :key="grade.id"
-                                    class="badge badge-info"
-                                    >{{ grade.name }}</span
+                                    v-if="studentMastery[student.id] != null"
+                                    class="student-row__pct"
+                                    :style="{ color: masteryColor(studentMastery[student.id]) }"
+                                    >{{ studentMastery[student.id] }}%</span
                                 >
-                                <span v-if="!(studentGrades[student.id] || []).length" class="badge"
-                                    >Sin grado</span
+                                <span v-else class="student-row__pct student-row__pct--muted"
+                                    >Sin datos</span
                                 >
+                                <span class="student-row__bar">
+                                    <span
+                                        class="student-row__bar-fill"
+                                        :style="{
+                                            width: (studentMastery[student.id] ?? 0) + '%',
+                                            background: masteryColor(studentMastery[student.id]),
+                                        }"
+                                    ></span>
+                                </span>
                             </span>
                             <span class="row-item__go"><i class="pi pi-angle-right"></i></span>
                         </RouterLink>
@@ -755,6 +814,148 @@ const statusLabel: Record<string, string> = {
     display: flex;
     flex-direction: column;
     gap: 6px;
+}
+
+.review-panel {
+    display: grid;
+    gap: var(--space-3);
+    padding: var(--space-5);
+    border: 1px solid var(--brand-200);
+    border-radius: var(--radius-lg);
+    background: var(--surface-sunken);
+}
+.review-panel__head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-2);
+}
+.review-panel__title {
+    margin: 0;
+    font: 900 13px/18px var(--font-ui);
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--brand-700);
+}
+.review-panel__hint {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--ink-muted);
+}
+.review-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 300px), 1fr));
+    gap: var(--space-3);
+}
+.review-card {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3);
+    padding: var(--space-4);
+    border: 1px solid var(--line);
+    border-radius: var(--radius-md);
+    background: var(--surface);
+}
+.review-card__row {
+    display: flex;
+    align-items: flex-start;
+    gap: var(--space-3);
+}
+.review-card__icon {
+    display: grid;
+    place-items: center;
+    width: 42px;
+    height: 42px;
+    flex: 0 0 42px;
+    border-radius: var(--radius-md);
+}
+.review-card__icon--warning {
+    background: var(--warning-soft);
+    color: var(--warning);
+}
+.review-card__icon--brand {
+    background: var(--brand-50);
+    color: var(--brand-700);
+}
+.review-card__body {
+    flex: 1;
+    min-width: 0;
+}
+.review-card__count {
+    display: flex;
+    align-items: baseline;
+    gap: var(--space-2);
+    flex-wrap: wrap;
+}
+.review-card__count strong {
+    font: 900 26px/1 var(--font-ui);
+    letter-spacing: -0.03em;
+    color: var(--ink);
+}
+.review-card__count span {
+    font: 900 15.5px/1 var(--font-ui);
+    color: var(--ink);
+}
+.review-card__body p {
+    margin: 5px 0 0;
+    font-size: 12.5px;
+    line-height: 1.5;
+    color: var(--ink-muted);
+}
+.review-card .btn {
+    align-self: stretch;
+    justify-content: center;
+}
+
+.student-row {
+    grid-template-columns: 40px minmax(0, 1fr) 100px 20px;
+}
+.student-row__text {
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+.student-row__sub {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: 12px;
+    color: var(--ink-muted);
+}
+.student-row__mastery {
+    display: grid;
+    justify-items: end;
+    gap: 4px;
+}
+.student-row__pct {
+    font-size: 12px;
+    font-weight: 700;
+}
+.student-row__pct--muted {
+    color: var(--ink-muted);
+    font-weight: 600;
+}
+.student-row__bar {
+    width: 84px;
+    height: 5px;
+    border-radius: var(--radius-pill);
+    background: var(--brand-100);
+    overflow: hidden;
+}
+.student-row__bar-fill {
+    display: block;
+    height: 5px;
+    border-radius: var(--radius-pill);
+}
+
+@media (max-width: 1023px) {
+    .student-row {
+        grid-template-columns: 40px minmax(0, 1fr) 20px;
+    }
+    .student-row__mastery {
+        display: none;
+    }
 }
 
 .chips {

@@ -40,6 +40,111 @@ const personals = computed(() => activeSchools.value.filter((s) => s.kind === 'p
 const closedSchools = computed(() => schools.value.filter((s) => s.status === 'closed'));
 const suspendedSchools = computed(() => schools.value.filter((s) => s.status === 'suspended'));
 
+const tabDefs = [
+    {
+        label: 'Instituciones',
+        hint: 'Activas. Sus miembros entran normalmente.',
+    },
+    {
+        label: 'Suspendidas',
+        hint: 'No están disponibles para sus miembros. Podés reactivarlas sin perder información.',
+    },
+    { label: 'Personales', hint: 'Una por docente. No se crean ni se borran desde acá.' },
+    { label: 'Cerradas', hint: 'Solo lectura. Podés consultar su archivo.' },
+];
+const activeTab = ref(0);
+const searchQuery = ref('');
+const openMenuId = ref<string | null>(null);
+
+const tabRows = computed(
+    () =>
+        [institutions.value, suspendedSchools.value, personals.value, closedSchools.value][
+            activeTab.value
+        ],
+);
+
+const tabs = computed(() =>
+    tabDefs.map((def, i) => ({
+        ...def,
+        n: [institutions.value, suspendedSchools.value, personals.value, closedSchools.value][i]
+            .length,
+    })),
+);
+
+const filteredRows = computed(() => {
+    const query = searchQuery.value.trim().toLowerCase();
+    const rows = tabRows.value;
+    if (!query) return rows;
+    return rows.filter((school) => school.name.toLowerCase().includes(query));
+});
+
+function initialsOf(name: string) {
+    const words = name.split(' ').filter((w) => /^[A-ZÁÉÍÓÚ]/.test(w));
+    return words.slice(0, 2).map((w) => w[0]).join('') || name.slice(0, 2).toUpperCase();
+}
+
+function billingLabel(school: School) {
+    return school.billing === 'direct' ? 'Facturación directa' : 'Por suscripción';
+}
+
+function rowMeta(school: School) {
+    if (school.kind === 'personal' && school.plan) {
+        return `${school.plan.name} · hasta ${school.plan.max_students} ${school.plan.max_students === 1 ? 'alumno' : 'alumnos'}`;
+    }
+    if (school.status === 'closed') {
+        return school.kind === 'institution' ? 'Institución' : 'Escuela personal';
+    }
+    return billingLabel(school);
+}
+
+function primaryLabel() {
+    return ['Administrar', 'Reactivar', 'Ver', 'Ver archivo'][activeTab.value];
+}
+
+function primaryAction(school: School) {
+    if (activeTab.value === 1) return reopenSchool(school);
+    if (activeTab.value === 3) return openArchive(school);
+    return openSchool(school);
+}
+
+function selectTab(i: number) {
+    activeTab.value = i;
+    openMenuId.value = null;
+}
+
+function toggleMenu(id: string) {
+    openMenuId.value = openMenuId.value === id ? null : id;
+}
+function closeMenu() {
+    openMenuId.value = null;
+}
+
+interface MenuAction {
+    label: string;
+    danger?: boolean;
+    run: () => void;
+}
+function menuActions(school: School): MenuAction[] {
+    if (activeTab.value === 0) {
+        return [
+            { label: 'Editar', run: () => openEdit(school) },
+            { label: 'Suspender', run: () => suspendSchool(school) },
+            { label: 'Cerrar escuela', danger: true, run: () => askToClose(school) },
+        ];
+    }
+    if (activeTab.value === 1) {
+        return [{ label: 'Editar', run: () => openEdit(school) }];
+    }
+    if (activeTab.value === 2) {
+        return [{ label: 'Cerrar escuela', danger: true, run: () => askToClose(school) }];
+    }
+    return [{ label: 'Reabrir', run: () => reopenSchool(school) }];
+}
+function runMenuAction(action: MenuAction) {
+    closeMenu();
+    action.run();
+}
+
 function fail(detail: string) {
     toast.add({ severity: 'error', summary: 'Error', detail, life: 3000 });
 }
@@ -286,180 +391,7 @@ onMounted(load);
                 </button>
             </header>
 
-            <section>
-                <h2 class="section-title">Instituciones</h2>
-                <div v-if="loading" class="school-row"><Skeleton width="100%" height="18px" /></div>
-                <p v-else-if="!institutions.length" class="empty">Todavía no hay ninguna.</p>
-                <ul v-else class="school-list">
-                    <li v-for="school in institutions" :key="school.id" class="school-row">
-                        <div class="school-main">
-                            <span class="school-name">{{ school.name }}</span>
-                            <span class="school-meta">
-                                {{
-                                    school.billing === 'direct'
-                                        ? 'Facturación directa'
-                                        : 'Por suscripción'
-                                }}
-                            </span>
-                        </div>
-                        <div class="row-actions">
-                            <button class="btn-quiet" type="button" @click="openSchool(school)">
-                                Administrar
-                            </button>
-                            <button class="btn-quiet" type="button" @click="openEdit(school)">
-                                Editar
-                            </button>
-                            <button class="btn-quiet" type="button" @click="suspendSchool(school)">
-                                Suspender
-                            </button>
-                            <button
-                                class="btn-quiet btn-quiet--danger"
-                                type="button"
-                                @click="askToClose(school)"
-                            >
-                                Cerrar
-                            </button>
-                        </div>
-                    </li>
-                </ul>
-            </section>
-
-            <section v-if="suspendedSchools.length">
-                <h2 class="section-title">Instituciones suspendidas</h2>
-                <p class="section-sub">
-                    No están disponibles para sus miembros. Podés reactivarlas sin perder
-                    información.
-                </p>
-                <ul class="school-list">
-                    <li
-                        v-for="school in suspendedSchools"
-                        :key="school.id"
-                        class="school-row school-row--closed"
-                    >
-                        <div class="school-main">
-                            <span class="school-name">{{ school.name }}</span
-                            ><span class="school-meta"
-                                ><span class="status-pill">Suspendida</span>
-                                {{
-                                    school.billing === 'direct'
-                                        ? 'Facturación directa'
-                                        : 'Por suscripción'
-                                }}</span
-                            >
-                        </div>
-                        <div class="row-actions">
-                            <button
-                                class="btn-quiet"
-                                type="button"
-                                :disabled="saving"
-                                @click="reopenSchool(school)"
-                            >
-                                Reactivar</button
-                            ><button class="btn-quiet" type="button" @click="openEdit(school)">
-                                Editar
-                            </button>
-                        </div>
-                    </li>
-                </ul>
-            </section>
-
-            <section>
-                <h2 class="section-title">Escuelas personales</h2>
-                <p class="section-sub">Una por docente. No se crean ni se borran desde acá.</p>
-                <ul v-if="personals.length" class="school-list">
-                    <li
-                        v-for="school in personals"
-                        :key="school.id"
-                        class="school-row school-row--muted"
-                    >
-                        <div class="school-main">
-                            <span class="school-name">{{ school.name }}</span>
-                            <span v-if="school.owner" class="school-owner">
-                                {{ school.owner.name }}
-                                <a :href="`mailto:${school.owner.email}`" class="school-email">
-                                    {{ school.owner.email }}
-                                </a>
-                            </span>
-                            <span v-if="school.plan" class="school-meta">
-                                <span
-                                    class="plan-pill"
-                                    :class="{ 'plan-pill--paid': school.plan.active }"
-                                >
-                                    {{ school.plan.name }}
-                                </span>
-                                hasta {{ school.plan.max_students }}
-                                {{ school.plan.max_students === 1 ? 'alumno' : 'alumnos' }}
-                            </span>
-                        </div>
-                        <div class="row-actions">
-                            <button class="btn-quiet" type="button" @click="openSchool(school)">
-                                Administrar
-                            </button>
-                            <button
-                                class="btn-quiet btn-quiet--danger"
-                                type="button"
-                                @click="askToClose(school)"
-                            >
-                                Cerrar
-                            </button>
-                        </div>
-                    </li>
-                </ul>
-            </section>
-
-            <section v-if="closedSchools.length">
-                <h2 class="section-title">Escuelas cerradas</h2>
-                <p class="section-sub">
-                    Sin acceso para miembros. Conservan historial y solo se pueden reabrir.
-                </p>
-                <ul class="school-list">
-                    <li
-                        v-for="school in closedSchools"
-                        :key="school.id"
-                        class="school-row school-row--closed"
-                    >
-                        <div class="school-main">
-                            <span class="school-name">{{ school.name }}</span>
-                            <span class="school-meta"
-                                ><span class="status-pill">Cerrada</span>
-                                {{
-                                    school.kind === 'institution'
-                                        ? 'Institución'
-                                        : 'Escuela personal'
-                                }}</span
-                            >
-                        </div>
-                        <div class="row-actions">
-                            <button
-                                class="btn-quiet"
-                                type="button"
-                                :disabled="loadingArchive"
-                                @click="openArchive(school)"
-                            >
-                                Ver archivo
-                            </button>
-                            <button
-                                class="btn-quiet"
-                                type="button"
-                                :disabled="saving"
-                                @click="reopenSchool(school)"
-                            >
-                                Reabrir
-                            </button>
-                        </div>
-                    </li>
-                </ul>
-            </section>
-        </div>
-
-        <div
-            v-if="showCreateForm"
-            class="close-backdrop"
-            role="presentation"
-            @click.self="closeCreateForm"
-        >
-            <form class="close-card school-form" @submit.prevent="createSchool">
-                <p class="eyebrow">Administración de plataforma</p>
+            <form v-if="showCreateForm" class="school-form" @submit.prevent="createSchool">
                 <h2 class="form-title">Nueva institución</h2>
                 <div class="form-grid">
                     <label class="field field--wide">
@@ -470,13 +402,6 @@ onMounted(load);
                             placeholder="Escuela San Martín"
                             autofocus
                         />
-                    </label>
-                    <label class="field">
-                        <span>Facturación</span>
-                        <select v-model="form.billing">
-                            <option value="direct">Directa (por fuera)</option>
-                            <option value="subscription">Por suscripción</option>
-                        </select>
                     </label>
                     <label class="field field--wide admin-picker">
                         <span>Administrador inicial</span>
@@ -500,6 +425,25 @@ onMounted(load);
                             >Seleccionado. Debe haber iniciado sesión en Practiq.</small
                         >
                     </label>
+                    <div class="field">
+                        <span>Facturación</span>
+                        <div class="billing-toggle" role="tablist">
+                            <button
+                                type="button"
+                                :data-on="form.billing === 'direct'"
+                                @click="form.billing = 'direct'"
+                            >
+                                Directa
+                            </button>
+                            <button
+                                type="button"
+                                :data-on="form.billing === 'subscription'"
+                                @click="form.billing = 'subscription'"
+                            >
+                                Suscripción
+                            </button>
+                        </div>
+                    </div>
                 </div>
                 <p class="form-note">
                     Con facturación directa no se consulta ningún plan y no hay tope de alumnos.
@@ -512,6 +456,84 @@ onMounted(load);
                     </button>
                 </div>
             </form>
+
+            <div class="tabs-row">
+                <div role="tablist" class="tabs">
+                    <button
+                        v-for="(tab, i) in tabs"
+                        :key="tab.label"
+                        type="button"
+                        role="tab"
+                        :data-on="activeTab === i"
+                        @click="selectTab(i)"
+                    >
+                        {{ tab.label }} <span class="tab-count">{{ tab.n }}</span>
+                    </button>
+                </div>
+                <label class="search-field">
+                    <i class="pi pi-search"></i>
+                    <input v-model="searchQuery" type="search" placeholder="Buscar escuela" />
+                </label>
+            </div>
+            <p class="tab-hint">{{ tabs[activeTab].hint }}</p>
+
+            <div class="school-list-card" @click="closeMenu">
+                <div v-if="loading" class="school-row"><Skeleton width="100%" height="18px" /></div>
+                <p v-else-if="!filteredRows.length" class="empty">
+                    {{ searchQuery ? 'Ninguna escuela coincide con la búsqueda.' : 'Todavía no hay ninguna.' }}
+                </p>
+                <div
+                    v-for="school in filteredRows"
+                    :key="school.id"
+                    class="school-row"
+                    @click.stop
+                >
+                    <span class="school-avatar">{{ initialsOf(school.name) }}</span>
+                    <div class="school-main">
+                        <span class="school-name">{{ school.name }}</span>
+                        <span v-if="school.kind === 'personal' && school.owner" class="school-owner">
+                            {{ school.owner.name }}
+                            <a :href="`mailto:${school.owner.email}`" class="school-email">
+                                {{ school.owner.email }}
+                            </a>
+                        </span>
+                        <span class="school-meta">
+                            <span v-if="activeTab === 1" class="status-pill">Suspendida</span>
+                            <span v-if="activeTab === 3" class="status-pill">Cerrada</span>
+                            {{ rowMeta(school) }}
+                        </span>
+                    </div>
+                    <div class="row-actions">
+                        <button
+                            class="btn-primary-outline"
+                            type="button"
+                            :disabled="saving || loadingArchive"
+                            @click="primaryAction(school)"
+                        >
+                            {{ primaryLabel() }}
+                        </button>
+                        <button
+                            class="btn-icon"
+                            type="button"
+                            aria-label="Más acciones"
+                            @click="toggleMenu(school.id)"
+                        >
+                            <i class="pi pi-ellipsis-v"></i>
+                        </button>
+                        <div v-if="openMenuId === school.id" class="row-menu">
+                            <button
+                                v-for="action in menuActions(school)"
+                                :key="action.label"
+                                type="button"
+                                :class="{ 'row-menu__item--danger': action.danger }"
+                                @click="runMenuAction(action)"
+                            >
+                                {{ action.label }}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
         </div>
 
         <div
@@ -670,9 +692,34 @@ onMounted(load);
     flex-direction: column;
     gap: 0.8rem;
     padding: 1.25rem;
-    background: var(--surface-card);
-    border: 1px solid var(--surface-border);
+    background: var(--surface-sunken);
+    border: 1px solid var(--brand-200);
     border-radius: var(--radius-xl);
+}
+
+.billing-toggle {
+    display: flex;
+    gap: 2px;
+    padding: 3px;
+    border-radius: var(--radius-md);
+    background: var(--surface);
+    border: 1px solid var(--surface-border);
+}
+.billing-toggle button {
+    flex: 1;
+    min-height: 34px;
+    border: 0;
+    border-radius: var(--radius-sm);
+    background: transparent;
+    color: var(--text-secondary);
+    font-size: 0.8rem;
+    font-weight: 600;
+    cursor: pointer;
+}
+.billing-toggle button[data-on='true'] {
+    background: var(--surface);
+    color: var(--text-heading);
+    box-shadow: var(--shadow-xs);
 }
 
 .form-title {
@@ -777,9 +824,9 @@ onMounted(load);
 .school-row,
 .member-row {
     display: flex;
+    flex-wrap: wrap;
     align-items: center;
-    justify-content: space-between;
-    gap: 1rem;
+    gap: 10px 14px;
     padding: 0.75rem 1rem;
     background: var(--surface-card);
     border: 1px solid var(--surface-border);
@@ -798,6 +845,168 @@ onMounted(load);
     align-items: center;
     gap: 0.25rem;
     flex: 0 0 auto;
+    margin-left: auto;
+    position: relative;
+}
+
+.tabs-row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.5rem;
+}
+.tabs {
+    display: flex;
+    gap: 2px;
+    padding: 3px;
+    border-radius: var(--radius-md);
+    background: var(--surface-sunken);
+    overflow-x: auto;
+    max-width: 100%;
+}
+.tabs button {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    flex: 0 0 auto;
+    min-height: 34px;
+    padding: 0 0.75rem;
+    border: 0;
+    border-radius: var(--radius-sm);
+    background: transparent;
+    color: var(--text-secondary);
+    font-size: 0.78rem;
+    font-weight: 600;
+    cursor: pointer;
+    white-space: nowrap;
+}
+.tabs button[data-on='true'] {
+    background: var(--surface);
+    color: var(--text-heading);
+    box-shadow: var(--shadow-xs);
+}
+.tab-count {
+    font-weight: 700;
+    opacity: 0.75;
+}
+.search-field {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    min-height: 40px;
+    padding: 0 0.75rem;
+    border: 1px solid var(--surface-border);
+    border-radius: var(--radius-md);
+    background: var(--surface);
+    flex: 0 1 260px;
+    color: var(--text-muted);
+}
+.search-field input {
+    width: 100%;
+    min-width: 0;
+    flex: 1;
+    border: 0;
+    outline: 0;
+    background: transparent;
+    font-size: 0.85rem;
+    color: var(--text-primary);
+}
+.tab-hint {
+    margin: -0.3rem 0 0;
+    font-size: 0.8rem;
+    color: var(--text-secondary);
+}
+.school-list-card {
+    border: 1px solid var(--surface-border);
+    border-radius: var(--radius-lg);
+    background: var(--surface-card);
+}
+.school-list-card .empty {
+    padding: 1rem;
+}
+.school-list-card .school-row {
+    border: 0;
+    border-top: 1px solid var(--line);
+    border-radius: 0;
+}
+.school-list-card .school-row:first-child {
+    border-top: 0;
+}
+.school-avatar {
+    display: grid;
+    place-items: center;
+    width: 38px;
+    height: 38px;
+    flex: 0 0 38px;
+    border-radius: var(--radius-sm);
+    background: var(--deep-800);
+    color: #fff;
+    font-size: 0.78rem;
+    font-weight: 800;
+}
+.btn-primary-outline {
+    min-height: 36px;
+    padding: 0 0.75rem;
+    border: 1px solid var(--surface-border);
+    border-radius: var(--radius-sm);
+    background: var(--surface);
+    color: var(--brand-700);
+    font-size: 0.78rem;
+    font-weight: 700;
+    cursor: pointer;
+}
+.btn-primary-outline:hover {
+    background: var(--surface-sunken);
+}
+.btn-primary-outline:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+.btn-icon {
+    width: 36px;
+    height: 36px;
+    display: grid;
+    place-items: center;
+    border: 0;
+    border-radius: var(--radius-sm);
+    background: transparent;
+    color: var(--text-secondary);
+    cursor: pointer;
+}
+.btn-icon:hover {
+    background: var(--surface-sunken);
+}
+.row-menu {
+    position: absolute;
+    right: 0;
+    top: calc(100% - 4px);
+    width: 200px;
+    padding: 6px;
+    border: 1px solid var(--surface-border);
+    border-radius: var(--radius-lg);
+    background: var(--surface);
+    box-shadow: var(--shadow-lg);
+    z-index: 10;
+}
+.row-menu button {
+    display: block;
+    width: 100%;
+    min-height: 40px;
+    padding: 0 10px;
+    border: 0;
+    border-radius: var(--radius-sm);
+    background: transparent;
+    color: var(--text-primary);
+    font-size: 0.85rem;
+    text-align: left;
+    cursor: pointer;
+}
+.row-menu button:hover {
+    background: var(--canvas);
+}
+.row-menu__item--danger {
+    color: var(--danger);
 }
 .status-pill {
     display: inline-block;
@@ -814,6 +1023,7 @@ onMounted(load);
 .school-main,
 .member-main {
     display: flex;
+    flex: 1 1 200px;
     flex-direction: column;
     gap: 0.15rem;
     min-width: 0;
@@ -1018,30 +1228,25 @@ onMounted(load);
     }
 
     .school-row {
-        align-items: flex-start;
-        flex-direction: column;
-        gap: 0.65rem;
         padding: 0.9rem;
     }
     .school-main {
         width: 100%;
     }
     .row-actions {
-        display: grid;
-        grid-template-columns: 1fr 1fr;
         width: 100%;
-        gap: 0.4rem;
+        margin-left: 0;
     }
-    .row-actions .btn-quiet {
-        min-height: 38px;
-        width: 100%;
-        padding: 0.4rem 0.5rem;
-        border: 1px solid var(--surface-border);
-        background: var(--surface-subtle);
+    .row-actions .btn-primary-outline {
+        flex: 1;
+        min-height: 40px;
     }
-    .row-actions .btn-quiet--danger {
-        color: var(--color-error-dark, #b91c1c);
-        background: var(--color-error-bg, #fef2f2);
+    .tabs-row {
+        flex-direction: column;
+        align-items: stretch;
+    }
+    .search-field {
+        flex: 1 1 auto;
     }
     .close-backdrop {
         align-items: end;

@@ -55,6 +55,27 @@ const schoolTeachers = computed(() =>
     members.value.filter((m) => m.role === 'teacher' || m.role === 'admin'),
 );
 
+const roleFilter = ref<'all' | SchoolRole>('all');
+const memberSearch = ref('');
+const filterDefs = computed(() => {
+    const count = (role: SchoolRole | null) =>
+        role ? members.value.filter((m) => m.role === role).length : members.value.length;
+    return [
+        { id: 'all' as const, label: 'Todos', n: count(null) },
+        { id: 'admin' as const, label: 'Administradores', n: count('admin') },
+        { id: 'teacher' as const, label: 'Docentes', n: count('teacher') },
+        { id: 'student' as const, label: 'Alumnos', n: count('student') },
+    ];
+});
+const visibleMembers = computed(() => {
+    const query = memberSearch.value.trim().toLowerCase();
+    return members.value.filter((m) => {
+        if (roleFilter.value !== 'all' && m.role !== roleFilter.value) return false;
+        if (!query) return true;
+        return `${m.name} ${m.email || ''}`.toLowerCase().includes(query);
+    });
+});
+
 async function openAssign(member: SchoolMember) {
     assigningMember.value = member;
     teacherToAssign.value = '';
@@ -288,6 +309,7 @@ onMounted(async () => {
                     }}</span>
                 </div>
 
+                <h2 class="form-title">Sumar a alguien</h2>
                 <form class="member-form" @submit.prevent="addMember">
                     <label>
                         <span>{{ isSuperAdmin ? 'Buscar usuario' : 'Email' }}</span>
@@ -352,11 +374,160 @@ onMounted(async () => {
                     >
                 </p>
 
+                <section v-if="assigningMember" class="assign-inline" aria-label="Asignar alumno">
+                    <div class="assign-head">
+                        <div>
+                            <p class="eyebrow">Asignar alumno</p>
+                            <h3>{{ assigningMember.name }}</h3>
+                        </div>
+                        <button
+                            class="assign-close"
+                            type="button"
+                            aria-label="Cerrar"
+                            @click="closeAssign"
+                        >
+                            <i class="pi pi-times"></i>
+                        </button>
+                    </div>
+
+                    <div v-if="assignLoading" class="loading-list">
+                        <Skeleton width="100%" height="40px" />
+                        <Skeleton width="100%" height="40px" />
+                    </div>
+                    <div v-else class="assign-grid">
+                        <div class="assign-block">
+                            <span class="assign-label">Docentes</span>
+                            <div class="chip-row">
+                                <span
+                                    v-for="teacher in assignedTeachers"
+                                    :key="teacher.id"
+                                    class="chip chip--teacher"
+                                >
+                                    {{ teacher.name }}
+                                    <button
+                                        type="button"
+                                        aria-label="Quitar"
+                                        @click="unassignTeacher(teacher.id)"
+                                    >
+                                        ×
+                                    </button>
+                                </span>
+                                <span v-if="!assignedTeachers.length" class="chip-empty"
+                                    >Sin docente asignado</span
+                                >
+                            </div>
+                            <div class="assign-row">
+                                <select v-model="teacherToAssign">
+                                    <option value="">+ Docente</option>
+                                    <option
+                                        v-for="teacher in schoolTeachers"
+                                        :key="teacher.user_id"
+                                        :value="teacher.user_id"
+                                    >
+                                        {{ teacher.name }}
+                                    </option>
+                                </select>
+                                <button
+                                    type="button"
+                                    :disabled="!teacherToAssign"
+                                    @click="assignTeacher"
+                                >
+                                    Asignar
+                                </button>
+                            </div>
+                        </div>
+
+                        <div class="assign-block">
+                            <span class="assign-label">Grados</span>
+                            <div class="chip-row">
+                                <span
+                                    v-for="grade in assignedGrades"
+                                    :key="grade.id"
+                                    class="chip chip--grade"
+                                >
+                                    {{ grade.name }}
+                                    <button
+                                        type="button"
+                                        aria-label="Quitar"
+                                        @click="unassignGrade(grade.id)"
+                                    >
+                                        ×
+                                    </button>
+                                </span>
+                                <span v-if="!assignedGrades.length" class="chip-empty"
+                                    >Sin grado</span
+                                >
+                            </div>
+                            <div class="assign-row">
+                                <select v-model="gradeToAssign">
+                                    <option value="">+ Grado</option>
+                                    <option v-for="grade in grades" :key="grade.id" :value="grade.id">
+                                        {{ grade.name }}
+                                    </option>
+                                </select>
+                                <button
+                                    type="button"
+                                    :disabled="!gradeToAssign"
+                                    @click="assignGrade"
+                                >
+                                    Vincular
+                                </button>
+                            </div>
+                        </div>
+
+                        <div class="assign-block">
+                            <span class="assign-label">Nivel</span>
+                            <div class="assistant-fields">
+                                <select v-model="themeForm.ui_theme">
+                                    <option value="primary">Primaria</option>
+                                    <option value="secondary">Secundaria</option>
+                                </select>
+                            </div>
+                            <div class="assign-row">
+                                <button
+                                    type="button"
+                                    class="assistant-save"
+                                    :class="{ 'assistant-save--ok': themeSaveSuccess }"
+                                    :disabled="savingTheme"
+                                    @click="saveTheme"
+                                >
+                                    {{
+                                        savingTheme
+                                            ? 'Guardando...'
+                                            : themeSaveSuccess
+                                              ? 'Guardado'
+                                              : 'Guardar nivel'
+                                    }}
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+                <div class="filter-bar">
+                    <div class="filter-tabs" role="group" aria-label="Filtrar por rol">
+                        <button
+                            v-for="f in filterDefs"
+                            :key="f.id"
+                            type="button"
+                            class="filter-tab"
+                            :class="{ 'filter-tab--active': roleFilter === f.id }"
+                            @click="roleFilter = f.id"
+                        >
+                            {{ f.label }} <span>{{ f.n }}</span>
+                        </button>
+                    </div>
+                    <label class="search-field">
+                        <i class="pi pi-search"></i>
+                        <input v-model="memberSearch" type="search" placeholder="Buscar" />
+                    </label>
+                </div>
+
                 <div v-if="loading" class="loading-list">
                     <Skeleton width="100%" height="50px" /><Skeleton width="100%" height="50px" />
                 </div>
-                <ul v-else-if="members.length" class="member-list">
-                    <li v-for="member in members" :key="member.user_id" class="member-row">
+                <ul v-else-if="visibleMembers.length" class="member-list">
+                    <li v-for="member in visibleMembers" :key="member.user_id" class="member-row">
                         <div class="member-avatar">{{ member.name[0]?.toUpperCase() || 'U' }}</div>
                         <div class="member-data">
                             <strong>{{ member.name }}</strong>
@@ -374,147 +545,28 @@ onMounted(async () => {
                         >
                             Asignar
                         </button>
-                        <button class="remove-button" type="button" @click="removeMember(member)">
-                            Quitar
+                        <button
+                            class="remove-button"
+                            type="button"
+                            aria-label="Quitar de la escuela"
+                            title="Quitar"
+                            @click="removeMember(member)"
+                        >
+                            <i class="pi pi-user-minus"></i>
                         </button>
                     </li>
                 </ul>
+                <div v-else-if="members.length" class="empty-state">
+                    <i class="pi pi-search"></i>
+                    <p>No encontramos usuarios con ese filtro.</p>
+                    <span>Probá otra búsqueda o cambiá el filtro de rol.</span>
+                </div>
                 <div v-else class="empty-state">
                     <i class="pi pi-users"></i>
                     <p>Todavía no hay usuarios en esta escuela.</p>
                     <span>Sumá primero a la persona responsable o a tu primer alumno.</span>
                 </div>
             </section>
-
-            <Teleport to="body">
-                <div v-if="assigningMember" class="assign-backdrop" @click.self="closeAssign">
-                    <div
-                        class="assign-card"
-                        role="dialog"
-                        aria-modal="true"
-                        aria-label="Asignar alumno"
-                    >
-                        <div class="assign-head">
-                            <div>
-                                <p class="eyebrow">Alumno</p>
-                                <h3>{{ assigningMember.name }}</h3>
-                            </div>
-                            <button class="assign-close" type="button" @click="closeAssign">
-                                ×
-                            </button>
-                        </div>
-
-                        <div v-if="assignLoading" class="loading-list">
-                            <Skeleton width="100%" height="40px" />
-                            <Skeleton width="100%" height="40px" />
-                        </div>
-                        <template v-else>
-                            <div class="assign-block">
-                                <span class="assign-label">Docentes asignados</span>
-                                <div class="chip-row">
-                                    <span
-                                        v-for="teacher in assignedTeachers"
-                                        :key="teacher.id"
-                                        class="chip chip--teacher"
-                                    >
-                                        {{ teacher.name }}
-                                        <button type="button" @click="unassignTeacher(teacher.id)">
-                                            ×
-                                        </button>
-                                    </span>
-                                    <span v-if="!assignedTeachers.length" class="chip-empty"
-                                        >Sin docente asignado</span
-                                    >
-                                </div>
-                                <div class="assign-row">
-                                    <select v-model="teacherToAssign">
-                                        <option value="">Asignar docente</option>
-                                        <option
-                                            v-for="teacher in schoolTeachers"
-                                            :key="teacher.user_id"
-                                            :value="teacher.user_id"
-                                        >
-                                            {{ teacher.name }}
-                                        </option>
-                                    </select>
-                                    <button
-                                        type="button"
-                                        :disabled="!teacherToAssign"
-                                        @click="assignTeacher"
-                                    >
-                                        Asignar
-                                    </button>
-                                </div>
-                            </div>
-
-                            <div class="assign-block">
-                                <span class="assign-label">Grados</span>
-                                <div class="chip-row">
-                                    <span
-                                        v-for="grade in assignedGrades"
-                                        :key="grade.id"
-                                        class="chip chip--grade"
-                                    >
-                                        {{ grade.name }}
-                                        <button type="button" @click="unassignGrade(grade.id)">
-                                            ×
-                                        </button>
-                                    </span>
-                                    <span v-if="!assignedGrades.length" class="chip-empty"
-                                        >Sin grado</span
-                                    >
-                                </div>
-                                <div class="assign-row">
-                                    <select v-model="gradeToAssign">
-                                        <option value="">Agregar a grado</option>
-                                        <option
-                                            v-for="grade in grades"
-                                            :key="grade.id"
-                                            :value="grade.id"
-                                        >
-                                            {{ grade.name }}
-                                        </option>
-                                    </select>
-                                    <button
-                                        type="button"
-                                        :disabled="!gradeToAssign"
-                                        @click="assignGrade"
-                                    >
-                                        Vincular
-                                    </button>
-                                </div>
-                            </div>
-
-                            <div class="assign-block">
-                                <span class="assign-label">Nivel</span>
-                                <div class="assistant-fields">
-                                    <select v-model="themeForm.ui_theme">
-                                        <option value="primary">Primaria</option>
-                                        <option value="secondary">Secundaria</option>
-                                    </select>
-                                </div>
-                                <div class="assign-row">
-                                    <button
-                                        type="button"
-                                        class="assistant-save"
-                                        :class="{ 'assistant-save--ok': themeSaveSuccess }"
-                                        :disabled="savingTheme"
-                                        @click="saveTheme"
-                                    >
-                                        {{
-                                            savingTheme
-                                                ? 'Guardando...'
-                                                : themeSaveSuccess
-                                                  ? 'Guardado'
-                                                  : 'Guardar nivel'
-                                        }}
-                                    </button>
-                                </div>
-                            </div>
-                        </template>
-                    </div>
-                </div>
-            </Teleport>
         </main>
     </TeacherLayout>
 </template>
@@ -565,6 +617,11 @@ p {
     color: var(--text-heading);
     font-size: 1.1rem;
 }
+.form-title {
+    margin: 1rem 0 0;
+    color: var(--text-heading);
+    font-size: 0.95rem;
+}
 .card-heading p,
 .form-note {
     margin-bottom: 0;
@@ -585,7 +642,7 @@ p {
     grid-template-columns: minmax(0, 1fr) 150px auto;
     gap: 0.7rem;
     align-items: end;
-    margin-top: 1.4rem;
+    margin-top: 0.6rem;
 }
 .member-form label {
     display: grid;
@@ -736,13 +793,80 @@ p {
     font-weight: 700;
 }
 .remove-button {
-    padding: 0.4rem 0.65rem;
+    display: grid;
+    flex: 0 0 auto;
+    width: 36px;
+    height: 36px;
+    place-items: center;
     border: 0;
     border-radius: var(--radius-md);
+    color: var(--text-secondary);
+    background: transparent;
+    cursor: pointer;
+}
+.remove-button:hover {
     color: var(--color-error-dark, #b91c1c);
     background: var(--color-error-bg, #fef2f2);
+}
+.filter-bar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.6rem;
+    margin-top: 1.4rem;
+}
+.filter-tabs {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4rem;
+    overflow-x: auto;
+}
+.filter-tab {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    flex: 0 0 auto;
+    min-height: 34px;
+    padding: 0 0.75rem;
+    border: 1px solid var(--surface-border);
+    border-radius: var(--radius-pill);
+    background: var(--surface-card);
+    color: var(--text-secondary);
+    font-size: 0.78rem;
+    font-weight: 600;
     cursor: pointer;
+}
+.filter-tab span {
     font-weight: 700;
+    opacity: 0.8;
+}
+.filter-tab--active {
+    border-color: var(--practiq-violet-200, var(--surface-border));
+    background: var(--fill-primary-soft);
+    color: var(--practiq-violet-dark);
+}
+.search-field {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    flex: 0 1 240px;
+    min-height: 38px;
+    padding: 0 0.75rem;
+    border: 1px solid var(--surface-border);
+    border-radius: var(--radius-md);
+    background: var(--surface-card);
+    color: var(--text-secondary);
+}
+.search-field input {
+    flex: 1;
+    min-width: 0;
+    border: 0;
+    outline: 0;
+    background: transparent;
+    color: var(--text-primary);
+    font: inherit;
+    font-size: 0.82rem;
 }
 .empty-state {
     display: grid;
@@ -766,30 +890,21 @@ p {
 .empty-state span {
     font-size: 0.82rem;
 }
-.assign-backdrop {
-    position: fixed;
-    inset: 0;
-    z-index: 60;
-    display: grid;
-    place-items: center;
-    padding: 1.2rem;
-    background: var(--surface-scrim);
-}
-.assign-card {
-    width: min(560px, 100%);
-    max-height: calc(100vh - 48px);
-    overflow: auto;
-    padding: 1.3rem;
-    border-radius: var(--radius-xl);
-    background: var(--surface-card);
-    box-shadow: var(--shadow-panel);
+.assign-inline {
+    display: flex;
+    flex-direction: column;
+    gap: 0.9rem;
+    margin-top: 1.4rem;
+    padding: 1rem 1.1rem;
+    border-radius: var(--radius-lg);
+    background: var(--fill-primary-soft);
+    border: 1px solid var(--practiq-violet-200, var(--surface-border));
 }
 .assign-head {
     display: flex;
     align-items: flex-start;
     justify-content: space-between;
     gap: 1rem;
-    margin-bottom: 1rem;
 }
 .assign-head h3 {
     margin: 0.2rem 0 0;
@@ -798,19 +913,23 @@ p {
 .assign-close {
     width: 36px;
     height: 36px;
+    display: grid;
+    place-items: center;
     border: 0;
-    border-radius: var(--radius-pill);
-    background: var(--surface-subtle);
-    color: var(--text-primary);
-    font-size: 20px;
+    border-radius: var(--radius-md);
+    background: var(--surface-card);
+    color: var(--text-secondary);
     cursor: pointer;
 }
+.assign-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 220px), 1fr));
+    gap: 0.9rem;
+}
 .assign-block {
-    padding: 0.8rem;
-    margin-bottom: 0.9rem;
-    border-radius: var(--radius-lg);
-    background: var(--surface-subtle);
-    border: 1px solid var(--surface-border);
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
 }
 .assign-label {
     display: block;
@@ -943,12 +1062,15 @@ p {
     .inactive {
         margin-left: 0;
     }
-    .assign-button,
-    .remove-button {
+    .assign-button {
         width: auto;
         min-height: 36px;
         padding: 0.35rem 0.55rem;
         font-size: 0.78rem;
+    }
+    .remove-button {
+        width: 34px;
+        height: 34px;
     }
     .school-kind {
         white-space: normal;

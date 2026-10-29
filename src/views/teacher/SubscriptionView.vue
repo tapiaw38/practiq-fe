@@ -355,6 +355,10 @@ function formatAmount(plan: CatalogPlan) {
     return formatMoney(plan.amount, plan.currency || 'ARS');
 }
 
+function scrollToPlans() {
+    document.querySelector('.plans')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
 async function loadAccountEmail() {
     try {
         const { data } = await authService.meUser();
@@ -551,6 +555,15 @@ onMounted(() => {
 
                 <div v-if="subscription.active || isPaused" class="plan-actions">
                     <button
+                        v-if="!isPaused && plans.length"
+                        class="btn-primary"
+                        type="button"
+                        :disabled="working"
+                        @click="scrollToPlans"
+                    >
+                        Cambiar de plan
+                    </button>
+                    <button
                         v-if="isPaused"
                         class="btn-primary"
                         type="button"
@@ -562,7 +575,7 @@ onMounted(() => {
                     </button>
                     <button
                         v-else
-                        class="btn-danger"
+                        class="btn-secondary"
                         type="button"
                         :disabled="working"
                         @click="showPauseModal = true"
@@ -571,7 +584,7 @@ onMounted(() => {
                         Pausar
                     </button>
                     <button
-                        class="btn-secondary"
+                        class="btn-quiet btn-quiet--danger"
                         type="button"
                         :disabled="working"
                         @click="showLeaveModal = true"
@@ -579,8 +592,8 @@ onMounted(() => {
                         Cancelar suscripción
                     </button>
                 </div>
-                <section class="billing-history" aria-label="Historial de pagos">
-                    <h2>Historial de pagos</h2>
+                <section class="billing-history" aria-label="Historial de cobros">
+                    <h2>Historial de cobros</h2>
                     <p v-if="billingHistoryError" class="billing-history__empty">
                         No pudimos cargar tus cobros. Recargá la página para intentarlo de nuevo.
                     </p>
@@ -648,33 +661,31 @@ onMounted(() => {
                             'plan-item--current': plan.plan_id === subscription?.plan.plan_id,
                         }"
                     >
-                        <div class="plan-item-main">
+                        <div class="plan-item-top">
                             <span class="plan-item-name">{{ plan.name }}</span>
-                            <span class="plan-item-limit">
-                                Hasta {{ plan.max_students }}
-                                {{ plan.max_students === 1 ? 'alumno' : 'alumnos' }}
-                            </span>
-                        </div>
-                        <div class="plan-item-side">
-                            <span class="plan-item-price"
-                                >{{ formatAmount(plan) }}<small>/mes</small></span
-                            >
                             <span
                                 v-if="plan.plan_id === subscription?.plan.plan_id"
                                 class="plan-item-current"
                             >
                                 Tu plan
                             </span>
-                            <button
-                                v-else-if="plan.active"
-                                class="btn-plan"
-                                type="button"
-                                :disabled="working"
-                                @click="openCheckout(plan)"
-                            >
-                                {{ subscription?.active ? 'Cambiar a este' : 'Suscribirme' }}
-                            </button>
                         </div>
+                        <span class="plan-item-price"
+                            >{{ formatAmount(plan) }}<small>/mes</small></span
+                        >
+                        <span class="plan-item-limit">
+                            Hasta {{ plan.max_students }}
+                            {{ plan.max_students === 1 ? 'alumno' : 'alumnos' }}
+                        </span>
+                        <button
+                            v-if="plan.plan_id !== subscription?.plan.plan_id && plan.active"
+                            class="btn-plan"
+                            type="button"
+                            :disabled="working"
+                            @click="openCheckout(plan)"
+                        >
+                            {{ subscription?.active ? 'Cambiar a este' : 'Suscribirme' }}
+                        </button>
                     </li>
                 </ul>
                 <p class="plans-note">
@@ -1238,17 +1249,16 @@ onMounted(() => {
     list-style: none;
     margin: 0;
     padding: 0;
-    display: flex;
-    flex-direction: column;
-    gap: 0.5rem;
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 200px), 1fr));
+    gap: 0.6rem;
 }
 
 .plan-item {
     display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 1rem;
-    padding: 0.9rem 1rem;
+    flex-direction: column;
+    gap: 0.5rem;
+    padding: 1rem;
     background: var(--surface-card);
     border: 1px solid var(--surface-border);
     border-radius: var(--radius-lg);
@@ -1267,14 +1277,15 @@ onMounted(() => {
     background: rgba(var(--practiq-violet-rgb), 0.035);
 }
 
-.plan-item-main {
+.plan-item-top {
     display: flex;
-    flex-direction: column;
-    gap: 0.15rem;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.5rem;
 }
 
 .plan-item-name {
-    font-weight: 600;
+    font-weight: 700;
     color: var(--text-primary);
 }
 
@@ -1283,38 +1294,38 @@ onMounted(() => {
     color: var(--text-secondary);
 }
 
-.plan-item-side {
-    display: flex;
-    flex-direction: column;
-    align-items: flex-end;
-    gap: 0.15rem;
-}
-
 .plan-item-price {
-    font-weight: 600;
+    font-weight: 800;
+    font-size: 1.15rem;
     color: var(--text-primary);
 }
 
 .plan-item-price small {
     margin-left: 0.12rem;
     color: var(--text-secondary);
-    font-size: 0.72em;
+    font-size: 0.6em;
     font-weight: 500;
 }
 
 .plan-item-current {
-    font-size: 0.75rem;
-    color: var(--practiq-violet);
+    flex: 0 0 auto;
+    padding: 0.1rem 0.5rem;
+    border-radius: var(--radius-pill);
+    background: rgba(var(--practiq-violet-rgb), 0.1);
+    font-size: 0.68rem;
+    font-weight: 700;
+    color: var(--practiq-violet-dark);
 }
 
 .btn-plan {
-    padding: 0.4rem 0.85rem;
+    margin-top: auto;
+    padding: 0.5rem 0.85rem;
     border-radius: var(--radius-md);
-    border: 1px solid rgba(var(--practiq-violet-rgb), 0.3);
+    border: 1px solid var(--surface-border);
     background: var(--surface-card);
-    color: var(--practiq-violet);
+    color: var(--practiq-violet-dark);
     font-size: 0.82rem;
-    font-weight: 600;
+    font-weight: 700;
     cursor: pointer;
 }
 
@@ -1543,10 +1554,6 @@ onMounted(() => {
     }
 
     .plan-item {
-        display: grid;
-        grid-template-columns: minmax(0, 1fr) auto;
-        align-items: center;
-        gap: 0.75rem;
         padding: 0.9rem;
     }
 
@@ -1558,13 +1565,8 @@ onMounted(() => {
         font-size: 0.7rem;
     }
 
-    .plan-item-side {
-        align-items: flex-end;
-        text-align: right;
-    }
-
     .plan-item-price {
-        font-size: 0.92rem;
+        font-size: 1.05rem;
     }
     .btn-plan {
         min-height: 36px;

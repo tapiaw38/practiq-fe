@@ -20,15 +20,24 @@ function practiqUserId(user: AuthApiUser) {
 const subscriptions = ref<AdminSubscription[]>([]);
 const usersById = ref<Record<string, { name: string; email: string }>>({});
 const loading = ref(true);
-const filterStatus = ref('');
+const activeFilter = ref('');
 
-const statusOptions = [
-    { value: '', label: 'Todas' },
-    { value: 'authorized', label: 'Activas' },
-    { value: 'pending', label: 'Pendientes' },
-    { value: 'paused', label: 'Pausadas' },
-    { value: 'cancelled', label: 'Canceladas' },
+const filterDefs = [
+    { key: '', label: 'Todas' },
+    { key: 'ok', label: 'Al día' },
+    { key: 'overdue', label: 'Pago vencido' },
+    { key: 'trial', label: 'En prueba' },
+    { key: 'paused', label: 'Pausadas' },
+    { key: 'cancelled', label: 'Canceladas' },
 ];
+
+function bucketOf(sub: AdminSubscription) {
+    if (sub.status === 'cancelled') return 'cancelled';
+    if (sub.status === 'paused') return 'paused';
+    if (sub.status === 'pending') return 'trial';
+    if (['rejected', 'cancelled'].includes(sub.last_cycle?.status || '')) return 'overdue';
+    return 'ok';
+}
 
 const subscriptionStatusLabels: Record<string, string> = {
     authorized: 'Activa',
@@ -110,11 +119,26 @@ const failedCount = computed(
         ).length,
 );
 
+const filterCounts = computed(() => {
+    const counts: Record<string, number> = {};
+    for (const sub of subscriptions.value) {
+        const bucket = bucketOf(sub);
+        counts[bucket] = (counts[bucket] || 0) + 1;
+    }
+    return counts;
+});
+
+const filteredSubscriptions = computed(() =>
+    activeFilter.value
+        ? subscriptions.value.filter((s) => bucketOf(s) === activeFilter.value)
+        : subscriptions.value,
+);
+
 async function load() {
     loading.value = true;
     try {
         const [subsResult, usersResult] = await Promise.all([
-            service.listAllSubscriptions(filterStatus.value || undefined),
+            service.listAllSubscriptions(),
             loadUsers({ limit: 1000, offset: 0 }).catch(() => []),
         ]);
         subscriptions.value = subsResult.data;
@@ -150,13 +174,6 @@ onMounted(load);
                         Quién está suscripto, qué plan paga y si el último cobro salió bien.
                     </p>
                 </div>
-                <div class="page-header__right">
-                    <select v-model="filterStatus" class="status-filter" @change="load">
-                        <option v-for="opt in statusOptions" :key="opt.value" :value="opt.value">
-                            {{ opt.label }}
-                        </option>
-                    </select>
-                </div>
             </header>
 
             <div class="subs-summary">
@@ -174,12 +191,28 @@ onMounted(load);
                 </div>
             </div>
 
+            <div class="filter-row" role="group">
+                <button
+                    v-for="f in filterDefs"
+                    :key="f.key"
+                    type="button"
+                    class="filter-chip"
+                    :class="{ 'filter-chip--active': activeFilter === f.key }"
+                    @click="activeFilter = f.key"
+                >
+                    {{ f.label }}
+                    <span class="filter-chip__count">{{
+                        f.key ? filterCounts[f.key] || 0 : subscriptions.length
+                    }}</span>
+                </button>
+            </div>
+
             <div class="card subs-card">
                 <div v-if="loading" class="subs-loading">
                     <Skeleton v-for="n in 5" :key="n" width="100%" height="48px" />
                 </div>
 
-                <table v-else-if="subscriptions.length" class="data-table">
+                <table v-else-if="filteredSubscriptions.length" class="data-table">
                     <thead>
                         <tr>
                             <th>Docente</th>
@@ -191,7 +224,7 @@ onMounted(load);
                         </tr>
                     </thead>
                     <tbody>
-                        <tr v-for="sub in subscriptions" :key="sub.id">
+                        <tr v-for="sub in filteredSubscriptions" :key="sub.id">
                             <td>
                                 <div class="teacher-cell">
                                     <span class="teacher-name">{{
@@ -235,7 +268,10 @@ onMounted(load);
                     </tbody>
                 </table>
 
-                <p v-else class="subs-empty">No hay suscripciones para este filtro.</p>
+                <p v-else-if="subscriptions.length" class="subs-empty">
+                    No hay suscripciones para este filtro.
+                </p>
+                <p v-else class="subs-empty">No hay suscripciones todavía.</p>
             </div>
         </div>
     </TeacherLayout>
@@ -270,13 +306,37 @@ onMounted(load);
     font-size: 0.9rem;
 }
 
-.status-filter {
-    padding: 0.5rem 0.75rem;
-    border-radius: var(--radius-md);
+.filter-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4rem;
+}
+
+.filter-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    flex: 0 0 auto;
+    min-height: 34px;
+    padding: 0 0.75rem;
     border: 1px solid var(--surface-border);
+    border-radius: var(--radius-pill);
     background: var(--surface-card);
-    color: var(--text-primary);
-    font-size: 0.88rem;
+    color: var(--text-secondary);
+    font-size: 0.8rem;
+    font-weight: 600;
+    cursor: pointer;
+}
+
+.filter-chip--active {
+    background: var(--surface-sunken);
+    border-color: var(--brand-200);
+    color: var(--brand-700);
+}
+
+.filter-chip__count {
+    font-weight: 700;
+    opacity: 0.8;
 }
 
 .subs-summary {

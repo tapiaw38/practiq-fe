@@ -9,8 +9,6 @@ import FileUploadField from '@/components/ui/FileUploadField.vue';
 import ExercisesList from '@/components/teacher/exercises/ExercisesList.vue';
 import CourseLevelsPanel from '@/components/teacher/levels/CourseLevelsPanel.vue';
 import MaterialsList from '@/components/teacher/materials/MaterialsList.vue';
-import NotebooksList from '@/components/teacher/notebooks/NotebooksList.vue';
-import PracticeSheetsList from '@/components/teacher/practiceSheets/PracticeSheetsList.vue';
 import StudentsList from '@/components/teacher/students/StudentsList.vue';
 import TopicModal from '@/components/teacher/topics/TopicModal.vue';
 import TopicsList from '@/components/teacher/topics/TopicsList.vue';
@@ -143,12 +141,9 @@ const {
     practiceSheets,
     currentPage: sheetsPage,
     pageSize: sheetsPageSize,
-    hasMore: sheetsHasMore,
     loadPracticeSheets,
     loadPracticeSheet,
     loadPage: loadSheetsPage,
-    nextPage: nextSheetsPage,
-    prevPage: prevSheetsPage,
     createPracticeSheet,
     updatePracticeSheet,
     deletePracticeSheet: deletePracticeSheetService,
@@ -177,13 +172,16 @@ const activeTab = ref('levels');
 const tabsElement = ref<HTMLElement | null>(null);
 const tabs = [
     { id: 'levels', label: 'Niveles', icon: 'pi pi-sitemap' },
-    { id: 'topics', label: 'Temas', icon: 'pi pi-list' },
-    { id: 'exercises', label: 'Ejercicios', icon: 'pi pi-pencil' },
-    { id: 'materials', label: 'Materiales', icon: 'pi pi-file' },
+    { id: 'content', label: 'Contenido', icon: 'pi pi-list' },
     { id: 'students', label: 'Alumnos', icon: 'pi pi-users' },
-    { id: 'sheets', label: 'Hojas de Práctica', icon: 'pi pi-copy' },
-    { id: 'notebooks', label: 'Cuadernos', icon: 'pi pi-book' },
 ];
+
+const contentSubTab = ref<'topics' | 'exercises' | 'materials'>('topics');
+const contentSubTabs = computed(() => [
+    { id: 'topics' as const, label: 'Temas', count: topics.value.length },
+    { id: 'exercises' as const, label: 'Ejercicios', count: exercises.value.length },
+    { id: 'materials' as const, label: 'Materiales', count: materials.value.length },
+]);
 
 function focusTab(index: number) {
     const tab = tabs[(index + tabs.length) % tabs.length];
@@ -1806,8 +1804,23 @@ async function deleteNotebook(id: string) {
                     @open-notebook="openNotebook"
                 />
 
+                <div v-if="activeTab === 'content'" class="content-subtabs" role="tablist" aria-label="Tipo de contenido">
+                    <button
+                        v-for="sub in contentSubTabs"
+                        :key="sub.id"
+                        type="button"
+                        role="tab"
+                        :aria-selected="contentSubTab === sub.id"
+                        class="content-subtab"
+                        :class="{ 'content-subtab-active': contentSubTab === sub.id }"
+                        @click="contentSubTab = sub.id"
+                    >
+                        {{ sub.label }} · {{ sub.count }}
+                    </button>
+                </div>
+
                 <TopicsList
-                    v-if="activeTab === 'topics'"
+                    v-if="activeTab === 'content' && contentSubTab === 'topics'"
                     :topics="topics"
                     :editing-topic-id="editingTopicId"
                     :edit-topic-title="editTopicTitle"
@@ -1820,7 +1833,7 @@ async function deleteNotebook(id: string) {
                 />
 
                 <ExercisesList
-                    v-if="activeTab === 'exercises'"
+                    v-if="activeTab === 'content' && contentSubTab === 'exercises'"
                     :topics="topics"
                     :selected-topic-id="selectedTopicId"
                     :exercises="exercises"
@@ -1834,7 +1847,7 @@ async function deleteNotebook(id: string) {
                 />
 
                 <MaterialsList
-                    v-if="activeTab === 'materials'"
+                    v-if="activeTab === 'content' && contentSubTab === 'materials'"
                     :materials="materials"
                     @create="showMaterialModal = true"
                     @edit="openEditMaterial"
@@ -1842,41 +1855,6 @@ async function deleteNotebook(id: string) {
                 />
 
                 <StudentsList v-if="activeTab === 'students'" :students="students" />
-
-                <div v-if="activeTab === 'sheets'">
-                    <PracticeSheetsList
-                        :sheets="practiceSheets"
-                        @create="openNewSheet"
-                        @edit="openEditSheet"
-                        @delete="deleteSheet"
-                    />
-                    <div
-                        v-if="practiceSheets.length > 0 || sheetsPage > 1"
-                        class="pagination-controls"
-                    >
-                        <button
-                            :disabled="sheetsPage === 1"
-                            @click="() => prevSheetsPage(courseId)"
-                        >
-                            <i class="pi pi-chevron-left"></i> Anterior
-                        </button>
-                        <span class="pagination-info">
-                            Página {{ sheetsPage }} · {{ practiceSheets.length }} resultados
-                        </span>
-                        <button :disabled="!sheetsHasMore" @click="() => nextSheetsPage(courseId)">
-                            Siguiente <i class="pi pi-chevron-right"></i>
-                        </button>
-                    </div>
-                </div>
-
-                <NotebooksList
-                    v-if="activeTab === 'notebooks'"
-                    :notebooks="notebooks"
-                    @create="showNotebookModal = true"
-                    @open="openNotebook"
-                    @edit="openEditNotebook"
-                    @delete="deleteNotebook"
-                />
             </div>
         </div>
 
@@ -3564,12 +3542,8 @@ async function deleteNotebook(id: string) {
 
 .tabs {
     display: flex;
-    gap: 8px;
-    padding: 8px;
-    border-radius: var(--radius-2xl);
-    background: var(--surface-glass);
-    border: 1px solid var(--surface-elevated-strong);
-    box-shadow: var(--shadow-card);
+    gap: 4px;
+    border-bottom: 1px solid var(--line, var(--surface-border));
     margin-bottom: 24px;
     overflow-x: auto;
     scrollbar-width: thin;
@@ -3578,31 +3552,68 @@ async function deleteNotebook(id: string) {
 }
 
 .tab {
-    padding: 10px 14px;
-    background: transparent;
-    border: 1px solid transparent;
-    border-radius: var(--radius-xl);
-    font-size: var(--text-base);
-    font-weight: 700;
-    color: var(--text-secondary);
-    cursor: pointer;
-    transition: var(--transition);
-    display: flex;
+    display: inline-flex;
     align-items: center;
     gap: 8px;
+    min-height: 44px;
+    padding: 0 14px;
+    margin-bottom: -1px;
+    background: transparent;
+    border: 0;
+    border-bottom: 2px solid transparent;
+    font-size: var(--text-base);
+    font-weight: 900;
+    color: var(--ink-muted, var(--text-secondary));
+    cursor: pointer;
+    transition: var(--transition);
     white-space: nowrap;
     scroll-snap-align: start;
 }
 
 .tab:hover {
-    background: var(--surface-elevated-strong);
-    color: var(--text-heading);
+    color: var(--ink, var(--text-heading));
 }
 
-.tab-active {
-    color: var(--practiq-violet-dark);
-    background: var(--gradient-brand-soft);
-    border-color: rgba(var(--practiq-violet-rgb), 0.18);
+.tab-active,
+.tab-active:hover {
+    color: var(--brand-700, var(--practiq-violet-dark));
+    border-bottom-color: var(--brand-500, var(--practiq-violet));
+}
+
+.content-subtabs {
+    display: flex;
+    gap: 2px;
+    padding: 3px;
+    margin-bottom: 16px;
+    border-radius: var(--radius-xl);
+    background: var(--surface-sunken, var(--surface-elevated-strong));
+    width: fit-content;
+    max-width: 100%;
+    overflow-x: auto;
+}
+
+.content-subtab {
+    min-height: 34px;
+    padding: 0 12px;
+    border: 1px solid transparent;
+    border-radius: var(--radius-lg);
+    background: transparent;
+    font-size: 12.5px;
+    font-weight: 600;
+    color: var(--ink-muted, var(--text-secondary));
+    cursor: pointer;
+    transition: var(--transition);
+    white-space: nowrap;
+}
+
+.content-subtab:hover {
+    color: var(--ink, var(--text-heading));
+}
+
+.content-subtab-active {
+    background: var(--surface, var(--surface-card));
+    color: var(--ink, var(--text-heading));
+    box-shadow: var(--shadow-xs, var(--shadow-sm));
 }
 
 .empty-inline {

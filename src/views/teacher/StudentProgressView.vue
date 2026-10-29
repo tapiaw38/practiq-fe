@@ -99,6 +99,17 @@ const totalCorrect = computed(() =>
 const totalAttempts = computed(() =>
     groupedProgress.value.reduce((a, p) => a + p.total_attempts, 0),
 );
+const strugglingTopic = computed(() => {
+    const candidates = groupedProgress.value.filter(
+        (p) => p.total_attempts > 0 && p.mastery_score < 50,
+    );
+    if (!candidates.length) return null;
+    return candidates.reduce((worst, p) => (p.mastery_score < worst.mastery_score ? p : worst));
+});
+
+function goToReviews() {
+    router.push('/teacher/attempt-reviews');
+}
 
 const filteredSheets = computed(() => {
     if (!selectedCourseId.value) return allSheets.value;
@@ -358,7 +369,19 @@ function masteryClass(score: number) {
                     <p class="sp-subtitle">{{ studentEmail }}</p>
                 </div>
                 <button class="btn btn-primary download-pdf-btn" @click="showPdfModal = true">
-                    <i class="pi pi-file-pdf"></i> Descargar PDF
+                    <i class="pi pi-file-pdf"></i> Informe PDF
+                </button>
+            </div>
+
+            <div v-if="strugglingTopic" class="struggling-alert">
+                <i class="pi pi-exclamation-circle"></i>
+                <p>
+                    <strong>{{ strugglingTopic.topic_title || 'Este tema' }}</strong> le está
+                    costando: {{ strugglingTopic.total_attempts }} intentos ·
+                    {{ strugglingTopic.mastery_score.toFixed(0) }}% de dominio.
+                </p>
+                <button type="button" class="struggling-alert__btn" @click="goToReviews">
+                    Corregir
                 </button>
             </div>
 
@@ -1153,6 +1176,44 @@ function masteryClass(score: number) {
     padding: 8px 16px;
     font-size: var(--text-sm);
     white-space: nowrap;
+}
+
+.struggling-alert {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    margin-bottom: 16px;
+    padding: 12px 14px;
+    border: 1px solid #f6e3bf;
+    border-radius: var(--radius-md);
+    background: var(--color-warning-bg);
+    color: var(--color-warning-dark);
+}
+.struggling-alert i {
+    margin-top: 2px;
+    color: var(--color-warning-dark);
+}
+.struggling-alert p {
+    flex: 1;
+    margin: 0;
+    font-size: var(--text-sm);
+    line-height: 1.5;
+    color: var(--text-primary);
+}
+.struggling-alert strong {
+    color: var(--text-primary);
+}
+.struggling-alert__btn {
+    border: 0;
+    background: transparent;
+    color: var(--practiq-violet-700);
+    font-weight: 700;
+    font-size: var(--text-sm);
+    cursor: pointer;
+    white-space: nowrap;
+}
+.struggling-alert__btn:hover {
+    text-decoration: underline;
 }
 
 .back-btn {

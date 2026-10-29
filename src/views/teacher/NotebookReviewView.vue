@@ -1,12 +1,13 @@
 <script setup lang="ts">
 import UiModal from '@/components/ui/UiModal.vue';
-import { ref, reactive, computed, onMounted, watch } from 'vue';
+import { ref, reactive, computed, onMounted, watch, nextTick } from 'vue';
 import TeacherLayout from '@/layouts/TeacherLayout.vue';
 import Skeleton from '@/components/ui/Skeleton.vue';
 import { useCourse } from '@/composables/useCourse';
 import { useNotebook } from '@/composables/useNotebook';
 import { useGrade } from '@/composables/useGrade';
 import { useSubject } from '@/composables/useSubject';
+import { useToast } from '@/composables/useToast';
 import { formatDateTime } from '@/utils/formatters';
 import type { NotebookSubmissionFull } from '@/types';
 
@@ -32,9 +33,9 @@ const loading = ref(true);
 const submissions = ref<NotebookSubmissionFull[]>([]);
 const reviewingIds = ref<Set<string>>(new Set());
 const previewSubmission = ref<NotebookSubmissionFull | null>(null);
-const reviewingSubmission = ref<NotebookSubmissionFull | null>(null);
 const savingReview = ref(false);
 const studentsLoading = ref(false);
+const toast = useToast();
 let searchDebounceTimer: ReturnType<typeof setTimeout> | null = null;
 
 const filters = reactive({
@@ -233,16 +234,60 @@ function openPreview(submission: NotebookSubmissionFull) {
     previewSubmission.value = submission;
 }
 
-function openReviewModal(submission: NotebookSubmissionFull) {
-    reviewingSubmission.value = submission;
-    reviewForm.isCorrect = submission.teacher_is_correct ?? null;
-    reviewForm.feedback = submission.teacher_feedback || '';
-}
+const activeTab = ref<'pending' | 'confirmed' | 'all'>('pending');
+const pendingTabCount = computed(
+    () => filteredSubmissions.value.filter((s) => !s.teacher_reviewed_at).length,
+);
+const confirmedTabCount = computed(
+    () => filteredSubmissions.value.filter((s) => !!s.teacher_reviewed_at).length,
+);
+const statusTabs = computed(() => [
+    { key: 'pending' as const, label: 'Pendientes', count: pendingTabCount.value },
+    { key: 'confirmed' as const, label: 'Confirmadas', count: confirmedTabCount.value },
+    { key: 'all' as const, label: 'Todas', count: filteredSubmissions.value.length },
+]);
+const tabFilteredSubmissions = computed(() =>
+    filteredSubmissions.value.filter((s) => {
+        if (activeTab.value === 'pending') return !s.teacher_reviewed_at;
+        if (activeTab.value === 'confirmed') return !!s.teacher_reviewed_at;
+        return true;
+    }),
+);
 
-function closeReviewModal() {
-    reviewingSubmission.value = null;
-    reviewForm.isCorrect = null;
-    reviewForm.feedback = '';
+const moreFiltersOpen = ref(false);
+const selectedId = ref<string | null>(null);
+const detailOpen = ref(false);
+
+const current = computed<NotebookSubmissionFull | null>(
+    () =>
+        tabFilteredSubmissions.value.find((s) => s.id === selectedId.value) ??
+        tabFilteredSubmissions.value[0] ??
+        null,
+);
+const currentPosition = computed(() => {
+    const idx = tabFilteredSubmissions.value.findIndex((s) => s.id === current.value?.id);
+    return idx === -1 ? '' : `${idx + 1} de ${tabFilteredSubmissions.value.length}`;
+});
+
+watch(current, (submission) => {
+    reviewForm.isCorrect = submission ? (submission.teacher_is_correct ?? submission.ai_is_correct ?? null) : null;
+    reviewForm.feedback = submission?.teacher_feedback || submission?.ai_feedback || '';
+});
+
+function selectSubmission(submission: NotebookSubmissionFull) {
+    selectedId.value = submission.id;
+    detailOpen.value = true;
+}
+function backToList() {
+    detailOpen.value = false;
+}
+function askToRedo() {
+    toast.add({
+        severity: 'info',
+        summary: 'Próximamente',
+        detail: 'Pedirle al alumno que rehaga esta página todavía no está disponible.',
+        life: 3000,
+    });
 }
 
 async function triggerAIReview(submissionId: string) {
@@ -260,27 +305,36 @@ async function triggerAIReview(submissionId: string) {
     }
 }
 
-async function saveManualReview() {
-    if (!reviewingSubmission.value || reviewForm.isCorrect === null) return;
+async function confirmAndNext() {
+    const submission = current.value;
+    if (!submission || reviewForm.isCorrect === null) return;
 
+    const idx = tabFilteredSubmissions.value.findIndex((s) => s.id === submission.id);
     savingReview.value = true;
     try {
-        await updateManualReviewService(reviewingSubmission.value.id, {
+        await updateManualReviewService(submission.id, {
             teacher_is_correct: reviewForm.isCorrect,
             teacher_feedback: reviewForm.feedback,
         });
 
-        const idx = submissions.value.findIndex((s) => s.id === reviewingSubmission.value!.id);
-        if (idx >= 0) {
-            submissions.value[idx] = {
-                ...submissions.value[idx],
+        const allIdx = submissions.value.findIndex((s) => s.id === submission.id);
+        if (allIdx >= 0) {
+            submissions.value[allIdx] = {
+                ...submissions.value[allIdx],
                 teacher_is_correct: reviewForm.isCorrect,
                 teacher_feedback: reviewForm.feedback,
                 teacher_reviewed_at: new Date().toISOString(),
             };
         }
 
-        closeReviewModal();
+        await nextTick();
+        const remaining = tabFilteredSubmissions.value;
+        if (!remaining.length) {
+            selectedId.value = null;
+            detailOpen.value = false;
+        } else {
+            selectedId.value = remaining[Math.min(idx, remaining.length - 1)].id;
+        }
     } catch (err) {
         console.error('Failed to save review:', err);
     } finally {
@@ -291,11 +345,15 @@ async function saveManualReview() {
 
 <template>
     <TeacherLayout>
-        <div class="review-dashboard anim-stagger">
+        <div class="review-dashboard anim-stagger" :class="{ 'detail-open': detailOpen }">
             <div class="page-header">
                 <div class="page-header__left">
-                    <div class="page-kicker">Revision de cuadernos</div>
-                    <h1 class="page-title">Entregas de estudiantes</h1>
+                    <div class="page-kicker">Revisar</div>
+                    <h1 class="page-title">Cuadernos entregados</h1>
+                    <p class="page-subtitle">
+                        La IA deja una primera devolución. Vos la confirmás, la ajustás o pedís que
+                        lo rehaga.
+                    </p>
                 </div>
                 <div class="page-header__right">
                     <button class="btn btn-secondary" @click="refreshSubmissions">
@@ -305,21 +363,51 @@ async function saveManualReview() {
                 </div>
             </div>
 
-            <section class="filters-panel" aria-label="Filtros de entregas">
-                <div class="filters-panel__head">
-                    <div>
-                        <strong>Filtrar entregas</strong
-                        ><span v-if="activeFilterCount">{{ activeFilterCount }} activos</span>
-                    </div>
+            <div class="toolbar">
+                <div class="status-tabs" role="tablist" aria-label="Estado">
                     <button
-                        v-if="activeFilterCount"
-                        class="filters-clear"
+                        v-for="tab in statusTabs"
+                        :key="tab.key"
                         type="button"
-                        @click="clearFilters"
+                        role="tab"
+                        class="status-tab"
+                        :class="{ 'status-tab--on': activeTab === tab.key }"
+                        @click="activeTab = tab.key"
                     >
-                        <i class="pi pi-filter-slash"></i> Limpiar
+                        {{ tab.label }} <span>{{ tab.count }}</span>
                     </button>
                 </div>
+                <select
+                    v-model="filters.courseId"
+                    class="filter-select"
+                    aria-label="Curso"
+                    @change="onCourseChange"
+                >
+                    <option value="">Todos mis cursos</option>
+                    <option v-for="course in courses" :key="course.id" :value="course.id">
+                        {{ course.title }}
+                    </option>
+                </select>
+                <button
+                    type="button"
+                    class="more-filters-toggle"
+                    :class="{ 'more-filters-toggle--on': moreFiltersOpen }"
+                    @click="moreFiltersOpen = !moreFiltersOpen"
+                >
+                    <i class="pi pi-filter"></i> Grado, materia, alumno
+                    <span v-if="activeFilterCount">{{ activeFilterCount }}</span>
+                </button>
+                <button
+                    v-if="activeFilterCount"
+                    class="filters-clear"
+                    type="button"
+                    @click="clearFilters"
+                >
+                    <i class="pi pi-filter-slash"></i> Limpiar
+                </button>
+            </div>
+
+            <section v-if="moreFiltersOpen" class="filters-panel" aria-label="Más filtros">
                 <div class="filters-bar">
                     <div class="filter-group">
                         <label class="filter-label">Grado</label>
@@ -352,20 +440,7 @@ async function saveManualReview() {
                         </select>
                     </div>
                     <div class="filter-group">
-                        <label class="filter-label">Curso</label>
-                        <select
-                            v-model="filters.courseId"
-                            class="filter-select"
-                            @change="onCourseChange"
-                        >
-                            <option value="">Todos los cursos</option>
-                            <option v-for="course in courses" :key="course.id" :value="course.id">
-                                {{ course.title }}
-                            </option>
-                        </select>
-                    </div>
-                    <div class="filter-group">
-                        <label class="filter-label">Estado de revision</label>
+                        <label class="filter-label">Estado de revisión IA</label>
                         <select
                             v-model="filters.reviewedStatus"
                             class="filter-select"
@@ -477,180 +552,178 @@ async function saveManualReview() {
                 <p>No encontramos entregas de cuadernos con los filtros seleccionados.</p>
             </div>
 
-            <div v-else>
-                <div class="submissions-grid">
-                    <article
-                        v-for="submission in filteredSubmissions"
-                        :key="submission.id"
-                        class="submission-card"
-                        :class="{
-                            'submission-card--needs-review':
-                                submission.needs_teacher_review && !submission.teacher_reviewed_at,
-                            'submission-card--correct': effectiveVerdict(submission) === true,
-                            'submission-card--incorrect': effectiveVerdict(submission) === false,
-                            'submission-card--pending': effectiveVerdict(submission) == null,
-                        }"
+            <div v-else class="review-split">
+                <div class="review-list-pane">
+                    <div class="review-list">
+                        <button
+                            v-for="submission in tabFilteredSubmissions"
+                            :key="submission.id"
+                            type="button"
+                            class="review-item"
+                            :class="{ 'review-item--active': submission.id === current?.id }"
+                            @click="selectSubmission(submission)"
+                        >
+                            <span class="review-item__avatar">{{
+                                getInitial(submission.student_name)
+                            }}</span>
+                            <span class="review-item__body">
+                                <strong>{{ submission.student_name || 'Estudiante' }}</strong>
+                                <span class="review-item__meta">{{
+                                    submission.notebook_title || 'Cuaderno'
+                                }}</span>
+                                <span class="review-item__when">
+                                    <span
+                                        class="review-tag"
+                                        :class="
+                                            submission.teacher_reviewed_at
+                                                ? 'review-tag--teacher'
+                                                : submission.ai_feedback ||
+                                                    submission.ai_is_correct !== undefined
+                                                  ? 'review-tag--ai'
+                                                  : 'review-tag--pending'
+                                        "
+                                    >
+                                        {{
+                                            submission.teacher_reviewed_at
+                                                ? 'Confirmada'
+                                                : submission.ai_feedback ||
+                                                    submission.ai_is_correct !== undefined
+                                                  ? 'IA revisó'
+                                                  : 'Sin revisar'
+                                        }}
+                                    </span>
+                                    {{ formatDateTime(submission.created_at) }}
+                                </span>
+                            </span>
+                        </button>
+                    </div>
+
+                    <div
+                        v-if="!filters.studentSearch.trim() && (submissionsPage > 1 || submissionsHasMore)"
+                        class="pagination-controls"
                     >
-                        <div class="submission-header">
-                            <div class="student-info">
-                                <div class="student-avatar">
-                                    {{ getInitial(submission.student_name) }}
-                                </div>
-                                <div class="student-details">
-                                    <div class="student-name">
-                                        {{ submission.student_name || 'Estudiante' }}
-                                    </div>
-                                    <div class="student-email">
-                                        {{ submission.student_email }}
-                                    </div>
-                                </div>
-                            </div>
-                            <div class="submission-badges">
-                                <span
-                                    v-if="effectiveVerdict(submission) === true"
-                                    class="badge badge--success"
-                                >
-                                    <i class="pi pi-check"></i> Correcto
-                                </span>
-                                <span
-                                    v-else-if="effectiveVerdict(submission) === false"
-                                    class="badge badge--error"
-                                >
-                                    <i class="pi pi-times"></i> Incorrecto
-                                </span>
-                                <span v-else class="badge badge--pending">
-                                    <i class="pi pi-clock"></i> Pendiente
-                                </span>
-                                <span
-                                    v-if="
-                                        submission.needs_teacher_review &&
-                                        !submission.teacher_reviewed_at
-                                    "
-                                    class="badge badge--review"
-                                    title="La consigna de esta página no fue verificada, así que la IA solo sugiere"
-                                >
-                                    <i class="pi pi-flag"></i> Requiere tu revisión
-                                </span>
-                                <span
-                                    v-if="submission.teacher_reviewed_at"
-                                    class="badge badge--teacher"
-                                >
-                                    <i class="pi pi-user"></i> Revisado
-                                </span>
-                            </div>
-                        </div>
+                        <button
+                            class="btn btn-secondary"
+                            :disabled="submissionsPage === 1"
+                            @click="goToPrevPage"
+                        >
+                            <i class="pi pi-chevron-left"></i>
+                        </button>
+                        <span class="pagination-info">Página {{ submissionsPage }}</span>
+                        <button
+                            class="btn btn-secondary"
+                            :disabled="!submissionsHasMore"
+                            @click="goToNextPage"
+                        >
+                            <i class="pi pi-chevron-right"></i>
+                        </button>
+                    </div>
+                </div>
 
-                        <div class="submission-meta">
-                            <span class="meta-item">
-                                <i class="pi pi-book"></i>
-                                {{ submission.notebook_title || 'Cuaderno' }}
-                            </span>
-                            <span class="meta-item">
-                                <i class="pi pi-file"></i>
-                                Pagina {{ submission.page_number }}
-                            </span>
-                            <span class="meta-item">
-                                <i class="pi pi-calendar"></i>
-                                {{ formatDateTime(submission.created_at) }}
-                            </span>
-                        </div>
+                <article v-if="current" class="review-detail">
+                    <button type="button" class="back-link" @click="backToList">
+                        <i class="pi pi-arrow-left"></i> Todas las entregas
+                    </button>
 
-                        <div class="canvas-preview" v-if="submission.canvas_data">
+                    <header class="review-detail__head">
+                        <h2>{{ current.notebook_title || 'Cuaderno' }}</h2>
+                        <p>
+                            {{ current.student_name }} · Página {{ current.page_number }} ·
+                            entregado {{ formatDateTime(current.created_at) }}
+                        </p>
+                        <span class="review-detail__position">{{ currentPosition }}</span>
+                    </header>
+
+                    <div class="review-detail__columns">
+                        <div
+                            class="canvas-preview"
+                            :class="{ 'canvas-preview--empty': !current.canvas_data }"
+                        >
                             <img
-                                :src="submission.canvas_data"
-                                :alt="`Respuesta de ${submission.student_name}`"
+                                v-if="current.canvas_data"
+                                :src="current.canvas_data"
+                                :alt="`Respuesta de ${current.student_name}`"
                                 class="preview-image"
-                                @click="openPreview(submission)"
+                                @click="openPreview(current)"
                             />
-                        </div>
-
-                        <div v-if="submission.ai_feedback" class="ai-feedback-box">
-                            <div class="feedback-header">
-                                <i class="pi pi-android"></i>
-                                <span>Feedback IA</span>
-                            </div>
-                            <p class="feedback-text">{{ submission.ai_feedback }}</p>
-                        </div>
-
-                        <div v-if="submission.teacher_feedback" class="teacher-feedback-box">
-                            <div class="feedback-header">
-                                <i class="pi pi-user"></i>
-                                <span>Tu revision</span>
-                            </div>
-                            <p class="feedback-text">{{ submission.teacher_feedback }}</p>
-                            <span
-                                class="review-badge"
-                                :class="
-                                    submission.teacher_is_correct
-                                        ? 'review-badge--correct'
-                                        : 'review-badge--incorrect'
-                                "
-                            >
-                                {{
-                                    submission.teacher_is_correct
-                                        ? 'Marcado correcto'
-                                        : 'Marcado incorrecto'
-                                }}
+                            <span v-else class="canvas-preview__placeholder">
+                                <i class="pi pi-image"></i> Página del alumno
                             </span>
                         </div>
 
-                        <div class="submission-actions">
+                        <div class="review-detail__feedback">
+                            <div v-if="current.ai_feedback" class="ai-feedback-box">
+                                <div class="feedback-header">
+                                    <i class="pi pi-sparkles"></i>
+                                    <span>Devolución de la IA</span>
+                                </div>
+                                <p class="feedback-text">{{ current.ai_feedback }}</p>
+                            </div>
                             <button
-                                v-if="submission.ai_is_correct === undefined"
+                                v-else-if="current.ai_is_correct === undefined"
+                                type="button"
                                 class="btn btn-sm btn-secondary"
-                                :disabled="reviewingIds.has(submission.id)"
-                                @click="triggerAIReview(submission.id)"
+                                :disabled="reviewingIds.has(current.id)"
+                                @click="triggerAIReview(current.id)"
                             >
                                 <i
-                                    v-if="reviewingIds.has(submission.id)"
+                                    v-if="reviewingIds.has(current.id)"
                                     class="pi pi-spin pi-spinner"
                                 ></i>
                                 <i v-else class="pi pi-android"></i>
-                                {{
-                                    reviewingIds.has(submission.id)
-                                        ? 'Evaluando...'
-                                        : 'Evaluar con IA'
-                                }}
+                                {{ reviewingIds.has(current.id) ? 'Evaluando…' : 'Evaluar con IA' }}
+                            </button>
+
+                            <label class="feedback-label">
+                                <span>Tu devolución</span>
+                                <textarea
+                                    v-model="reviewForm.feedback"
+                                    rows="3"
+                                    placeholder="Agregá o corregí lo que dijo la IA…"
+                                ></textarea>
+                            </label>
+                        </div>
+                    </div>
+
+                    <section class="review-detail__correction">
+                        <h3>Es correcto?</h3>
+                        <div class="verdict-buttons">
+                            <button
+                                type="button"
+                                class="verdict-btn verdict-btn--ok"
+                                :class="{ 'verdict-btn--picked': reviewForm.isCorrect === true }"
+                                @click="reviewForm.isCorrect = true"
+                            >
+                                <i class="pi pi-check"></i> Correcto
                             </button>
                             <button
-                                class="btn btn-sm btn-primary"
-                                @click="openReviewModal(submission)"
+                                type="button"
+                                class="verdict-btn verdict-btn--no"
+                                :class="{ 'verdict-btn--picked': reviewForm.isCorrect === false }"
+                                @click="reviewForm.isCorrect = false"
                             >
-                                <i class="pi pi-pencil"></i>
-                                Revisar manualmente
+                                <i class="pi pi-times"></i> Incorrecto
                             </button>
                         </div>
-                    </article>
-                </div>
-            </div>
 
-            <div
-                v-if="
-                    !loading &&
-                    !filters.studentSearch.trim() &&
-                    (filteredSubmissions.length > 0 || submissionsPage > 1)
-                "
-                class="pagination-controls"
-            >
-                <button
-                    class="btn btn-secondary"
-                    :disabled="submissionsPage === 1"
-                    @click="goToPrevPage"
-                >
-                    <i class="pi pi-chevron-left"></i>
-                    Anterior
-                </button>
-                <span class="pagination-info">
-                    Página {{ submissionsPage }} · {{ filteredSubmissions.length }} resultados
-                </span>
-                <button
-                    class="btn btn-secondary"
-                    :disabled="!submissionsHasMore"
-                    @click="goToNextPage"
-                >
-                    Siguiente
-                    <i class="pi pi-chevron-right"></i>
-                </button>
+                        <div class="review-detail__footer">
+                            <button type="button" class="btn btn-ghost" @click="askToRedo">
+                                <i class="pi pi-replay"></i> Pedir que lo rehaga
+                            </button>
+                            <button
+                                type="button"
+                                class="btn btn-primary"
+                                :disabled="reviewForm.isCorrect === null || savingReview"
+                                @click="confirmAndNext"
+                            >
+                                <span v-if="savingReview" class="spinner spinner-sm"></span>
+                                <template v-else
+                                    >Confirmar y seguir <i class="pi pi-arrow-right"></i
+                                ></template>
+                            </button>
+                        </div>
+                    </section>
+                </article>
             </div>
 
             <UiModal :visible="Boolean(previewSubmission)" @close="previewSubmission = null">
@@ -671,100 +744,6 @@ async function saveManualReview() {
                                 alt="Vista previa"
                                 class="full-preview-image"
                             />
-                        </div>
-                    </div>
-                </template>
-            </UiModal>
-
-            <UiModal :visible="Boolean(reviewingSubmission)" @close="closeReviewModal">
-                <template v-if="reviewingSubmission">
-                    <div class="modal-box">
-                        <div class="modal-head">
-                            <h3 class="modal-title">Revision manual</h3>
-                            <button class="icon-btn" @click="closeReviewModal">
-                                <i class="pi pi-times"></i>
-                            </button>
-                        </div>
-
-                        <div class="review-form">
-                            <div class="review-student-info">
-                                <div class="student-avatar">
-                                    {{ getInitial(reviewingSubmission.student_name) }}
-                                </div>
-                                <div>
-                                    <div class="student-name">
-                                        {{ reviewingSubmission.student_name }}
-                                    </div>
-                                    <div class="meta-item">
-                                        {{ reviewingSubmission.notebook_title }} - Pagina
-                                        {{ reviewingSubmission.page_number }}
-                                    </div>
-                                </div>
-                            </div>
-
-                            <div v-if="reviewingSubmission.canvas_data" class="review-preview">
-                                <img
-                                    :src="reviewingSubmission.canvas_data"
-                                    alt="Respuesta"
-                                    class="preview-image"
-                                />
-                            </div>
-
-                            <div v-if="reviewingSubmission.ai_feedback" class="ai-feedback-mini">
-                                <strong>IA dice:</strong>
-                                {{ reviewingSubmission.ai_feedback }}
-                            </div>
-
-                            <div class="form-group">
-                                <label class="form-label">Es correcto?</label>
-                                <div class="correctness-toggle">
-                                    <button
-                                        type="button"
-                                        class="toggle-btn"
-                                        :class="{
-                                            'toggle-btn--active': reviewForm.isCorrect === true,
-                                        }"
-                                        @click="reviewForm.isCorrect = true"
-                                    >
-                                        <i class="pi pi-check"></i> Correcto
-                                    </button>
-                                    <button
-                                        type="button"
-                                        class="toggle-btn toggle-btn--danger"
-                                        :class="{
-                                            'toggle-btn--active': reviewForm.isCorrect === false,
-                                        }"
-                                        @click="reviewForm.isCorrect = false"
-                                    >
-                                        <i class="pi pi-times"></i> Incorrecto
-                                    </button>
-                                </div>
-                            </div>
-
-                            <div class="form-group">
-                                <label class="form-label">Comentarios</label>
-                                <textarea
-                                    v-model="reviewForm.feedback"
-                                    class="form-textarea"
-                                    rows="4"
-                                    placeholder="Escribe tu feedback para el estudiante..."
-                                ></textarea>
-                            </div>
-
-                            <div class="modal-actions">
-                                <button class="btn btn-secondary" @click="closeReviewModal">
-                                    Cancelar
-                                </button>
-                                <button
-                                    class="btn btn-primary"
-                                    :disabled="reviewForm.isCorrect === null || savingReview"
-                                    @click="saveManualReview"
-                                >
-                                    <span v-if="savingReview" class="spinner spinner-sm"></span>
-                                    <i v-else class="pi pi-check"></i>
-                                    Guardar revision
-                                </button>
-                            </div>
                         </div>
                     </div>
                 </template>
@@ -955,18 +934,6 @@ async function saveManualReview() {
     box-shadow: var(--shadow-card-lg);
 }
 
-.submission-card--correct {
-    border-color: rgba(var(--color-success-rgb), 0.3);
-}
-
-.submission-card--incorrect {
-    border-color: rgba(var(--color-error-rgb), 0.3);
-}
-
-.submission-card--pending {
-    border-color: rgba(var(--color-warning-rgb), 0.3);
-}
-
 .submission-header {
     display: flex;
     justify-content: space-between;
@@ -980,110 +947,45 @@ async function saveManualReview() {
     gap: 12px;
 }
 
-.student-avatar {
-    width: 42px;
-    height: 42px;
-    border-radius: var(--radius-lg);
-    background: var(--gradient-brand);
-    color: var(--color-on-primary);
-    font-weight: 800;
-    font-size: var(--text-lg);
-    display: grid;
-    place-items: center;
-    flex-shrink: 0;
-}
-
-.student-details {
-    min-width: 0;
-}
-
-.student-name {
-    font-size: var(--text-base);
-    font-weight: 700;
-    color: var(--text-primary);
-}
-
-.student-email {
-    font-size: var(--text-sm);
-    color: var(--text-secondary);
-}
-
-.submission-badges {
-    display: flex;
-    gap: 6px;
-    flex-wrap: wrap;
-}
-
-.badge {
-    display: inline-flex;
-    align-items: center;
-    gap: 4px;
-    padding: 4px 10px;
-    border-radius: var(--radius-pill);
-    font-size: var(--text-xs);
-    font-weight: 700;
-}
-
-.badge--success {
-    background: var(--color-success-bg);
-    color: var(--color-success-dark);
-}
-
-.badge--error {
-    background: var(--color-error-bg);
-    color: var(--color-error-dark);
-}
-
-.badge--pending {
-    background: var(--color-warning-bg);
-    color: var(--color-warning-dark);
-}
-
-.badge--teacher {
-    background: var(--fill-primary-soft);
-    color: var(--practiq-violet);
-}
-
-.badge--review {
-    background: rgba(var(--color-warning-rgb), 0.16);
-    color: var(--color-warning-dark);
-}
-
-.submission-card--needs-review {
-    box-shadow:
-        inset 3px 0 0 var(--color-warning),
-        var(--elevation-tint-shadow);
-}
-
 .submission-meta {
     display: flex;
     flex-wrap: wrap;
     gap: 12px;
 }
 
-.meta-item {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    font-size: var(--text-sm);
-    color: var(--text-secondary);
-}
-
-.meta-item i {
-    font-size: 14px;
-    color: var(--text-muted);
-}
-
 .canvas-preview {
     border-radius: var(--radius-lg);
     overflow: hidden;
-    border: 1px solid rgba(var(--surface-border-rgb), 0.15);
+    border: 1px solid var(--surface-border);
     cursor: pointer;
+    min-height: 220px;
+    display: grid;
+}
+
+.canvas-preview--empty {
+    place-items: center;
+    cursor: default;
+    background: var(--canvas);
+    border-style: dashed;
+    border-color: var(--brand-200);
+    color: var(--text-secondary);
+}
+
+.canvas-preview__placeholder {
+    display: grid;
+    justify-items: center;
+    gap: 6px;
+    font-size: 12px;
+}
+.canvas-preview__placeholder i {
+    font-size: 22px;
+    color: var(--brand-300, var(--practiq-violet));
 }
 
 .preview-image {
     width: 100%;
-    height: 180px;
+    height: 100%;
+    min-height: 220px;
     object-fit: contain;
     background: var(--surface-bg);
     display: block;
@@ -1097,8 +999,8 @@ async function saveManualReview() {
 }
 
 .ai-feedback-box {
-    background: var(--fill-primary-faint);
-    border: 1px solid rgba(var(--practiq-violet-rgb), 0.15);
+    background: var(--surface-sunken);
+    border: 1px solid var(--brand-200);
 }
 
 .teacher-feedback-box {
@@ -1111,7 +1013,7 @@ async function saveManualReview() {
     align-items: center;
     gap: 6px;
     font-weight: 700;
-    color: var(--practiq-violet);
+    color: var(--practiq-violet-dark);
     margin-bottom: 6px;
 }
 
@@ -1125,23 +1027,22 @@ async function saveManualReview() {
     line-height: 1.5;
 }
 
-.review-badge {
-    display: inline-block;
-    margin-top: 8px;
-    padding: 3px 8px;
-    border-radius: var(--radius-pill);
-    font-size: var(--text-xs);
-    font-weight: 700;
+.feedback-label {
+    display: grid;
+    gap: 6px;
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--text-primary);
 }
-
-.review-badge--correct {
-    background: rgba(var(--color-success-rgb), 0.15);
-    color: var(--color-success-dark);
-}
-
-.review-badge--incorrect {
-    background: rgba(var(--color-error-rgb), 0.15);
-    color: var(--color-error-dark);
+.feedback-label textarea {
+    width: 100%;
+    padding: 10px 12px;
+    border: 1px solid var(--surface-border);
+    border-radius: var(--radius-md);
+    font-family: inherit;
+    font-size: var(--text-sm);
+    color: var(--text-primary);
+    resize: vertical;
 }
 
 .submission-actions {
@@ -1173,99 +1074,298 @@ async function saveManualReview() {
     object-fit: contain;
 }
 
-.review-form {
-    display: flex;
-    flex-direction: column;
-    gap: 20px;
-}
-
-.review-student-info {
-    display: flex;
-    align-items: center;
-    gap: 14px;
-    padding: 14px;
-    background: var(--surface-subtle);
-    border-radius: var(--radius-lg);
-}
-
-.review-preview {
-    border-radius: var(--radius-md);
-    overflow: hidden;
-    border: 1px solid rgba(var(--surface-border-rgb), 0.15);
-}
-
-.review-preview .preview-image {
-    height: 200px;
-}
-
-.ai-feedback-mini {
-    padding: 10px 14px;
-    background: var(--fill-primary-faint);
-    border-radius: var(--radius-md);
-    font-size: var(--text-sm);
+.page-subtitle {
+    margin: 6px 0 0;
     color: var(--text-secondary);
+    max-width: 60ch;
 }
 
-.correctness-toggle {
+.toolbar {
     display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+    margin: 16px 0 18px;
+}
+
+.status-tabs {
+    display: flex;
+    gap: 2px;
+    padding: 3px;
+    border-radius: var(--radius-md);
+    background: var(--surface-sunken);
+}
+
+.status-tab {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    min-height: 34px;
+    padding: 0 12px;
+    border: 0;
+    border-radius: var(--radius-sm);
+    background: transparent;
+    color: var(--text-secondary);
+    font: 600 12.5px/1 var(--font-body);
+    cursor: pointer;
+}
+.status-tab span {
+    font-weight: 700;
+    opacity: 0.75;
+}
+.status-tab--on {
+    background: var(--surface-card);
+    color: var(--text-heading);
+    box-shadow: var(--shadow-xs, 0 1px 3px rgba(15, 23, 42, 0.06));
+}
+
+.more-filters-toggle {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    min-height: 40px;
+    padding: 0 12px;
+    border: 1px dashed var(--brand-200);
+    border-radius: var(--radius-md);
+    background: transparent;
+    color: var(--practiq-violet-dark);
+    font-size: 12.5px;
+    font-weight: 600;
+    cursor: pointer;
+}
+.more-filters-toggle--on {
+    background: var(--surface-sunken);
+}
+.more-filters-toggle span {
+    padding: 1px 6px;
+    border-radius: var(--radius-pill);
+    background: var(--brand-100);
+    font-size: 11px;
+    font-weight: 800;
+}
+
+.review-split {
+    display: grid;
+    grid-template-columns: minmax(240px, 300px) minmax(0, 1fr);
+    gap: 14px;
+    align-items: start;
+}
+
+.review-list-pane {
+    display: grid;
     gap: 10px;
 }
 
-.toggle-btn {
+.review-list {
+    display: grid;
+    gap: 6px;
+}
+
+.review-item {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    width: 100%;
+    padding: 12px 14px;
+    border: 1px solid var(--surface-border);
+    border-radius: var(--radius-lg);
+    background: var(--surface-card);
+    cursor: pointer;
+    text-align: left;
+    font-family: var(--font-body);
+    color: var(--text-primary);
+}
+
+.review-item--active {
+    box-shadow: inset 2px 0 0 var(--practiq-violet);
+    background: var(--surface-sunken);
+}
+
+.review-item__avatar {
+    display: grid;
+    place-items: center;
+    width: 36px;
+    height: 36px;
+    flex: 0 0 36px;
+    border-radius: var(--radius-md);
+    background: var(--surface-sunken);
+    color: var(--practiq-violet-dark);
+    font: 900 14px/1 var(--font-ui);
+}
+
+.review-item__body {
     flex: 1;
+    min-width: 0;
+    display: grid;
+    gap: 3px;
+}
+.review-item__body strong {
+    font-size: 13.5px;
+    font-weight: 600;
+    color: var(--text-heading);
+}
+.review-item__meta {
+    font-size: var(--text-sm);
+    color: var(--text-secondary);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.review-item__when {
+    display: flex;
+    gap: 6px;
+    align-items: center;
+    font-size: var(--text-xs);
+    color: var(--text-muted);
+}
+
+.review-tag {
+    padding: 1px 7px;
+    border-radius: 999px;
+    font-weight: 700;
+}
+.review-tag--ai {
+    background: var(--surface-sunken);
+    color: var(--practiq-violet-dark);
+}
+.review-tag--pending {
+    background: var(--color-warning-bg);
+    color: var(--color-warning-dark);
+}
+.review-tag--teacher {
+    background: var(--surface-subtle);
+    color: var(--text-secondary);
+}
+
+.review-detail {
+    display: grid;
+    gap: 16px;
+    padding: 20px;
+    border: 1px solid var(--surface-border);
+    border-radius: var(--radius-xl);
+    background: var(--surface-card);
+}
+
+.back-link {
+    display: none;
+    justify-self: start;
+    align-items: center;
+    gap: 6px;
+    min-height: 40px;
+    padding: 0 10px;
+    margin: -6px 0 -4px -8px;
+    border: 0;
+    border-radius: var(--radius-md);
+    background: transparent;
+    color: var(--practiq-violet-dark);
+    font: 900 13px/1 var(--font-ui);
+    cursor: pointer;
+}
+
+.review-detail__head {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 10px;
+}
+.review-detail__head h2 {
+    margin: 0;
+    font: 900 19px/1.2 var(--font-ui);
+    letter-spacing: -0.03em;
+    color: var(--text-heading);
+}
+.review-detail__head p {
+    margin: 3px 0 0;
+    font-size: 12.5px;
+    color: var(--text-secondary);
+}
+.review-detail__position {
+    font-size: var(--text-xs);
+    font-weight: 600;
+    color: var(--text-secondary);
+}
+
+.review-detail__columns {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 240px), 1fr));
+    gap: 12px;
+}
+
+.review-detail__feedback {
+    display: grid;
+    align-content: start;
+    gap: 10px;
+}
+
+.review-detail__correction {
+    display: grid;
+    gap: 10px;
+    padding-top: 14px;
+    border-top: 1px solid var(--surface-border);
+}
+.review-detail__correction h3 {
+    margin: 0;
+    font: 900 11px/14px var(--font-ui);
+    letter-spacing: 0.09em;
+    text-transform: uppercase;
+    color: var(--text-muted);
+}
+
+.verdict-buttons {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+}
+
+.verdict-btn {
     display: flex;
     align-items: center;
     justify-content: center;
-    gap: 6px;
-    padding: 12px 16px;
+    gap: 8px;
+    min-height: 48px;
     border-radius: var(--radius-md);
-    border: 2px solid rgba(var(--color-success-rgb), 0.3);
-    background: transparent;
-    font-size: var(--text-base);
-    font-weight: 600;
-    color: var(--color-success-dark);
+    background: var(--surface-card);
+    font: 700 14px/1 var(--font-ui);
     cursor: pointer;
-    transition: all 0.15s;
+    transition:
+        background-color 0.15s,
+        border-color 0.15s;
 }
-
-.toggle-btn:hover {
-    background: rgba(var(--color-success-rgb), 0.08);
+.verdict-btn--ok {
+    border: 1px solid var(--color-success-bg);
+    color: var(--color-success-dark);
 }
-
-.toggle-btn--active {
-    background: var(--color-success);
-    color: white;
-    border-color: var(--color-success);
+.verdict-btn--ok.verdict-btn--picked {
+    background: var(--color-success-bg);
+    border-color: var(--color-success-dark);
 }
-
-.toggle-btn--danger {
-    border-color: rgba(var(--color-error-rgb), 0.3);
+.verdict-btn--no {
+    border: 1px solid var(--color-error-bg);
     color: var(--color-error-dark);
 }
-
-.toggle-btn--danger:hover {
-    background: rgba(var(--color-error-rgb), 0.08);
+.verdict-btn--no.verdict-btn--picked {
+    background: var(--color-error-bg);
+    border-color: var(--color-error-dark);
 }
 
-.toggle-btn--danger.toggle-btn--active {
-    background: var(--color-error);
-    border-color: var(--color-error);
+.review-detail__footer {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    gap: 8px;
 }
 
 .pagination-controls {
     display: flex;
     align-items: center;
-    justify-content: space-between;
-    gap: 16px;
-    margin-top: 24px;
-    padding: 16px 20px;
-    background: var(--surface-elevated);
-    border-radius: var(--radius-xl);
-    border: 1px solid var(--surface-elevated-strong);
+    justify-content: center;
+    gap: 12px;
+    padding: 8px;
 }
 
 .pagination-info {
-    font-size: var(--text-base);
+    font-size: var(--text-sm);
     font-weight: 600;
     color: var(--text-secondary);
 }
@@ -1282,6 +1382,31 @@ async function saveManualReview() {
 
     .submissions-grid {
         grid-template-columns: 1fr;
+    }
+}
+
+@media (max-width: 860px) {
+    .review-split {
+        grid-template-columns: minmax(0, 1fr);
+    }
+    .review-list-pane {
+        display: none;
+    }
+    .review-detail {
+        display: none;
+    }
+    .review-dashboard:not(.detail-open) .review-list-pane {
+        display: grid;
+    }
+    .review-dashboard.detail-open .review-detail {
+        display: grid;
+    }
+    .review-dashboard.detail-open .back-link {
+        display: inline-flex;
+    }
+    .review-dashboard.detail-open .page-header,
+    .review-dashboard.detail-open .toolbar {
+        display: none;
     }
 }
 
@@ -1317,22 +1442,14 @@ async function saveManualReview() {
         flex-direction: column;
     }
 
-    .submission-badges {
-        width: 100%;
-    }
-
-    .correctness-toggle {
+    .review-detail__footer {
         flex-direction: column;
+        align-items: stretch;
     }
-
-    .submission-actions {
-        flex-direction: column;
-    }
-
-    .submission-actions > * {
+    .review-detail__footer .btn {
         width: 100%;
         justify-content: center;
-        min-height: 44px;
+        min-height: 46px;
     }
 }
 </style>
