@@ -3,6 +3,7 @@ import { computed, onMounted, reactive, ref, watch } from 'vue';
 import { useToast } from '@/composables/useToast';
 import TeacherLayout from '@/layouts/TeacherLayout.vue';
 import Skeleton from '@/components/ui/Skeleton.vue';
+import UiModal from '@/components/ui/UiModal.vue';
 import { useSchools } from '@/composables/useSchools';
 import { useAssignment } from '@/composables/useAssignment';
 import { useGrade } from '@/composables/useGrade';
@@ -373,140 +374,6 @@ onMounted(async () => {
                     >
                 </p>
 
-                <section v-if="assigningMember" class="assign-inline" aria-label="Asignar alumno">
-                    <div class="assign-head">
-                        <div>
-                            <p class="eyebrow">Asignar alumno</p>
-                            <h3>{{ assigningMember.name }}</h3>
-                        </div>
-                        <button
-                            class="assign-close"
-                            type="button"
-                            aria-label="Cerrar"
-                            @click="closeAssign"
-                        >
-                            <i class="pi pi-times"></i>
-                        </button>
-                    </div>
-
-                    <div v-if="assignLoading" class="loading-list">
-                        <Skeleton width="100%" height="40px" />
-                        <Skeleton width="100%" height="40px" />
-                    </div>
-                    <div v-else class="assign-grid">
-                        <div class="assign-block">
-                            <span class="assign-label">Docentes</span>
-                            <div class="chip-row">
-                                <span
-                                    v-for="teacher in assignedTeachers"
-                                    :key="teacher.id"
-                                    class="chip chip--teacher"
-                                >
-                                    {{ teacher.name }}
-                                    <button
-                                        type="button"
-                                        aria-label="Quitar"
-                                        @click="unassignTeacher(teacher.id)"
-                                    >
-                                        ×
-                                    </button>
-                                </span>
-                                <span v-if="!assignedTeachers.length" class="chip-empty"
-                                    >Sin docente asignado</span
-                                >
-                            </div>
-                            <div class="assign-row">
-                                <select v-model="teacherToAssign">
-                                    <option value="">+ Docente</option>
-                                    <option
-                                        v-for="teacher in schoolTeachers"
-                                        :key="teacher.user_id"
-                                        :value="teacher.user_id"
-                                    >
-                                        {{ teacher.name }}
-                                    </option>
-                                </select>
-                                <button
-                                    type="button"
-                                    :disabled="!teacherToAssign"
-                                    @click="assignTeacher"
-                                >
-                                    Asignar
-                                </button>
-                            </div>
-                        </div>
-
-                        <div class="assign-block">
-                            <span class="assign-label">Grados</span>
-                            <div class="chip-row">
-                                <span
-                                    v-for="grade in assignedGrades"
-                                    :key="grade.id"
-                                    class="chip chip--grade"
-                                >
-                                    {{ grade.name }}
-                                    <button
-                                        type="button"
-                                        aria-label="Quitar"
-                                        @click="unassignGrade(grade.id)"
-                                    >
-                                        ×
-                                    </button>
-                                </span>
-                                <span v-if="!assignedGrades.length" class="chip-empty"
-                                    >Sin grado</span
-                                >
-                            </div>
-                            <div class="assign-row">
-                                <select v-model="gradeToAssign">
-                                    <option value="">+ Grado</option>
-                                    <option
-                                        v-for="grade in grades"
-                                        :key="grade.id"
-                                        :value="grade.id"
-                                    >
-                                        {{ grade.name }}
-                                    </option>
-                                </select>
-                                <button
-                                    type="button"
-                                    :disabled="!gradeToAssign"
-                                    @click="assignGrade"
-                                >
-                                    Vincular
-                                </button>
-                            </div>
-                        </div>
-
-                        <div class="assign-block">
-                            <span class="assign-label">Nivel</span>
-                            <div class="assistant-fields">
-                                <select v-model="themeForm.ui_theme">
-                                    <option value="primary">Primaria</option>
-                                    <option value="secondary">Secundaria</option>
-                                </select>
-                            </div>
-                            <div class="assign-row">
-                                <button
-                                    type="button"
-                                    class="assistant-save"
-                                    :class="{ 'assistant-save--ok': themeSaveSuccess }"
-                                    :disabled="savingTheme"
-                                    @click="saveTheme"
-                                >
-                                    {{
-                                        savingTheme
-                                            ? 'Guardando...'
-                                            : themeSaveSuccess
-                                              ? 'Guardado'
-                                              : 'Guardar nivel'
-                                    }}
-                                </button>
-                            </div>
-                        </div>
-                    </div>
-                </section>
-
                 <div class="filter-bar">
                     <div class="filter-tabs" role="group" aria-label="Filtrar por rol">
                         <button
@@ -571,6 +438,132 @@ onMounted(async () => {
                 </div>
             </section>
         </main>
+
+        <UiModal :visible="Boolean(assigningMember)" @close="closeAssign">
+            <div v-if="assigningMember" class="modal-box assign-modal" aria-label="Asignar alumno">
+                <div class="modal-header assign-head">
+                    <div>
+                        <p class="eyebrow">Asignar alumno</p>
+                        <h3 class="modal-title">{{ assigningMember.name }}</h3>
+                    </div>
+                    <button
+                        class="modal-close"
+                        type="button"
+                        aria-label="Cerrar"
+                        @click="closeAssign"
+                    >
+                        <i class="pi pi-times"></i>
+                    </button>
+                </div>
+
+                <div v-if="assignLoading" class="loading-list">
+                    <Skeleton width="100%" height="40px" />
+                    <Skeleton width="100%" height="40px" />
+                </div>
+                <div v-else class="assign-grid">
+                    <div class="assign-block">
+                        <span class="assign-label">Docentes</span>
+                        <div class="chip-row">
+                            <span
+                                v-for="teacher in assignedTeachers"
+                                :key="teacher.id"
+                                class="chip chip--teacher"
+                            >
+                                {{ teacher.name }}
+                                <button
+                                    type="button"
+                                    aria-label="Quitar"
+                                    @click="unassignTeacher(teacher.id)"
+                                >
+                                    ×
+                                </button>
+                            </span>
+                            <span v-if="!assignedTeachers.length" class="chip-empty"
+                                >Sin docente asignado</span
+                            >
+                        </div>
+                        <div class="assign-row">
+                            <select v-model="teacherToAssign">
+                                <option value="">+ Docente</option>
+                                <option
+                                    v-for="teacher in schoolTeachers"
+                                    :key="teacher.user_id"
+                                    :value="teacher.user_id"
+                                >
+                                    {{ teacher.name }}
+                                </option>
+                            </select>
+                            <button
+                                type="button"
+                                :disabled="!teacherToAssign"
+                                @click="assignTeacher"
+                            >
+                                Asignar
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="assign-block">
+                        <span class="assign-label">Grados</span>
+                        <div class="chip-row">
+                            <span
+                                v-for="grade in assignedGrades"
+                                :key="grade.id"
+                                class="chip chip--grade"
+                            >
+                                {{ grade.name }}
+                                <button
+                                    type="button"
+                                    aria-label="Quitar"
+                                    @click="unassignGrade(grade.id)"
+                                >
+                                    ×
+                                </button>
+                            </span>
+                            <span v-if="!assignedGrades.length" class="chip-empty">Sin grado</span>
+                        </div>
+                        <div class="assign-row">
+                            <select v-model="gradeToAssign">
+                                <option value="">+ Grado</option>
+                                <option v-for="grade in grades" :key="grade.id" :value="grade.id">
+                                    {{ grade.name }}
+                                </option>
+                            </select>
+                            <button type="button" :disabled="!gradeToAssign" @click="assignGrade">
+                                Vincular
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="assign-block">
+                        <span class="assign-label">Nivel</span>
+                        <div class="assistant-fields">
+                            <select v-model="themeForm.ui_theme">
+                                <option value="primary">Primaria</option>
+                                <option value="secondary">Secundaria</option>
+                            </select>
+                        </div>
+                        <div class="assign-row">
+                            <button
+                                type="button"
+                                class="assistant-save"
+                                :class="{ 'assistant-save--ok': themeSaveSuccess }"
+                                :disabled="savingTheme"
+                                @click="saveTheme"
+                            >
+                                {{
+                                    savingTheme
+                                        ? 'Guardando...'
+                                        : themeSaveSuccess
+                                          ? 'Guardado'
+                                          : 'Guardar nivel'
+                                }}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </UiModal>
     </TeacherLayout>
 </template>
 
@@ -892,46 +885,29 @@ p {
 .empty-state span {
     font-size: 0.82rem;
 }
-.assign-inline {
+.assign-modal {
     display: flex;
     flex-direction: column;
-    gap: 0.9rem;
-    margin-top: 1.4rem;
-    padding: 1rem 1.1rem;
-    border-radius: var(--radius-lg);
-    background: var(--fill-primary-soft);
-    border: 1px solid var(--practiq-violet-200, var(--surface-border));
+    gap: 1rem;
 }
 .assign-head {
-    display: flex;
     align-items: flex-start;
-    justify-content: space-between;
-    gap: 1rem;
 }
 .assign-head h3 {
     margin: 0.2rem 0 0;
-    color: var(--text-heading);
-}
-.assign-close {
-    width: 36px;
-    height: 36px;
-    display: grid;
-    place-items: center;
-    border: 0;
-    border-radius: var(--radius-md);
-    background: var(--surface-card);
-    color: var(--text-secondary);
-    cursor: pointer;
 }
 .assign-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(min(100%, 220px), 1fr));
-    gap: 0.9rem;
+    gap: 1rem;
 }
 .assign-block {
     display: flex;
     flex-direction: column;
     gap: 0.5rem;
+    padding: 0.85rem 0.9rem;
+    border: 1px solid var(--surface-border);
+    border-radius: var(--radius-lg);
+    background: var(--surface-ground);
 }
 .assign-label {
     display: block;
