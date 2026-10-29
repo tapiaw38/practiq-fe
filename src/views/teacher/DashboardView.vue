@@ -907,9 +907,6 @@ const statusLabel: Record<string, string> = {
     justify-content: center;
 }
 
-.student-row {
-    grid-template-columns: 40px minmax(0, 1fr) 100px 20px;
-}
 .student-row__text {
     min-width: 0;
     display: flex;
@@ -950,9 +947,6 @@ const statusLabel: Record<string, string> = {
 }
 
 @media (max-width: 1023px) {
-    .student-row {
-        grid-template-columns: 40px minmax(0, 1fr) 20px;
-    }
     .student-row__mastery {
         display: none;
     }
