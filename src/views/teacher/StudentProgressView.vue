@@ -2360,6 +2360,11 @@ function masteryClass(score: number) {
     .sp-header {
         flex-direction: column;
     }
+    .download-pdf-btn {
+        margin-left: 0;
+        align-self: stretch;
+        justify-content: center;
+    }
     .tab-section-head {
         flex-direction: column;
         gap: 8px;

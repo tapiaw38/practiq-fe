@@ -4,9 +4,16 @@ import { useToast } from '@/composables/useToast';
 import TeacherLayout from '@/layouts/TeacherLayout.vue';
 import Skeleton from '@/components/ui/Skeleton.vue';
 import { usePlatformSettings } from '@/composables/usePlatformSettings';
+import { useAuthAdmin } from '@/composables/useAuthAdmin';
+import type { AuthApiUser } from '@/types';
 
 const toast = useToast();
 const { loadAssistant, saveAssistant } = usePlatformSettings();
+const { loadUsers } = useAuthAdmin();
+
+function practiqUserId(user: AuthApiUser) {
+    return user.username || user.id;
+}
 const loading = ref(true);
 const saving = ref(false);
 const configured = ref(false);
@@ -18,12 +25,18 @@ const form = reactive({ base_url: '', api_key: '' });
 async function load() {
     loading.value = true;
     try {
-        const data = await loadAssistant();
+        const [data, users] = await Promise.all([
+            loadAssistant(),
+            loadUsers({ limit: 1000, offset: 0 }).catch(() => []),
+        ]);
         form.base_url = data.base_url || '';
         form.api_key = '';
         storedKey.value = data.api_key || '';
         configured.value = Boolean(data.configured);
-        updatedBy.value = data.updated_by || '';
+        const author = users.find((u) => practiqUserId(u) === data.updated_by);
+        updatedBy.value = author
+            ? `${author.first_name} ${author.last_name}`.trim() || author.email
+            : data.updated_by || '';
     } catch {
         toast.add({
             severity: 'error',
