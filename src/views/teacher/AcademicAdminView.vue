@@ -488,11 +488,7 @@ async function confirmDeleteSubject(id: string) {
                                 >
                                     <i class="pi pi-pencil"></i>
                                 </button>
-                                <button
-                                    v-if="selectedCourses.length"
-                                    class="btn-add-course"
-                                    @click="openCreateCourse()"
-                                >
+                                <button class="btn-add-course" @click="openCreateCourse()">
                                     <i class="pi pi-plus"></i> Nuevo curso
                                 </button>
                                 <button
@@ -561,12 +557,6 @@ async function confirmDeleteSubject(id: string) {
                                             <h4 class="academic-course-card__title">
                                                 {{ course.title }}
                                             </h4>
-                                            <p
-                                                v-if="course.description"
-                                                class="academic-course-card__desc"
-                                            >
-                                                {{ course.description }}
-                                            </p>
                                         </div>
                                         <div class="academic-course-card__footer">
                                             <span
@@ -1010,21 +1000,16 @@ async function confirmDeleteSubject(id: string) {
 .ac-layout {
     flex: 1;
     display: grid;
-    grid-template-columns: 248px minmax(0, 1fr);
+    grid-template-columns: 200px minmax(0, 1fr);
     align-items: start;
     min-height: 0;
-    overflow: hidden;
-    gap: 18px;
+    gap: 16px;
 }
 
 .grade-sidebar {
-    display: flex;
-    flex-direction: column;
-    background: var(--surface-glass);
-    border: 1px solid var(--surface-elevated-strong);
-    border-radius: var(--radius-2xl);
-    box-shadow: var(--shadow-card);
-    overflow: hidden;
+    display: grid;
+    gap: 8px;
+    min-width: 0;
 }
 
 .sidebar-header {
@@ -1032,44 +1017,42 @@ async function confirmDeleteSubject(id: string) {
     align-items: center;
     justify-content: space-between;
     gap: 10px;
-    padding: 12px 12px 10px;
-    flex-shrink: 0;
-    border-bottom: 1px solid rgba(var(--surface-border-rgb), 0.14);
 }
 
 .sidebar-label {
-    font-size: var(--text-xs);
-    font-weight: 700;
-    letter-spacing: 0.1em;
+    font: 900 10.5px/1 var(--font-ui);
+    letter-spacing: 0.09em;
     text-transform: uppercase;
-    color: var(--text-muted);
+    color: var(--line-control);
 }
 
 .grade-nav {
-    flex: 1;
-    overflow-y: auto;
-    padding: 4px 8px;
     display: flex;
     flex-direction: column;
-    gap: 2px;
+    gap: 4px;
+    overflow-x: auto;
 }
 .grade-nav-item {
     display: flex;
     align-items: center;
     gap: 10px;
-    padding: 7px 10px;
-    border-radius: var(--radius-sm);
-    border: none;
-    background: none;
+    flex: 0 0 auto;
+    width: 100%;
+    min-height: 42px;
+    padding: 0 12px;
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    background: var(--surface);
     text-align: left;
     cursor: pointer;
-    width: 100%;
-    transition: var(--transition-fast);
+    white-space: nowrap;
+    transition: background-color 0.15s;
 }
 .grade-nav-item:hover {
-    background: var(--surface-hover);
+    background: var(--canvas);
 }
-.grade-nav-item--active {
+.grade-nav-item--active,
+.grade-nav-item--active:hover {
     background: var(--surface-sunken);
 }
 .grade-nav-item--active .grade-nav-item__name {
@@ -1079,107 +1062,95 @@ async function confirmDeleteSubject(id: string) {
 .grade-nav-item__name {
     flex: 1;
     min-width: 0;
-    font-size: var(--text-base);
-    font-weight: 600;
-    color: var(--text-secondary);
-    white-space: nowrap;
+    font: 600 13px/1.3 var(--font-body);
+    color: var(--ink-soft);
     overflow: hidden;
     text-overflow: ellipsis;
 }
 
 .grade-nav-item__count {
-    font-size: var(--text-xs);
+    font-size: 11.5px;
     font-weight: 700;
-    color: var(--text-muted);
+    color: var(--line-control);
     flex-shrink: 0;
 }
 
 .sidebar-add-btn {
-    display: flex;
+    display: inline-flex;
     align-items: center;
-    gap: 6px;
-    padding: 7px 10px;
-    border: 1px solid rgba(var(--practiq-violet-rgb), 0.18);
-    border-radius: var(--radius-md);
-    background: var(--fill-primary-faint);
-    color: var(--practiq-violet-dark);
-    font-size: var(--text-sm);
-    font-weight: 700;
+    gap: 5px;
+    min-height: 32px;
+    padding: 0 10px;
+    border: 0;
+    border-radius: 9px;
+    background: transparent;
+    color: var(--brand-700);
+    font: 900 12px/1 var(--font-ui);
     cursor: pointer;
-    transition: var(--transition-fast);
-    flex-shrink: 0;
+    transition: background-color 0.15s;
+}
+.sidebar-add-btn i {
+    font-size: 10px;
 }
 .sidebar-add-btn:hover {
-    background: var(--fill-primary-soft);
-    border-color: rgba(var(--practiq-violet-rgb), 0.28);
-    color: var(--practiq-violet);
+    background: var(--surface-sunken);
 }
 
 .grade-content {
     min-width: 0;
-    overflow-y: auto;
-    display: flex;
-    flex-direction: column;
-    background: var(--surface-glass);
-    border: 1px solid var(--surface-elevated-strong);
-    border-radius: var(--radius-2xl);
-    box-shadow: var(--shadow-card);
-}
-
-@media (min-width: 1024px) {
-    .grade-sidebar {
-        position: sticky;
-        top: 20px;
-        max-height: calc(100dvh - 40px);
-    }
+    display: grid;
+    gap: 12px;
 }
 
 .select-hint {
-    flex: 1;
     display: flex;
     align-items: center;
     justify-content: center;
     gap: 10px;
-    color: var(--text-muted);
+    padding: 32px 0;
+    color: var(--ink-muted);
     font-size: var(--text-md);
 }
 
 .grade-header {
     display: flex;
-    align-items: flex-start;
+    flex-wrap: wrap;
+    align-items: center;
     justify-content: space-between;
-    gap: 16px;
-    padding: 18px 20px 16px;
-    background: transparent;
-    border-bottom: 1px solid rgba(var(--surface-border-rgb), 0.14);
-    flex-shrink: 0;
+    gap: 10px;
+    padding-bottom: 12px;
+    border-bottom: 1px solid var(--line);
 }
 
 .grade-header__name {
-    font-size: var(--text-lg);
-    font-weight: 800;
-    color: var(--text-heading);
-    margin: 0 0 3px;
+    margin: 0;
+    font: 900 21px/1.2 var(--font-ui);
+    letter-spacing: -0.03em;
+    color: var(--ink);
 }
 
 .grade-header__desc {
-    font-size: var(--text-base);
-    color: var(--text-muted);
-    margin: 0;
+    margin: 3px 0 0;
+    font-size: 12.5px;
+    color: var(--ink-muted);
 }
 
 .grade-header__actions {
     display: flex;
-    gap: 8px;
-    flex-shrink: 0;
-    padding-top: 2px;
+    gap: 6px;
+}
+.grade-header__actions .icon-btn {
+    width: 40px;
+    height: 40px;
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    background: var(--surface);
+    color: var(--ink-muted);
+    font-size: 12px;
 }
 
 .courses-area {
-    flex: 1;
-    padding: 18px 20px 20px;
-    display: flex;
-    flex-direction: column;
+    display: grid;
     gap: 12px;
 }
 
@@ -1219,31 +1190,33 @@ async function confirmDeleteSubject(id: string) {
 
 .courses-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(min(100%, 240px), 1fr));
-    gap: 14px;
+    grid-template-columns: repeat(auto-fill, minmax(min(100%, 230px), 1fr));
+    gap: 10px;
 }
 
 .academic-course-card {
-    background: var(--surface-elevated);
-    border: 1px solid var(--surface-elevated-strong);
-    border-radius: var(--radius-2xl);
-    box-shadow: var(--shadow-card);
-    overflow: hidden;
-    cursor: pointer;
     display: flex;
     flex-direction: column;
-    transition: var(--transition);
+    gap: 10px;
+    padding: 14px;
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: var(--radius-md);
+    cursor: pointer;
+    transition:
+        transform 0.18s ease,
+        box-shadow 0.18s ease;
 }
 .academic-course-card:hover {
-    border-color: rgba(var(--practiq-violet-rgb), 0.22);
-    box-shadow: var(--shadow-card-lg);
-    transform: translateY(-2px);
+    transform: translateY(-3px);
+    box-shadow: 0 12px 26px rgba(57, 49, 104, 0.1);
 }
 
 .academic-course-card__open {
     display: flex;
     flex: 1;
     flex-direction: column;
+    gap: 10px;
     color: inherit;
     text-decoration: none;
 }
@@ -1253,7 +1226,6 @@ async function confirmDeleteSubject(id: string) {
     align-items: center;
     justify-content: space-between;
     gap: 6px;
-    padding: 10px 10px 0;
 }
 
 .subject-pill {
@@ -1261,7 +1233,7 @@ async function confirmDeleteSubject(id: string) {
     border-radius: var(--radius-xs);
     background: var(--surface-sunken);
     color: var(--brand-700);
-    font-size: var(--text-xs);
+    font-size: 11px;
     font-weight: 700;
     white-space: nowrap;
 }
@@ -1273,7 +1245,7 @@ async function confirmDeleteSubject(id: string) {
 }
 
 .status-text {
-    font-size: var(--text-xs);
+    font-size: 11px;
     font-weight: 700;
     color: var(--success);
     white-space: nowrap;
@@ -1316,27 +1288,14 @@ async function confirmDeleteSubject(id: string) {
 }
 
 .academic-course-card__body {
-    padding: 10px;
     flex: 1;
 }
 
 .academic-course-card__title {
-    font-size: var(--text-base);
-    font-weight: 700;
-    color: var(--text-heading);
-    margin: 0 0 6px;
-    line-height: 1.4;
-}
-
-.academic-course-card__desc {
-    font-size: var(--text-xs);
-    color: var(--text-secondary);
     margin: 0;
-    line-height: 1.5;
-    display: -webkit-box;
-    -webkit-line-clamp: 2;
-    -webkit-box-orient: vertical;
-    overflow: hidden;
+    font: 900 15.5px/1.3 var(--font-ui);
+    letter-spacing: -0.02em;
+    color: var(--ink);
 }
 
 .academic-course-card__footer {
@@ -1344,21 +1303,21 @@ async function confirmDeleteSubject(id: string) {
     align-items: center;
     justify-content: space-between;
     gap: 8px;
-    padding: 7px 10px;
-    border-top: 1px solid rgba(var(--surface-border-rgb), 0.12);
+    padding-top: 8px;
+    border-top: 1px solid var(--line);
 }
 .academic-course-card__teacher {
     min-width: 0;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
-    font-size: var(--text-xs);
-    color: var(--text-secondary);
+    font-size: 12px;
+    color: var(--ink-muted);
 }
 .academic-course-card__students {
     flex: 0 0 auto;
-    font-size: var(--text-xs);
-    color: var(--text-secondary);
+    font-size: 12px;
+    color: var(--ink-muted);
 }
 
 .missing-subject-card {
@@ -1368,7 +1327,7 @@ async function confirmDeleteSubject(id: string) {
     min-height: 120px;
     padding: 14px;
     border: 1px dashed var(--brand-200);
-    border-radius: var(--radius-2xl);
+    border-radius: var(--radius-md);
     background: transparent;
     color: var(--brand-700);
     font: inherit;
@@ -1390,14 +1349,14 @@ async function confirmDeleteSubject(id: string) {
 .btn-add-course {
     display: inline-flex;
     align-items: center;
-    gap: 7px;
-    padding: 9px 18px;
+    gap: 6px;
+    min-height: 40px;
+    padding: 0 14px;
     border: none;
-    border-radius: var(--radius-md);
-    background: var(--practiq-violet);
-    color: var(--color-on-primary);
-    font-size: var(--text-base);
-    font-weight: 700;
+    border-radius: 10px;
+    background: var(--brand-500);
+    color: var(--on-brand);
+    font: 900 13px/1 var(--font-ui);
     cursor: pointer;
     white-space: nowrap;
     flex-shrink: 0;
@@ -1742,22 +1701,6 @@ async function confirmDeleteSubject(id: string) {
     resize: vertical;
 }
 
-@media (max-width: 1024px) {
-    .ac-layout {
-        grid-template-columns: 200px minmax(0, 1fr);
-    }
-    .grade-sidebar {
-        min-width: 0;
-    }
-    .courses-grid {
-        grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
-    }
-    .courses-area,
-    .grade-header {
-        padding: 14px;
-    }
-}
-
 @media (max-width: 1023px) {
     .ac-root {
         display: block;
@@ -1779,25 +1722,13 @@ async function confirmDeleteSubject(id: string) {
     }
     .grade-nav {
         flex-direction: row;
-        overflow-x: auto;
         overflow-y: hidden;
-        padding: 10px 12px;
-        gap: 6px;
     }
     .grade-nav-item {
-        flex: 0 0 auto;
         width: auto;
-        white-space: nowrap;
     }
     .subject-create-row {
         grid-template-columns: 1fr;
-    }
-    .courses-area,
-    .grade-header {
-        padding: 16px;
-    }
-    .grade-header__actions {
-        align-self: flex-start;
     }
 
     .icon-btn,
