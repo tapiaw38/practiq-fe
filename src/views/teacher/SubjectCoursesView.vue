@@ -151,8 +151,14 @@ function goBack() {
             </div>
 
             <div v-if="loading" class="courses-grid">
-                <div v-for="i in 4" :key="i" class="subject-course-card subject-course-card--skeleton">
-                    <div class="subject-course-card__accent subject-course-card__accent--skeleton"></div>
+                <div
+                    v-for="i in 4"
+                    :key="i"
+                    class="subject-course-card subject-course-card--skeleton"
+                >
+                    <div
+                        class="subject-course-card__accent subject-course-card__accent--skeleton"
+                    ></div>
                     <div class="subject-course-card__body">
                         <div class="subject-course-card__top">
                             <Skeleton width="80px" height="22px" rounded />
@@ -182,7 +188,11 @@ function goBack() {
             </div>
 
             <div v-else class="courses-grid">
-                <article v-for="course in filteredCourses" :key="course.id" class="subject-course-card">
+                <article
+                    v-for="course in filteredCourses"
+                    :key="course.id"
+                    class="subject-course-card"
+                >
                     <div class="subject-course-card__accent"></div>
                     <div class="subject-course-card__body">
                         <div class="subject-course-card__top">
@@ -346,18 +356,18 @@ function goBack() {
 }
 
 .hero-kicker {
-    font-size: var(--text-xs);
+    font: 900 11px/1.3 var(--font-ui);
     text-transform: uppercase;
-    letter-spacing: 0.16em;
-    font-weight: 700;
-    color: var(--practiq-violet);
+    letter-spacing: 0.09em;
+    color: var(--brand-700);
     margin-bottom: 3px;
 }
 
 .hero-title {
     margin: 0 0 4px;
-    font-size: var(--font-hero);
-    color: var(--text-primary);
+    font: 900 clamp(24px, 3vw, 28px)/1.06 var(--font-ui);
+    letter-spacing: -0.035em;
+    color: var(--ink);
 }
 
 .hero-copy {
@@ -544,8 +554,8 @@ function goBack() {
 
 .course-title {
     margin: 0;
-    font-size: var(--text-md);
-    font-weight: 700;
+    font: 900 16px/1.2 var(--font-ui);
+    letter-spacing: -0.02em;
     color: var(--text-primary);
 }
 

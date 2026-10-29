@@ -941,16 +941,17 @@ function clearCanvas() {
 }
 .editor-eyebrow {
     margin: 0 0 2px;
-    font-size: var(--text-xs);
-    font-weight: 800;
+    font-family: var(--font-ui);
+    font-size: 11px;
+    font-weight: 900;
     letter-spacing: 0.09em;
     text-transform: uppercase;
-    color: var(--practiq-violet-dark);
+    color: var(--brand-700);
 }
 .editor-title {
-    font-size: 1.35rem;
-    font-weight: 700;
-    color: var(--text-primary);
+    font: 900 clamp(24px, 3vw, 28px)/1.06 var(--font-ui);
+    letter-spacing: -0.035em;
+    color: var(--ink);
     margin: 0;
 }
 .editor-desc {
@@ -993,11 +994,12 @@ function clearCanvas() {
 }
 
 .sidebar-title {
-    font-size: 0.75rem;
-    font-weight: 700;
+    font-family: var(--font-ui);
+    font-size: 10.5px;
+    font-weight: 900;
     text-transform: uppercase;
-    letter-spacing: 0.06em;
-    color: var(--text-secondary);
+    letter-spacing: 0.09em;
+    color: var(--ink-muted);
     padding: 0 4px 8px;
     border-bottom: 1.5px solid rgba(var(--practiq-violet-rgb), 0.08);
     margin-bottom: 4px;
@@ -1399,8 +1401,9 @@ function clearCanvas() {
     box-shadow: var(--shadow-panel);
 }
 .modal-title {
-    font-size: 1.15rem;
-    font-weight: 700;
+    font-family: var(--font-ui);
+    font-size: 19px;
+    font-weight: 900;
     margin: 0 0 20px;
     color: var(--text-primary);
 }
@@ -1474,8 +1477,7 @@ function clearCanvas() {
     padding: 9px 18px;
     border-radius: var(--radius-sm);
     border: none;
-    font-size: 0.9rem;
-    font-weight: 600;
+    font: 900 13.5px/1.2 var(--font-ui);
     cursor: pointer;
 }
 .btn-primary {

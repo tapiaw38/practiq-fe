@@ -1336,7 +1336,7 @@ async function confirmAndNext() {
     min-height: 48px;
     border-radius: var(--radius-md);
     background: var(--surface-card);
-    font: 700 14px/1 var(--font-ui);
+    font: 900 14px/1 var(--font-ui);
     cursor: pointer;
     transition:
         background-color 0.15s,

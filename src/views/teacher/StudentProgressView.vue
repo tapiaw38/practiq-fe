@@ -1144,8 +1144,7 @@ function masteryClass(score: number) {
 
 <style scoped>
 .sp-page {
-    padding: 24px 28px 40px;
-    max-width: 1180px;
+    max-width: 1120px;
 }
 
 .sp-header {
@@ -1207,7 +1206,8 @@ function masteryClass(score: number) {
     border: 0;
     background: transparent;
     color: var(--practiq-violet-700);
-    font-weight: 700;
+    font-family: var(--font-ui);
+    font-weight: 900;
     font-size: var(--text-sm);
     cursor: pointer;
     white-space: nowrap;
@@ -1225,7 +1225,8 @@ function masteryClass(score: number) {
     border: 1px solid rgba(var(--surface-border-rgb), 0.3);
     background: transparent;
     font-size: var(--text-sm);
-    font-weight: 600;
+    font-family: var(--font-ui);
+    font-weight: 900;
     color: var(--text-secondary);
     cursor: pointer;
     white-space: nowrap;
@@ -1240,22 +1241,26 @@ function masteryClass(score: number) {
 }
 
 .sp-kicker {
-    font-size: var(--text-xs);
+    font-family: var(--font-ui);
+    font-size: 11px;
     text-transform: uppercase;
-    letter-spacing: 0.16em;
-    font-weight: 700;
-    color: var(--practiq-violet);
+    letter-spacing: 0.09em;
+    font-weight: 900;
+    color: var(--brand-700);
     margin-bottom: 4px;
 }
 .sp-title {
-    font-size: clamp(1.55rem, 2.5vw, 2rem);
-    font-weight: 800;
-    color: var(--text-primary);
+    font-family: var(--font-ui);
+    font-size: clamp(24px, 3vw, 28px);
+    line-height: 1.06;
+    letter-spacing: -0.035em;
+    font-weight: 900;
+    color: var(--ink);
     margin: 0 0 4px;
 }
 .sp-subtitle {
-    font-size: var(--text-sm);
-    color: var(--text-secondary);
+    font: 400 13.5px/1.55 var(--font-body);
+    color: var(--ink-muted);
     margin: 0;
 }
 
@@ -1415,17 +1420,19 @@ function masteryClass(score: number) {
 }
 
 .tab-section-kicker {
-    font-size: var(--text-xs);
+    font-family: var(--font-ui);
+    font-size: 11px;
     text-transform: uppercase;
-    letter-spacing: 0.14em;
-    font-weight: 800;
-    color: var(--practiq-violet);
+    letter-spacing: 0.09em;
+    font-weight: 900;
+    color: var(--brand-700);
     margin-bottom: 4px;
 }
 
 .tab-section-head h2 {
     margin: 0;
-    font-size: 1.1rem;
+    font: 900 19px/1.2 var(--font-ui);
+    letter-spacing: -0.03em;
     line-height: 1.2;
     color: var(--text-heading);
 }
@@ -1464,8 +1471,9 @@ function masteryClass(score: number) {
     margin-bottom: 12px;
 }
 .course-title {
-    font-size: var(--text-lg);
-    font-weight: 700;
+    font-family: var(--font-ui);
+    font-size: 16px;
+    font-weight: 900;
     color: var(--text-primary);
 }
 .course-topic-count {
@@ -1573,8 +1581,9 @@ function masteryClass(score: number) {
     gap: 8px;
 }
 .topic-title {
-    font-size: var(--text-md);
-    font-weight: 700;
+    font-family: var(--font-ui);
+    font-size: 16px;
+    font-weight: 900;
     color: var(--text-primary);
     flex: 1;
 }
@@ -1724,8 +1733,9 @@ function masteryClass(score: number) {
 }
 
 .sheet-title {
-    font-size: var(--text-base);
-    font-weight: 700;
+    font-family: var(--font-ui);
+    font-size: 15.5px;
+    font-weight: 900;
     color: var(--text-primary);
     margin-bottom: 4px;
 }
@@ -1751,16 +1761,18 @@ function masteryClass(score: number) {
     margin-bottom: 10px;
 }
 .attempts-kicker {
-    font-size: var(--text-xs);
+    font-family: var(--font-ui);
+    font-size: 11px;
     text-transform: uppercase;
-    letter-spacing: 0.14em;
-    font-weight: 700;
-    color: var(--practiq-violet);
+    letter-spacing: 0.09em;
+    font-weight: 900;
+    color: var(--brand-700);
     margin-bottom: 4px;
 }
 .attempts-title {
-    font-size: 1rem;
-    font-weight: 800;
+    font-family: var(--font-ui);
+    font-size: 16px;
+    font-weight: 900;
     color: var(--text-primary);
     margin: 0;
 }
@@ -1958,8 +1970,9 @@ function masteryClass(score: number) {
     flex: 1;
 }
 .notebook-title {
-    font-size: var(--text-md);
-    font-weight: 700;
+    font-family: var(--font-ui);
+    font-size: 16px;
+    font-weight: 900;
     color: var(--text-primary);
     margin-bottom: 4px;
 }
@@ -2337,7 +2350,7 @@ function masteryClass(score: number) {
 
 @media (max-width: 1024px) {
     .sp-page {
-        padding: 12px 16px 28px;
+        padding: 0;
     }
     .summary-row {
         grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -2355,7 +2368,7 @@ function masteryClass(score: number) {
 
 @media (max-width: 768px) {
     .sp-page {
-        padding: 20px 16px 40px;
+        padding: 0;
     }
     .sp-header {
         flex-direction: column;

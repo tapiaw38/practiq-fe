@@ -881,7 +881,7 @@ async function openStatementImage(item: AttemptReview) {
     padding: 10px 12px;
     border-radius: 12px;
     border: 1px solid var(--surface-elevated-strong);
-    background: var(--surface-ground, #fff);
+    background: var(--surface);
     color: var(--text-primary);
     font-size: var(--text-sm);
     font-family: inherit;
