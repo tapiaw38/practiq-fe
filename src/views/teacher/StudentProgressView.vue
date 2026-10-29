@@ -2353,6 +2353,33 @@ function masteryClass(score: number) {
 }
 
 @media (max-width: 768px) {
+    .attempts-panel {
+        position: fixed;
+        z-index: 1200;
+        inset: auto 0 0 0;
+        max-height: 88vh;
+        margin-top: 0;
+        overflow-y: auto;
+        border: 0;
+        border-radius: var(--radius-2xl) var(--radius-2xl) 0 0;
+        padding: 16px 14px calc(16px + env(safe-area-inset-bottom));
+        box-shadow: 0 -12px 32px rgba(27, 30, 46, 0.22);
+    }
+    .attempts-panel::before {
+        content: '';
+        position: fixed;
+        inset: 0;
+        z-index: -1;
+        background: rgba(27, 30, 46, 0.45);
+    }
+    .attempts-panel__head {
+        position: sticky;
+        top: -16px;
+        z-index: 1;
+        margin: -16px -14px 10px;
+        padding: 16px 14px 10px;
+        background: var(--surface-elevated);
+    }
     .sp-page {
         padding: 0;
     }
