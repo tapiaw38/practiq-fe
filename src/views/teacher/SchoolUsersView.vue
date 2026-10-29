@@ -461,7 +461,11 @@ onMounted(async () => {
                             <div class="assign-row">
                                 <select v-model="gradeToAssign">
                                     <option value="">+ Grado</option>
-                                    <option v-for="grade in grades" :key="grade.id" :value="grade.id">
+                                    <option
+                                        v-for="grade in grades"
+                                        :key="grade.id"
+                                        :value="grade.id"
+                                    >
                                         {{ grade.name }}
                                     </option>
                                 </select>
@@ -666,7 +670,7 @@ p {
     padding: 0 1rem;
     border: 0;
     border-radius: var(--radius-md);
-    color: #fff;
+    color: var(--on-brand);
     background: var(--practiq-violet);
     font-weight: 700;
     cursor: pointer;
@@ -769,8 +773,8 @@ p {
     font-weight: 700;
 }
 .role-badge--admin {
-    color: #197563;
-    background: #dff6ee;
+    color: var(--success);
+    background: var(--success-soft);
 }
 .role-badge--teacher {
     color: var(--practiq-violet-dark);
@@ -993,7 +997,7 @@ p {
     border: 0;
     border-radius: var(--radius-md);
     background: var(--practiq-violet);
-    color: #fff;
+    color: var(--on-brand);
     font-weight: 700;
     cursor: pointer;
 }
@@ -1021,7 +1025,7 @@ p {
     border: 0;
     border-radius: var(--radius-md);
     background: var(--practiq-violet);
-    color: #fff;
+    color: var(--on-brand);
     font-weight: 700;
     cursor: pointer;
 }

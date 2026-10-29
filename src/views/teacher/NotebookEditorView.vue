@@ -528,7 +528,9 @@ function clearCanvas() {
                                     type="button"
                                     role="tab"
                                     class="type-toggle__btn"
-                                    :class="{ 'type-toggle__btn--on': currentPage.content_type === 'text' }"
+                                    :class="{
+                                        'type-toggle__btn--on': currentPage.content_type === 'text',
+                                    }"
                                     @click="
                                         currentPage.content_type = 'text';
                                         savePage();
@@ -540,7 +542,10 @@ function clearCanvas() {
                                     type="button"
                                     role="tab"
                                     class="type-toggle__btn"
-                                    :class="{ 'type-toggle__btn--on': currentPage.content_type === 'canvas' }"
+                                    :class="{
+                                        'type-toggle__btn--on':
+                                            currentPage.content_type === 'canvas',
+                                    }"
                                     @click="
                                         currentPage.content_type = 'canvas';
                                         savePage();
@@ -968,13 +973,14 @@ function clearCanvas() {
 
 .editor-body {
     display: grid;
-    grid-template-columns: 220px 1fr;
+    grid-template-columns: 220px minmax(0, 1fr);
     gap: 20px;
     flex: 1;
     min-height: 0;
 }
 
 .pages-sidebar {
+    min-width: 0;
     background: var(--surface);
     backdrop-filter: blur(12px);
     border-radius: var(--radius-xl);
@@ -1053,6 +1059,7 @@ function clearCanvas() {
 }
 
 .editor-main {
+    min-width: 0;
     background: var(--surface);
     backdrop-filter: blur(12px);
     border-radius: var(--radius-2xl);
@@ -1501,13 +1508,13 @@ function clearCanvas() {
 
 @media (max-width: 1024px) {
     .editor-body {
-        grid-template-columns: 180px 1fr;
+        grid-template-columns: 180px minmax(0, 1fr);
     }
 }
 
-@media (max-width: 768px) {
+@media (max-width: 1023px) {
     .editor-body {
-        grid-template-columns: 1fr;
+        grid-template-columns: minmax(0, 1fr);
         grid-template-rows: auto 1fr;
     }
 

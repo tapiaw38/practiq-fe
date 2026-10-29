@@ -1171,7 +1171,7 @@ onMounted(() => {
 
 .btn-primary {
     background: var(--practiq-violet);
-    color: #fff;
+    color: var(--on-brand);
 }
 
 .btn-secondary {
@@ -1192,7 +1192,7 @@ onMounted(() => {
 .btn-danger {
     background: var(--color-error-dark, #b91c1c);
     border-color: var(--color-error-dark, #b91c1c);
-    color: #fff;
+    color: var(--on-brand);
 }
 
 .btn-primary:disabled,

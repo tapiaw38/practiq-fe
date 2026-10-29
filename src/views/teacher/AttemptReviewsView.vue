@@ -11,7 +11,11 @@ import type { AttemptReview } from '@/types';
 
 const service = new AttemptReviewService(practiqApi);
 const toast = useToast();
-const { count: pendingCount, hasMore: pendingHasMore, load: loadPendingCount } = usePendingReviews();
+const {
+    count: pendingCount,
+    hasMore: pendingHasMore,
+    load: loadPendingCount,
+} = usePendingReviews();
 
 const reviews = ref<AttemptReview[]>([]);
 const loading = ref(true);
@@ -103,7 +107,12 @@ const statusTabs = computed(() => [
     {
         key: 'unreviewed',
         label: 'Sin corregir',
-        count: pendingCount.value > 0 ? (pendingHasMore.value ? '99+' : String(pendingCount.value)) : '',
+        count:
+            pendingCount.value > 0
+                ? pendingHasMore.value
+                    ? '99+'
+                    : String(pendingCount.value)
+                : '',
     },
     { key: 'reviewed', label: 'Corregidas', count: '' },
     { key: '', label: 'Todas', count: '' },
@@ -312,7 +321,9 @@ async function openStatementImage(item: AttemptReview) {
                             type="button"
                             role="listitem"
                             class="review-item"
-                            :class="{ 'review-item--active': item.attempt_id === current?.attempt_id }"
+                            :class="{
+                                'review-item--active': item.attempt_id === current?.attempt_id,
+                            }"
                             @click="selectReview(item)"
                         >
                             <span class="review-item__row">
@@ -324,10 +335,13 @@ async function openStatementImage(item: AttemptReview) {
                                             ? item.teacher_is_correct
                                             : item.ai_is_correct === true,
                                         'review-tag--no':
-                                            (item.teacher_reviewed_at && !item.teacher_is_correct) ||
-                                            (!item.teacher_reviewed_at && item.ai_is_correct === false),
+                                            (item.teacher_reviewed_at &&
+                                                !item.teacher_is_correct) ||
+                                            (!item.teacher_reviewed_at &&
+                                                item.ai_is_correct === false),
                                         'review-tag--pending':
-                                            !item.teacher_reviewed_at && item.ai_is_correct === undefined,
+                                            !item.teacher_reviewed_at &&
+                                            item.ai_is_correct === undefined,
                                     }"
                                 >
                                     {{
@@ -362,7 +376,11 @@ async function openStatementImage(item: AttemptReview) {
                             <i class="pi pi-chevron-left"></i>
                         </button>
                         <span class="pagination-info">Página {{ page }}</span>
-                        <button class="btn btn-secondary" :disabled="!hasMore" @click="load(page + 1)">
+                        <button
+                            class="btn btn-secondary"
+                            :disabled="!hasMore"
+                            @click="load(page + 1)"
+                        >
                             <i class="pi pi-chevron-right"></i>
                         </button>
                     </div>
@@ -493,8 +511,8 @@ async function openStatementImage(item: AttemptReview) {
                                 class="verdict-btn verdict-btn--ok"
                                 :class="{
                                     'verdict-btn--picked':
-                                        (pendingVerdict[current.attempt_id] ?? current.teacher_is_correct) ===
-                                        true,
+                                        (pendingVerdict[current.attempt_id] ??
+                                            current.teacher_is_correct) === true,
                                 }"
                                 @click="pickVerdict(current, true)"
                             >
@@ -505,8 +523,8 @@ async function openStatementImage(item: AttemptReview) {
                                 class="verdict-btn verdict-btn--no"
                                 :class="{
                                     'verdict-btn--picked':
-                                        (pendingVerdict[current.attempt_id] ?? current.teacher_is_correct) ===
-                                        false,
+                                        (pendingVerdict[current.attempt_id] ??
+                                            current.teacher_is_correct) === false,
                                 }"
                                 @click="pickVerdict(current, false)"
                             >
@@ -521,9 +539,9 @@ async function openStatementImage(item: AttemptReview) {
                         ></textarea>
                         <div class="review-detail__footer">
                             <span class="review-detail__hint">
-                                Si la marcás correcta, {{
-                                    (current.student_name || '').split(' ')[0] || 'el alumno'
-                                }} pasa al nivel siguiente.
+                                Si la marcás correcta,
+                                {{ (current.student_name || '').split(' ')[0] || 'el alumno' }} pasa
+                                al nivel siguiente.
                             </span>
                             <button
                                 type="button"
@@ -628,6 +646,7 @@ async function openStatementImage(item: AttemptReview) {
 
 .review-list-pane {
     display: grid;
+    min-width: 0;
     gap: 10px;
 }
 
@@ -711,6 +730,7 @@ async function openStatementImage(item: AttemptReview) {
 
 .review-detail {
     display: grid;
+    min-width: 0;
     gap: 16px;
     padding: 20px;
     border: 1px solid var(--surface-border);
@@ -1076,7 +1096,7 @@ async function openStatementImage(item: AttemptReview) {
     color: var(--text-secondary);
 }
 
-@media (max-width: 860px) {
+@media (max-width: 1023px) {
     .review-split {
         grid-template-columns: minmax(0, 1fr);
     }

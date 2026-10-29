@@ -225,7 +225,7 @@ onMounted(load);
                     </thead>
                     <tbody>
                         <tr v-for="sub in filteredSubscriptions" :key="sub.id">
-                            <td>
+                            <td data-label="Docente">
                                 <div class="teacher-cell">
                                     <span class="teacher-name">{{
                                         teacherLabel(sub.user_id)
@@ -235,8 +235,8 @@ onMounted(load);
                                     </span>
                                 </div>
                             </td>
-                            <td>{{ sub.plan_name }}</td>
-                            <td>
+                            <td data-label="Plan">{{ sub.plan_name }}</td>
+                            <td data-label="Estado">
                                 <span
                                     class="status-pill"
                                     :class="subscriptionStatusVariant(sub.status)"
@@ -244,7 +244,7 @@ onMounted(load);
                                     {{ subscriptionStatusLabel(sub.status) }}
                                 </span>
                             </td>
-                            <td>
+                            <td data-label="Último cobro">
                                 <template v-if="sub.last_cycle">
                                     {{
                                         formatMoney(sub.last_cycle.amount, sub.last_cycle.currency)
@@ -255,7 +255,7 @@ onMounted(load);
                                 </template>
                                 <span v-else class="cycle-empty">Sin cobros aún</span>
                             </td>
-                            <td>
+                            <td data-label="Resultado">
                                 <span
                                     class="status-pill"
                                     :class="cycleStatusVariant(sub.last_cycle?.status)"
@@ -263,7 +263,9 @@ onMounted(load);
                                     {{ cycleStatusLabel(sub.last_cycle?.status) }}
                                 </span>
                             </td>
-                            <td>{{ formatDate(sub.next_payment_at) || '—' }}</td>
+                            <td data-label="Próximo cobro">
+                                {{ formatDate(sub.next_payment_at) || '—' }}
+                            </td>
                         </tr>
                     </tbody>
                 </table>
@@ -392,6 +394,7 @@ onMounted(load);
 
 .data-table {
     width: 100%;
+    min-width: 820px;
     border-collapse: collapse;
 }
 
@@ -425,6 +428,7 @@ onMounted(load);
     display: flex;
     flex-direction: column;
     gap: 0.1rem;
+    min-width: 0;
 }
 
 .teacher-name {
@@ -432,8 +436,10 @@ onMounted(load);
 }
 
 .teacher-email {
+    overflow: hidden;
     font-size: 0.76rem;
     color: var(--text-secondary);
+    text-overflow: ellipsis;
 }
 
 .cycle-date {
@@ -472,6 +478,55 @@ onMounted(load);
 .status-pill--neutral {
     background: rgba(var(--surface-border-rgb), 0.3);
     color: var(--text-secondary);
+}
+
+@media (max-width: 1023px) {
+    .subs-card {
+        overflow-x: hidden;
+    }
+    .data-table,
+    .data-table tbody,
+    .data-table tr,
+    .data-table td {
+        display: block;
+        width: 100%;
+        min-width: 0;
+    }
+    .data-table thead {
+        display: none;
+    }
+    .data-table tbody {
+        display: grid;
+        gap: 0.75rem;
+        padding: 0.75rem;
+    }
+    .data-table tr {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 0.75rem;
+        padding: 0.85rem;
+        border: 1px solid var(--surface-border);
+        border-radius: var(--radius-lg);
+    }
+    .data-table td {
+        min-width: 0;
+        padding: 0;
+        border: 0;
+        white-space: normal;
+        overflow-wrap: anywhere;
+    }
+    .data-table td:first-child,
+    .data-table td:last-child {
+        grid-column: 1 / -1;
+    }
+    .data-table td::before {
+        display: block;
+        margin-bottom: 0.25rem;
+        color: var(--text-secondary);
+        content: attr(data-label);
+        font-size: 0.72rem;
+        font-weight: 700;
+    }
 }
 
 @media (max-width: 640px) {

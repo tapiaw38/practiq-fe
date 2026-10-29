@@ -371,7 +371,7 @@ async function deleteStrategy() {
 
 .strategies-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
+    grid-template-columns: repeat(auto-fill, minmax(min(100%, 280px), 1fr));
     gap: 16px;
 }
 
@@ -449,10 +449,6 @@ async function deleteStrategy() {
 @media (max-width: 1024px) {
     .strategy-dashboard {
         padding: 20px 16px 40px;
-    }
-
-    .strategies-grid {
-        grid-template-columns: 1fr;
     }
 }
 

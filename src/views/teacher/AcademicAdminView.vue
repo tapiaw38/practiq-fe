@@ -503,8 +503,13 @@ async function confirmDeleteSubject(id: string) {
                                         :to="`/teacher/courses/${course.id}`"
                                     >
                                         <div class="academic-course-card__body">
-                                            <h4 class="academic-course-card__title">{{ course.title }}</h4>
-                                            <p v-if="course.description" class="academic-course-card__desc">
+                                            <h4 class="academic-course-card__title">
+                                                {{ course.title }}
+                                            </h4>
+                                            <p
+                                                v-if="course.description"
+                                                class="academic-course-card__desc"
+                                            >
                                                 {{ course.description }}
                                             </p>
                                         </div>
@@ -512,7 +517,9 @@ async function confirmDeleteSubject(id: string) {
                                             <span v-if="course.level" class="level-chip">{{
                                                 course.level
                                             }}</span>
-                                            <i class="pi pi-arrow-right academic-course-card__go"></i>
+                                            <i
+                                                class="pi pi-arrow-right academic-course-card__go"
+                                            ></i>
                                         </div>
                                     </RouterLink>
                                 </article>
@@ -938,7 +945,7 @@ async function confirmDeleteSubject(id: string) {
 .ac-layout {
     flex: 1;
     display: grid;
-    grid-template-columns: 248px 1fr;
+    grid-template-columns: 248px minmax(0, 1fr);
     align-items: start;
     min-height: 0;
     overflow: hidden;
@@ -1006,6 +1013,7 @@ async function confirmDeleteSubject(id: string) {
 
 .grade-nav-item__name {
     flex: 1;
+    min-width: 0;
     font-size: var(--text-base);
     font-weight: 600;
     color: var(--text-secondary);
@@ -1053,7 +1061,7 @@ async function confirmDeleteSubject(id: string) {
     box-shadow: var(--shadow-card);
 }
 
-@media (min-width: 821px) {
+@media (min-width: 1024px) {
     .grade-sidebar {
         position: sticky;
         top: 20px;
@@ -1146,7 +1154,7 @@ async function confirmDeleteSubject(id: string) {
 
 .courses-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+    grid-template-columns: repeat(auto-fill, minmax(min(100%, 240px), 1fr));
     gap: 14px;
 }
 
@@ -1678,7 +1686,7 @@ async function confirmDeleteSubject(id: string) {
 
 @media (max-width: 1024px) {
     .ac-layout {
-        grid-template-columns: 200px 1fr;
+        grid-template-columns: 200px minmax(0, 1fr);
     }
     .grade-sidebar {
         min-width: 0;
@@ -1692,7 +1700,7 @@ async function confirmDeleteSubject(id: string) {
     }
 }
 
-@media (max-width: 820px) {
+@media (max-width: 1023px) {
     .ac-root {
         display: block;
         width: 100%;
@@ -1748,7 +1756,7 @@ async function confirmDeleteSubject(id: string) {
     }
 }
 
-@media (max-width: 820px) {
+@media (max-width: 1023px) {
     .modal-card,
     .modal-card--wide {
         width: 100%;

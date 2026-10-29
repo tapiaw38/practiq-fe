@@ -80,7 +80,12 @@ const filteredRows = computed(() => {
 
 function initialsOf(name: string) {
     const words = name.split(' ').filter((w) => /^[A-ZÁÉÍÓÚ]/.test(w));
-    return words.slice(0, 2).map((w) => w[0]).join('') || name.slice(0, 2).toUpperCase();
+    return (
+        words
+            .slice(0, 2)
+            .map((w) => w[0])
+            .join('') || name.slice(0, 2).toUpperCase()
+    );
 }
 
 function billingLabel(school: School) {
@@ -480,18 +485,20 @@ onMounted(load);
             <div class="school-list-card" @click="closeMenu">
                 <div v-if="loading" class="school-row"><Skeleton width="100%" height="18px" /></div>
                 <p v-else-if="!filteredRows.length" class="empty">
-                    {{ searchQuery ? 'Ninguna escuela coincide con la búsqueda.' : 'Todavía no hay ninguna.' }}
+                    {{
+                        searchQuery
+                            ? 'Ninguna escuela coincide con la búsqueda.'
+                            : 'Todavía no hay ninguna.'
+                    }}
                 </p>
-                <div
-                    v-for="school in filteredRows"
-                    :key="school.id"
-                    class="school-row"
-                    @click.stop
-                >
+                <div v-for="school in filteredRows" :key="school.id" class="school-row" @click.stop>
                     <span class="school-avatar">{{ initialsOf(school.name) }}</span>
                     <div class="school-main">
                         <span class="school-name">{{ school.name }}</span>
-                        <span v-if="school.kind === 'personal' && school.owner" class="school-owner">
+                        <span
+                            v-if="school.kind === 'personal' && school.owner"
+                            class="school-owner"
+                        >
                             {{ school.owner.name }}
                             <a :href="`mailto:${school.owner.email}`" class="school-email">
                                 {{ school.owner.email }}
@@ -941,7 +948,7 @@ onMounted(load);
     flex: 0 0 38px;
     border-radius: var(--radius-sm);
     background: var(--deep-800);
-    color: #fff;
+    color: var(--on-brand);
     font-size: 0.78rem;
     font-weight: 800;
 }
@@ -981,7 +988,7 @@ onMounted(load);
     position: absolute;
     right: 0;
     top: calc(100% - 4px);
-    width: 200px;
+    width: min(200px, 100%);
     padding: 6px;
     border: 1px solid var(--surface-border);
     border-radius: var(--radius-lg);
@@ -1091,7 +1098,7 @@ onMounted(load);
 
 .btn-primary {
     background: var(--practiq-violet);
-    color: #fff;
+    color: var(--on-brand);
     align-self: flex-start;
 }
 
@@ -1106,7 +1113,7 @@ onMounted(load);
 
 .btn-danger {
     background: var(--color-error, #dc2626);
-    color: #fff;
+    color: var(--on-brand);
 }
 
 .btn-primary:disabled {

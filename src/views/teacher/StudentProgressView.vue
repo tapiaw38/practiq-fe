@@ -1184,7 +1184,7 @@ function masteryClass(score: number) {
     gap: 10px;
     margin-bottom: 16px;
     padding: 12px 14px;
-    border: 1px solid #f6e3bf;
+    border: 1px solid var(--warning-solid);
     border-radius: var(--radius-md);
     background: var(--color-warning-bg);
     color: var(--color-warning-dark);
@@ -1269,12 +1269,17 @@ function masteryClass(score: number) {
 .summary-card {
     display: flex;
     align-items: center;
+    min-width: 0;
     gap: 10px;
     padding: 10px 14px;
     border-radius: var(--radius-xl);
     background: var(--surface-elevated);
     border: 1px solid var(--surface-elevated-strong);
     box-shadow: var(--shadow-card);
+}
+.summary-card > div:last-child {
+    min-width: 0;
+    overflow-wrap: anywhere;
 }
 .summary-icon {
     width: 34px;
@@ -2335,7 +2340,7 @@ function masteryClass(score: number) {
         padding: 12px 16px 28px;
     }
     .summary-row {
-        grid-template-columns: repeat(2, 1fr);
+        grid-template-columns: repeat(2, minmax(0, 1fr));
     }
     .course-topic-row {
         grid-template-columns: 140px 1fr 52px 60px;
@@ -2450,6 +2455,14 @@ function masteryClass(score: number) {
         font-weight: 800;
         letter-spacing: 0.04em;
         text-transform: uppercase;
+    }
+}
+
+@media (max-width: 480px) {
+    .summary-card {
+        flex-direction: column;
+        align-items: flex-start;
+        padding: 10px;
     }
 }
 </style>

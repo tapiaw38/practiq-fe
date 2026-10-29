@@ -56,6 +56,11 @@ function closeSchool() {
 function pickSchool(id: string) {
     setActive(id);
     closeSchool();
+    navOpen.value = false;
+}
+function openSchoolFromTopbar() {
+    navOpen.value = true;
+    schoolOpen.value = hasChoice.value;
 }
 const userInitial = computed(() => profile.value?.name?.[0]?.toUpperCase() || 'D');
 const navOpen = ref(false);
@@ -157,9 +162,16 @@ function logout() {
 
             <div class="topbar-brand">
                 <img src="@/assets/logo.png" class="topbar-logo" alt="Practiq" />
-                <span v-if="active" class="topbar-school" :title="active.name">{{
-                    active.name
-                }}</span>
+                <button
+                    v-if="active"
+                    type="button"
+                    class="topbar-school"
+                    :title="active.name"
+                    :aria-label="`Cambiar escuela activa: ${active.name}`"
+                    @click="openSchoolFromTopbar"
+                >
+                    {{ active.name }}
+                </button>
             </div>
 
             <button

@@ -96,7 +96,7 @@ header p:last-child {
 }
 .settings-card {
     display: grid;
-    max-width: 760px;
+    max-width: 620px;
     gap: 18px;
     margin-top: 16px;
     padding: 24px;
@@ -134,7 +134,7 @@ button {
     border-radius: var(--radius-md);
     background: var(--practiq-violet);
     box-shadow: var(--shadow-violet);
-    color: #fff;
+    color: var(--on-brand);
     font-weight: 800;
     cursor: pointer;
 }

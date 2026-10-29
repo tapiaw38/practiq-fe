@@ -327,7 +327,7 @@ onMounted(load);
 
 .field-pair {
     display: grid;
-    grid-template-columns: 1fr 1fr;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 0.6rem;
 }
 
@@ -489,7 +489,7 @@ onMounted(load);
 
 .btn-primary {
     background: var(--practiq-violet);
-    color: #fff;
+    color: var(--on-brand);
 }
 
 .btn-quiet {
@@ -513,7 +513,7 @@ onMounted(load);
     cursor: not-allowed;
 }
 
-@media (max-width: 860px) {
+@media (max-width: 1023px) {
     .plans-grid {
         grid-template-columns: 1fr;
     }

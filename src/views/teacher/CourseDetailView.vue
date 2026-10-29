@@ -1804,7 +1804,12 @@ async function deleteNotebook(id: string) {
                     @open-notebook="openNotebook"
                 />
 
-                <div v-if="activeTab === 'content'" class="content-subtabs" role="tablist" aria-label="Tipo de contenido">
+                <div
+                    v-if="activeTab === 'content'"
+                    class="content-subtabs"
+                    role="tablist"
+                    aria-label="Tipo de contenido"
+                >
                     <button
                         v-for="sub in contentSubTabs"
                         :key="sub.id"
@@ -3510,19 +3515,19 @@ async function deleteNotebook(id: string) {
 }
 .status-confirm-go {
     background: var(--color-warning-dark);
-    color: #fff;
+    color: var(--on-brand);
 }
 .status-error {
     background: var(--color-error-bg);
     color: var(--color-error-dark);
 }
 .badge-status--draft {
-    background: #fef3c7;
-    color: #92400e;
+    background: var(--warning-soft);
+    color: var(--warning);
 }
 .badge-status--published {
-    background: #dcfce7;
-    color: #166534;
+    background: var(--success-soft);
+    color: var(--success);
 }
 .badge-status--archived {
     background: var(--surface-hover);
@@ -3658,7 +3663,7 @@ async function deleteNotebook(id: string) {
     min-height: 180px;
 }
 .field-hint--warn {
-    color: #92400e;
+    color: var(--warning);
 }
 .field-hint {
     margin-top: 6px;

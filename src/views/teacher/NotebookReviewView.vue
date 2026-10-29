@@ -270,7 +270,9 @@ const currentPosition = computed(() => {
 });
 
 watch(current, (submission) => {
-    reviewForm.isCorrect = submission ? (submission.teacher_is_correct ?? submission.ai_is_correct ?? null) : null;
+    reviewForm.isCorrect = submission
+        ? (submission.teacher_is_correct ?? submission.ai_is_correct ?? null)
+        : null;
     reviewForm.feedback = submission?.teacher_feedback || submission?.ai_feedback || '';
 });
 
@@ -599,7 +601,10 @@ async function confirmAndNext() {
                     </div>
 
                     <div
-                        v-if="!filters.studentSearch.trim() && (submissionsPage > 1 || submissionsHasMore)"
+                        v-if="
+                            !filters.studentSearch.trim() &&
+                            (submissionsPage > 1 || submissionsHasMore)
+                        "
                         class="pagination-controls"
                     >
                         <button
@@ -1153,6 +1158,7 @@ async function confirmAndNext() {
 
 .review-list-pane {
     display: grid;
+    min-width: 0;
     gap: 10px;
 }
 
@@ -1200,9 +1206,12 @@ async function confirmAndNext() {
     gap: 3px;
 }
 .review-item__body strong {
+    overflow: hidden;
     font-size: 13.5px;
     font-weight: 600;
     color: var(--text-heading);
+    text-overflow: ellipsis;
+    white-space: nowrap;
 }
 .review-item__meta {
     font-size: var(--text-sm);
@@ -1239,6 +1248,7 @@ async function confirmAndNext() {
 
 .review-detail {
     display: grid;
+    min-width: 0;
     gap: 16px;
     padding: 20px;
     border: 1px solid var(--surface-border);
@@ -1385,7 +1395,7 @@ async function confirmAndNext() {
     }
 }
 
-@media (max-width: 860px) {
+@media (max-width: 1023px) {
     .review-split {
         grid-template-columns: minmax(0, 1fr);
     }
