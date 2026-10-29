@@ -22,7 +22,9 @@ function practiqUserId(user: AuthApiUser) {
 }
 const {
     courses,
+    studentsByCourseId,
     loadCourses,
+    loadStudentsForCourse,
     createCourse: createCourseService,
     updateCourse: updateCourseService,
     deleteCourse: deleteCourseService,
@@ -90,6 +92,10 @@ const missingSubjects = computed(() => {
     return subjects.value.filter((s) => !covered.has(s.id));
 });
 
+function courseStudentCount(courseId: string) {
+    return studentsByCourseId.value[courseId]?.length;
+}
+
 function gradeCourses(gradeId: string) {
     return courses.value.filter((c) => c.grade_id === gradeId);
 }
@@ -118,6 +124,17 @@ watch(
     (gradeId) => {
         if (gradeId && !gradeMembers.value[gradeId]) {
             loadGradeMembers(gradeId).catch(() => {});
+        }
+    },
+    { immediate: true },
+);
+watch(
+    selectedCourses,
+    (courses) => {
+        for (const course of courses) {
+            if (!(course.id in studentsByCourseId.value)) {
+                loadStudentsForCourse(course.id).catch(() => {});
+            }
         }
     },
     { immediate: true },
@@ -557,13 +574,16 @@ async function confirmDeleteSubject(id: string) {
                                                 class="academic-course-card__teacher"
                                                 >{{ teacherName(course.teacher_id) }}</span
                                             >
-                                            <span class="academic-course-card__footer-right">
-                                                <span v-if="course.level" class="level-chip">{{
-                                                    course.level
-                                                }}</span>
-                                                <i
-                                                    class="pi pi-arrow-right academic-course-card__go"
-                                                ></i>
+                                            <span
+                                                v-if="courseStudentCount(course.id) !== undefined"
+                                                class="academic-course-card__students"
+                                            >
+                                                {{ courseStudentCount(course.id) }}
+                                                {{
+                                                    courseStudentCount(course.id) === 1
+                                                        ? 'alumno'
+                                                        : 'alumnos'
+                                                }}
                                             </span>
                                         </div>
                                     </RouterLink>
@@ -1335,32 +1355,10 @@ async function confirmDeleteSubject(id: string) {
     font-size: var(--text-xs);
     color: var(--text-secondary);
 }
-.academic-course-card__footer-right {
-    display: flex;
-    align-items: center;
-    gap: 8px;
+.academic-course-card__students {
     flex: 0 0 auto;
-}
-
-.level-chip {
     font-size: var(--text-xs);
-    font-weight: 700;
     color: var(--text-secondary);
-    background: var(--surface-hover);
-    border-radius: var(--radius-pill);
-    padding: 3px 9px;
-}
-
-.academic-course-card__go {
-    color: var(--practiq-violet-light);
-    font-size: var(--text-sm);
-    transition:
-        color 0.12s,
-        transform 0.12s;
-}
-.academic-course-card:hover .academic-course-card__go {
-    color: var(--practiq-violet);
-    transform: translateX(2px);
 }
 
 .missing-subject-card {

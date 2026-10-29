@@ -8,6 +8,7 @@ export const useCourseStore = (service: ICourseService) =>
         const courses = ref<Course[]>([]);
         const currentCourse = ref<Course | null>(null);
         const students = ref<Student[]>([]);
+        const studentsByCourseId = ref<Record<string, Student[]>>({});
         const loading = ref(false);
         const loadingCourse = ref(false);
         const loadingStudents = ref(false);
@@ -104,16 +105,24 @@ export const useCourseStore = (service: ICourseService) =>
             }
         };
 
+        const fetchStudentsForCourse = async (courseId: string) => {
+            const response = await service.getStudents(courseId);
+            studentsByCourseId.value[courseId] = response.data;
+            return response.data;
+        };
+
         const reset = () => {
             courses.value = [];
             currentCourse.value = null;
             students.value = [];
+            studentsByCourseId.value = {};
         };
 
         return {
             courses,
             currentCourse,
             students,
+            studentsByCourseId,
             loading,
             loadingCourse,
             loadingStudents,
@@ -125,6 +134,7 @@ export const useCourseStore = (service: ICourseService) =>
             deleteCourse,
             enrollCourse,
             fetchStudents,
+            fetchStudentsForCourse,
             reset,
         };
     });
