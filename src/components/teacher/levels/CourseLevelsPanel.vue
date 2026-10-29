@@ -123,19 +123,37 @@ const nextLevel = () => (props.levels.at(-1)?.level ?? 0) + 1;
                         }}</small>
                     </span>
                 </button>
-                <button
-                    v-for="nb in lv.notebooks"
-                    :key="nb.id"
-                    type="button"
-                    class="level-act"
-                    @click="emit('openNotebook', nb.id)"
-                >
-                    <i class="pi pi-book" aria-hidden="true"></i>
-                    <span>
-                        <strong>{{ nb.title || 'Cuaderno' }}</strong>
-                        <small>{{ plural(countItems(nb.pages), 'página', 'páginas') }}</small>
-                    </span>
-                </button>
+                <div v-for="nb in lv.notebooks" :key="nb.id" class="level-act level-act--group">
+                    <button
+                        type="button"
+                        class="level-act__main"
+                        @click="emit('openNotebook', nb.id)"
+                    >
+                        <i class="pi pi-book" aria-hidden="true"></i>
+                        <span>
+                            <strong>{{ nb.title || 'Cuaderno' }}</strong>
+                            <small>{{ plural(countItems(nb.pages), 'página', 'páginas') }}</small>
+                        </span>
+                    </button>
+                    <button
+                        type="button"
+                        class="level-act__icon"
+                        title="Editar cuaderno"
+                        aria-label="Editar cuaderno"
+                        @click="emit('editNotebook', nb)"
+                    >
+                        <i class="pi pi-pencil" aria-hidden="true"></i>
+                    </button>
+                    <button
+                        type="button"
+                        class="level-act__icon level-act__icon--danger"
+                        title="Eliminar cuaderno"
+                        aria-label="Eliminar cuaderno"
+                        @click="emit('deleteNotebook', nb.id)"
+                    >
+                        <i class="pi pi-trash" aria-hidden="true"></i>
+                    </button>
+                </div>
             </div>
         </section>
 
@@ -299,6 +317,47 @@ const nextLevel = () => (props.levels.at(-1)?.level ?? 0) + 1;
     display: block;
     font-size: 11.5px;
     color: var(--ink-muted);
+}
+.level-act--group {
+    padding: 0;
+    gap: 0;
+}
+.level-act__main {
+    display: flex;
+    flex: 1;
+    align-items: center;
+    gap: 10px;
+    min-width: 0;
+    padding: 10px 4px 10px 12px;
+    border: 0;
+    background: transparent;
+    text-align: left;
+    font-family: inherit;
+    cursor: pointer;
+}
+.level-act__icon {
+    display: grid;
+    place-items: center;
+    width: 32px;
+    align-self: stretch;
+    flex: 0 0 32px;
+    border: 0;
+    background: transparent;
+    color: var(--ink-muted);
+    cursor: pointer;
+}
+.level-act__icon:last-child {
+    margin-right: 6px;
+}
+.level-act__icon i {
+    font-size: 12.5px;
+    color: inherit;
+}
+.level-act__icon:hover {
+    color: var(--brand-700);
+}
+.level-act__icon--danger:hover {
+    color: var(--danger);
 }
 .level-create {
     display: flex;

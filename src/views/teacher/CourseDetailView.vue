@@ -29,6 +29,7 @@ import type {
     PracticeSheet,
     Notebook,
     CourseLevelsResponse,
+    LevelNotebookSummary,
 } from '@/types';
 import { parseExerciseMetadata } from '@/utils/assistantExerciseContext';
 import { statementImageDataURL, forgetStatementImage } from '@/utils/statementImage';
@@ -798,6 +799,10 @@ const teacherLastPos: Record<TeacherCanvasKind, { x: number; y: number }> = {
 
 const courseFailed = ref(false);
 
+async function refreshLevels() {
+    courseLevels.value = await loadCourseLevels(courseId);
+}
+
 async function loadCourseData() {
     courseFailed.value = false;
     const [courseRes, topicsRes, materialsRes, studentsRes, sheetsRes, notebooksRes, levelsRes] =
@@ -1002,7 +1007,7 @@ async function createSheet() {
     newSheet.available_until = '';
     newSheet.exercise_ids = [];
     sheetExercises.value = [];
-    await loadSheetsPage(courseId, 1);
+    await Promise.all([loadSheetsPage(courseId, 1), refreshLevels()]);
 }
 
 async function createNotebook() {
@@ -1293,14 +1298,14 @@ async function saveSheetEdit() {
         exercise_ids: editSheet.exercise_ids,
     });
     showEditSheetModal.value = false;
-    await loadSheetsPage(courseId, 1);
+    await Promise.all([loadSheetsPage(courseId, 1), refreshLevels()]);
 }
 
 async function deleteSheet(id: string) {
     const ok = await showConfirm('¿Eliminar esta hoja de práctica?');
     if (!ok) return false;
     await deletePracticeSheetService(id);
-    await loadSheetsPage(courseId, sheetsPage.value);
+    await Promise.all([loadSheetsPage(courseId, sheetsPage.value), refreshLevels()]);
     return true;
 }
 
@@ -1644,7 +1649,7 @@ function captureTeacherCanvas(kind: TeacherCanvasKind) {
     return teacherCanvasRefs[kind]?.toDataURL('image/png') || '';
 }
 
-function openEditNotebook(nb: Notebook) {
+function openEditNotebook(nb: LevelNotebookSummary | Notebook) {
     editingNotebookId.value = nb.id;
     editNotebook.title = nb.title;
     editNotebook.description = nb.description || '';
@@ -1661,6 +1666,7 @@ async function saveNotebookEdit() {
     });
     showEditNotebookModal.value = false;
     notebooks.value = await loadNotebooks(courseId);
+    await refreshLevels();
 }
 
 async function deleteNotebook(id: string) {
@@ -1668,6 +1674,7 @@ async function deleteNotebook(id: string) {
     if (!ok) return;
     await deleteNotebookService(id);
     notebooks.value = notebooks.value.filter((n) => n.id !== id);
+    await refreshLevels();
 }
 </script>
 
@@ -1828,6 +1835,8 @@ async function deleteNotebook(id: string) {
                     @create-notebook="openNotebookForLevel"
                     @open-sheet="goToSheet"
                     @open-notebook="openNotebook"
+                    @edit-notebook="openEditNotebook"
+                    @delete-notebook="deleteNotebook"
                 />
 
                 <div
