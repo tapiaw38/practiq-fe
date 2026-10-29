@@ -846,6 +846,7 @@ watch(
 watch(
     () => editSheet.topic_id,
     async (id) => {
+        if (!showEditSheetModal.value) return;
         editSheet.exercise_ids = [];
         await loadEditSheetExercises(id);
     },
@@ -1173,14 +1174,12 @@ function openNewSheet() {
 async function goToSheet(sheetId: string) {
     const sheet = practiceSheets.value.find((s) => s.id === sheetId);
     if (sheet) {
-        activeTab.value = 'sheets';
         openEditSheet(sheet);
         return;
     }
 
     try {
         const loadedSheet = await loadPracticeSheet(sheetId);
-        activeTab.value = 'sheets';
         openEditSheet(loadedSheet);
     } catch {
         return;
