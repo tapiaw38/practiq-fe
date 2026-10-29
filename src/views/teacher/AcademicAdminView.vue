@@ -9,11 +9,17 @@ import { useConfirm } from '@/composables/useConfirm';
 import { useCourse } from '@/composables/useCourse';
 import { useGrade } from '@/composables/useGrade';
 import { useSubject } from '@/composables/useSubject';
-import type { Course, Grade, Subject } from '@/types';
+import type { AuthApiUser, Course, Grade, Subject } from '@/types';
 import { useSchools } from '@/composables/useSchools';
+import { useAuthAdmin } from '@/composables/useAuthAdmin';
 
 const router = useRouter();
 const { confirmState, showConfirm, onConfirm, onCancel } = useConfirm();
+const { loadUsers } = useAuthAdmin();
+
+function practiqUserId(user: AuthApiUser) {
+    return user.username || user.id;
+}
 const {
     courses,
     loadCourses,
@@ -89,6 +95,12 @@ function courseStatusLabel(status: Course['status']) {
     return status === 'published' ? 'Publicado' : status === 'archived' ? 'Archivado' : 'Borrador';
 }
 
+const teacherNameById = ref<Record<string, string>>({});
+
+function teacherName(teacherId: string) {
+    return teacherNameById.value[teacherId] || '';
+}
+
 onMounted(loadData);
 watch(activeId, () => {
     selectedGradeId.value = null;
@@ -98,7 +110,15 @@ watch(activeId, () => {
 async function loadData() {
     loading.value = true;
     try {
-        await Promise.all([loadGrades(), loadSubjects(), loadCourses('teacher')]);
+        const [, , , users] = await Promise.all([
+            loadGrades(),
+            loadSubjects(),
+            loadCourses('teacher'),
+            loadUsers({ limit: 1000, offset: 0 }).catch(() => []),
+        ]);
+        teacherNameById.value = Object.fromEntries(
+            users.map((u) => [practiqUserId(u), `${u.first_name} ${u.last_name}`.trim()]),
+        );
         if (!selectedGradeId.value && grades.value.length > 0) {
             selectedGradeId.value = grades.value[0].id;
         }
@@ -514,12 +534,19 @@ async function confirmDeleteSubject(id: string) {
                                             </p>
                                         </div>
                                         <div class="academic-course-card__footer">
-                                            <span v-if="course.level" class="level-chip">{{
-                                                course.level
-                                            }}</span>
-                                            <i
-                                                class="pi pi-arrow-right academic-course-card__go"
-                                            ></i>
+                                            <span
+                                                v-if="teacherName(course.teacher_id)"
+                                                class="academic-course-card__teacher"
+                                                >{{ teacherName(course.teacher_id) }}</span
+                                            >
+                                            <span class="academic-course-card__footer-right">
+                                                <span v-if="course.level" class="level-chip">{{
+                                                    course.level
+                                                }}</span>
+                                                <i
+                                                    class="pi pi-arrow-right academic-course-card__go"
+                                                ></i>
+                                            </span>
                                         </div>
                                     </RouterLink>
                                 </article>
@@ -1278,8 +1305,23 @@ async function confirmDeleteSubject(id: string) {
     display: flex;
     align-items: center;
     justify-content: space-between;
+    gap: 8px;
     padding: 7px 10px;
     border-top: 1px solid rgba(var(--surface-border-rgb), 0.12);
+}
+.academic-course-card__teacher {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: var(--text-xs);
+    color: var(--text-secondary);
+}
+.academic-course-card__footer-right {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex: 0 0 auto;
 }
 
 .level-chip {
