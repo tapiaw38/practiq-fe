@@ -993,17 +993,16 @@ async function setProfileType(item: UserRow, makeTeacher: boolean) {
 }
 .hero-kicker,
 .panel-kicker {
-    font-size: var(--text-sm);
-    font-weight: 700;
-    letter-spacing: 0.14em;
+    font: 900 11px/1.3 var(--font-ui);
+    letter-spacing: 0.09em;
     text-transform: uppercase;
-    color: var(--practiq-violet);
+    color: var(--brand-700);
 }
 .hero-title {
     margin: 4px 0 6px;
-    font-size: var(--font-hero);
-    font-weight: 800;
-    color: var(--text-heading);
+    font: 900 clamp(24px, 3vw, 28px)/1.06 var(--font-ui);
+    letter-spacing: -0.035em;
+    color: var(--ink);
     text-align: left;
 }
 .hero-copy {

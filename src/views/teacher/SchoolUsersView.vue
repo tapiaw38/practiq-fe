@@ -584,10 +584,9 @@ onMounted(async () => {
 }
 .eyebrow {
     margin: 0 0 0.45rem;
-    color: var(--practiq-violet);
-    font-size: 0.72rem;
-    font-weight: 800;
-    letter-spacing: 0.1em;
+    color: var(--brand-700);
+    font: 900 11px/1.3 var(--font-ui);
+    letter-spacing: 0.09em;
     text-transform: uppercase;
 }
 h1,
@@ -618,12 +617,13 @@ p {
 .card-heading h2 {
     margin-bottom: 0.25rem;
     color: var(--text-heading);
-    font-size: 1.1rem;
+    font: 900 19px/1.2 var(--font-ui);
+    letter-spacing: -0.03em;
 }
 .form-title {
     margin: 1rem 0 0;
     color: var(--text-heading);
-    font-size: 0.95rem;
+    font: 900 16px/1.2 var(--font-ui);
 }
 .card-heading p,
 .form-note {
@@ -781,7 +781,7 @@ p {
 }
 .inactive {
     margin-left: auto;
-    color: var(--color-error-dark, #b91c1c);
+    color: var(--color-error-dark);
     font-size: 0.75rem;
     font-weight: 700;
 }
@@ -808,8 +808,8 @@ p {
     cursor: pointer;
 }
 .remove-button:hover {
-    color: var(--color-error-dark, #b91c1c);
-    background: var(--color-error-bg, #fef2f2);
+    color: var(--color-error-dark);
+    background: var(--color-error-bg);
 }
 .filter-bar {
     display: flex;
