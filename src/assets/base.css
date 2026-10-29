@@ -225,6 +225,8 @@
     --text-secondary: #94a3b8;
     --text-muted: #64748b;
 
+    --practiq-violet-bg: rgba(139, 92, 246, 0.14);
+
     --color-success-bg: rgba(16, 185, 129, 0.14);
     --color-error-bg: rgba(239, 68, 68, 0.14);
     --color-warning-bg: rgba(245, 158, 11, 0.14);
