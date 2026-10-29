@@ -1249,9 +1249,10 @@ export class Chat {
             const option = document.createElement('option');
             option.value = rate;
             option.textContent = `${rate}x`;
+            option.style.cssText = `background:${backgroundColor};color:${textColor}`;
             speed.appendChild(option);
         }
-        speed.style.cssText = `border:1px solid ${primaryColor}44;border-radius:9px;padding:5px 8px;background:transparent;color:inherit`;
+        speed.style.cssText = `border:1px solid ${primaryColor}44;border-radius:9px;padding:5px 8px;background:${backgroundColor};color:${textColor}`;
 
         panel.append(
             header,
