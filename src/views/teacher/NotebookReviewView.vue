@@ -554,7 +554,7 @@ async function confirmAndNext() {
                 <p>No encontramos entregas de cuadernos con los filtros seleccionados.</p>
             </div>
 
-            <div v-else class="review-split">
+            <div v-else-if="hasScope()" class="review-split">
                 <div class="review-list-pane">
                     <div class="review-list">
                         <button
