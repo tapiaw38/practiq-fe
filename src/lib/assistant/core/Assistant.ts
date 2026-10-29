@@ -626,7 +626,6 @@ export function createAssistant(options: AssistantOptions): Assistant {
                 '.section-header',
                 '.welcome-actions',
                 '.progress-bar',
-                '.dashboard-mascot',
                 '.ai-review-box',
                 '.ai-review-head',
                 '.ai-review-badge',

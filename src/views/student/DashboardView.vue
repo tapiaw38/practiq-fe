@@ -637,8 +637,6 @@ function topicsNeedingReview(courseId: string): typeof progress.value {
                     />
                 </template>
             </template>
-
-            <img src="@/assets/backpack.png" class="dashboard-mascot" alt="" aria-hidden="true" />
         </div>
     </StudentLayout>
 
@@ -727,22 +725,6 @@ function topicsNeedingReview(courseId: string): typeof progress.value {
     backdrop-filter: blur(18px);
 }
 
-.dashboard-mascot {
-    position: absolute;
-    bottom: 0;
-    right: 0;
-    width: 580px;
-    pointer-events: none;
-    user-select: none;
-    z-index: 0;
-}
-
-@media (max-width: 1100px) {
-    .dashboard-mascot {
-        width: 440px;
-    }
-}
-
 @media (max-width: 640px) {
     .dashboard-error {
         align-items: flex-start;
@@ -752,9 +734,6 @@ function topicsNeedingReview(courseId: string): typeof progress.value {
     .dashboard-error .btn {
         width: 100%;
         margin-left: 54px;
-    }
-    .dashboard-mascot {
-        display: none;
     }
 }
 
