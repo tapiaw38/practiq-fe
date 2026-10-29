@@ -1183,7 +1183,7 @@ async function confirmAndNext() {
 }
 
 .review-item--active {
-    box-shadow: inset 2px 0 0 var(--practiq-violet);
+    border-color: var(--brand-200);
     background: var(--surface-sunken);
 }
 

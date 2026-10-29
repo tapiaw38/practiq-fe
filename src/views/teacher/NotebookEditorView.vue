@@ -416,10 +416,10 @@ function clearCanvas() {
 <template>
     <TeacherLayout>
         <div class="editor-shell anim-stagger">
+            <button class="btn-back" type="button" @click="router.back()">
+                <i class="pi pi-arrow-left"></i> Volver
+            </button>
             <header class="editor-header">
-                <button class="btn-back" type="button" aria-label="Volver" @click="router.back()">
-                    <i class="pi pi-arrow-left"></i>
-                </button>
                 <div class="header-info">
                     <p class="editor-eyebrow">Cuaderno</p>
                     <h1 class="editor-title">{{ notebook?.title || 'Cuaderno' }}</h1>
@@ -897,33 +897,29 @@ function clearCanvas() {
     height: 100%;
     display: flex;
     flex-direction: column;
-    padding: 20px 24px;
-    gap: 16px;
-    background: var(--gradient-app-bg);
+    gap: 18px;
 }
 
 .editor-header {
     display: flex;
-    align-items: center;
-    gap: 16px;
-    padding: 18px 20px;
-    border: 1px solid rgba(var(--surface-border-rgb), 0.16);
-    border-radius: var(--radius-2xl);
-    background: var(--gradient-card-accent);
-    box-shadow: var(--shadow-card);
+    flex-wrap: wrap;
+    align-items: flex-end;
+    gap: 12px;
 }
 
 .btn-back {
-    width: 38px;
-    height: 38px;
-    border-radius: 50%;
-    border: 1.5px solid rgba(var(--practiq-violet-rgb), 0.2);
-    background: var(--surface);
+    align-self: flex-start;
+    min-height: 36px;
+    padding: 0 10px;
+    border-radius: 10px;
+    border: 0;
+    background: transparent;
+    color: var(--brand-700);
+    font: 900 13px/1.2 var(--font-ui);
     cursor: pointer;
-    display: flex;
+    display: inline-flex;
     align-items: center;
-    justify-content: center;
-    flex-shrink: 0;
+    gap: 6px;
     transition: background 0.15s;
 }
 .btn-back:hover {
@@ -949,7 +945,7 @@ function clearCanvas() {
     color: var(--brand-700);
 }
 .editor-title {
-    font: 900 clamp(24px, 3vw, 28px)/1.06 var(--font-ui);
+    font: 900 clamp(24px, 3vw, 26px)/1.06 var(--font-ui);
     letter-spacing: -0.035em;
     color: var(--ink);
     margin: 0;
@@ -974,23 +970,18 @@ function clearCanvas() {
 
 .editor-body {
     display: grid;
-    grid-template-columns: 220px minmax(0, 1fr);
-    gap: 20px;
+    grid-template-columns: 200px minmax(0, 1fr);
+    gap: 14px;
     flex: 1;
     min-height: 0;
 }
 
 .pages-sidebar {
     min-width: 0;
-    background: var(--surface);
-    backdrop-filter: blur(12px);
-    border-radius: var(--radius-xl);
-    border: 1px solid var(--line);
-    padding: 16px 12px;
     display: flex;
     flex-direction: column;
     gap: 6px;
-    overflow-y: auto;
+    overflow: auto;
 }
 
 .sidebar-title {
@@ -1017,7 +1008,9 @@ function clearCanvas() {
     align-items: center;
     gap: 10px;
     padding: 10px 10px;
-    border-radius: var(--radius-sm);
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    background: var(--surface);
     cursor: pointer;
     transition: background 0.15s;
 }
@@ -1026,17 +1019,16 @@ function clearCanvas() {
 }
 .sidebar-item--active {
     background: var(--fill-primary-soft);
-    box-shadow: inset 3px 0 0 var(--practiq-violet);
+    border-color: var(--brand-300);
 }
 
 .sidebar-num {
     width: 28px;
     height: 28px;
     border-radius: var(--radius-sm);
-    background: var(--practiq-violet);
-    color: var(--color-on-primary);
-    font-size: 0.82rem;
-    font-weight: 700;
+    background: var(--surface-sunken);
+    color: var(--ink-soft);
+    font: 900 12px/1 var(--font-ui);
     display: flex;
     align-items: center;
     justify-content: center;
@@ -1063,11 +1055,9 @@ function clearCanvas() {
 .editor-main {
     min-width: 0;
     background: var(--surface);
-    backdrop-filter: blur(12px);
-    border-radius: var(--radius-2xl);
+    border-radius: 14px;
     border: 1px solid var(--line);
-    box-shadow: var(--shadow-card-lg);
-    padding: 24px 28px;
+    padding: 20px;
     display: flex;
     flex-direction: column;
     gap: 20px;
@@ -1121,9 +1111,10 @@ function clearCanvas() {
     flex: 1;
     padding: 10px 14px;
     border-radius: var(--radius-sm);
-    border: 1.5px solid rgba(var(--practiq-violet-rgb), 0.15);
-    font-size: 1rem;
-    font-weight: 600;
+    border: 1px solid transparent;
+    background: var(--canvas);
+    font: 900 18px/1.2 var(--font-ui);
+    letter-spacing: -0.02em;
     color: var(--text-primary);
     outline: none;
     transition: border-color 0.15s;
@@ -1544,7 +1535,7 @@ function clearCanvas() {
 
 @media (max-width: 600px) {
     .editor-shell {
-        padding: 12px;
+        gap: 14px;
     }
     .editor-header {
         flex-wrap: wrap;

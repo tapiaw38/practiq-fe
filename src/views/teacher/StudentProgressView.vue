@@ -359,16 +359,17 @@ function masteryClass(score: number) {
 <template>
     <TeacherLayout>
         <div class="sp-page anim-stagger">
+            <button class="back-btn" @click="router.back()">
+                <i class="pi pi-arrow-left"></i> Volver
+            </button>
             <div class="sp-header">
-                <button class="back-btn" @click="router.back()">
-                    <i class="pi pi-arrow-left"></i> Volver
-                </button>
+                <span class="sp-avatar">{{ studentName.charAt(0).toUpperCase() }}</span>
                 <div class="sp-title-block">
                     <div class="sp-kicker">Perfil del alumno</div>
                     <h1 class="sp-title">{{ studentName }}</h1>
                     <p class="sp-subtitle">{{ studentEmail }}</p>
                 </div>
-                <button class="btn btn-primary download-pdf-btn" @click="showPdfModal = true">
+                <button class="btn btn-secondary download-pdf-btn" @click="showPdfModal = true">
                     <i class="pi pi-file-pdf"></i> Informe PDF
                 </button>
             </div>
@@ -1150,21 +1151,26 @@ function masteryClass(score: number) {
 .sp-header {
     position: relative;
     display: flex;
-    align-items: flex-start;
-    gap: 20px;
-    margin-bottom: 16px;
-    padding: 22px 24px;
-    border-radius: var(--radius-2xl);
-    background: linear-gradient(115deg, var(--surface-elevated), var(--surface-card));
-    border: 1px solid var(--surface-elevated-strong);
-    box-shadow: var(--shadow-card);
-    backdrop-filter: blur(18px);
-    overflow: hidden;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 14px;
+    margin: 10px 0 20px;
+}
+.sp-title-block {
+    flex: 1 1 180px;
+    min-width: 0;
 }
 
-.sp-header > * {
-    position: relative;
-    z-index: 1;
+.sp-avatar {
+    display: grid;
+    place-items: center;
+    width: 52px;
+    height: 52px;
+    flex: 0 0 52px;
+    border-radius: 14px;
+    background: var(--deep-800);
+    color: var(--on-brand);
+    font: 900 20px/1 var(--font-ui);
 }
 
 .download-pdf-btn {
@@ -1222,12 +1228,12 @@ function masteryClass(score: number) {
     gap: 6px;
     padding: 6px 12px;
     border-radius: var(--radius-sm);
-    border: 1px solid rgba(var(--surface-border-rgb), 0.3);
+    border: 0;
     background: transparent;
     font-size: var(--text-sm);
     font-family: var(--font-ui);
     font-weight: 900;
-    color: var(--text-secondary);
+    color: var(--brand-700);
     cursor: pointer;
     white-space: nowrap;
     margin-top: 4px;
@@ -1251,7 +1257,7 @@ function masteryClass(score: number) {
 }
 .sp-title {
     font-family: var(--font-ui);
-    font-size: clamp(24px, 3vw, 28px);
+    font-size: clamp(24px, 3vw, 26px);
     line-height: 1.06;
     letter-spacing: -0.035em;
     font-weight: 900;
@@ -1266,9 +1272,12 @@ function masteryClass(score: number) {
 
 .summary-row {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
-    gap: 10px;
+    grid-template-columns: repeat(auto-fit, minmax(min(50%, 150px), 1fr));
     margin-bottom: 18px;
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    background: var(--surface);
+    overflow: hidden;
 }
 
 .summary-card {
@@ -1277,23 +1286,15 @@ function masteryClass(score: number) {
     min-width: 0;
     gap: 10px;
     padding: 10px 14px;
-    border-radius: var(--radius-xl);
-    background: var(--surface-elevated);
-    border: 1px solid var(--surface-elevated-strong);
-    box-shadow: var(--shadow-card);
+    border-right: 1px solid var(--line);
+    border-bottom: 1px solid var(--line);
 }
 .summary-card > div:last-child {
     min-width: 0;
     overflow-wrap: anywhere;
 }
 .summary-icon {
-    width: 34px;
-    height: 34px;
-    border-radius: var(--radius-sm);
-    display: grid;
-    place-items: center;
-    font-size: 16px;
-    flex-shrink: 0;
+    display: none;
 }
 .summary-card--blue .summary-icon {
     background: var(--color-info-bg);
@@ -1313,8 +1314,8 @@ function masteryClass(score: number) {
 }
 
 .summary-value {
-    font-size: 17px;
-    font-weight: 800;
+    font: 900 24px/1.1 var(--font-ui);
+    letter-spacing: -0.03em;
     color: var(--text-primary);
     line-height: 1.1;
 }
@@ -1326,13 +1327,9 @@ function masteryClass(score: number) {
 
 .tab-bar {
     display: flex;
-    gap: 8px;
+    gap: 4px;
     margin-bottom: 18px;
-    padding: 10px;
-    border-radius: var(--radius-2xl);
-    background: var(--surface-glass);
-    border: 1px solid var(--surface-elevated-strong);
-    box-shadow: var(--shadow-card);
+    border-bottom: 1px solid var(--line);
     overflow-x: auto;
     scrollbar-width: thin;
 }
@@ -1340,12 +1337,12 @@ function masteryClass(score: number) {
     display: inline-flex;
     align-items: center;
     gap: 9px;
-    padding: 8px 10px 8px 8px;
-    border-radius: var(--radius-xl);
-    border: 1px solid transparent;
+    padding: 0 12px;
+    border: 0;
+    border-bottom: 2px solid transparent;
+    margin-bottom: -1px;
     background: transparent;
-    font-size: var(--text-sm);
-    font-weight: 600;
+    font: 900 13.5px/1.2 var(--font-ui);
     color: var(--text-secondary);
     cursor: pointer;
     transition: var(--transition-fast);
@@ -1353,25 +1350,14 @@ function masteryClass(score: number) {
     min-height: 42px;
 }
 .tab-btn:hover {
-    background: var(--surface-elevated-strong);
-    color: var(--text-heading);
-    transform: translateY(-1px);
+    color: var(--brand-700);
 }
 .tab-btn--active {
-    background: var(--surface-card);
-    color: var(--practiq-violet-dark);
-    border-color: rgba(var(--practiq-violet-rgb), 0.18);
-    box-shadow: var(--shadow-card);
+    color: var(--brand-700);
+    border-bottom-color: var(--brand-500);
 }
 .tab-btn__icon {
-    width: 28px;
-    height: 28px;
-    border-radius: var(--radius-md);
-    display: grid;
-    place-items: center;
-    background: rgba(var(--surface-border-rgb), 0.12);
-    color: var(--text-secondary);
-    flex-shrink: 0;
+    display: none;
 }
 .tab-btn--active .tab-btn__icon {
     background: var(--gradient-brand);
@@ -2371,7 +2357,7 @@ function masteryClass(score: number) {
         padding: 0;
     }
     .sp-header {
-        flex-direction: column;
+        gap: 10px;
     }
     .download-pdf-btn {
         margin-left: 0;

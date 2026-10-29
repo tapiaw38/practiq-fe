@@ -670,8 +670,7 @@ async function openStatementImage(item: AttemptReview) {
 }
 
 .review-item--active {
-    border-color: var(--practiq-violet-200, var(--surface-border));
-    box-shadow: inset 2px 0 0 var(--practiq-violet);
+    border-color: var(--brand-200);
     background: var(--surface-sunken);
 }
 
