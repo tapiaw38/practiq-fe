@@ -44,7 +44,7 @@
     --sidebar-w: 248px;
     --topbar-h: 56px;
     --tabbar-h: 60px;
-    --content-max: 1200px;
+    --content-max: 1120px;
     --touch: 44px;
     --font-ui: var(--font-ui-family);
     --font-body: var(--font-body-family);
@@ -342,6 +342,15 @@
     font: 900 28px/1.06 var(--font-ui);
     letter-spacing: -0.035em;
     color: var(--ink);
+}
+:root[data-ui-theme='teacher'] .page-header h1 {
+    margin: 0;
+    font: 900 clamp(24px, 3vw, 28px)/1.06 var(--font-ui);
+    letter-spacing: -0.035em;
+    color: var(--ink);
+}
+:root[data-ui-theme='teacher'] .dashboard .page-header h1 {
+    font-size: 30px;
 }
 :root[data-ui-theme='teacher'] .text-accent {
     color: var(--brand-600);
