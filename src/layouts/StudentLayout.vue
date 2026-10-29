@@ -30,7 +30,6 @@ const avatarSeed = computed(() => profile.value?.avatar_seed || '');
 const userInitial = computed(() => profile.value?.name?.[0]?.toUpperCase() || 'A');
 const navOpen = ref(false);
 const drawerViewportHeight = ref(0);
-const drawerViewportTop = ref(0);
 const coursesOpen = ref(false);
 const loadingCourses = ref(false);
 const coursesData = ref<CourseNavItem[]>([]);
@@ -67,10 +66,7 @@ const showMobileBottomNav = computed(
 );
 const drawerViewportStyle = computed(() => {
     if (window.innerWidth > 920 || !drawerViewportHeight.value) return undefined;
-    return {
-        top: `${drawerViewportTop.value + 12}px`,
-        height: `${Math.max(0, drawerViewportHeight.value - 24)}px`,
-    };
+    return { maxHeight: `${Math.round(drawerViewportHeight.value * 0.92)}px` };
 });
 
 const openLevels = reactive<Record<string, Set<number>>>({});
@@ -150,7 +146,6 @@ function syncDesktopState() {
 
 function syncDrawerViewport() {
     drawerViewportHeight.value = Math.round(window.visualViewport?.height ?? window.innerHeight);
-    drawerViewportTop.value = Math.round(window.visualViewport?.offsetTop ?? 0);
 }
 
 function syncLastPractice(event: Event) {
@@ -163,10 +158,11 @@ function canUseDrawerSwipe() {
 }
 
 function onDrawerTouchStart(event: TouchEvent) {
-    if (!canUseDrawerSwipe() || event.touches.length !== 1) return;
+    if (!canUseDrawerSwipe() || !navOpen.value || event.touches.length !== 1) return;
     const touch = event.touches[0];
-    if (!touch) return;
-    drawerSwipeStart = { x: touch.clientX, y: touch.clientY, wasOpen: navOpen.value };
+    const sheet = (event.target as HTMLElement | null)?.closest('.sidebar');
+    if (!touch || !sheet || sheet.scrollTop > 0) return;
+    drawerSwipeStart = { x: touch.clientX, y: touch.clientY, wasOpen: true };
 }
 
 function onDrawerTouchEnd(event: TouchEvent) {
@@ -178,9 +174,8 @@ function onDrawerTouchEnd(event: TouchEvent) {
     const deltaX = touch.clientX - start.x;
     const deltaY = touch.clientY - start.y;
 
-    if (Math.abs(deltaX) < 64 || Math.abs(deltaX) <= Math.abs(deltaY) * 1.35) return;
-    if (!start.wasOpen && start.x <= 32 && deltaX > 0) navOpen.value = true;
-    if (start.wasOpen && deltaX < 0) navOpen.value = false;
+    if (deltaY < 72 || deltaY <= Math.abs(deltaX) * 1.35) return;
+    navOpen.value = false;
 }
 
 watch(
@@ -1178,18 +1173,49 @@ function logout() {
 
     .sidebar {
         position: fixed;
-        top: 12px;
-        left: 12px;
+        top: auto;
+        right: 0;
+        bottom: 0;
+        left: 0;
         margin: 0;
-        width: min(320px, calc(100vw - 24px));
-        height: calc(100vh - 24px);
-        transform: translateX(-110%);
+        width: 100%;
+        height: auto;
+        max-height: 92dvh;
+        padding: 10px 14px calc(14px + env(safe-area-inset-bottom));
+        border-radius: 26px 26px 0 0;
+        overflow-y: auto;
+        overscroll-behavior: contain;
+        transform: translateY(100%);
         transition: transform 0.24s ease;
         z-index: 260;
     }
 
+    .sidebar::before {
+        content: '';
+        flex: 0 0 auto;
+        width: 38px;
+        height: 4px;
+        margin: 0 auto 10px;
+        border-radius: 999px;
+        background: var(--surface-glass-border);
+    }
+
     .sidebar--open {
-        transform: translateX(0);
+        transform: none;
+    }
+
+    .sidebar-brand {
+        position: sticky;
+        top: 0;
+        z-index: 1;
+        margin: 0 -14px;
+        padding: 0 14px 12px;
+        background: var(--surface-glass);
+        backdrop-filter: blur(18px);
+    }
+
+    .sidebar-nav {
+        overflow: visible;
     }
 
     .user-details {
