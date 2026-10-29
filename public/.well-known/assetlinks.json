@@ -1,0 +1,12 @@
+[
+  {
+    "relation": ["delegate_permission/common.handle_all_web_data"],
+    "target": {
+      "namespace": "android_app",
+      "package_name": "com.practiq.app",
+      "sha256_cert_fingerprints": [
+        "6B:CD:1B:AD:16:17:25:B0:D1:AA:FF:A0:5C:4D:09:8A:E7:D3:D7:3C:1F:C0:9A:DE:77:2F:D7:44:D1:62:1E:CC"
+      ]
+    }
+  }
+]
