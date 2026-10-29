@@ -10,6 +10,7 @@ import ExercisesList from '@/components/teacher/exercises/ExercisesList.vue';
 import CourseLevelsPanel from '@/components/teacher/levels/CourseLevelsPanel.vue';
 import MaterialsList from '@/components/teacher/materials/MaterialsList.vue';
 import StudentsList from '@/components/teacher/students/StudentsList.vue';
+import InviteStudentsModal from '@/components/teacher/students/InviteStudentsModal.vue';
 import TopicModal from '@/components/teacher/topics/TopicModal.vue';
 import TopicsList from '@/components/teacher/topics/TopicsList.vue';
 import { useConfirm } from '@/composables/useConfirm';
@@ -198,6 +199,7 @@ function revealActiveTab() {
 
 watch(activeTab, () => nextTick(revealActiveTab));
 
+const showInviteModal = ref(false);
 const showTopicModal = ref(false);
 const showExerciseModal = ref(false);
 const showMaterialModal = ref(false);
@@ -1859,9 +1861,15 @@ async function deleteNotebook(id: string) {
                     @delete="deleteMaterial"
                 />
 
-                <StudentsList v-if="activeTab === 'students'" :students="students" />
+                <StudentsList
+                    v-if="activeTab === 'students'"
+                    :students="students"
+                    @invite="showInviteModal = true"
+                />
             </div>
         </div>
+
+        <InviteStudentsModal v-if="showInviteModal" @close="showInviteModal = false" />
 
         <TopicModal
             :visible="showTopicModal"

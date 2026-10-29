@@ -1,7 +1,31 @@
 <script setup lang="ts">
-import type { StudentsListProps } from './StudentsList.types';
+import { computed, ref } from 'vue';
+import type { Student } from '@/types';
+import type { StudentsListEmits, StudentsListProps } from './StudentsList.types';
 
-defineProps<StudentsListProps>();
+const props = defineProps<StudentsListProps>();
+const emit = defineEmits<StudentsListEmits>();
+
+const query = ref('');
+
+const filteredStudents = computed(() => {
+    const q = query.value.trim().toLowerCase();
+    if (!q) return props.students;
+    return props.students.filter(
+        (student) =>
+            student.name.toLowerCase().includes(q) || student.email.toLowerCase().includes(q),
+    );
+});
+
+function studentProgressRoute(student: Student) {
+    return {
+        path: `/teacher/students/${student.id}/progress`,
+        query: {
+            name: encodeURIComponent(student.name),
+            email: encodeURIComponent(student.email),
+        },
+    };
+}
 </script>
 
 <template>
@@ -14,12 +38,31 @@ defineProps<StudentsListProps>();
                     inscripción manual adicional.
                 </p>
             </div>
+            <button class="btn btn-secondary" type="button" @click="emit('invite')">
+                <i class="pi pi-user-plus"></i>
+                Invitar
+            </button>
         </div>
+
+        <label v-if="students.length" class="search">
+            <span class="sr-only">Buscar alumno</span>
+            <i class="pi pi-search" aria-hidden="true"></i>
+            <input v-model="query" class="input" type="search" placeholder="Buscar alumno" />
+        </label>
+
         <div v-if="students.length === 0" class="empty-inline">
             No hay alumnos asociados a este curso.
         </div>
-        <div class="items-list">
-            <div v-for="student in students" :key="student.id" class="list-item">
+        <div v-else-if="filteredStudents.length === 0" class="empty-inline">
+            Ningún alumno coincide con la búsqueda.
+        </div>
+        <div v-else class="items-list">
+            <RouterLink
+                v-for="student in filteredStudents"
+                :key="student.id"
+                class="list-item"
+                :to="studentProgressRoute(student)"
+            >
                 <div class="item-info">
                     <div class="student-avatar">{{ student.name[0] }}</div>
                     <div>
@@ -27,7 +70,8 @@ defineProps<StudentsListProps>();
                         <div class="item-subtitle">{{ student.email }}</div>
                     </div>
                 </div>
-            </div>
+                <i class="pi pi-angle-right item-go"></i>
+            </RouterLink>
         </div>
     </div>
 </template>
@@ -43,6 +87,8 @@ defineProps<StudentsListProps>();
 .section-header {
     display: flex;
     justify-content: space-between;
+    align-items: flex-start;
+    flex-wrap: wrap;
     gap: 16px;
     margin-bottom: 16px;
 }
@@ -57,6 +103,31 @@ defineProps<StudentsListProps>();
     color: var(--text-secondary);
     font-size: var(--text-sm);
 }
+.search {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-height: 40px;
+    padding: 0 12px;
+    margin-bottom: 14px;
+    max-width: 280px;
+    border: 1px solid var(--surface-border);
+    border-radius: var(--radius-md);
+    background: var(--surface-card);
+}
+.search i {
+    font-size: var(--text-sm);
+    color: var(--text-secondary);
+}
+.search .input {
+    flex: 1;
+    min-width: 0;
+    border: 0;
+    outline: 0;
+    background: transparent;
+    font-size: var(--text-sm);
+    color: var(--text-primary);
+}
 .empty-inline {
     padding: 18px;
     border: 1px dashed var(--surface-border);
@@ -70,18 +141,30 @@ defineProps<StudentsListProps>();
 }
 .list-item {
     display: flex;
+    align-items: center;
     justify-content: space-between;
     gap: 14px;
     padding: 14px;
     border: 1px solid var(--surface-border);
     border-radius: var(--radius-lg);
     background: var(--surface-card);
+    text-decoration: none;
+    color: inherit;
+    transition: background 0.18s ease;
+}
+.list-item:hover {
+    background: var(--surface-sunken);
 }
 .item-info {
     display: flex;
     align-items: center;
     gap: 12px;
     min-width: 0;
+}
+.item-go {
+    flex: 0 0 auto;
+    color: var(--text-secondary);
+    font-size: var(--text-sm);
 }
 .student-avatar {
     width: 36px;
