@@ -1689,7 +1689,7 @@ async function deleteNotebook(id: string) {
                         }}</span>
                         <span v-if="course.level" class="course-badge">{{ course.level }}</span>
                     </div>
-                    <h1 class="course-title">{{ course.title }}</h1>
+                    <h1 class="page-title">{{ course.title }}</h1>
                     <p class="course-meta">
                         {{ students.length }} {{ students.length === 1 ? 'alumno' : 'alumnos' }} ·
                         {{ teacherLevels.length }}
@@ -3469,12 +3469,6 @@ async function deleteNotebook(id: string) {
 .course-badge--brand {
     color: var(--brand-700);
     font-weight: 700;
-}
-.course-title {
-    margin: 0;
-    font: 900 28px/1.06 var(--font-ui);
-    letter-spacing: -0.035em;
-    color: var(--ink);
 }
 .course-meta {
     margin: 0;
