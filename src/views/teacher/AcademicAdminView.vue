@@ -29,10 +29,12 @@ const {
 } = useCourse();
 const {
     grades,
+    members: gradeMembers,
     loadGrades,
     createGrade: createGradeService,
     updateGrade: updateGradeService,
     deleteGrade: deleteGradeService,
+    loadGradeMembers,
 } = useGrade();
 const {
     subjects,
@@ -78,6 +80,11 @@ const selectedGrade = computed(
 const selectedCourses = computed(() =>
     courses.value.filter((c) => c.grade_id === selectedGradeId.value),
 );
+const selectedGradeStudentCount = computed(() => {
+    if (!selectedGradeId.value) return 0;
+    const members = gradeMembers.value[selectedGradeId.value] || [];
+    return members.filter((m) => m.profile_type === 'student').length;
+});
 const missingSubjects = computed(() => {
     const covered = new Set(selectedCourses.value.map((c) => c.subject_id));
     return subjects.value.filter((s) => !covered.has(s.id));
@@ -106,6 +113,15 @@ watch(activeId, () => {
     selectedGradeId.value = null;
     loadData();
 });
+watch(
+    selectedGradeId,
+    (gradeId) => {
+        if (gradeId && !gradeMembers.value[gradeId]) {
+            loadGradeMembers(gradeId).catch(() => {});
+        }
+    },
+    { immediate: true },
+);
 
 async function loadData() {
     loading.value = true;
@@ -440,6 +456,8 @@ async function confirmDeleteSubject(id: string) {
                                 <p class="grade-header__desc">
                                     {{ selectedCourses.length }}
                                     {{ selectedCourses.length === 1 ? 'curso' : 'cursos' }}
+                                    · {{ selectedGradeStudentCount }}
+                                    {{ selectedGradeStudentCount === 1 ? 'alumno' : 'alumnos' }}
                                     <template v-if="selectedGrade.description">
                                         · {{ selectedGrade.description }}
                                     </template>
