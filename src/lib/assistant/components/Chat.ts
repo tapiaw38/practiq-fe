@@ -230,10 +230,14 @@ export class Chat {
             'touchend',
             (event) => {
                 const delta = (event.changedTouches[0]?.clientY || touchStartY) - touchStartY;
-                if (Math.abs(delta) > 28) {
-                    handledSwipe = true;
-                    this.setMobileExpanded(delta < 0);
+                if (Math.abs(delta) <= 28 || window.innerWidth > 720) return;
+                handledSwipe = true;
+                if (delta < 0) {
+                    this.setMobileExpanded(true);
+                    return;
                 }
+                if (this.mobileExpanded) this.setMobileExpanded(false);
+                else this.close();
             },
             { passive: true },
         );

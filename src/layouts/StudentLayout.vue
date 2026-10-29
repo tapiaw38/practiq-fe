@@ -1183,6 +1183,8 @@ function logout() {
         max-height: 92dvh;
         padding: 10px 14px calc(14px + env(safe-area-inset-bottom));
         border-radius: 26px 26px 0 0;
+        background: var(--surface-card);
+        backdrop-filter: none;
         overflow-y: auto;
         overscroll-behavior: contain;
         transform: translateY(100%);
@@ -1197,7 +1199,7 @@ function logout() {
         height: 4px;
         margin: 0 auto 10px;
         border-radius: 999px;
-        background: var(--surface-glass-border);
+        background: rgba(var(--surface-border-rgb), 0.45);
     }
 
     .sidebar--open {
@@ -1210,8 +1212,7 @@ function logout() {
         z-index: 1;
         margin: 0 -14px;
         padding: 0 14px 12px;
-        background: var(--surface-glass);
-        backdrop-filter: blur(18px);
+        background: var(--surface-card);
     }
 
     .sidebar-nav {
