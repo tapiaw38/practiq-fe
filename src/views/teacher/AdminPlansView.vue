@@ -315,8 +315,7 @@ onMounted(load);
     display: flex;
     flex-direction: column;
     gap: 1.25rem;
-    padding: 1.25rem;
-    max-width: 1080px;
+    max-width: 1120px;
 }
 
 .plans-grid {
@@ -334,8 +333,8 @@ onMounted(load);
 
 .page-sub {
     margin: 0.25rem 0 0;
-    color: var(--text-secondary);
-    font-size: 0.9rem;
+    color: var(--ink-muted);
+    font: 400 13.5px/1.55 var(--font-body);
 }
 
 .plan-form {
@@ -350,7 +349,7 @@ onMounted(load);
 
 .form-title {
     margin: 0;
-    font-size: 1.05rem;
+    font: 900 16px/1.2 var(--font-ui);
     color: var(--text-heading);
 }
 
@@ -440,7 +439,6 @@ onMounted(load);
 
 .plan-row:hover {
     border-color: rgba(var(--practiq-violet-rgb), 0.3);
-    box-shadow: var(--shadow-card);
 }
 
 .plan-row--retired {
@@ -462,8 +460,8 @@ onMounted(load);
 }
 
 .plan-name {
-    font-weight: 800;
-    font-size: 1.02rem;
+    font: 900 17px/1.2 var(--font-ui);
+    letter-spacing: -0.02em;
     color: var(--text-primary);
 }
 
@@ -478,7 +476,7 @@ onMounted(load);
 }
 
 .plan-price {
-    font-size: 0.95rem;
+    font: 900 18px/1.2 var(--font-ui);
     color: var(--text-primary);
 }
 
@@ -515,8 +513,7 @@ onMounted(load);
     gap: 0.4rem;
     padding: 0.55rem 1rem;
     border-radius: var(--radius-md);
-    font-size: 0.88rem;
-    font-weight: 600;
+    font: 900 12.5px/1.2 var(--font-ui);
     cursor: pointer;
     border: 1px solid transparent;
 }
@@ -532,7 +529,7 @@ onMounted(load);
 }
 
 .btn-quiet--danger {
-    color: var(--color-error-dark, #b91c1c);
+    color: var(--color-error-dark);
 }
 
 .btn-primary:focus-visible,
@@ -555,7 +552,7 @@ onMounted(load);
 
 @media (max-width: 640px) {
     .plans-shell {
-        padding: 0.9rem;
+        gap: 1rem;
     }
 
     .plan-row {

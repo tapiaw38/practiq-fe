@@ -282,7 +282,6 @@ onMounted(load);
     display: flex;
     flex-direction: column;
     gap: 1.25rem;
-    padding: 1.25rem;
 }
 
 .page-header {
@@ -301,8 +300,8 @@ onMounted(load);
 
 .page-sub {
     margin: 0.25rem 0 0;
-    color: var(--text-secondary);
-    font-size: 0.9rem;
+    color: var(--ink-muted);
+    font: 400 13.5px/1.55 var(--font-body);
 }
 
 .filter-row {
@@ -356,7 +355,7 @@ onMounted(load);
 }
 
 .summary-tile--danger .summary-value {
-    color: var(--color-error-dark, #b91c1c);
+    color: var(--color-error-dark);
 }
 
 .summary-label {

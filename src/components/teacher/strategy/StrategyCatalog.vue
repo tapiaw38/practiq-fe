@@ -70,26 +70,25 @@ const emit = defineEmits<StrategyCatalogEmits>();
 }
 .section-title {
     margin: 0;
-    font-size: 1.15rem;
-    font-weight: 800;
+    font: 900 19px/1.2 var(--font-ui);
+    letter-spacing: -0.03em;
     color: var(--text-heading);
 }
 .section-subtitle {
     margin: 4px 0 0;
-    color: var(--text-secondary);
-    font-size: var(--text-sm);
+    color: var(--ink-muted);
+    font: 400 13px/1.55 var(--font-body);
 }
 .strategies-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
-    gap: 14px;
+    grid-template-columns: repeat(auto-fill, minmax(min(100%, 280px), 1fr));
+    gap: 10px;
 }
 .strategy-card,
 .empty-state {
     background: var(--surface-elevated);
     border: 1px solid var(--surface-elevated-strong);
-    border-radius: var(--radius-xl);
-    box-shadow: var(--shadow-card);
+    border-radius: 12px;
     padding: 16px;
 }
 .strategy-header,
@@ -105,8 +104,7 @@ const emit = defineEmits<StrategyCatalogEmits>();
 .strategy-name {
     margin: 0;
     flex: 1;
-    font-size: 1rem;
-    font-weight: 800;
+    font: 900 15.5px/1.2 var(--font-ui);
     color: var(--text-heading);
 }
 .strategy-code {
@@ -120,9 +118,9 @@ const emit = defineEmits<StrategyCatalogEmits>();
     gap: 6px;
 }
 .icon-btn {
-    width: 30px;
-    height: 30px;
-    border: 1px solid var(--surface-border);
+    width: 34px;
+    height: 34px;
+    border: 0;
     border-radius: var(--radius-md);
     background: var(--surface-card);
     color: var(--text-secondary);

@@ -662,8 +662,7 @@ onMounted(load);
     display: flex;
     flex-direction: column;
     gap: 1.5rem;
-    padding: 1.25rem;
-    max-width: 820px;
+    max-width: 1120px;
 }
 
 .page-header h1,
@@ -684,15 +683,15 @@ onMounted(load);
 }
 .eyebrow {
     margin: 0 0 0.35rem;
-    color: var(--practiq-violet);
-    font-size: 0.72rem;
-    font-weight: 800;
-    letter-spacing: 0.1em;
+    color: var(--brand-700);
+    font: 900 11px/1.3 var(--font-ui);
+    letter-spacing: 0.09em;
     text-transform: uppercase;
 }
 
 .section-title {
-    font-size: 1.05rem;
+    font: 900 19px/1.2 var(--font-ui);
+    letter-spacing: -0.03em;
     margin-bottom: 0.5rem;
 }
 
@@ -700,8 +699,8 @@ onMounted(load);
 .section-sub,
 .empty {
     margin: 0.25rem 0 0.6rem;
-    color: var(--text-secondary);
-    font-size: 0.88rem;
+    color: var(--ink-muted);
+    font: 400 13.5px/1.55 var(--font-body);
 }
 
 .school-form {
@@ -741,7 +740,7 @@ onMounted(load);
 
 .form-title {
     margin: 0;
-    font-size: 1.05rem;
+    font: 900 16px/1.2 var(--font-ui);
     color: var(--text-heading);
 }
 
@@ -969,8 +968,7 @@ onMounted(load);
     border-radius: var(--radius-sm);
     background: var(--surface);
     color: var(--brand-700);
-    font-size: 0.78rem;
-    font-weight: 700;
+    font: 900 12.5px/1.2 var(--font-ui);
     cursor: pointer;
 }
 .btn-primary-outline:hover {
@@ -1030,7 +1028,7 @@ onMounted(load);
     margin-right: 0.3rem;
     padding: 0.1rem 0.4rem;
     border-radius: 999px;
-    background: var(--surface-subtle, #f1f5f9);
+    background: var(--surface-subtle);
     color: var(--text-secondary);
     font-size: 0.7rem;
     font-weight: 800;
@@ -1142,11 +1140,11 @@ onMounted(load);
 }
 
 .btn-quiet--danger {
-    color: var(--color-error-dark, #b91c1c);
+    color: var(--color-error-dark);
 }
 
 .btn-danger {
-    background: var(--color-error, #dc2626);
+    background: var(--color-error);
     color: var(--on-brand);
 }
 
@@ -1252,7 +1250,7 @@ onMounted(load);
 
 @media (max-width: 640px) {
     .schools-shell {
-        padding: 0.9rem;
+        gap: 1rem;
     }
 
     .page-header {

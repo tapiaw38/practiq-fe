@@ -134,15 +134,13 @@ onMounted(load);
 
 <style scoped>
 .page {
-    max-width: 1180px;
+    max-width: 1120px;
     margin: 0;
-    padding: 24px 28px 40px;
 }
 .eyebrow {
-    font-size: var(--font-kicker);
-    font-weight: 800;
+    font: 900 11px/1.3 var(--font-ui);
     letter-spacing: 0.09em;
-    color: var(--practiq-violet);
+    color: var(--brand-700);
     text-transform: uppercase;
 }
 h1 {
@@ -153,19 +151,18 @@ h1 {
 header p:last-child {
     max-width: 660px;
     margin: 0;
-    color: var(--text-secondary);
-    line-height: 1.55;
+    color: var(--ink-muted);
+    font: 400 13.5px/1.55 var(--font-body);
 }
 .settings-card {
     display: grid;
-    max-width: 760px;
-    gap: 18px;
+    max-width: 620px;
+    gap: 14px;
     margin-top: 16px;
-    padding: 24px;
+    padding: 20px;
     border: 1px solid var(--surface-border);
-    border-radius: var(--radius-xl);
+    border-radius: 14px;
     background: var(--surface-card);
-    box-shadow: var(--shadow-card);
 }
 label {
     display: grid;
@@ -216,10 +213,9 @@ button {
     padding: 10px 20px;
     border: 0;
     border-radius: var(--radius-md);
-    background: var(--practiq-violet);
-    box-shadow: var(--shadow-violet);
-    color: #fff;
-    font-weight: 800;
+    background: var(--brand-500);
+    color: var(--on-brand);
+    font: 900 13.5px/1.2 var(--font-ui);
     cursor: pointer;
 }
 button:disabled {
@@ -227,7 +223,7 @@ button:disabled {
 }
 @media (max-width: 600px) {
     .page {
-        padding: 20px 16px 36px;
+        padding: 0;
     }
     h1 {
         font-size: 24px;

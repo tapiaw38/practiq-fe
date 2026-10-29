@@ -330,8 +330,7 @@ async function deleteStrategy() {
 
 <style scoped>
 .strategy-dashboard {
-    padding: 24px 28px 40px;
-    max-width: 1200px;
+    max-width: 1120px;
 }
 
 .loading-state {
@@ -377,10 +376,9 @@ async function deleteStrategy() {
 
 .strategy-card {
     background: var(--surface-elevated);
-    border-radius: var(--radius-2xl);
+    border-radius: 12px;
     border: 1px solid var(--surface-elevated-strong);
-    box-shadow: var(--shadow-card);
-    padding: 20px;
+    padding: 16px;
     display: flex;
     flex-direction: column;
     gap: 12px;
@@ -448,7 +446,7 @@ async function deleteStrategy() {
 
 @media (max-width: 1024px) {
     .strategy-dashboard {
-        padding: 20px 16px 40px;
+        padding: 0;
     }
 }
 
