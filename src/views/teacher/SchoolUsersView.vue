@@ -576,8 +576,7 @@ onMounted(async () => {
 
 <style scoped>
 .school-users {
-    max-width: 900px;
-    padding: 2rem;
+    max-width: 1120px;
 }
 .page-header {
     margin-bottom: 1.5rem;
@@ -1037,7 +1036,7 @@ p {
 }
 @media (max-width: 640px) {
     .school-users {
-        padding: 1rem;
+        padding: 0;
     }
     .card-heading {
         align-items: flex-start;

@@ -844,8 +844,7 @@ async function confirmDeleteSubject(id: string) {
 .ac-root {
     display: flex;
     flex-direction: column;
-    min-height: 100vh;
-    padding: 24px 28px 40px;
+    min-height: 0;
     background: transparent;
     gap: 18px;
 }
@@ -1706,7 +1705,7 @@ async function confirmDeleteSubject(id: string) {
         display: block;
         width: 100%;
         min-width: 0;
-        padding: 16px 14px 32px;
+        padding: 0;
     }
     .ac-layout {
         width: 100%;

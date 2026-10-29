@@ -549,7 +549,7 @@ const statusLabel: Record<string, string> = {
                     </div>
                 </section>
 
-                <section v-if="assignedStudents.length" class="content-section">
+                <section v-if="assignedStudents.length" class="content-section students-panel">
                     <div class="section-header">
                         <div>
                             <div class="section-title-row">
@@ -906,6 +906,16 @@ const statusLabel: Record<string, string> = {
     align-self: stretch;
     justify-content: center;
 }
+.review-card:first-child {
+    box-shadow: 0 8px 20px rgba(57, 49, 104, 0.07);
+}
+
+.students-panel {
+    padding: 18px;
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    background: var(--surface);
+}
 
 .student-row__text {
     min-width: 0;
@@ -970,11 +980,11 @@ const statusLabel: Record<string, string> = {
     flex: 0 0 auto;
     min-height: 32px;
     padding: 0 var(--space-3);
-    border: 1px solid var(--line-control);
+    border: 1px solid var(--line);
     border-radius: var(--radius-pill);
     background: var(--surface);
     color: var(--ink-soft);
-    font: 700 13px/1 var(--font-ui);
+    font: 600 12.5px/1 var(--font-body);
     cursor: pointer;
 }
 .chip span {
