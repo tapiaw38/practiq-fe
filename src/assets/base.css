@@ -85,6 +85,7 @@
     --text-primary: #1e293b;
     --text-secondary: #64748b;
     --text-muted: #94a3b8;
+    --text-placeholder: #69778a;
     --text-brand-panel-muted: rgba(var(--surface-card-rgb), 0.8);
     --text-brand-panel-soft: rgba(var(--surface-card-rgb), 0.75);
 
@@ -228,6 +229,7 @@
     --text-primary: #e2e8f0;
     --text-secondary: #94a3b8;
     --text-muted: #64748b;
+    --text-placeholder: #9aa7bb;
 
     --practiq-violet-bg: rgba(139, 92, 246, 0.14);
 
