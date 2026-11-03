@@ -268,7 +268,7 @@ async function completePendingProfile() {
 
             <div class="left-preview">
                 <img
-                    src="@/assets/quanty.png"
+                    src="@/assets/quanty.webp"
                     class="preview-robot"
                     alt="Quanty, el asistente de Practiq"
                 />
