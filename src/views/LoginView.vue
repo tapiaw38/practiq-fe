@@ -232,7 +232,6 @@ async function completePendingProfile() {
 <template>
     <div class="auth-page">
         <section class="auth-left" aria-hidden="true">
-            <div class="panel-grid"></div>
             <div class="panel-light"></div>
 
             <div class="left-brand">
@@ -661,22 +660,6 @@ async function completePendingProfile() {
         var(--practiq-violet-950) 0%,
         var(--practiq-violet-900) 46%,
         var(--practiq-violet-800) 100%
-    );
-}
-
-.panel-grid {
-    position: absolute;
-    top: 0;
-    bottom: 0;
-    left: 32px;
-    width: 1px;
-    pointer-events: none;
-    background: linear-gradient(
-        to bottom,
-        transparent 0%,
-        rgba(var(--practiq-violet-light-rgb), 0.55) 12%,
-        rgba(var(--practiq-violet-light-rgb), 0.55) 82%,
-        transparent 100%
     );
 }
 
