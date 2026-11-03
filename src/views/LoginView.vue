@@ -621,6 +621,8 @@ async function completePendingProfile() {
     --surface-bg: #f8fafc;
     --surface-card: #ffffff;
     --surface-card-rgb: 255, 255, 255;
+    --text-brand-panel-muted: rgba(255, 255, 255, 0.82);
+    --text-brand-panel-soft: rgba(255, 255, 255, 0.76);
     --surface-card-border: #e8ecf1;
     --surface-border: #e2e8f0;
     --surface-hover: #f1f5f9;
@@ -646,8 +648,10 @@ async function completePendingProfile() {
 
 .auth-left {
     position: relative;
+    z-index: 1;
     height: 100dvh;
     overflow: hidden;
+    box-shadow: 22px 0 54px -14px rgba(46, 16, 101, 0.26);
     color: var(--color-on-brand-panel);
     padding: 0px 48px 40px;
     display: flex;
