@@ -48,16 +48,20 @@ onMounted(load);
         ><main class="page anim-stagger">
             <header class="page-header">
                 <div>
-                    <p class="eyebrow">Landing pública</p>
+                    <p class="eyebrow">Plataforma</p>
                     <h1>Contacto institucional</h1>
-                    <p>Estos datos aparecen en el plan para escuelas e institutos.</p>
+                    <p>Configurá los datos de contacto de toda la plataforma.</p>
                 </div>
             </header>
             <Skeleton v-if="loading" height="300px" />
             <form v-else class="settings-card" @submit.prevent="save">
-                <label>Email<input v-model.trim="form.email" type="email" required /></label
-                ><label>Teléfono<input v-model.trim="form.phone" type="tel" required /></label
-                ><label
+                <h2>Datos de contacto</h2>
+                <p>Lo que ve una escuela en la landing cuando quiere hablar con ventas.</p>
+                <div class="contact-pair">
+                    <label>Email<input v-model.trim="form.email" type="email" required /></label>
+                    <label>Teléfono<input v-model.trim="form.phone" type="tel" required /></label>
+                </div>
+                <label
                     >WhatsApp URL<input
                         v-model.trim="form.whatsapp"
                         type="url"
@@ -72,15 +76,13 @@ onMounted(load);
 </template>
 <style scoped>
 .page {
-    max-width: 1180px;
+    max-width: 1120px;
     margin: 0;
-    padding: 24px 28px 40px;
 }
 .eyebrow {
-    font-size: var(--font-kicker);
-    font-weight: 800;
+    font: 900 11px/1.3 var(--font-ui);
     letter-spacing: 0.09em;
-    color: var(--practiq-violet);
+    color: var(--brand-700);
     text-transform: uppercase;
 }
 h1 {
@@ -91,19 +93,34 @@ h1 {
 header p:last-child {
     max-width: 660px;
     margin: 7px 0 0;
-    color: var(--text-secondary);
-    line-height: 1.55;
+    color: var(--ink-muted);
+    font: 400 13.5px/1.55 var(--font-body);
 }
 .settings-card {
     display: grid;
-    max-width: 760px;
-    gap: 18px;
+    max-width: 620px;
+    gap: 14px;
     margin-top: 16px;
-    padding: 24px;
+    padding: 20px;
     border: 1px solid var(--surface-border);
-    border-radius: var(--radius-xl);
+    border-radius: 14px;
     background: var(--surface-card);
-    box-shadow: var(--shadow-card);
+}
+.settings-card h2 {
+    margin: 0;
+    color: var(--text-heading);
+    font: 900 17px/1.2 var(--font-ui);
+}
+.settings-card > p {
+    margin: -8px 0 0;
+    color: var(--text-secondary);
+    font-size: var(--text-sm);
+    line-height: 1.55;
+}
+.contact-pair {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
 }
 label {
     display: grid;
@@ -132,18 +149,20 @@ button {
     padding: 10px 20px;
     border: 0;
     border-radius: var(--radius-md);
-    background: var(--practiq-violet);
-    box-shadow: var(--shadow-violet);
-    color: #fff;
-    font-weight: 800;
+    background: var(--brand-500);
+    color: var(--on-brand);
+    font: 900 13.5px/1.2 var(--font-ui);
     cursor: pointer;
 }
 button:disabled {
     opacity: 0.6;
 }
 @media (max-width: 600px) {
+    .contact-pair {
+        grid-template-columns: 1fr;
+    }
     .page {
-        padding: 20px 16px 36px;
+        padding: 0;
     }
     h1 {
         font-size: 24px;

@@ -11,7 +11,7 @@
                     <div class="acm-header">
                         <div class="acm-header-info">
                             <div class="acm-avatar" aria-hidden="true">
-                                <img src="@/assets/quanty.png" alt="" />
+                                <img src="@/assets/quanty-idle.webp" alt="" />
                             </div>
                             <div>
                                 <div class="acm-title">Quanty</div>
@@ -1733,8 +1733,9 @@ onBeforeUnmount(() => {
     width: 100%;
     height: 100%;
     object-fit: cover;
-    object-position: 50% 22%;
-    transform: scale(1.65);
+    object-position: 50% 0%;
+    transform: scale(2.2);
+    transform-origin: 50% 0%;
     filter: drop-shadow(0 3px 6px rgba(var(--text-primary-rgb), 0.16));
 }
 

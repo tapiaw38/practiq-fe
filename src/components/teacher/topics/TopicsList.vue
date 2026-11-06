@@ -60,11 +60,8 @@ const emit = defineEmits<TopicsListEmits>();
 
 <style scoped>
 .tab-content {
-    background: var(--surface-elevated);
-    border: 1px solid var(--surface-elevated-strong);
-    border-radius: var(--radius-2xl);
-    box-shadow: var(--shadow-card);
-    padding: 20px;
+    display: grid;
+    gap: 12px;
 }
 .section-header,
 .list-item,
@@ -81,29 +78,40 @@ const emit = defineEmits<TopicsListEmits>();
 }
 .section-header h2 {
     margin: 0;
-    color: var(--text-heading);
-    font-size: 1.25rem;
-    font-weight: 800;
+    font: 900 17px/1.2 var(--font-ui);
+    letter-spacing: -0.02em;
+    color: var(--ink);
 }
 .empty-inline {
     padding: 18px;
-    border: 1px dashed var(--surface-border);
-    border-radius: var(--radius-lg);
-    color: var(--text-secondary);
+    border: 1px dashed var(--brand-200);
+    border-radius: var(--radius-md);
+    color: var(--ink-muted);
     text-align: center;
 }
 .items-list {
     display: grid;
-    gap: 10px;
+    border: 1px solid var(--line);
+    border-radius: var(--radius-md);
+    background: var(--surface);
+    overflow: hidden;
+}
+.items-list:empty {
+    display: none;
 }
 .list-item {
+    display: flex;
+    align-items: center;
     justify-content: space-between;
-    gap: 14px;
-    padding: 14px;
-    border: 1px solid var(--surface-border);
-    border-radius: var(--radius-lg);
-    background: var(--surface-card);
-    transition: var(--transition-fast);
+    gap: 12px;
+    padding: 12px 14px;
+    border-top: 1px solid var(--line);
+    background: var(--surface);
+    color: inherit;
+    text-decoration: none;
+}
+.list-item:first-child {
+    border-top: 0;
 }
 .list-item:hover {
     transform: translateY(-1px);
@@ -125,13 +133,14 @@ const emit = defineEmits<TopicsListEmits>();
     flex: 0 0 auto;
 }
 .item-title {
-    font-weight: 800;
-    color: var(--text-primary);
+    font-size: 13.5px;
+    font-weight: 600;
+    color: var(--ink);
 }
 .item-subtitle {
-    color: var(--text-secondary);
-    font-size: var(--text-sm);
-    margin-top: 3px;
+    margin-top: 2px;
+    font-size: 12px;
+    color: var(--ink-muted);
 }
 .item-actions {
     gap: 8px;

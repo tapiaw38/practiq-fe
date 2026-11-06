@@ -9,9 +9,8 @@ import FileUploadField from '@/components/ui/FileUploadField.vue';
 import ExercisesList from '@/components/teacher/exercises/ExercisesList.vue';
 import CourseLevelsPanel from '@/components/teacher/levels/CourseLevelsPanel.vue';
 import MaterialsList from '@/components/teacher/materials/MaterialsList.vue';
-import NotebooksList from '@/components/teacher/notebooks/NotebooksList.vue';
-import PracticeSheetsList from '@/components/teacher/practiceSheets/PracticeSheetsList.vue';
 import StudentsList from '@/components/teacher/students/StudentsList.vue';
+import InviteStudentsModal from '@/components/teacher/students/InviteStudentsModal.vue';
 import TopicModal from '@/components/teacher/topics/TopicModal.vue';
 import TopicsList from '@/components/teacher/topics/TopicsList.vue';
 import { useConfirm } from '@/composables/useConfirm';
@@ -30,6 +29,7 @@ import type {
     PracticeSheet,
     Notebook,
     CourseLevelsResponse,
+    LevelNotebookSummary,
 } from '@/types';
 import { parseExerciseMetadata } from '@/utils/assistantExerciseContext';
 import { statementImageDataURL, forgetStatementImage } from '@/utils/statementImage';
@@ -101,6 +101,12 @@ function statusLabel(status: string) {
 }
 
 const pendingArchive = ref(false);
+const statusMenuOpen = ref(false);
+
+function pickStatus(next: CourseStatus) {
+    statusMenuOpen.value = false;
+    chooseStatus(next);
+}
 
 async function chooseStatus(next: CourseStatus) {
     if (!course.value || savingStatus.value) return;
@@ -143,12 +149,9 @@ const {
     practiceSheets,
     currentPage: sheetsPage,
     pageSize: sheetsPageSize,
-    hasMore: sheetsHasMore,
     loadPracticeSheets,
     loadPracticeSheet,
     loadPage: loadSheetsPage,
-    nextPage: nextSheetsPage,
-    prevPage: prevSheetsPage,
     createPracticeSheet,
     updatePracticeSheet,
     deletePracticeSheet: deletePracticeSheetService,
@@ -177,13 +180,16 @@ const activeTab = ref('levels');
 const tabsElement = ref<HTMLElement | null>(null);
 const tabs = [
     { id: 'levels', label: 'Niveles', icon: 'pi pi-sitemap' },
-    { id: 'topics', label: 'Temas', icon: 'pi pi-list' },
-    { id: 'exercises', label: 'Ejercicios', icon: 'pi pi-pencil' },
-    { id: 'materials', label: 'Materiales', icon: 'pi pi-file' },
+    { id: 'content', label: 'Contenido', icon: 'pi pi-list' },
     { id: 'students', label: 'Alumnos', icon: 'pi pi-users' },
-    { id: 'sheets', label: 'Hojas de Práctica', icon: 'pi pi-copy' },
-    { id: 'notebooks', label: 'Cuadernos', icon: 'pi pi-book' },
 ];
+
+const contentSubTab = ref<'topics' | 'exercises' | 'materials'>('topics');
+const contentSubTabs = computed(() => [
+    { id: 'topics' as const, label: 'Temas', count: topics.value.length },
+    { id: 'exercises' as const, label: 'Ejercicios', count: exercises.value.length },
+    { id: 'materials' as const, label: 'Materiales', count: materials.value.length },
+]);
 
 function focusTab(index: number) {
     const tab = tabs[(index + tabs.length) % tabs.length];
@@ -200,6 +206,7 @@ function revealActiveTab() {
 
 watch(activeTab, () => nextTick(revealActiveTab));
 
+const showInviteModal = ref(false);
 const showTopicModal = ref(false);
 const showExerciseModal = ref(false);
 const showMaterialModal = ref(false);
@@ -792,6 +799,10 @@ const teacherLastPos: Record<TeacherCanvasKind, { x: number; y: number }> = {
 
 const courseFailed = ref(false);
 
+async function refreshLevels() {
+    courseLevels.value = await loadCourseLevels(courseId);
+}
+
 async function loadCourseData() {
     courseFailed.value = false;
     const [courseRes, topicsRes, materialsRes, studentsRes, sheetsRes, notebooksRes, levelsRes] =
@@ -840,6 +851,7 @@ watch(
 watch(
     () => editSheet.topic_id,
     async (id) => {
+        if (!showEditSheetModal.value) return;
         editSheet.exercise_ids = [];
         await loadEditSheetExercises(id);
     },
@@ -995,7 +1007,7 @@ async function createSheet() {
     newSheet.available_until = '';
     newSheet.exercise_ids = [];
     sheetExercises.value = [];
-    await loadSheetsPage(courseId, 1);
+    await Promise.all([loadSheetsPage(courseId, 1), refreshLevels()]);
 }
 
 async function createNotebook() {
@@ -1167,14 +1179,12 @@ function openNewSheet() {
 async function goToSheet(sheetId: string) {
     const sheet = practiceSheets.value.find((s) => s.id === sheetId);
     if (sheet) {
-        activeTab.value = 'sheets';
         openEditSheet(sheet);
         return;
     }
 
     try {
         const loadedSheet = await loadPracticeSheet(sheetId);
-        activeTab.value = 'sheets';
         openEditSheet(loadedSheet);
     } catch {
         return;
@@ -1288,14 +1298,14 @@ async function saveSheetEdit() {
         exercise_ids: editSheet.exercise_ids,
     });
     showEditSheetModal.value = false;
-    await loadSheetsPage(courseId, 1);
+    await Promise.all([loadSheetsPage(courseId, 1), refreshLevels()]);
 }
 
 async function deleteSheet(id: string) {
     const ok = await showConfirm('¿Eliminar esta hoja de práctica?');
     if (!ok) return false;
     await deletePracticeSheetService(id);
-    await loadSheetsPage(courseId, sheetsPage.value);
+    await Promise.all([loadSheetsPage(courseId, sheetsPage.value), refreshLevels()]);
     return true;
 }
 
@@ -1639,7 +1649,7 @@ function captureTeacherCanvas(kind: TeacherCanvasKind) {
     return teacherCanvasRefs[kind]?.toDataURL('image/png') || '';
 }
 
-function openEditNotebook(nb: Notebook) {
+function openEditNotebook(nb: LevelNotebookSummary | Notebook) {
     editingNotebookId.value = nb.id;
     editNotebook.title = nb.title;
     editNotebook.description = nb.description || '';
@@ -1656,6 +1666,7 @@ async function saveNotebookEdit() {
     });
     showEditNotebookModal.value = false;
     notebooks.value = await loadNotebooks(courseId);
+    await refreshLevels();
 }
 
 async function deleteNotebook(id: string) {
@@ -1663,85 +1674,105 @@ async function deleteNotebook(id: string) {
     if (!ok) return;
     await deleteNotebookService(id);
     notebooks.value = notebooks.value.filter((n) => n.id !== id);
+    await refreshLevels();
 }
 </script>
 
 <template>
     <TeacherLayout>
         <div class="course-detail anim-stagger">
-            <div class="course-header">
-                <button class="btn btn-ghost btn-sm" @click="router.back()">
-                    <i class="pi pi-arrow-left"></i> Volver
-                </button>
-                <div v-if="course">
-                    <h1 class="page-title">{{ course.title }}</h1>
+            <button class="course-back" type="button" @click="router.back()">
+                <i class="pi pi-arrow-left" aria-hidden="true"></i> Volver
+            </button>
+            <header v-if="course" class="course-header">
+                <div class="course-header__main">
                     <div class="course-badges">
-                        <span class="badge badge-violet">{{ course.subject || 'General' }}</span>
-                        <span class="badge badge-muted">{{ course.level || 'Sin nivel' }}</span>
-                        <span class="badge" :class="`badge-status--${course.status}`">{{
-                            statusLabel(course.status)
+                        <span class="course-badge course-badge--brand">{{
+                            course.subject || 'General'
                         }}</span>
+                        <span v-if="course.grade_name" class="course-badge">{{
+                            course.grade_name
+                        }}</span>
+                        <span v-if="course.level" class="course-badge">{{ course.level }}</span>
                     </div>
-                    <div class="course-status" role="group" aria-label="Estado del curso">
+                    <h1 class="page-title">{{ course.title }}</h1>
+                    <p class="course-meta">
+                        {{ students.length }} {{ students.length === 1 ? 'alumno' : 'alumnos' }} ·
+                        {{ teacherLevels.length }}
+                        {{ teacherLevels.length === 1 ? 'nivel' : 'niveles' }}
+                    </p>
+                </div>
+                <div class="course-status">
+                    <button
+                        type="button"
+                        class="status-trigger"
+                        :class="`status-trigger--${course.status}`"
+                        aria-haspopup="menu"
+                        :aria-expanded="statusMenuOpen"
+                        :disabled="Boolean(savingStatus)"
+                        @click="statusMenuOpen = !statusMenuOpen"
+                    >
+                        <i v-if="savingStatus" class="pi pi-spinner pi-spin" aria-hidden="true"></i>
+                        <span v-else class="status-trigger__dot" aria-hidden="true"></span>
+                        {{ statusLabel(course.status) }}
+                        <i class="pi pi-angle-down" aria-hidden="true"></i>
+                    </button>
+                    <div
+                        v-if="statusMenuOpen"
+                        class="status-backdrop"
+                        @click="statusMenuOpen = false"
+                    ></div>
+                    <div v-if="statusMenuOpen" class="status-menu" role="menu">
                         <button
                             v-for="option in STATUS_OPTIONS"
                             :key="option.value"
                             type="button"
-                            class="status-option"
+                            role="menuitemradio"
+                            class="status-menu__item"
                             :class="{
-                                'status-option--current': course.status === option.value,
-                                'status-option--saving': savingStatus === option.value,
+                                'status-menu__item--current': course.status === option.value,
                             }"
-                            :aria-pressed="course.status === option.value"
-                            :disabled="Boolean(savingStatus)"
-                            @click="chooseStatus(option.value)"
+                            :aria-checked="course.status === option.value"
+                            @click="pickStatus(option.value)"
                         >
-                            <i
-                                class="pi"
-                                :class="
-                                    savingStatus === option.value
-                                        ? 'pi-spinner pi-spin'
-                                        : option.icon
-                                "
-                                aria-hidden="true"
-                            ></i>
-                            <span class="status-option-text">
+                            <i class="pi" :class="option.icon" aria-hidden="true"></i>
+                            <span>
                                 <strong>{{ option.label }}</strong>
                                 <small>{{ option.hint }}</small>
                             </span>
                         </button>
                     </div>
-
-                    <p v-if="pendingArchive" class="status-confirm">
-                        <i class="pi pi-exclamation-triangle" aria-hidden="true"></i>
-                        <span>
-                            Al archivar, quienes ya cursan siguen viendo el material y sus notas,
-                            pero nadie puede entregar ni matricularse.
-                        </span>
-                        <span class="status-confirm-actions">
-                            <button
-                                type="button"
-                                class="status-confirm-cancel"
-                                @click="pendingArchive = false"
-                            >
-                                Cancelar
-                            </button>
-                            <button
-                                type="button"
-                                class="status-confirm-go"
-                                @click="chooseStatus('archived')"
-                            >
-                                Archivar
-                            </button>
-                        </span>
-                    </p>
-
-                    <p v-if="statusError" class="status-error">
-                        <i class="pi pi-times-circle" aria-hidden="true"></i>
-                        {{ statusError }}
-                    </p>
                 </div>
-            </div>
+            </header>
+
+            <p v-if="pendingArchive" class="status-confirm">
+                <i class="pi pi-exclamation-triangle" aria-hidden="true"></i>
+                <span>
+                    Al archivar, quienes ya cursan siguen viendo el material y sus notas, pero nadie
+                    puede entregar ni matricularse.
+                </span>
+                <span class="status-confirm-actions">
+                    <button
+                        type="button"
+                        class="status-confirm-cancel"
+                        @click="pendingArchive = false"
+                    >
+                        Cancelar
+                    </button>
+                    <button
+                        type="button"
+                        class="status-confirm-go"
+                        @click="chooseStatus('archived')"
+                    >
+                        Archivar
+                    </button>
+                </span>
+            </p>
+
+            <p v-if="statusError" class="status-error">
+                <i class="pi pi-times-circle" aria-hidden="true"></i>
+                {{ statusError }}
+            </p>
 
             <div v-if="!course && loadingCourse" class="empty-state" role="status">
                 <div class="empty-state__icon"><i class="pi pi-spin pi-spinner"></i></div>
@@ -1804,10 +1835,32 @@ async function deleteNotebook(id: string) {
                     @create-notebook="openNotebookForLevel"
                     @open-sheet="goToSheet"
                     @open-notebook="openNotebook"
+                    @edit-notebook="openEditNotebook"
+                    @delete-notebook="deleteNotebook"
                 />
 
+                <div
+                    v-if="activeTab === 'content'"
+                    class="content-subtabs"
+                    role="tablist"
+                    aria-label="Tipo de contenido"
+                >
+                    <button
+                        v-for="sub in contentSubTabs"
+                        :key="sub.id"
+                        type="button"
+                        role="tab"
+                        :aria-selected="contentSubTab === sub.id"
+                        class="content-subtab"
+                        :class="{ 'content-subtab-active': contentSubTab === sub.id }"
+                        @click="contentSubTab = sub.id"
+                    >
+                        {{ sub.label }} · {{ sub.count }}
+                    </button>
+                </div>
+
                 <TopicsList
-                    v-if="activeTab === 'topics'"
+                    v-if="activeTab === 'content' && contentSubTab === 'topics'"
                     :topics="topics"
                     :editing-topic-id="editingTopicId"
                     :edit-topic-title="editTopicTitle"
@@ -1820,7 +1873,7 @@ async function deleteNotebook(id: string) {
                 />
 
                 <ExercisesList
-                    v-if="activeTab === 'exercises'"
+                    v-if="activeTab === 'content' && contentSubTab === 'exercises'"
                     :topics="topics"
                     :selected-topic-id="selectedTopicId"
                     :exercises="exercises"
@@ -1834,51 +1887,22 @@ async function deleteNotebook(id: string) {
                 />
 
                 <MaterialsList
-                    v-if="activeTab === 'materials'"
+                    v-if="activeTab === 'content' && contentSubTab === 'materials'"
                     :materials="materials"
                     @create="showMaterialModal = true"
                     @edit="openEditMaterial"
                     @delete="deleteMaterial"
                 />
 
-                <StudentsList v-if="activeTab === 'students'" :students="students" />
-
-                <div v-if="activeTab === 'sheets'">
-                    <PracticeSheetsList
-                        :sheets="practiceSheets"
-                        @create="openNewSheet"
-                        @edit="openEditSheet"
-                        @delete="deleteSheet"
-                    />
-                    <div
-                        v-if="practiceSheets.length > 0 || sheetsPage > 1"
-                        class="pagination-controls"
-                    >
-                        <button
-                            :disabled="sheetsPage === 1"
-                            @click="() => prevSheetsPage(courseId)"
-                        >
-                            <i class="pi pi-chevron-left"></i> Anterior
-                        </button>
-                        <span class="pagination-info">
-                            Página {{ sheetsPage }} · {{ practiceSheets.length }} resultados
-                        </span>
-                        <button :disabled="!sheetsHasMore" @click="() => nextSheetsPage(courseId)">
-                            Siguiente <i class="pi pi-chevron-right"></i>
-                        </button>
-                    </div>
-                </div>
-
-                <NotebooksList
-                    v-if="activeTab === 'notebooks'"
-                    :notebooks="notebooks"
-                    @create="showNotebookModal = true"
-                    @open="openNotebook"
-                    @edit="openEditNotebook"
-                    @delete="deleteNotebook"
+                <StudentsList
+                    v-if="activeTab === 'students'"
+                    :students="students"
+                    @invite="showInviteModal = true"
                 />
             </div>
         </div>
+
+        <InviteStudentsModal v-if="showInviteModal" @close="showInviteModal = false" />
 
         <TopicModal
             :visible="showTopicModal"
@@ -3403,94 +3427,151 @@ async function deleteNotebook(id: string) {
     max-width: 1180px;
 }
 
+.course-back {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    min-height: 36px;
+    margin: -6px 0 4px -10px;
+    padding: 0 10px;
+    border: 0;
+    border-radius: 10px;
+    background: transparent;
+    color: var(--brand-700);
+    font: 900 13px/1 var(--font-ui);
+    cursor: pointer;
+}
+.course-back i {
+    font-size: 12px;
+}
+.course-back:hover {
+    background: var(--surface-sunken);
+}
+
 .course-header {
-    position: relative;
-    margin-bottom: 16px;
-    padding: 22px 24px;
-    border-radius: var(--radius-2xl);
-    background: linear-gradient(115deg, var(--surface-elevated), var(--surface-card));
-    border: 1px solid var(--surface-elevated-strong);
-    box-shadow: var(--shadow-card);
-    backdrop-filter: blur(18px);
     display: flex;
-    flex-direction: column;
+    flex-wrap: wrap;
     align-items: flex-start;
+    justify-content: space-between;
     gap: 14px;
-    overflow: hidden;
+    margin-bottom: 20px;
 }
-
-.course-header > .btn {
-    align-self: flex-start;
-    width: auto;
-    flex: 0 0 auto;
+.course-header__main {
+    display: grid;
+    gap: 8px;
+    min-width: 0;
 }
-
-.course-header > * {
-    position: relative;
-    z-index: 1;
+.course-badges {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
 }
-
-.page-title {
-    font-size: clamp(1.55rem, 2.5vw, 2rem);
-    font-weight: 800;
-    color: var(--text-heading);
-    line-height: 1.12;
+.course-badge {
+    padding: 3px 9px;
+    border-radius: var(--radius-xs);
+    background: var(--surface-sunken);
+    color: var(--ink-muted);
+    font-size: 11px;
+    font-weight: 600;
+}
+.course-badge--brand {
+    color: var(--brand-700);
+    font-weight: 700;
+}
+.course-meta {
     margin: 0;
+    font-size: 13px;
+    color: var(--ink-muted);
 }
 
 .course-status {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 8px;
-    margin-top: 12px;
+    position: relative;
 }
-.status-option {
-    display: flex;
+.status-trigger {
+    display: inline-flex;
     align-items: center;
-    gap: 9px;
-    flex: 1 1 210px;
-    padding: 10px 12px;
-    border: 1.5px solid var(--surface-border);
-    border-radius: var(--radius-lg);
-    background: var(--surface-card);
-    color: var(--text-secondary);
-    text-align: left;
+    gap: 10px;
+    min-height: 44px;
+    padding: 0 14px;
+    border: 1px solid var(--line);
+    border-radius: 11px;
+    background: var(--surface-sunken);
+    color: var(--ink-muted);
+    font: 900 13.5px/1 var(--font-ui);
     cursor: pointer;
-    transition: var(--transition-fast);
 }
-.status-option:hover:not(:disabled) {
-    border-color: rgba(var(--practiq-violet-rgb), 0.45);
-    color: var(--text-primary);
-}
-.status-option:disabled {
+.status-trigger:disabled {
     cursor: default;
 }
-.status-option--current {
-    border-color: var(--practiq-violet);
-    background: var(--fill-primary-faint);
-    color: var(--practiq-violet);
+.status-trigger__dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: currentColor;
 }
-.status-option i {
-    font-size: 1rem;
-    flex-shrink: 0;
+.status-trigger i.pi-angle-down {
+    font-size: 12px;
 }
-.status-option-text {
-    display: grid;
-    gap: 1px;
-    min-width: 0;
+.status-trigger--draft {
+    border-color: var(--warning-soft);
+    background: var(--warning-soft);
+    color: var(--warning);
 }
-.status-option-text strong {
-    font-size: var(--text-sm);
-    font-weight: 800;
+.status-trigger--published {
+    border-color: var(--success-soft);
+    background: var(--success-soft);
+    color: var(--success);
 }
-.status-option-text small {
-    font-size: var(--text-xs);
-    color: var(--text-muted);
-    line-height: 1.3;
+.status-backdrop {
+    position: fixed;
+    inset: 0;
+    z-index: 9;
 }
-.status-option--current .status-option-text small {
-    color: inherit;
-    opacity: 0.8;
+.status-menu {
+    position: absolute;
+    top: calc(100% + 6px);
+    right: 0;
+    z-index: 10;
+    width: 290px;
+    padding: 6px;
+    border: 1px solid var(--line);
+    border-radius: var(--radius-md);
+    background: var(--surface);
+    box-shadow: var(--shadow-card-lg);
+}
+.status-menu__item {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    width: 100%;
+    padding: 10px;
+    border: 0;
+    border-radius: 9px;
+    background: transparent;
+    color: var(--ink);
+    text-align: left;
+    font-family: var(--font-body);
+    cursor: pointer;
+}
+.status-menu__item:hover,
+.status-menu__item--current {
+    background: var(--surface-sunken);
+    color: var(--brand-700);
+}
+.status-menu__item i {
+    margin-top: 2px;
+    font-size: 13px;
+}
+.status-menu__item strong {
+    display: block;
+    font-size: 13px;
+    font-weight: 600;
+}
+.status-menu__item small {
+    display: block;
+    font-size: 11.5px;
+    line-height: 1.45;
+    color: var(--ink-muted);
 }
 .status-confirm,
 .status-error {
@@ -3498,15 +3579,15 @@ async function deleteNotebook(id: string) {
     align-items: center;
     flex-wrap: wrap;
     gap: 8px;
-    margin: 10px 0 0;
+    margin: 0 0 16px;
     padding: 10px 12px;
-    border-radius: var(--radius-lg);
+    border-radius: var(--radius-md);
     font-size: var(--text-xs);
     line-height: 1.35;
 }
 .status-confirm {
-    background: var(--color-warning-bg);
-    color: var(--color-warning-dark);
+    background: var(--warning-soft);
+    color: var(--warning);
 }
 .status-confirm span {
     flex: 1 1 200px;
@@ -3531,46 +3612,19 @@ async function deleteNotebook(id: string) {
     text-decoration: underline;
 }
 .status-confirm-go {
-    background: var(--color-warning-dark);
-    color: #fff;
+    background: var(--warning);
+    color: var(--on-brand);
 }
 .status-error {
-    background: var(--color-error-bg);
-    color: var(--color-error-dark);
-}
-.badge-status--draft {
-    background: #fef3c7;
-    color: #92400e;
-}
-.badge-status--published {
-    background: #dcfce7;
-    color: #166534;
-}
-.badge-status--archived {
-    background: var(--surface-hover);
-    color: var(--text-muted);
-}
-.course-badges {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 8px;
-    margin-top: 10px;
-}
-
-.badge-muted {
-    background: var(--surface-hover);
-    color: var(--text-secondary);
+    background: var(--danger-soft);
+    color: var(--danger);
 }
 
 .tabs {
     display: flex;
-    gap: 8px;
-    padding: 8px;
-    border-radius: var(--radius-2xl);
-    background: var(--surface-glass);
-    border: 1px solid var(--surface-elevated-strong);
-    box-shadow: var(--shadow-card);
-    margin-bottom: 24px;
+    gap: 4px;
+    border-bottom: 1px solid var(--line);
+    margin-bottom: 20px;
     overflow-x: auto;
     scrollbar-width: thin;
     scroll-snap-type: x proximity;
@@ -3578,31 +3632,67 @@ async function deleteNotebook(id: string) {
 }
 
 .tab {
-    padding: 10px 14px;
-    background: transparent;
-    border: 1px solid transparent;
-    border-radius: var(--radius-xl);
-    font-size: var(--text-base);
-    font-weight: 700;
-    color: var(--text-secondary);
-    cursor: pointer;
-    transition: var(--transition);
-    display: flex;
+    display: inline-flex;
     align-items: center;
     gap: 8px;
+    min-height: 44px;
+    padding: 0 14px;
+    margin-bottom: -1px;
+    background: transparent;
+    border: 0;
+    border-bottom: 2px solid transparent;
+    font: 900 14px/1 var(--font-ui);
+    color: var(--ink-muted, var(--text-secondary));
+    cursor: pointer;
+    transition: var(--transition);
     white-space: nowrap;
     scroll-snap-align: start;
 }
 
 .tab:hover {
-    background: var(--surface-elevated-strong);
-    color: var(--text-heading);
+    color: var(--ink, var(--text-heading));
 }
 
-.tab-active {
-    color: var(--practiq-violet-dark);
-    background: var(--gradient-brand-soft);
-    border-color: rgba(var(--practiq-violet-rgb), 0.18);
+.tab-active,
+.tab-active:hover {
+    color: var(--brand-700, var(--practiq-violet-dark));
+    border-bottom-color: var(--brand-500, var(--practiq-violet));
+}
+
+.content-subtabs {
+    display: flex;
+    gap: 2px;
+    padding: 3px;
+    margin-bottom: 16px;
+    border-radius: var(--radius-xl);
+    background: var(--surface-sunken, var(--surface-elevated-strong));
+    width: fit-content;
+    max-width: 100%;
+    overflow-x: auto;
+}
+
+.content-subtab {
+    min-height: 34px;
+    padding: 0 12px;
+    border: 1px solid transparent;
+    border-radius: var(--radius-lg);
+    background: transparent;
+    font-size: 12.5px;
+    font-weight: 600;
+    color: var(--ink-muted, var(--text-secondary));
+    cursor: pointer;
+    transition: var(--transition);
+    white-space: nowrap;
+}
+
+.content-subtab:hover {
+    color: var(--ink, var(--text-heading));
+}
+
+.content-subtab-active {
+    background: var(--surface, var(--surface-card));
+    color: var(--ink, var(--text-heading));
+    box-shadow: var(--shadow-xs, var(--shadow-sm));
 }
 
 .empty-inline {
@@ -3647,7 +3737,7 @@ async function deleteNotebook(id: string) {
     min-height: 180px;
 }
 .field-hint--warn {
-    color: #92400e;
+    color: var(--warning);
 }
 .field-hint {
     margin-top: 6px;
@@ -3764,10 +3854,13 @@ async function deleteNotebook(id: string) {
         max-width: 100%;
         box-sizing: border-box;
     }
-    .course-header {
-        width: 100%;
-        padding: 22px 18px;
-        border-radius: 22px;
+    .course-detail > .course-back {
+        width: auto;
+    }
+    .status-menu {
+        right: auto;
+        left: 0;
+        width: min(290px, calc(100vw - 32px));
     }
 }
 

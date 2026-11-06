@@ -230,10 +230,14 @@ export class Chat {
             'touchend',
             (event) => {
                 const delta = (event.changedTouches[0]?.clientY || touchStartY) - touchStartY;
-                if (Math.abs(delta) > 28) {
-                    handledSwipe = true;
-                    this.setMobileExpanded(delta < 0);
+                if (Math.abs(delta) <= 28 || window.innerWidth > 720) return;
+                handledSwipe = true;
+                if (delta < 0) {
+                    this.setMobileExpanded(true);
+                    return;
                 }
+                if (this.mobileExpanded) this.setMobileExpanded(false);
+                else this.close();
             },
             { passive: true },
         );
@@ -1245,9 +1249,10 @@ export class Chat {
             const option = document.createElement('option');
             option.value = rate;
             option.textContent = `${rate}x`;
+            option.style.cssText = `background:${backgroundColor};color:${textColor}`;
             speed.appendChild(option);
         }
-        speed.style.cssText = `border:1px solid ${primaryColor}44;border-radius:9px;padding:5px 8px;background:transparent;color:inherit`;
+        speed.style.cssText = `border:1px solid ${primaryColor}44;border-radius:9px;padding:5px 8px;background:${backgroundColor};color:${textColor}`;
 
         panel.append(
             header,
@@ -1332,12 +1337,14 @@ export class Chat {
                 'aria-label',
                 expanded ? 'Reducir asistente' : 'Expandir asistente',
             );
+        this.syncMobileViewport();
         window.dispatchEvent(new CustomEvent('practiq:assistant:chat-resize'));
     }
 
     public toggle(): void {
         this.isOpen = !this.isOpen;
         this.container.style.display = this.isOpen ? 'block' : 'none';
+        if (this.isOpen) this.syncMobileViewport();
         window.dispatchEvent(
             new CustomEvent('practiq:assistant:chat-toggle', { detail: { open: this.isOpen } }),
         );
@@ -1367,6 +1374,26 @@ export class Chat {
         }
     }
 
+    private syncMobileViewport = (): void => {
+        const style = this.chatWindow.style;
+        if (window.innerWidth > 720) {
+            style.removeProperty('bottom');
+            style.removeProperty('max-height');
+            return;
+        }
+        const viewport = window.visualViewport;
+        const height = Math.round(viewport?.height ?? window.innerHeight);
+        const inset = viewport
+            ? Math.max(0, Math.round(window.innerHeight - viewport.height - viewport.offsetTop))
+            : 0;
+        style.setProperty(
+            'bottom',
+            `calc(${inset}px + max(10px, env(safe-area-inset-bottom)))`,
+            'important',
+        );
+        style.setProperty('max-height', `${Math.max(240, height - 24)}px`, 'important');
+    };
+
     public mount(container: HTMLElement | string = document.body): void {
         const targetContainer =
             typeof container === 'string'
@@ -1376,9 +1403,17 @@ export class Chat {
         if (targetContainer) {
             targetContainer.appendChild(this.container);
         }
+
+        this.syncMobileViewport();
+        window.addEventListener('resize', this.syncMobileViewport);
+        window.visualViewport?.addEventListener('resize', this.syncMobileViewport);
+        window.visualViewport?.addEventListener('scroll', this.syncMobileViewport);
     }
 
     public unmount(): void {
+        window.removeEventListener('resize', this.syncMobileViewport);
+        window.visualViewport?.removeEventListener('resize', this.syncMobileViewport);
+        window.visualViewport?.removeEventListener('scroll', this.syncMobileViewport);
         if (this.container.parentNode) {
             this.container.parentNode.removeChild(this.container);
         }

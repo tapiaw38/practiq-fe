@@ -18,4 +18,6 @@ export interface CourseLevelsPanelEmits {
     (e: 'createNotebook', level: number): void;
     (e: 'openSheet', sheetId: string): void;
     (e: 'openNotebook', notebookId: string): void;
+    (e: 'editNotebook', notebook: LevelNotebookSummary | Notebook): void;
+    (e: 'deleteNotebook', notebookId: string): void;
 }

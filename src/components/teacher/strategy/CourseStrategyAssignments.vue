@@ -32,7 +32,7 @@ const selectStrategy = (courseId: string, strategyId: string) => {
         </div>
 
         <div v-if="courses.length === 0" class="empty-state">
-            <p>No tienes cursos para asignar estrategias.</p>
+            <p>No tenés cursos para asignar estrategias.</p>
         </div>
 
         <div v-else class="courses-assignments">

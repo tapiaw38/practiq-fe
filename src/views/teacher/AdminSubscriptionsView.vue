@@ -2,33 +2,40 @@
 import { computed, onMounted, ref } from 'vue';
 import { useToast } from '@/composables/useToast';
 import { useAuthAdmin } from '@/composables/useAuthAdmin';
-import { practiqApi } from '@/api/request/server';
 import TeacherLayout from '@/layouts/TeacherLayout.vue';
 import Skeleton from '@/components/ui/Skeleton.vue';
-import { SubscriptionService } from '@/services/subscription/subscriptionService';
+import { useSubscription } from '@/composables/useSubscription';
 import type { AuthApiUser } from '@/types';
 import type { AdminSubscription } from '@/types/subscription';
 
 const toast = useToast();
-const service = new SubscriptionService(practiqApi);
+const { adminSubscriptions: subscriptions, listAllSubscriptions } = useSubscription();
 const { loadUsers } = useAuthAdmin();
 
 function practiqUserId(user: AuthApiUser) {
     return user.username || user.id;
 }
 
-const subscriptions = ref<AdminSubscription[]>([]);
 const usersById = ref<Record<string, { name: string; email: string }>>({});
 const loading = ref(true);
-const filterStatus = ref('');
+const activeFilter = ref('');
 
-const statusOptions = [
-    { value: '', label: 'Todas' },
-    { value: 'authorized', label: 'Activas' },
-    { value: 'pending', label: 'Pendientes' },
-    { value: 'paused', label: 'Pausadas' },
-    { value: 'cancelled', label: 'Canceladas' },
+const filterDefs = [
+    { key: '', label: 'Todas' },
+    { key: 'ok', label: 'Al día' },
+    { key: 'overdue', label: 'Pago vencido' },
+    { key: 'trial', label: 'En prueba' },
+    { key: 'paused', label: 'Pausadas' },
+    { key: 'cancelled', label: 'Canceladas' },
 ];
+
+function bucketOf(sub: AdminSubscription) {
+    if (sub.status === 'cancelled') return 'cancelled';
+    if (sub.status === 'paused') return 'paused';
+    if (sub.status === 'pending') return 'trial';
+    if (['rejected', 'cancelled'].includes(sub.last_cycle?.status || '')) return 'overdue';
+    return 'ok';
+}
 
 const subscriptionStatusLabels: Record<string, string> = {
     authorized: 'Activa',
@@ -110,14 +117,28 @@ const failedCount = computed(
         ).length,
 );
 
+const filterCounts = computed(() => {
+    const counts: Record<string, number> = {};
+    for (const sub of subscriptions.value) {
+        const bucket = bucketOf(sub);
+        counts[bucket] = (counts[bucket] || 0) + 1;
+    }
+    return counts;
+});
+
+const filteredSubscriptions = computed(() =>
+    activeFilter.value
+        ? subscriptions.value.filter((s) => bucketOf(s) === activeFilter.value)
+        : subscriptions.value,
+);
+
 async function load() {
     loading.value = true;
     try {
-        const [subsResult, usersResult] = await Promise.all([
-            service.listAllSubscriptions(filterStatus.value || undefined),
+        const [, usersResult] = await Promise.all([
+            listAllSubscriptions(),
             loadUsers({ limit: 1000, offset: 0 }).catch(() => []),
         ]);
-        subscriptions.value = subsResult.data;
         usersById.value = Object.fromEntries(
             usersResult.map((u) => [
                 practiqUserId(u),
@@ -150,13 +171,6 @@ onMounted(load);
                         Quién está suscripto, qué plan paga y si el último cobro salió bien.
                     </p>
                 </div>
-                <div class="page-header__right">
-                    <select v-model="filterStatus" class="status-filter" @change="load">
-                        <option v-for="opt in statusOptions" :key="opt.value" :value="opt.value">
-                            {{ opt.label }}
-                        </option>
-                    </select>
-                </div>
             </header>
 
             <div class="subs-summary">
@@ -174,12 +188,28 @@ onMounted(load);
                 </div>
             </div>
 
+            <div class="filter-row" role="group">
+                <button
+                    v-for="f in filterDefs"
+                    :key="f.key"
+                    type="button"
+                    class="filter-chip"
+                    :class="{ 'filter-chip--active': activeFilter === f.key }"
+                    @click="activeFilter = f.key"
+                >
+                    {{ f.label }}
+                    <span class="filter-chip__count">{{
+                        f.key ? filterCounts[f.key] || 0 : subscriptions.length
+                    }}</span>
+                </button>
+            </div>
+
             <div class="card subs-card">
                 <div v-if="loading" class="subs-loading">
                     <Skeleton v-for="n in 5" :key="n" width="100%" height="48px" />
                 </div>
 
-                <table v-else-if="subscriptions.length" class="data-table">
+                <table v-else-if="filteredSubscriptions.length" class="data-table">
                     <thead>
                         <tr>
                             <th>Docente</th>
@@ -191,8 +221,8 @@ onMounted(load);
                         </tr>
                     </thead>
                     <tbody>
-                        <tr v-for="sub in subscriptions" :key="sub.id">
-                            <td>
+                        <tr v-for="sub in filteredSubscriptions" :key="sub.id">
+                            <td data-label="Docente">
                                 <div class="teacher-cell">
                                     <span class="teacher-name">{{
                                         teacherLabel(sub.user_id)
@@ -202,8 +232,8 @@ onMounted(load);
                                     </span>
                                 </div>
                             </td>
-                            <td>{{ sub.plan_name }}</td>
-                            <td>
+                            <td data-label="Plan">{{ sub.plan_name }}</td>
+                            <td data-label="Estado">
                                 <span
                                     class="status-pill"
                                     :class="subscriptionStatusVariant(sub.status)"
@@ -211,7 +241,7 @@ onMounted(load);
                                     {{ subscriptionStatusLabel(sub.status) }}
                                 </span>
                             </td>
-                            <td>
+                            <td data-label="Último cobro">
                                 <template v-if="sub.last_cycle">
                                     {{
                                         formatMoney(sub.last_cycle.amount, sub.last_cycle.currency)
@@ -222,7 +252,7 @@ onMounted(load);
                                 </template>
                                 <span v-else class="cycle-empty">Sin cobros aún</span>
                             </td>
-                            <td>
+                            <td data-label="Resultado">
                                 <span
                                     class="status-pill"
                                     :class="cycleStatusVariant(sub.last_cycle?.status)"
@@ -230,12 +260,17 @@ onMounted(load);
                                     {{ cycleStatusLabel(sub.last_cycle?.status) }}
                                 </span>
                             </td>
-                            <td>{{ formatDate(sub.next_payment_at) || '—' }}</td>
+                            <td data-label="Próximo cobro">
+                                {{ formatDate(sub.next_payment_at) || '—' }}
+                            </td>
                         </tr>
                     </tbody>
                 </table>
 
-                <p v-else class="subs-empty">No hay suscripciones para este filtro.</p>
+                <p v-else-if="subscriptions.length" class="subs-empty">
+                    No hay suscripciones para este filtro.
+                </p>
+                <p v-else class="subs-empty">No hay suscripciones todavía.</p>
             </div>
         </div>
     </TeacherLayout>
@@ -247,7 +282,6 @@ onMounted(load);
     display: flex;
     flex-direction: column;
     gap: 1.25rem;
-    padding: 1.25rem;
 }
 
 .page-header {
@@ -266,17 +300,41 @@ onMounted(load);
 
 .page-sub {
     margin: 0.25rem 0 0;
-    color: var(--text-secondary);
-    font-size: 0.9rem;
+    color: var(--ink-muted);
+    font: 400 13.5px/1.55 var(--font-body);
 }
 
-.status-filter {
-    padding: 0.5rem 0.75rem;
-    border-radius: var(--radius-md);
+.filter-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4rem;
+}
+
+.filter-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    flex: 0 0 auto;
+    min-height: 34px;
+    padding: 0 0.75rem;
     border: 1px solid var(--surface-border);
+    border-radius: var(--radius-pill);
     background: var(--surface-card);
-    color: var(--text-primary);
-    font-size: 0.88rem;
+    color: var(--text-secondary);
+    font-size: 0.8rem;
+    font-weight: 600;
+    cursor: pointer;
+}
+
+.filter-chip--active {
+    background: var(--surface-sunken);
+    border-color: var(--brand-200);
+    color: var(--brand-700);
+}
+
+.filter-chip__count {
+    font-weight: 700;
+    opacity: 0.8;
 }
 
 .subs-summary {
@@ -297,7 +355,7 @@ onMounted(load);
 }
 
 .summary-tile--danger .summary-value {
-    color: var(--color-error-dark, #b91c1c);
+    color: var(--color-error-dark);
 }
 
 .summary-label {
@@ -332,6 +390,7 @@ onMounted(load);
 
 .data-table {
     width: 100%;
+    min-width: 820px;
     border-collapse: collapse;
 }
 
@@ -365,6 +424,7 @@ onMounted(load);
     display: flex;
     flex-direction: column;
     gap: 0.1rem;
+    min-width: 0;
 }
 
 .teacher-name {
@@ -372,8 +432,10 @@ onMounted(load);
 }
 
 .teacher-email {
+    overflow: hidden;
     font-size: 0.76rem;
     color: var(--text-secondary);
+    text-overflow: ellipsis;
 }
 
 .cycle-date {
@@ -412,6 +474,55 @@ onMounted(load);
 .status-pill--neutral {
     background: rgba(var(--surface-border-rgb), 0.3);
     color: var(--text-secondary);
+}
+
+@media (max-width: 1023px) {
+    .subs-card {
+        overflow-x: hidden;
+    }
+    .data-table,
+    .data-table tbody,
+    .data-table tr,
+    .data-table td {
+        display: block;
+        width: 100%;
+        min-width: 0;
+    }
+    .data-table thead {
+        display: none;
+    }
+    .data-table tbody {
+        display: grid;
+        gap: 0.75rem;
+        padding: 0.75rem;
+    }
+    .data-table tr {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 0.75rem;
+        padding: 0.85rem;
+        border: 1px solid var(--surface-border);
+        border-radius: var(--radius-lg);
+    }
+    .data-table td {
+        min-width: 0;
+        padding: 0;
+        border: 0;
+        white-space: normal;
+        overflow-wrap: anywhere;
+    }
+    .data-table td:first-child,
+    .data-table td:last-child {
+        grid-column: 1 / -1;
+    }
+    .data-table td::before {
+        display: block;
+        margin-bottom: 0.25rem;
+        color: var(--text-secondary);
+        content: attr(data-label);
+        font-size: 0.72rem;
+        font-weight: 700;
+    }
 }
 
 @media (max-width: 640px) {

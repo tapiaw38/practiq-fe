@@ -1,29 +1,38 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from 'vue';
 import { useToast } from '@/composables/useToast';
-import { ensureFreshAccessToken, practiqApi } from '@/api/request/server';
+import { ensureFreshAccessToken } from '@/api/request/server';
 import TeacherLayout from '@/layouts/TeacherLayout.vue';
 import Skeleton from '@/components/ui/Skeleton.vue';
 import UiModal from '@/components/ui/UiModal.vue';
 import CheckoutModal from '@/components/teacher/subscription/CheckoutModal.vue';
 import { authService } from '@/services/auth/authService';
 import type { CardToken } from '@/types/payments';
-import type {
-    BillingHistory,
-    CatalogPlan,
-    DowngradeState,
-    DowngradeStudent,
-    TeacherSubscription,
-} from '@/types/subscription';
-import { SubscriptionService } from '@/services/subscription/subscriptionService';
+import type { CatalogPlan, DowngradeState, DowngradeStudent } from '@/types/subscription';
+import { useSubscription } from '@/composables/useSubscription';
 
 const toast = useToast();
-const service = new SubscriptionService(practiqApi);
+const {
+    mySubscription: subscription,
+    billingHistory,
+    plans,
+    getMine,
+    clearMySubscription,
+    billingHistoryRequest,
+    clearBillingHistory,
+    checkoutConfig,
+    subscribe,
+    startHostedCheckout,
+    changePlan,
+    downgradePreview,
+    applyDowngrade: applyDowngradeRequest,
+    listPlans,
+    pause: pauseRequest,
+    resume: resumeRequest,
+    cancel: cancelRequest,
+} = useSubscription();
 
-const subscription = ref<TeacherSubscription | null>(null);
-const billingHistory = ref<BillingHistory | null>(null);
 const billingHistoryError = ref(false);
-const plans = ref<CatalogPlan[]>([]);
 const loading = ref(true);
 const loadError = ref(false);
 const working = ref(false);
@@ -77,8 +86,8 @@ function lastPracticedLabel(student: DowngradeStudent) {
 
 async function applyDowngrade() {
     await run(async () => {
-        await service.applyDowngrade(keep.value);
-        const { data } = await service.downgradePreview();
+        await applyDowngradeRequest(keep.value);
+        const { data } = await downgradePreview();
         downgrade.value = data;
     }, 'Plan ajustado');
 }
@@ -121,7 +130,7 @@ async function openCheckout(plan: CatalogPlan) {
     checkoutError.value = '';
     if (!publicKey.value) {
         try {
-            const { data } = await service.checkoutConfig();
+            const { data } = await checkoutConfig();
             publicKey.value = data.public_key;
         } catch {
             publicKey.value = '';
@@ -152,7 +161,7 @@ async function confirmCheckout(token: CardToken) {
     working.value = true;
     try {
         if (subscription.value?.active) {
-            const charged = await service.changePlan(plan.plan_id, token.id, token.paymentMethodId);
+            const charged = await changePlan(plan.plan_id, token.id, token.paymentMethodId);
             checkoutPlan.value = null;
             await reload();
             toast.add({
@@ -166,7 +175,7 @@ async function confirmCheckout(token: CardToken) {
             });
             return;
         }
-        await service.subscribe(plan.plan_id, token.id);
+        await subscribe(plan.plan_id, token.id);
         checkoutPlan.value = null;
         await reload();
         toast.add({ severity: 'success', summary: 'Suscripción activada', life: 2500 });
@@ -184,7 +193,7 @@ async function payWithWallet(payerEmail: string) {
     working.value = true;
     try {
         if (subscription.value?.active) {
-            await service.changePlan(plan.plan_id);
+            await changePlan(plan.plan_id);
             checkoutPlan.value = null;
             await reload();
             toast.add({
@@ -196,7 +205,7 @@ async function payWithWallet(payerEmail: string) {
             return;
         }
 
-        const initPoint = await service.startHostedCheckout(plan.plan_id, payerEmail);
+        const initPoint = await startHostedCheckout(plan.plan_id, payerEmail);
         if (!initPoint) {
             checkoutError.value = 'No pudimos abrir el pago en Mercado Pago. Probá de nuevo.';
             return;
@@ -245,20 +254,16 @@ const renewalAmountLabel = computed(() => {
 });
 
 async function reload() {
-    const [mine, catalog, excess, history] = await Promise.allSettled([
-        onceMore(() => service.getMine()),
-        onceMore(() => service.listPlans()),
-        onceMore(() => service.downgradePreview()),
-        onceMore(() => service.billingHistory()),
+    const [mine, , excess, history] = await Promise.allSettled([
+        onceMore(() => getMine()),
+        onceMore(() => listPlans()),
+        onceMore(() => downgradePreview()),
+        onceMore(() => billingHistoryRequest()),
     ]);
-    if (mine.status === 'fulfilled' && mine.value.data?.plan) {
-        subscription.value = mine.value.data;
-    }
     if (excess.status === 'fulfilled') downgrade.value = excess.value.data;
-    billingHistory.value = history.status === 'fulfilled' ? history.value.data : null;
+    if (history.status === 'rejected') clearBillingHistory();
     billingHistoryError.value = history.status === 'rejected';
 
-    if (catalog.status === 'fulfilled') plans.value = catalog.value.data;
     if (mine.status === 'rejected' || !subscription.value) {
         throw mine.status === 'rejected'
             ? mine.reason
@@ -274,6 +279,7 @@ async function loadSubscription() {
             window.location.assign('/login');
             return;
         }
+        clearMySubscription();
         await reload();
     } catch {
         loadError.value = true;
@@ -309,12 +315,12 @@ async function run(action: () => Promise<void>, done: string) {
 }
 
 const pause = () =>
-    run(() => service.pause(), 'Suscripción pausada').finally(() => {
+    run(() => pauseRequest(), 'Suscripción pausada').finally(() => {
         showPauseModal.value = false;
         showLeaveModal.value = false;
     });
-const resume = () => run(() => service.resume(), 'Suscripción reanudada');
-const cancel = () => run(() => service.cancel(), 'Suscripción cancelada');
+const resume = () => run(() => resumeRequest(), 'Suscripción reanudada');
+const cancel = () => run(() => cancelRequest(), 'Suscripción cancelada');
 
 function formatMoney(amount: number, currency = 'ARS') {
     return new Intl.NumberFormat('es-AR', {
@@ -353,6 +359,10 @@ function cycleStatusVariant(status: string) {
 
 function formatAmount(plan: CatalogPlan) {
     return formatMoney(plan.amount, plan.currency || 'ARS');
+}
+
+function scrollToPlans() {
+    document.querySelector('.plans')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
 
 async function loadAccountEmail() {
@@ -459,6 +469,20 @@ onMounted(() => {
                             :style="{ width: `${usedPct}%` }"
                         ></div>
                     </div>
+                    <p
+                        v-if="subscription.can_add_student && subscription.plan.max_students > 0"
+                        class="usage-help"
+                    >
+                        Te quedan
+                        {{
+                            Math.max(0, subscription.plan.max_students - subscription.students_used)
+                        }}
+                        {{
+                            subscription.plan.max_students - subscription.students_used === 1
+                                ? 'lugar'
+                                : 'lugares'
+                        }}.
+                    </p>
                     <p v-if="subscription.trial_expired" class="usage-warn">
                         Tu mes de prueba terminó. Elegí un plan para volver a sumar alumnos.
                     </p>
@@ -551,6 +575,15 @@ onMounted(() => {
 
                 <div v-if="subscription.active || isPaused" class="plan-actions">
                     <button
+                        v-if="!isPaused && plans.length"
+                        class="btn-primary"
+                        type="button"
+                        :disabled="working"
+                        @click="scrollToPlans"
+                    >
+                        Cambiar de plan
+                    </button>
+                    <button
                         v-if="isPaused"
                         class="btn-primary"
                         type="button"
@@ -562,7 +595,7 @@ onMounted(() => {
                     </button>
                     <button
                         v-else
-                        class="btn-danger"
+                        class="btn-secondary"
                         type="button"
                         :disabled="working"
                         @click="showPauseModal = true"
@@ -571,7 +604,7 @@ onMounted(() => {
                         Pausar
                     </button>
                     <button
-                        class="btn-secondary"
+                        class="btn-quiet btn-quiet--danger"
                         type="button"
                         :disabled="working"
                         @click="showLeaveModal = true"
@@ -579,45 +612,6 @@ onMounted(() => {
                         Cancelar suscripción
                     </button>
                 </div>
-                <section class="billing-history" aria-label="Historial de pagos">
-                    <h2>Historial de pagos</h2>
-                    <p v-if="billingHistoryError" class="billing-history__empty">
-                        No pudimos cargar tus cobros. Recargá la página para intentarlo de nuevo.
-                    </p>
-                    <p v-else-if="!billingHistory?.cycles.length" class="billing-history__empty">
-                        Todavía no hay cobros registrados.
-                    </p>
-                    <div v-else class="billing-history__scroll">
-                        <table class="billing-history__table">
-                            <thead>
-                                <tr>
-                                    <th>Período</th>
-                                    <th>Monto</th>
-                                    <th>Resultado</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                <tr
-                                    v-for="(cycle, index) in billingHistory.cycles"
-                                    :key="`${cycle.subscription_id}-${cycle.period_start}-${index}`"
-                                >
-                                    <td>
-                                        {{ formatBillingDate(cycle.period_start) }} –
-                                        {{ formatBillingDate(cycle.period_end) }}
-                                    </td>
-                                    <td>{{ formatBillingMoney(cycle.amount, cycle.currency) }}</td>
-                                    <td>
-                                        <span
-                                            class="status-pill"
-                                            :class="cycleStatusVariant(cycle.status)"
-                                            >{{ cycleStatusLabel(cycle.status) }}</span
-                                        >
-                                    </td>
-                                </tr>
-                            </tbody>
-                        </table>
-                    </div>
-                </section>
             </div>
 
             <div v-else-if="loadError" class="plan-card load-error" role="alert">
@@ -648,39 +642,81 @@ onMounted(() => {
                             'plan-item--current': plan.plan_id === subscription?.plan.plan_id,
                         }"
                     >
-                        <div class="plan-item-main">
+                        <div class="plan-item-top">
                             <span class="plan-item-name">{{ plan.name }}</span>
-                            <span class="plan-item-limit">
-                                Hasta {{ plan.max_students }}
-                                {{ plan.max_students === 1 ? 'alumno' : 'alumnos' }}
-                            </span>
-                        </div>
-                        <div class="plan-item-side">
-                            <span class="plan-item-price"
-                                >{{ formatAmount(plan) }}<small>/mes</small></span
-                            >
                             <span
                                 v-if="plan.plan_id === subscription?.plan.plan_id"
                                 class="plan-item-current"
                             >
                                 Tu plan
                             </span>
-                            <button
-                                v-else-if="plan.active"
-                                class="btn-plan"
-                                type="button"
-                                :disabled="working"
-                                @click="openCheckout(plan)"
-                            >
-                                {{ subscription?.active ? 'Cambiar a este' : 'Suscribirme' }}
-                            </button>
                         </div>
+                        <span class="plan-item-price"
+                            >{{ formatAmount(plan) }}<small>/mes</small></span
+                        >
+                        <span class="plan-item-limit">
+                            Hasta {{ plan.max_students }}
+                            {{ plan.max_students === 1 ? 'alumno' : 'alumnos' }}
+                        </span>
+                        <button
+                            v-if="plan.plan_id !== subscription?.plan.plan_id && plan.active"
+                            class="btn-plan"
+                            type="button"
+                            :disabled="working"
+                            @click="openCheckout(plan)"
+                        >
+                            {{ subscription?.active ? 'Cambiar a este' : 'Suscribirme' }}
+                        </button>
                     </li>
                 </ul>
                 <p class="plans-note">
                     Pagás con tarjeta de forma segura a través de Mercado Pago. Podés pausar o
                     cancelar cuando quieras.
                 </p>
+            </section>
+
+            <section
+                v-if="subscription && !loading"
+                class="billing-history"
+                aria-label="Historial de cobros"
+            >
+                <h2>Historial de cobros</h2>
+                <p v-if="billingHistoryError" class="billing-history__empty">
+                    No pudimos cargar tus cobros. Recargá la página para intentarlo de nuevo.
+                </p>
+                <p v-else-if="!billingHistory?.cycles.length" class="billing-history__empty">
+                    Todavía no hay cobros registrados.
+                </p>
+                <div v-else class="billing-history__scroll">
+                    <table class="billing-history__table">
+                        <thead>
+                            <tr>
+                                <th>Período</th>
+                                <th>Monto</th>
+                                <th>Resultado</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr
+                                v-for="(cycle, index) in billingHistory.cycles"
+                                :key="`${cycle.subscription_id}-${cycle.period_start}-${index}`"
+                            >
+                                <td>
+                                    {{ formatBillingDate(cycle.period_start) }} –
+                                    {{ formatBillingDate(cycle.period_end) }}
+                                </td>
+                                <td>{{ formatBillingMoney(cycle.amount, cycle.currency) }}</td>
+                                <td>
+                                    <span
+                                        class="status-pill"
+                                        :class="cycleStatusVariant(cycle.status)"
+                                        >{{ cycleStatusLabel(cycle.status) }}</span
+                                    >
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
             </section>
 
             <CheckoutModal
@@ -786,8 +822,7 @@ onMounted(() => {
     display: flex;
     flex-direction: column;
     gap: 1.25rem;
-    padding: 1.25rem;
-    max-width: 720px;
+    max-width: 1120px;
 }
 
 .page-header h1 {
@@ -798,8 +833,8 @@ onMounted(() => {
 
 .page-sub {
     margin: 0.25rem 0 0;
-    color: var(--text-secondary);
-    font-size: 0.9rem;
+    color: var(--ink-muted);
+    font: 400 13.5px/1.55 var(--font-body);
 }
 
 .plan-card {
@@ -809,43 +844,32 @@ onMounted(() => {
     padding: 1.25rem;
     background: var(--surface-card);
     border: 1px solid var(--surface-border);
-    border-radius: var(--radius-xl);
-    box-shadow: var(--shadow-card);
+    border-radius: 14px;
 }
 
 .plan-summary {
     display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 0.6rem;
-    padding: 0.7rem;
-    border-radius: var(--radius-lg);
-    background: rgba(var(--practiq-violet-rgb), 0.045);
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 180px), 1fr));
+    gap: 10px;
+    padding-top: 14px;
+    border-top: 1px solid var(--line);
 }
 
 .plan-summary__item {
     display: grid;
-    grid-template-columns: 1.75rem minmax(0, 1fr);
-    column-gap: 0.45rem;
+    gap: 4px;
     align-items: center;
     min-width: 0;
 }
 
 .plan-summary__item i {
-    grid-row: span 2;
-    display: grid;
-    place-items: center;
-    width: 1.75rem;
-    height: 1.75rem;
-    border-radius: var(--radius-md);
-    background: var(--surface-card);
-    color: var(--practiq-violet);
-    font-size: 0.78rem;
+    display: none;
 }
 
 .plan-summary__item span {
     overflow: hidden;
     color: var(--text-secondary);
-    font-size: 0.7rem;
+    font-size: 12px;
     text-overflow: ellipsis;
     white-space: nowrap;
 }
@@ -853,7 +877,7 @@ onMounted(() => {
 .plan-summary__item strong {
     overflow: hidden;
     color: var(--text-primary);
-    font-size: 0.8rem;
+    font-size: 14px;
     text-overflow: ellipsis;
     white-space: nowrap;
 }
@@ -899,7 +923,8 @@ onMounted(() => {
 
 .plan-name {
     margin: 0.2rem 0 0;
-    font-size: 1.25rem;
+    font: 900 26px/1.06 var(--font-ui);
+    letter-spacing: -0.035em;
     color: var(--text-heading);
 }
 
@@ -1076,14 +1101,15 @@ onMounted(() => {
 }
 
 .billing-history {
-    border-top: 1px solid var(--surface-border);
-    padding-top: 1rem;
+    display: grid;
+    gap: 10px;
 }
 
 .billing-history h2 {
     margin: 0 0 0.75rem;
     color: var(--text-heading);
-    font-size: 1.05rem;
+    font: 900 19px/1.2 var(--font-ui);
+    letter-spacing: -0.03em;
 }
 
 .billing-history__empty {
@@ -1095,6 +1121,9 @@ onMounted(() => {
 .billing-history__scroll {
     width: 100%;
     overflow-x: auto;
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    background: var(--surface);
 }
 
 .billing-history__table {
@@ -1160,7 +1189,7 @@ onMounted(() => {
 
 .btn-primary {
     background: var(--practiq-violet);
-    color: #fff;
+    color: var(--on-brand);
 }
 
 .btn-secondary {
@@ -1175,13 +1204,13 @@ onMounted(() => {
 }
 
 .btn-quiet--danger {
-    color: var(--color-error-dark, #b91c1c);
+    color: var(--color-error-dark);
 }
 
 .btn-danger {
-    background: var(--color-error-dark, #b91c1c);
-    border-color: var(--color-error-dark, #b91c1c);
-    color: #fff;
+    background: var(--color-error-dark);
+    border-color: var(--color-error-dark);
+    color: var(--on-brand);
 }
 
 .btn-primary:disabled,
@@ -1208,16 +1237,16 @@ onMounted(() => {
 .plans-eyebrow {
     display: block;
     margin-bottom: 0.18rem;
-    color: var(--practiq-violet);
-    font-size: 0.7rem;
-    font-weight: 800;
-    letter-spacing: 0.08em;
+    color: var(--brand-700);
+    font: 900 11px/1.3 var(--font-ui);
+    letter-spacing: 0.09em;
     text-transform: uppercase;
 }
 
 .plans-title {
     margin: 0;
-    font-size: 1.05rem;
+    font: 900 19px/1.2 var(--font-ui);
+    letter-spacing: -0.03em;
     color: var(--text-heading);
 }
 
@@ -1238,17 +1267,16 @@ onMounted(() => {
     list-style: none;
     margin: 0;
     padding: 0;
-    display: flex;
-    flex-direction: column;
-    gap: 0.5rem;
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 210px), 1fr));
+    gap: 10px;
 }
 
 .plan-item {
     display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 1rem;
-    padding: 0.9rem 1rem;
+    flex-direction: column;
+    gap: 0.5rem;
+    padding: 1rem;
     background: var(--surface-card);
     border: 1px solid var(--surface-border);
     border-radius: var(--radius-lg);
@@ -1259,22 +1287,21 @@ onMounted(() => {
 
 .plan-item:hover {
     border-color: rgba(var(--practiq-violet-rgb), 0.3);
-    box-shadow: var(--shadow-card);
 }
 
 .plan-item--current {
     border-color: var(--practiq-violet);
-    background: rgba(var(--practiq-violet-rgb), 0.035);
 }
 
-.plan-item-main {
+.plan-item-top {
     display: flex;
-    flex-direction: column;
-    gap: 0.15rem;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.5rem;
 }
 
 .plan-item-name {
-    font-weight: 600;
+    font: 900 16px/1.2 var(--font-ui);
     color: var(--text-primary);
 }
 
@@ -1283,38 +1310,37 @@ onMounted(() => {
     color: var(--text-secondary);
 }
 
-.plan-item-side {
-    display: flex;
-    flex-direction: column;
-    align-items: flex-end;
-    gap: 0.15rem;
-}
-
 .plan-item-price {
-    font-weight: 600;
+    font: 900 26px/1.06 var(--font-ui);
+    letter-spacing: -0.035em;
     color: var(--text-primary);
 }
 
 .plan-item-price small {
     margin-left: 0.12rem;
     color: var(--text-secondary);
-    font-size: 0.72em;
+    font-size: 0.6em;
     font-weight: 500;
 }
 
 .plan-item-current {
-    font-size: 0.75rem;
-    color: var(--practiq-violet);
+    flex: 0 0 auto;
+    padding: 0.1rem 0.5rem;
+    border-radius: var(--radius-pill);
+    background: rgba(var(--practiq-violet-rgb), 0.1);
+    font-size: 0.68rem;
+    font-weight: 700;
+    color: var(--practiq-violet-dark);
 }
 
 .btn-plan {
-    padding: 0.4rem 0.85rem;
+    margin-top: auto;
+    padding: 0.5rem 0.85rem;
     border-radius: var(--radius-md);
-    border: 1px solid rgba(var(--practiq-violet-rgb), 0.3);
+    border: 1px solid var(--surface-border);
     background: var(--surface-card);
-    color: var(--practiq-violet);
-    font-size: 0.82rem;
-    font-weight: 600;
+    color: var(--practiq-violet-dark);
+    font: 900 13px/1.2 var(--font-ui);
     cursor: pointer;
 }
 
@@ -1419,6 +1445,12 @@ onMounted(() => {
 
 .usage-fill--full {
     background: var(--color-warning);
+}
+
+.usage-help {
+    margin: 0;
+    font-size: 0.78rem;
+    color: var(--text-secondary);
 }
 
 .usage-warn {
@@ -1543,10 +1575,6 @@ onMounted(() => {
     }
 
     .plan-item {
-        display: grid;
-        grid-template-columns: minmax(0, 1fr) auto;
-        align-items: center;
-        gap: 0.75rem;
         padding: 0.9rem;
     }
 
@@ -1558,13 +1586,8 @@ onMounted(() => {
         font-size: 0.7rem;
     }
 
-    .plan-item-side {
-        align-items: flex-end;
-        text-align: right;
-    }
-
     .plan-item-price {
-        font-size: 0.92rem;
+        font-size: 1.05rem;
     }
     .btn-plan {
         min-height: 36px;

@@ -416,13 +416,19 @@ function clearCanvas() {
 <template>
     <TeacherLayout>
         <div class="editor-shell anim-stagger">
+            <button class="btn-back" type="button" @click="router.back()">
+                <i class="pi pi-arrow-left"></i> Volver
+            </button>
             <header class="editor-header">
-                <button class="btn-back" type="button" aria-label="Volver" @click="router.back()">
-                    <i class="pi pi-arrow-left"></i>
-                </button>
                 <div class="header-info">
+                    <p class="editor-eyebrow">Cuaderno</p>
                     <h1 class="editor-title">{{ notebook?.title || 'Cuaderno' }}</h1>
-                    <span class="editor-desc">{{ notebook?.description }}</span>
+                    <span v-if="saveMsg" class="save-feedback">
+                        <i class="pi pi-check-circle"></i> {{ saveMsg }}
+                    </span>
+                    <span v-else-if="notebook?.description" class="editor-desc">{{
+                        notebook.description
+                    }}</span>
                 </div>
                 <div class="header-actions">
                     <button
@@ -431,13 +437,6 @@ function clearCanvas() {
                         @click="showAIPagesModal = true"
                     >
                         <i class="pi pi-sparkles"></i> Generar con IA
-                    </button>
-                    <button
-                        class="btn btn-primary btn-sm"
-                        type="button"
-                        @click="showAddPage = true"
-                    >
-                        <i class="pi pi-plus"></i> Agregar página
                     </button>
                 </div>
             </header>
@@ -505,12 +504,15 @@ function clearCanvas() {
                             </div>
                         </div>
                     </div>
+                    <button type="button" class="sidebar-add-btn" @click="showAddPage = true">
+                        <i class="pi pi-plus"></i> Nueva página
+                    </button>
                 </aside>
 
                 <div class="editor-main">
                     <div v-if="pages.length === 0" class="editor-empty">
                         <div class="empty-icon"><i class="pi pi-book"></i></div>
-                        <p>Agrega la primera página usando el botón de arriba.</p>
+                        <p>Agrega la primera página usando el botón del panel izquierdo.</p>
                     </div>
 
                     <template v-else-if="currentPage">
@@ -521,14 +523,37 @@ function clearCanvas() {
                                 placeholder="Título de la página"
                                 @blur="savePage"
                             />
-                            <select
-                                v-model="currentPage.content_type"
-                                class="type-select"
-                                @change="savePage"
-                            >
-                                <option value="canvas">Imagen / Dibujo</option>
-                                <option value="text">Texto</option>
-                            </select>
+                            <div class="type-toggle" role="tablist">
+                                <button
+                                    type="button"
+                                    role="tab"
+                                    class="type-toggle__btn"
+                                    :class="{
+                                        'type-toggle__btn--on': currentPage.content_type === 'text',
+                                    }"
+                                    @click="
+                                        currentPage.content_type = 'text';
+                                        savePage();
+                                    "
+                                >
+                                    <i class="pi pi-align-left"></i> Texto
+                                </button>
+                                <button
+                                    type="button"
+                                    role="tab"
+                                    class="type-toggle__btn"
+                                    :class="{
+                                        'type-toggle__btn--on':
+                                            currentPage.content_type === 'canvas',
+                                    }"
+                                    @click="
+                                        currentPage.content_type = 'canvas';
+                                        savePage();
+                                    "
+                                >
+                                    <i class="pi pi-pencil"></i> Dibujo
+                                </button>
+                            </div>
                             <button
                                 class="page-delete-btn"
                                 type="button"
@@ -696,10 +721,6 @@ function clearCanvas() {
                                     statementMsg
                                 }}</span>
                             </div>
-                        </div>
-
-                        <div v-if="saveMsg" class="save-feedback">
-                            <i class="pi pi-check-circle"></i> {{ saveMsg }}
                         </div>
                     </template>
                 </div>
@@ -876,33 +897,29 @@ function clearCanvas() {
     height: 100%;
     display: flex;
     flex-direction: column;
-    padding: 20px 24px;
-    gap: 16px;
-    background: var(--gradient-app-bg);
+    gap: 18px;
 }
 
 .editor-header {
     display: flex;
-    align-items: center;
-    gap: 16px;
-    padding: 18px 20px;
-    border: 1px solid rgba(var(--surface-border-rgb), 0.16);
-    border-radius: var(--radius-2xl);
-    background: var(--gradient-card-accent);
-    box-shadow: var(--shadow-card);
+    flex-wrap: wrap;
+    align-items: flex-end;
+    gap: 12px;
 }
 
 .btn-back {
-    width: 38px;
-    height: 38px;
-    border-radius: 50%;
-    border: 1.5px solid rgba(var(--practiq-violet-rgb), 0.2);
-    background: var(--surface);
+    align-self: flex-start;
+    min-height: 36px;
+    padding: 0 10px;
+    border-radius: 10px;
+    border: 0;
+    background: transparent;
+    color: var(--brand-700);
+    font: 900 13px/1.2 var(--font-ui);
     cursor: pointer;
-    display: flex;
+    display: inline-flex;
     align-items: center;
-    justify-content: center;
-    flex-shrink: 0;
+    gap: 6px;
     transition: background 0.15s;
 }
 .btn-back:hover {
@@ -918,10 +935,19 @@ function clearCanvas() {
     flex-wrap: wrap;
     justify-content: flex-end;
 }
+.editor-eyebrow {
+    margin: 0 0 2px;
+    font-family: var(--font-ui);
+    font-size: 11px;
+    font-weight: 900;
+    letter-spacing: 0.09em;
+    text-transform: uppercase;
+    color: var(--brand-700);
+}
 .editor-title {
-    font-size: 1.35rem;
-    font-weight: 700;
-    color: var(--text-primary);
+    font: 900 clamp(24px, 3vw, 26px)/1.06 var(--font-ui);
+    letter-spacing: -0.035em;
+    color: var(--ink);
     margin: 0;
 }
 .editor-desc {
@@ -944,30 +970,27 @@ function clearCanvas() {
 
 .editor-body {
     display: grid;
-    grid-template-columns: 220px 1fr;
-    gap: 20px;
+    grid-template-columns: 200px minmax(0, 1fr);
+    gap: 14px;
     flex: 1;
     min-height: 0;
 }
 
 .pages-sidebar {
-    background: var(--surface);
-    backdrop-filter: blur(12px);
-    border-radius: var(--radius-xl);
-    border: 1px solid var(--line);
-    padding: 16px 12px;
+    min-width: 0;
     display: flex;
     flex-direction: column;
     gap: 6px;
-    overflow-y: auto;
+    overflow: auto;
 }
 
 .sidebar-title {
-    font-size: 0.75rem;
-    font-weight: 700;
+    font-family: var(--font-ui);
+    font-size: 10.5px;
+    font-weight: 900;
     text-transform: uppercase;
-    letter-spacing: 0.06em;
-    color: var(--text-secondary);
+    letter-spacing: 0.09em;
+    color: var(--ink-muted);
     padding: 0 4px 8px;
     border-bottom: 1.5px solid rgba(var(--practiq-violet-rgb), 0.08);
     margin-bottom: 4px;
@@ -985,7 +1008,9 @@ function clearCanvas() {
     align-items: center;
     gap: 10px;
     padding: 10px 10px;
-    border-radius: var(--radius-sm);
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    background: var(--surface);
     cursor: pointer;
     transition: background 0.15s;
 }
@@ -994,17 +1019,16 @@ function clearCanvas() {
 }
 .sidebar-item--active {
     background: var(--fill-primary-soft);
-    box-shadow: inset 3px 0 0 var(--practiq-violet);
+    border-color: var(--brand-300);
 }
 
 .sidebar-num {
     width: 28px;
     height: 28px;
     border-radius: var(--radius-sm);
-    background: var(--practiq-violet);
-    color: var(--color-on-primary);
-    font-size: 0.82rem;
-    font-weight: 700;
+    background: var(--surface-sunken);
+    color: var(--ink-soft);
+    font: 900 12px/1 var(--font-ui);
     display: flex;
     align-items: center;
     justify-content: center;
@@ -1029,12 +1053,11 @@ function clearCanvas() {
 }
 
 .editor-main {
+    min-width: 0;
     background: var(--surface);
-    backdrop-filter: blur(12px);
-    border-radius: var(--radius-2xl);
+    border-radius: 14px;
     border: 1px solid var(--line);
-    box-shadow: var(--shadow-card-lg);
-    padding: 24px 28px;
+    padding: 20px;
     display: flex;
     flex-direction: column;
     gap: 20px;
@@ -1088,9 +1111,10 @@ function clearCanvas() {
     flex: 1;
     padding: 10px 14px;
     border-radius: var(--radius-sm);
-    border: 1.5px solid rgba(var(--practiq-violet-rgb), 0.15);
-    font-size: 1rem;
-    font-weight: 600;
+    border: 1px solid transparent;
+    background: var(--canvas);
+    font: 900 18px/1.2 var(--font-ui);
+    letter-spacing: -0.02em;
     color: var(--text-primary);
     outline: none;
     transition: border-color 0.15s;
@@ -1099,15 +1123,51 @@ function clearCanvas() {
     border-color: var(--practiq-violet);
 }
 
-.type-select {
-    padding: 10px 12px;
+.type-toggle {
+    display: flex;
+    gap: 2px;
+    padding: 3px;
+    border-radius: var(--radius-md);
+    background: var(--fill-primary-faint);
+}
+.type-toggle__btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    min-height: 34px;
+    padding: 0 12px;
+    border: 0;
     border-radius: var(--radius-sm);
-    border: 1.5px solid rgba(var(--practiq-violet-rgb), 0.15);
-    font-size: 0.9rem;
-    color: var(--text-primary);
-    outline: none;
-    background: var(--surface-card);
+    background: transparent;
+    color: var(--text-secondary);
+    font-size: 0.82rem;
+    font-weight: 600;
     cursor: pointer;
+    transition: var(--transition-fast);
+}
+.type-toggle__btn--on {
+    background: var(--surface-card);
+    color: var(--text-primary);
+    box-shadow: var(--shadow-xs, 0 1px 2px rgba(0, 0, 0, 0.08));
+}
+
+.sidebar-add-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    min-height: 44px;
+    margin-top: 2px;
+    border: 1.5px dashed rgba(var(--practiq-violet-rgb), 0.3);
+    border-radius: var(--radius-sm);
+    background: transparent;
+    color: var(--practiq-violet-dark);
+    font-size: 0.82rem;
+    font-weight: 700;
+    cursor: pointer;
+}
+.sidebar-add-btn:hover {
+    background: var(--fill-primary-faint);
 }
 
 .canvas-editor {
@@ -1332,8 +1392,9 @@ function clearCanvas() {
     box-shadow: var(--shadow-panel);
 }
 .modal-title {
-    font-size: 1.15rem;
-    font-weight: 700;
+    font-family: var(--font-ui);
+    font-size: 19px;
+    font-weight: 900;
     margin: 0 0 20px;
     color: var(--text-primary);
 }
@@ -1407,8 +1468,7 @@ function clearCanvas() {
     padding: 9px 18px;
     border-radius: var(--radius-sm);
     border: none;
-    font-size: 0.9rem;
-    font-weight: 600;
+    font: 900 13.5px/1.2 var(--font-ui);
     cursor: pointer;
 }
 .btn-primary {
@@ -1441,13 +1501,13 @@ function clearCanvas() {
 
 @media (max-width: 1024px) {
     .editor-body {
-        grid-template-columns: 180px 1fr;
+        grid-template-columns: 180px minmax(0, 1fr);
     }
 }
 
-@media (max-width: 768px) {
+@media (max-width: 1023px) {
     .editor-body {
-        grid-template-columns: 1fr;
+        grid-template-columns: minmax(0, 1fr);
         grid-template-rows: auto 1fr;
     }
 
@@ -1475,7 +1535,7 @@ function clearCanvas() {
 
 @media (max-width: 600px) {
     .editor-shell {
-        padding: 12px;
+        gap: 14px;
     }
     .editor-header {
         flex-wrap: wrap;

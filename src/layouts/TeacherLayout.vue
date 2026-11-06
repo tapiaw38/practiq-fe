@@ -24,8 +24,53 @@ async function renameActive(name: string) {
         await loadSchools(true, isSuperAdmin.value);
     } catch {}
 }
+
+function initialsOf(name: string) {
+    const parts = name.trim().split(/\s+/).filter(Boolean);
+    if (parts.length === 0) return '';
+    if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
+    return (parts[0][0] + parts[1][0]).toUpperCase();
+}
+
+function metaOf(school: { kind: string; role?: string }) {
+    const kind = school.kind === 'personal' ? 'Escuela personal' : 'Institución';
+    const roleLabel = isSuperAdmin.value
+        ? 'acceso total'
+        : school.role === 'admin'
+          ? 'administrás'
+          : 'docente';
+    return `${kind} · ${roleLabel}`;
+}
+
+const schoolOpen = ref(false);
+const renamingSchool = ref(false);
+
+function toggleSchool() {
+    schoolOpen.value = !schoolOpen.value;
+    renamingSchool.value = false;
+}
+function closeSchool() {
+    schoolOpen.value = false;
+    renamingSchool.value = false;
+}
+function pickSchool(id: string) {
+    setActive(id);
+    closeSchool();
+    navOpen.value = false;
+}
+function openSchoolFromTopbar() {
+    sheetMode.value = 'school';
+    navOpen.value = true;
+    schoolOpen.value = hasChoice.value;
+}
+function openMoreSheet() {
+    sheetMode.value = 'menu';
+    schoolOpen.value = false;
+    navOpen.value = true;
+}
 const userInitial = computed(() => profile.value?.name?.[0]?.toUpperCase() || 'D');
 const navOpen = ref(false);
+const sheetMode = ref<'menu' | 'school'>('menu');
 const showChangePassword = ref(false);
 const showSetPassword = ref(false);
 const isGoogleUser = computed(() => authStore.authMethod === 'google');
@@ -88,7 +133,10 @@ onMounted(() => {
 onBeforeUnmount(() => window.removeEventListener('keydown', onKey));
 
 function onKey(event: KeyboardEvent) {
-    if (event.key === 'Escape') navOpen.value = false;
+    if (event.key === 'Escape') {
+        navOpen.value = false;
+        closeSchool();
+    }
 }
 
 watch(
@@ -110,27 +158,29 @@ function logout() {
 <template>
     <div class="app-shell">
         <header class="mobile-topbar">
-            <button
-                class="topbar-btn"
-                type="button"
-                aria-label="Abrir menú"
-                @click="navOpen = true"
-            >
-                <i class="pi pi-bars"></i>
-            </button>
-
             <div class="topbar-brand">
                 <img src="@/assets/logo.png" class="topbar-logo" alt="Practiq" />
-                <span v-if="active" class="topbar-school" :title="active.name">{{
-                    active.name
-                }}</span>
+                <button
+                    v-if="active"
+                    type="button"
+                    class="topbar-school"
+                    :title="active.name"
+                    :aria-label="`Cambiar escuela activa: ${active.name}`"
+                    @click="openSchoolFromTopbar"
+                >
+                    <span class="topbar-school__text">
+                        <span class="topbar-school__label">Escuela</span>
+                        <span class="topbar-school__name">{{ active.name }}</span>
+                    </span>
+                    <i class="pi pi-angle-down" aria-hidden="true"></i>
+                </button>
             </div>
 
             <button
                 class="avatar topbar-avatar"
                 type="button"
                 aria-label="Abrir menú de la cuenta"
-                @click="navOpen = true"
+                @click="openMoreSheet"
             >
                 {{ userInitial }}
             </button>
@@ -140,7 +190,7 @@ function logout() {
 
         <aside
             class="sidebar"
-            :class="{ 'sidebar--open': navOpen }"
+            :class="{ 'sidebar--open': navOpen, 'sidebar--context': sheetMode === 'school' }"
             aria-label="Menú del espacio docente"
         >
             <div class="sidebar-brand">
@@ -156,27 +206,68 @@ function logout() {
             </div>
 
             <section v-if="active" class="school-context" aria-label="Escuela activa">
-                <span class="school-context__label">Escuela</span>
-                <strong class="school-context__name" :title="active.name">{{ active.name }}</strong>
-                <select
-                    v-if="hasChoice"
-                    class="school-context__select"
-                    :value="activeId"
-                    aria-label="Cambiar escuela activa"
-                    @change="setActive(($event.target as HTMLSelectElement).value)"
+                <button
+                    type="button"
+                    class="school-switch"
+                    :aria-expanded="schoolOpen"
+                    aria-haspopup="listbox"
+                    @click="hasChoice && toggleSchool()"
                 >
-                    <option v-for="school in schools" :key="school.id" :value="school.id">
-                        {{ school.name }}
-                    </option>
-                </select>
-                <details v-if="canRenameActiveSchool" class="school-context__settings">
-                    <summary>Editar nombre</summary>
-                    <input
-                        :value="active.name"
-                        aria-label="Nombre de la escuela"
-                        @change="renameActive(($event.target as HTMLInputElement).value)"
-                    />
-                </details>
+                    <span class="school-switch__avatar">{{ initialsOf(active.name) }}</span>
+                    <span class="school-switch__text">
+                        <span class="school-switch__name" :title="active.name">{{
+                            active.name
+                        }}</span>
+                        <span class="school-switch__meta">{{ metaOf(active) }}</span>
+                    </span>
+                    <i v-if="hasChoice" class="pi pi-sort school-switch__icon"></i>
+                </button>
+
+                <div
+                    v-if="schoolOpen && hasChoice"
+                    role="listbox"
+                    aria-label="Elegir escuela"
+                    class="school-popover"
+                >
+                    <div class="school-popover__header">
+                        <span>Cambiar de escuela</span>
+                        <button
+                            v-if="canRenameActiveSchool"
+                            type="button"
+                            class="school-popover__rename-toggle"
+                            aria-label="Editar nombre de la escuela"
+                            @click="renamingSchool = !renamingSchool"
+                        >
+                            <i class="pi pi-pencil"></i>
+                        </button>
+                    </div>
+                    <div v-if="renamingSchool" class="school-popover__rename">
+                        <input
+                            :value="active.name"
+                            aria-label="Nombre de la escuela"
+                            @change="renameActive(($event.target as HTMLInputElement).value)"
+                        />
+                    </div>
+                    <button
+                        v-for="school in schools"
+                        :key="school.id"
+                        type="button"
+                        role="option"
+                        class="school-option"
+                        :aria-selected="school.id === activeId"
+                        @click="pickSchool(school.id)"
+                    >
+                        <span class="school-option__avatar">{{ initialsOf(school.name) }}</span>
+                        <span class="school-option__text">
+                            <span class="school-option__name">{{ school.name }}</span>
+                            <span class="school-option__meta">{{ metaOf(school) }}</span>
+                        </span>
+                        <i v-if="school.id === activeId" class="pi pi-check"></i>
+                    </button>
+                    <p class="school-popover__hint">
+                        Cursos, alumnos y revisiones cambian según la escuela que elijas.
+                    </p>
+                </div>
             </section>
 
             <nav class="sidebar-nav">
@@ -325,7 +416,7 @@ function logout() {
             </div>
         </aside>
 
-        <main class="main-content">
+        <main class="main-content" @click="closeSchool">
             <div class="app-content">
                 <slot />
             </div>
@@ -349,7 +440,7 @@ function logout() {
                 </span>
                 <span>{{ tab.label }}</span>
             </RouterLink>
-            <button class="tab-item" type="button" @click="navOpen = true">
+            <button class="tab-item" type="button" @click="openMoreSheet">
                 <span class="tab-item__icon"><i class="pi pi-ellipsis-h"></i></span>
                 <span>Más</span>
             </button>

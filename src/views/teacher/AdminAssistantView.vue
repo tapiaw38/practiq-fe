@@ -4,9 +4,16 @@ import { useToast } from '@/composables/useToast';
 import TeacherLayout from '@/layouts/TeacherLayout.vue';
 import Skeleton from '@/components/ui/Skeleton.vue';
 import { usePlatformSettings } from '@/composables/usePlatformSettings';
+import { useAuthAdmin } from '@/composables/useAuthAdmin';
+import type { AuthApiUser } from '@/types';
 
 const toast = useToast();
 const { loadAssistant, saveAssistant } = usePlatformSettings();
+const { loadUsers } = useAuthAdmin();
+
+function practiqUserId(user: AuthApiUser) {
+    return user.username || user.id;
+}
 const loading = ref(true);
 const saving = ref(false);
 const configured = ref(false);
@@ -18,12 +25,18 @@ const form = reactive({ base_url: '', api_key: '' });
 async function load() {
     loading.value = true;
     try {
-        const data = await loadAssistant();
+        const [data, users] = await Promise.all([
+            loadAssistant(),
+            loadUsers({ limit: 1000, offset: 0 }).catch(() => []),
+        ]);
         form.base_url = data.base_url || '';
         form.api_key = '';
         storedKey.value = data.api_key || '';
         configured.value = Boolean(data.configured);
-        updatedBy.value = data.updated_by || '';
+        const author = users.find((u) => practiqUserId(u) === data.updated_by);
+        updatedBy.value = author
+            ? `${author.first_name} ${author.last_name}`.trim() || author.email
+            : data.updated_by || '';
     } catch {
         toast.add({
             severity: 'error',
@@ -121,15 +134,13 @@ onMounted(load);
 
 <style scoped>
 .page {
-    max-width: 1180px;
+    max-width: 1120px;
     margin: 0;
-    padding: 24px 28px 40px;
 }
 .eyebrow {
-    font-size: var(--font-kicker);
-    font-weight: 800;
+    font: 900 11px/1.3 var(--font-ui);
     letter-spacing: 0.09em;
-    color: var(--practiq-violet);
+    color: var(--brand-700);
     text-transform: uppercase;
 }
 h1 {
@@ -140,19 +151,18 @@ h1 {
 header p:last-child {
     max-width: 660px;
     margin: 0;
-    color: var(--text-secondary);
-    line-height: 1.55;
+    color: var(--ink-muted);
+    font: 400 13.5px/1.55 var(--font-body);
 }
 .settings-card {
     display: grid;
-    max-width: 760px;
-    gap: 18px;
+    max-width: 620px;
+    gap: 14px;
     margin-top: 16px;
-    padding: 24px;
+    padding: 20px;
     border: 1px solid var(--surface-border);
-    border-radius: var(--radius-xl);
+    border-radius: 14px;
     background: var(--surface-card);
-    box-shadow: var(--shadow-card);
 }
 label {
     display: grid;
@@ -203,10 +213,9 @@ button {
     padding: 10px 20px;
     border: 0;
     border-radius: var(--radius-md);
-    background: var(--practiq-violet);
-    box-shadow: var(--shadow-violet);
-    color: #fff;
-    font-weight: 800;
+    background: var(--brand-500);
+    color: var(--on-brand);
+    font: 900 13.5px/1.2 var(--font-ui);
     cursor: pointer;
 }
 button:disabled {
@@ -214,7 +223,7 @@ button:disabled {
 }
 @media (max-width: 600px) {
     .page {
-        padding: 20px 16px 36px;
+        padding: 0;
     }
     h1 {
         font-size: 24px;

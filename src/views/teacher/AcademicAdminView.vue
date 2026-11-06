@@ -9,24 +9,34 @@ import { useConfirm } from '@/composables/useConfirm';
 import { useCourse } from '@/composables/useCourse';
 import { useGrade } from '@/composables/useGrade';
 import { useSubject } from '@/composables/useSubject';
-import type { Course, Grade, Subject } from '@/types';
+import type { AuthApiUser, Course, Grade, Subject } from '@/types';
 import { useSchools } from '@/composables/useSchools';
+import { useAuthAdmin } from '@/composables/useAuthAdmin';
 
 const router = useRouter();
 const { confirmState, showConfirm, onConfirm, onCancel } = useConfirm();
+const { loadUsers } = useAuthAdmin();
+
+function practiqUserId(user: AuthApiUser) {
+    return user.username || user.id;
+}
 const {
     courses,
+    studentsByCourseId,
     loadCourses,
+    loadStudentsForCourse,
     createCourse: createCourseService,
     updateCourse: updateCourseService,
     deleteCourse: deleteCourseService,
 } = useCourse();
 const {
     grades,
+    members: gradeMembers,
     loadGrades,
     createGrade: createGradeService,
     updateGrade: updateGradeService,
     deleteGrade: deleteGradeService,
+    loadGradeMembers,
 } = useGrade();
 const {
     subjects,
@@ -37,7 +47,7 @@ const {
 } = useSubject();
 
 const loading = ref(false);
-const { activeId, active } = useSchools();
+const { activeId } = useSchools();
 const saving = ref(false);
 const selectedGradeId = ref<string | null>(null);
 
@@ -72,6 +82,19 @@ const selectedGrade = computed(
 const selectedCourses = computed(() =>
     courses.value.filter((c) => c.grade_id === selectedGradeId.value),
 );
+const selectedGradeStudentCount = computed(() => {
+    if (!selectedGradeId.value) return 0;
+    const members = gradeMembers.value[selectedGradeId.value] || [];
+    return members.filter((m) => m.profile_type === 'student').length;
+});
+const missingSubjects = computed(() => {
+    const covered = new Set(selectedCourses.value.map((c) => c.subject_id));
+    return subjects.value.filter((s) => !covered.has(s.id));
+});
+
+function courseStudentCount(courseId: string) {
+    return studentsByCourseId.value[courseId]?.length;
+}
 
 function gradeCourses(gradeId: string) {
     return courses.value.filter((c) => c.grade_id === gradeId);
@@ -81,16 +104,54 @@ function subjectCourseCount(subjectId: string) {
     return courses.value.filter((c) => c.subject_id === subjectId).length;
 }
 
+function courseStatusLabel(status: Course['status']) {
+    return status === 'published' ? 'Publicado' : status === 'archived' ? 'Archivado' : 'Borrador';
+}
+
+const teacherNameById = ref<Record<string, string>>({});
+
+function teacherName(teacherId: string) {
+    return teacherNameById.value[teacherId] || '';
+}
+
 onMounted(loadData);
 watch(activeId, () => {
     selectedGradeId.value = null;
     loadData();
 });
+watch(
+    selectedGradeId,
+    (gradeId) => {
+        if (gradeId && !gradeMembers.value[gradeId]) {
+            loadGradeMembers(gradeId).catch(() => {});
+        }
+    },
+    { immediate: true },
+);
+watch(
+    selectedCourses,
+    (courses) => {
+        for (const course of courses) {
+            if (!(course.id in studentsByCourseId.value)) {
+                loadStudentsForCourse(course.id).catch(() => {});
+            }
+        }
+    },
+    { immediate: true },
+);
 
 async function loadData() {
     loading.value = true;
     try {
-        await Promise.all([loadGrades(), loadSubjects(), loadCourses('teacher')]);
+        const [, , , users] = await Promise.all([
+            loadGrades(),
+            loadSubjects(),
+            loadCourses('teacher'),
+            loadUsers({ limit: 1000, offset: 0 }).catch(() => []),
+        ]);
+        teacherNameById.value = Object.fromEntries(
+            users.map((u) => [practiqUserId(u), `${u.first_name} ${u.last_name}`.trim()]),
+        );
         if (!selectedGradeId.value && grades.value.length > 0) {
             selectedGradeId.value = grades.value[0].id;
         }
@@ -157,9 +218,9 @@ async function confirmDeleteGrade(id: string) {
     }
 }
 
-function openCreateCourse() {
+function openCreateCourse(subjectId = '') {
     editingCourse.value = null;
-    courseForm.subjectId = '';
+    courseForm.subjectId = subjectId;
     courseForm.title = '';
     courseForm.description = '';
     courseForm.level = '';
@@ -269,17 +330,14 @@ async function confirmDeleteSubject(id: string) {
         <div class="ac-root anim-stagger">
             <header class="page-header ac-page-header">
                 <div class="page-header__left">
-                    <p class="page-kicker">Organización de escuela</p>
-                    <h1 class="page-title">Académico</h1>
-                    <p v-if="active" class="page-subtitle school-crumb">
-                        <i class="pi pi-building"></i> {{ active.name }}
+                    <p class="page-kicker">Gestión de escuela · Académico</p>
+                    <h1 class="page-title">Grados y cursos</h1>
+                    <p class="page-subtitle">
+                        Un curso une un grado, una materia y su contenido propio.
                     </p>
                 </div>
                 <div class="page-header__right">
-                    <button
-                        class="btn btn-primary catalog-button"
-                        @click="showSubjectCatalog = true"
-                    >
+                    <button class="catalog-button" @click="showSubjectCatalog = true">
                         <i class="pi pi-book"></i>
                         Catálogo de materias
                         <span class="catalog-button__badge">{{ subjects.length }}</span>
@@ -381,17 +439,9 @@ async function confirmDeleteSubject(id: string) {
                         <span class="sidebar-label">Grados</span>
                         <button class="sidebar-add-btn" type="button" @click="openCreateGrade">
                             <i class="pi pi-plus"></i>
-                            Nuevo grado
+                            Nuevo
                         </button>
                     </div>
-                    <label class="grade-mobile-select">
-                        <span>Grado activo</span>
-                        <select v-model="selectedGradeId">
-                            <option v-for="grade in grades" :key="grade.id" :value="grade.id">
-                                {{ grade.name }} · {{ gradeCourses(grade.id).length }} cursos
-                            </option>
-                        </select>
-                    </label>
                     <nav class="grade-nav">
                         <button
                             v-for="grade in grades"
@@ -402,7 +452,6 @@ async function confirmDeleteSubject(id: string) {
                             }"
                             @click="selectedGradeId = grade.id"
                         >
-                            <span class="grade-nav-item__dot"></span>
                             <span class="grade-nav-item__name">{{ grade.name }}</span>
                             <span class="grade-nav-item__count">{{
                                 gradeCourses(grade.id).length
@@ -421,8 +470,14 @@ async function confirmDeleteSubject(id: string) {
                         <div class="grade-header">
                             <div>
                                 <h2 class="grade-header__name">{{ selectedGrade.name }}</h2>
-                                <p v-if="selectedGrade.description" class="grade-header__desc">
-                                    {{ selectedGrade.description }}
+                                <p class="grade-header__desc">
+                                    {{ selectedCourses.length }}
+                                    {{ selectedCourses.length === 1 ? 'curso' : 'cursos' }}
+                                    · {{ selectedGradeStudentCount }}
+                                    {{ selectedGradeStudentCount === 1 ? 'alumno' : 'alumnos' }}
+                                    <template v-if="selectedGrade.description">
+                                        · {{ selectedGrade.description }}
+                                    </template>
                                 </p>
                             </div>
                             <div class="grade-header__actions">
@@ -432,6 +487,9 @@ async function confirmDeleteSubject(id: string) {
                                     @click="openEditGrade(selectedGrade)"
                                 >
                                     <i class="pi pi-pencil"></i>
+                                </button>
+                                <button class="btn-add-course" @click="openCreateCourse()">
+                                    <i class="pi pi-plus"></i> Nuevo curso
                                 </button>
                                 <button
                                     class="icon-btn icon-btn--danger"
@@ -444,24 +502,6 @@ async function confirmDeleteSubject(id: string) {
                         </div>
 
                         <div class="courses-area">
-                            <div class="courses-area__head">
-                                <div>
-                                    <h3>
-                                        Cursos en <em>{{ selectedGrade.name }}</em>
-                                    </h3>
-                                    <p class="courses-area__hint">
-                                        Cada curso combina este grado con una materia del catálogo.
-                                    </p>
-                                </div>
-                                <button
-                                    v-if="selectedCourses.length"
-                                    class="btn-add-course"
-                                    @click="openCreateCourse"
-                                >
-                                    <i class="pi pi-plus"></i> Nuevo curso
-                                </button>
-                            </div>
-
                             <div v-if="selectedCourses.length === 0" class="courses-empty">
                                 <div class="courses-empty__icon">
                                     <i class="pi pi-book"></i>
@@ -470,7 +510,7 @@ async function confirmDeleteSubject(id: string) {
                                 <p class="courses-empty__sub">
                                     Creá uno eligiendo una materia del catálogo.
                                 </p>
-                                <button class="btn-add-course" @click="openCreateCourse">
+                                <button class="btn-add-course" @click="openCreateCourse()">
                                     <i class="pi pi-plus"></i> Crear primer curso
                                 </button>
                             </div>
@@ -481,24 +521,32 @@ async function confirmDeleteSubject(id: string) {
                                     :key="course.id"
                                     class="academic-course-card"
                                 >
-                                    <div class="academic-course-card__subject-bar">
-                                        <i class="pi pi-book"></i>
-                                        {{ course.subject || 'Sin materia' }}
-                                        <div class="academic-course-card__actions">
-                                            <button
-                                                class="card-action-btn"
-                                                title="Editar"
-                                                @click.stop="openEditCourse(course)"
+                                    <div class="academic-course-card__top">
+                                        <span class="subject-pill">{{
+                                            course.subject || 'Sin materia'
+                                        }}</span>
+                                        <div class="academic-course-card__top-right">
+                                            <span
+                                                class="status-text"
+                                                :class="`status-text--${course.status}`"
+                                                >{{ courseStatusLabel(course.status) }}</span
                                             >
-                                                <i class="pi pi-pencil"></i>
-                                            </button>
-                                            <button
-                                                class="card-action-btn card-action-btn--danger"
-                                                title="Eliminar"
-                                                @click.stop="confirmDeleteCourse(course.id)"
-                                            >
-                                                <i class="pi pi-trash"></i>
-                                            </button>
+                                            <div class="academic-course-card__actions">
+                                                <button
+                                                    class="card-action-btn"
+                                                    title="Editar"
+                                                    @click.stop="openEditCourse(course)"
+                                                >
+                                                    <i class="pi pi-pencil"></i>
+                                                </button>
+                                                <button
+                                                    class="card-action-btn card-action-btn--danger"
+                                                    title="Eliminar"
+                                                    @click.stop="confirmDeleteCourse(course.id)"
+                                                >
+                                                    <i class="pi pi-trash"></i>
+                                                </button>
+                                            </div>
                                         </div>
                                     </div>
                                     <RouterLink
@@ -506,19 +554,44 @@ async function confirmDeleteSubject(id: string) {
                                         :to="`/teacher/courses/${course.id}`"
                                     >
                                         <div class="academic-course-card__body">
-                                            <h4 class="academic-course-card__title">{{ course.title }}</h4>
-                                            <p v-if="course.description" class="academic-course-card__desc">
-                                                {{ course.description }}
-                                            </p>
+                                            <h4 class="academic-course-card__title">
+                                                {{ course.title }}
+                                            </h4>
                                         </div>
                                         <div class="academic-course-card__footer">
-                                            <span v-if="course.level" class="level-chip">{{
-                                                course.level
-                                            }}</span>
-                                            <i class="pi pi-arrow-right academic-course-card__go"></i>
+                                            <span
+                                                v-if="teacherName(course.teacher_id)"
+                                                class="academic-course-card__teacher"
+                                                >{{ teacherName(course.teacher_id) }}</span
+                                            >
+                                            <span
+                                                v-if="courseStudentCount(course.id) !== undefined"
+                                                class="academic-course-card__students"
+                                            >
+                                                {{ courseStudentCount(course.id) }}
+                                                {{
+                                                    courseStudentCount(course.id) === 1
+                                                        ? 'alumno'
+                                                        : 'alumnos'
+                                                }}
+                                            </span>
                                         </div>
                                     </RouterLink>
                                 </article>
+                                <button
+                                    v-for="subject in missingSubjects"
+                                    :key="subject.id"
+                                    type="button"
+                                    class="missing-subject-card"
+                                    @click="openCreateCourse(subject.id)"
+                                >
+                                    <span class="missing-subject-card__name">{{
+                                        subject.name
+                                    }}</span>
+                                    <span class="missing-subject-card__hint"
+                                        >Sin curso en este grado · Crear</span
+                                    >
+                                </button>
                             </div>
                         </div>
                     </template>
@@ -771,20 +844,36 @@ async function confirmDeleteSubject(id: string) {
 .ac-root {
     display: flex;
     flex-direction: column;
-    min-height: 100vh;
-    padding: 24px 28px 40px;
+    min-height: 0;
     background: transparent;
     gap: 18px;
 }
 
+.catalog-button {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    min-height: 44px;
+    padding: 0 16px;
+    border: 1px solid var(--line);
+    border-radius: var(--radius-md);
+    background: var(--surface);
+    color: var(--brand-700);
+    font: 900 13.5px/1 var(--font-ui);
+    cursor: pointer;
+    transition: background-color 0.15s;
+}
+.catalog-button:hover {
+    background: var(--surface-sunken);
+}
 .catalog-button__badge {
     min-width: 20px;
     height: 20px;
-    padding: 0 6px;
+    padding: 1px 8px;
     border-radius: var(--radius-pill);
-    background: rgba(255, 255, 255, 0.2);
-    color: var(--color-on-primary);
-    font-size: var(--text-xs);
+    background: var(--surface-sunken);
+    color: inherit;
+    font-size: 11.5px;
     font-weight: 800;
     display: grid;
     place-items: center;
@@ -910,21 +999,16 @@ async function confirmDeleteSubject(id: string) {
 .ac-layout {
     flex: 1;
     display: grid;
-    grid-template-columns: 248px 1fr;
+    grid-template-columns: 200px minmax(0, 1fr);
     align-items: start;
     min-height: 0;
-    overflow: hidden;
-    gap: 18px;
+    gap: 16px;
 }
 
 .grade-sidebar {
-    display: flex;
-    flex-direction: column;
-    background: var(--surface-glass);
-    border: 1px solid var(--surface-elevated-strong);
-    border-radius: var(--radius-2xl);
-    box-shadow: var(--shadow-card);
-    overflow: hidden;
+    display: grid;
+    gap: 8px;
+    min-width: 0;
 }
 
 .sidebar-header {
@@ -932,207 +1016,141 @@ async function confirmDeleteSubject(id: string) {
     align-items: center;
     justify-content: space-between;
     gap: 10px;
-    padding: 12px 12px 10px;
-    flex-shrink: 0;
-    border-bottom: 1px solid rgba(var(--surface-border-rgb), 0.14);
 }
 
 .sidebar-label {
-    font-size: var(--text-xs);
-    font-weight: 700;
-    letter-spacing: 0.1em;
+    font: 900 10.5px/1 var(--font-ui);
+    letter-spacing: 0.09em;
     text-transform: uppercase;
-    color: var(--text-muted);
+    color: var(--line-control);
 }
 
 .grade-nav {
-    flex: 1;
-    overflow-y: auto;
-    padding: 4px 8px;
     display: flex;
     flex-direction: column;
-    gap: 2px;
+    gap: 4px;
+    overflow-x: auto;
 }
-.grade-mobile-select {
-    display: none;
-}
-.school-crumb {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-}
-
 .grade-nav-item {
     display: flex;
     align-items: center;
     gap: 10px;
-    padding: 7px 10px;
-    border-radius: var(--radius-sm);
-    border: none;
-    background: none;
+    flex: 0 0 auto;
+    width: 100%;
+    min-height: 42px;
+    padding: 0 12px;
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    background: var(--surface);
     text-align: left;
     cursor: pointer;
-    width: 100%;
-    transition: var(--transition-fast);
+    white-space: nowrap;
+    transition: background-color 0.15s;
 }
 .grade-nav-item:hover {
-    background: var(--fill-primary-faint);
+    background: var(--canvas);
 }
-.grade-nav-item--active {
-    background: var(--fill-primary-soft);
+.grade-nav-item--active,
+.grade-nav-item--active:hover {
+    background: var(--surface-sunken);
 }
 .grade-nav-item--active .grade-nav-item__name {
-    color: var(--practiq-violet-dark);
-    font-weight: 700;
-}
-.grade-nav-item--active .grade-nav-item__dot {
-    background: var(--practiq-violet);
-}
-.grade-nav-item--active .grade-nav-item__count {
-    background: var(--fill-primary-soft);
-    color: var(--practiq-violet-dark);
-}
-
-.grade-nav-item__dot {
-    width: 7px;
-    height: 7px;
-    border-radius: 50%;
-    background: var(--surface-border);
-    flex-shrink: 0;
-    transition: background 0.12s;
+    color: var(--brand-700);
 }
 
 .grade-nav-item__name {
     flex: 1;
-    font-size: var(--text-base);
-    color: var(--text-secondary);
-    white-space: nowrap;
+    min-width: 0;
+    font: 600 13px/1.3 var(--font-body);
+    color: var(--ink-soft);
     overflow: hidden;
     text-overflow: ellipsis;
 }
 
 .grade-nav-item__count {
-    font-size: var(--text-xs);
+    font-size: 11.5px;
     font-weight: 700;
-    color: var(--text-muted);
-    background: var(--surface-hover);
-    border-radius: var(--radius-pill);
-    padding: 2px 8px;
+    color: var(--line-control);
     flex-shrink: 0;
-    transition: all 0.12s;
 }
 
 .sidebar-add-btn {
-    display: flex;
+    display: inline-flex;
     align-items: center;
-    gap: 6px;
-    padding: 7px 10px;
-    border: 1px solid rgba(var(--practiq-violet-rgb), 0.18);
-    border-radius: var(--radius-md);
-    background: var(--fill-primary-faint);
-    color: var(--practiq-violet-dark);
-    font-size: var(--text-sm);
-    font-weight: 700;
+    gap: 5px;
+    min-height: 32px;
+    padding: 0 10px;
+    border: 0;
+    border-radius: 9px;
+    background: transparent;
+    color: var(--brand-700);
+    font: 900 12px/1 var(--font-ui);
     cursor: pointer;
-    transition: var(--transition-fast);
-    flex-shrink: 0;
+    transition: background-color 0.15s;
+}
+.sidebar-add-btn i {
+    font-size: 10px;
 }
 .sidebar-add-btn:hover {
-    background: var(--fill-primary-soft);
-    border-color: rgba(var(--practiq-violet-rgb), 0.28);
-    color: var(--practiq-violet);
+    background: var(--surface-sunken);
 }
 
 .grade-content {
     min-width: 0;
-    overflow-y: auto;
-    display: flex;
-    flex-direction: column;
-    background: var(--surface-glass);
-    border: 1px solid var(--surface-elevated-strong);
-    border-radius: var(--radius-2xl);
-    box-shadow: var(--shadow-card);
-}
-
-@media (min-width: 821px) {
-    .grade-sidebar {
-        position: sticky;
-        top: 20px;
-        max-height: calc(100dvh - 40px);
-    }
+    display: grid;
+    gap: 12px;
 }
 
 .select-hint {
-    flex: 1;
     display: flex;
     align-items: center;
     justify-content: center;
     gap: 10px;
-    color: var(--text-muted);
+    padding: 32px 0;
+    color: var(--ink-muted);
     font-size: var(--text-md);
 }
 
 .grade-header {
     display: flex;
-    align-items: flex-start;
+    flex-wrap: wrap;
+    align-items: center;
     justify-content: space-between;
-    gap: 16px;
-    padding: 18px 20px 16px;
-    background: transparent;
-    border-bottom: 1px solid rgba(var(--surface-border-rgb), 0.14);
-    flex-shrink: 0;
+    gap: 10px;
+    padding-bottom: 12px;
+    border-bottom: 1px solid var(--line);
 }
 
 .grade-header__name {
-    font-size: var(--text-lg);
-    font-weight: 800;
-    color: var(--text-heading);
-    margin: 0 0 3px;
+    margin: 0;
+    font: 900 21px/1.2 var(--font-ui);
+    letter-spacing: -0.03em;
+    color: var(--ink);
 }
 
 .grade-header__desc {
-    font-size: var(--text-base);
-    color: var(--text-secondary);
-    margin: 0;
+    margin: 3px 0 0;
+    font-size: 12.5px;
+    color: var(--ink-muted);
 }
 
 .grade-header__actions {
     display: flex;
-    gap: 8px;
-    flex-shrink: 0;
-    padding-top: 2px;
+    gap: 6px;
+}
+.grade-header__actions .icon-btn {
+    width: 40px;
+    height: 40px;
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    background: var(--surface);
+    color: var(--ink-muted);
+    font-size: 12px;
 }
 
 .courses-area {
-    flex: 1;
-    padding: 18px 20px 20px;
-    display: flex;
-    flex-direction: column;
+    display: grid;
     gap: 12px;
-}
-
-.courses-area__head {
-    display: flex;
-    align-items: flex-start;
-    justify-content: space-between;
-    gap: 16px;
-}
-
-.courses-area__head h3 {
-    font-size: var(--text-md);
-    font-weight: 700;
-    color: var(--text-heading);
-    margin: 0 0 4px;
-}
-.courses-area__head h3 em {
-    font-style: normal;
-    color: var(--practiq-violet);
-}
-
-.courses-area__hint {
-    font-size: var(--text-sm);
-    color: var(--text-muted);
-    margin: 0;
 }
 
 .courses-empty {
@@ -1171,51 +1189,76 @@ async function confirmDeleteSubject(id: string) {
 
 .courses-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
-    gap: 14px;
+    grid-template-columns: repeat(auto-fill, minmax(min(100%, 230px), 1fr));
+    gap: 10px;
 }
 
 .academic-course-card {
-    background: var(--surface-elevated);
-    border: 1px solid var(--surface-elevated-strong);
-    border-radius: var(--radius-2xl);
-    box-shadow: var(--shadow-card);
-    overflow: hidden;
-    cursor: pointer;
     display: flex;
     flex-direction: column;
-    transition: var(--transition);
+    gap: 10px;
+    padding: 14px;
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: var(--radius-md);
+    cursor: pointer;
+    transition:
+        transform 0.18s ease,
+        box-shadow 0.18s ease;
 }
 .academic-course-card:hover {
-    border-color: rgba(var(--practiq-violet-rgb), 0.22);
-    box-shadow: var(--shadow-card-lg);
-    transform: translateY(-2px);
+    transform: translateY(-3px);
+    box-shadow: 0 12px 26px rgba(57, 49, 104, 0.1);
 }
 
 .academic-course-card__open {
     display: flex;
     flex: 1;
     flex-direction: column;
+    gap: 10px;
     color: inherit;
     text-decoration: none;
 }
 
-.academic-course-card__subject-bar {
+.academic-course-card__top {
     display: flex;
     align-items: center;
-    gap: 7px;
-    padding: 7px 10px;
-    background: var(--color-info-bg);
-    color: var(--color-info-dark);
-    font-size: var(--text-xs);
+    justify-content: space-between;
+    gap: 6px;
+}
+
+.subject-pill {
+    padding: 3px 9px;
+    border-radius: var(--radius-xs);
+    background: var(--surface-sunken);
+    color: var(--brand-700);
+    font-size: 11px;
     font-weight: 700;
-    border-bottom: 1px solid rgba(var(--color-info-rgb), 0.14);
+    white-space: nowrap;
+}
+
+.academic-course-card__top-right {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.status-text {
+    font-size: 11px;
+    font-weight: 700;
+    color: var(--success);
+    white-space: nowrap;
+}
+.status-text--draft {
+    color: var(--warning);
+}
+.status-text--archived {
+    color: var(--text-muted);
 }
 
 .academic-course-card__actions {
     display: flex;
     gap: 4px;
-    margin-left: auto;
     opacity: 0;
     transition: opacity 0.15s;
 }
@@ -1228,8 +1271,8 @@ async function confirmDeleteSubject(id: string) {
     height: 24px;
     border-radius: var(--radius-xs);
     border: none;
-    background: rgba(var(--surface-card-rgb), 0.7);
-    color: var(--color-info-dark);
+    background: var(--surface-sunken);
+    color: var(--text-secondary);
     cursor: pointer;
     display: grid;
     place-items: center;
@@ -1244,69 +1287,75 @@ async function confirmDeleteSubject(id: string) {
 }
 
 .academic-course-card__body {
-    padding: 10px;
     flex: 1;
 }
 
 .academic-course-card__title {
-    font-size: var(--text-base);
-    font-weight: 700;
-    color: var(--text-heading);
-    margin: 0 0 6px;
-    line-height: 1.4;
-}
-
-.academic-course-card__desc {
-    font-size: var(--text-xs);
-    color: var(--text-secondary);
     margin: 0;
-    line-height: 1.5;
-    display: -webkit-box;
-    -webkit-line-clamp: 2;
-    -webkit-box-orient: vertical;
-    overflow: hidden;
+    font: 900 15.5px/1.3 var(--font-ui);
+    letter-spacing: -0.02em;
+    color: var(--ink);
 }
 
 .academic-course-card__footer {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    padding: 7px 10px;
-    border-top: 1px solid rgba(var(--surface-border-rgb), 0.12);
+    gap: 8px;
+    padding-top: 8px;
+    border-top: 1px solid var(--line);
+}
+.academic-course-card__teacher {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: 12px;
+    color: var(--ink-muted);
+}
+.academic-course-card__students {
+    flex: 0 0 auto;
+    font-size: 12px;
+    color: var(--ink-muted);
 }
 
-.level-chip {
+.missing-subject-card {
+    display: grid;
+    place-items: center;
+    gap: 4px;
+    min-height: 120px;
+    padding: 14px;
+    border: 1px dashed var(--brand-200);
+    border-radius: var(--radius-md);
+    background: transparent;
+    color: var(--brand-700);
+    font: inherit;
+    cursor: pointer;
+    text-align: center;
+    transition: background-color 0.15s;
+}
+.missing-subject-card:hover {
+    background: var(--surface-sunken);
+}
+.missing-subject-card__name {
+    font: 900 13.5px/1.3 var(--font-ui);
+}
+.missing-subject-card__hint {
     font-size: var(--text-xs);
-    font-weight: 700;
-    color: var(--text-secondary);
-    background: var(--surface-hover);
-    border-radius: var(--radius-pill);
-    padding: 3px 9px;
-}
-
-.academic-course-card__go {
-    color: var(--practiq-violet-light);
-    font-size: var(--text-sm);
-    transition:
-        color 0.12s,
-        transform 0.12s;
-}
-.academic-course-card:hover .academic-course-card__go {
-    color: var(--practiq-violet);
-    transform: translateX(2px);
+    color: var(--text-muted);
 }
 
 .btn-add-course {
     display: inline-flex;
     align-items: center;
-    gap: 7px;
-    padding: 9px 18px;
+    gap: 6px;
+    min-height: 40px;
+    padding: 0 14px;
     border: none;
-    border-radius: var(--radius-md);
-    background: var(--practiq-violet);
-    color: var(--color-on-primary);
-    font-size: var(--text-base);
-    font-weight: 700;
+    border-radius: 10px;
+    background: var(--brand-500);
+    color: var(--on-brand);
+    font: 900 13px/1 var(--font-ui);
     cursor: pointer;
     white-space: nowrap;
     flex-shrink: 0;
@@ -1651,28 +1700,12 @@ async function confirmDeleteSubject(id: string) {
     resize: vertical;
 }
 
-@media (max-width: 1024px) {
-    .ac-layout {
-        grid-template-columns: 200px 1fr;
-    }
-    .grade-sidebar {
-        min-width: 0;
-    }
-    .courses-grid {
-        grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
-    }
-    .courses-area,
-    .grade-header {
-        padding: 14px;
-    }
-}
-
-@media (max-width: 820px) {
+@media (max-width: 1023px) {
     .ac-root {
         display: block;
         width: 100%;
         min-width: 0;
-        padding: 16px 14px 32px;
+        padding: 0;
     }
     .ac-layout {
         width: 100%;
@@ -1687,35 +1720,14 @@ async function confirmDeleteSubject(id: string) {
         border-right: none;
     }
     .grade-nav {
-        display: none;
+        flex-direction: row;
+        overflow-y: hidden;
     }
-    .grade-mobile-select {
-        display: grid;
-        gap: 5px;
-        padding: 10px 12px 12px;
-        color: var(--text-secondary);
-        font-size: var(--text-xs);
-        font-weight: 700;
-    }
-    .grade-mobile-select select {
-        min-height: 44px;
-        width: 100%;
-        padding: 0 10px;
-        border: 1px solid var(--surface-border);
-        border-radius: var(--radius-md);
-        background: var(--surface-card);
-        color: var(--text-primary);
-        font: inherit;
+    .grade-nav-item {
+        width: auto;
     }
     .subject-create-row {
         grid-template-columns: 1fr;
-    }
-    .courses-area,
-    .grade-header {
-        padding: 16px;
-    }
-    .grade-header__actions {
-        align-self: flex-start;
     }
 
     .icon-btn,
@@ -1732,7 +1744,7 @@ async function confirmDeleteSubject(id: string) {
     }
 }
 
-@media (max-width: 820px) {
+@media (max-width: 1023px) {
     .modal-card,
     .modal-card--wide {
         width: 100%;

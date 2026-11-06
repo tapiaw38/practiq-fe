@@ -10,8 +10,15 @@ export const useCourse = () => {
 
     const service = new CourseService(practiqApi);
     const store = useCourseStore(service)();
-    const { courses, currentCourse, students, loading, loadingCourse, loadingStudents } =
-        storeToRefs(store);
+    const {
+        courses,
+        currentCourse,
+        students,
+        studentsByCourseId,
+        loading,
+        loadingCourse,
+        loadingStudents,
+    } = storeToRefs(store);
 
     const loadCourses = async (role?: string) => {
         try {
@@ -141,10 +148,25 @@ export const useCourse = () => {
         }
     };
 
+    const loadStudentsForCourse = async (courseId: string) => {
+        try {
+            return await store.fetchStudentsForCourse(courseId);
+        } catch (error) {
+            toast.add({
+                severity: 'error',
+                summary: 'Error',
+                detail: 'No se pudieron cargar los estudiantes',
+                life: 3000,
+            });
+            throw error;
+        }
+    };
+
     return {
         courses,
         currentCourse,
         students,
+        studentsByCourseId,
         loading,
         loadingCourse,
         loadingStudents,
@@ -156,6 +178,7 @@ export const useCourse = () => {
         deleteCourse,
         enrollCourse,
         loadStudents,
+        loadStudentsForCourse,
         reset: store.reset,
     };
 };

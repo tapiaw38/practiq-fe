@@ -1,4 +1,6 @@
 :root {
+    color-scheme: light;
+
     --font-body-family: 'Lexend', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
     --font-ui-family: 'Nunito', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
 
@@ -83,6 +85,7 @@
     --text-primary: #1e293b;
     --text-secondary: #64748b;
     --text-muted: #94a3b8;
+    --text-placeholder: #69778a;
     --text-brand-panel-muted: rgba(var(--surface-card-rgb), 0.8);
     --text-brand-panel-soft: rgba(var(--surface-card-rgb), 0.75);
 
@@ -204,6 +207,8 @@
 }
 
 :root[data-color-scheme='dark'] {
+    color-scheme: dark;
+
     --surface-bg: #0b0d12;
     --surface-bg-soft: #0e1016;
     --surface-bg-cool: #0d0f14;
@@ -224,6 +229,9 @@
     --text-primary: #e2e8f0;
     --text-secondary: #94a3b8;
     --text-muted: #64748b;
+    --text-placeholder: #9aa7bb;
+
+    --practiq-violet-bg: rgba(139, 92, 246, 0.14);
 
     --color-success-bg: rgba(16, 185, 129, 0.14);
     --color-error-bg: rgba(239, 68, 68, 0.14);
@@ -358,10 +366,6 @@ select {
     --shadow-violet: 0 1px 3px rgba(79, 70, 229, 0.18);
     --shadow-indigo: 0 1px 3px rgba(79, 70, 229, 0.18);
     --elevation-tint-shadow: 0 1px 2px rgba(15, 23, 42, 0.06);
-}
-
-:root[data-ui-theme='secondary'] .dashboard-mascot {
-    display: none;
 }
 
 :root[data-ui-theme='secondary'] main article,

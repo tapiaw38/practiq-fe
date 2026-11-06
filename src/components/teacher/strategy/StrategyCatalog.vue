@@ -1,6 +1,5 @@
 <script setup lang="ts">
 import type { StrategyCatalogEmits, StrategyCatalogProps } from './StrategyCatalog.types';
-import { formatDate } from '@/utils/formatters';
 
 defineProps<StrategyCatalogProps>();
 const emit = defineEmits<StrategyCatalogEmits>();
@@ -12,7 +11,7 @@ const emit = defineEmits<StrategyCatalogEmits>();
             <div>
                 <h2 class="section-title">Estrategias disponibles</h2>
                 <p class="section-subtitle">
-                    Configura como los estudiantes aprenden y progresan en cada curso.
+                    Cómo la IA acompaña a cada alumno. Los docentes eligen una por curso.
                 </p>
             </div>
         </div>
@@ -30,6 +29,17 @@ const emit = defineEmits<StrategyCatalogEmits>();
             <article v-for="strategy in strategies" :key="strategy.id" class="strategy-card">
                 <div class="strategy-header">
                     <h3 class="strategy-name">{{ strategy.name }}</h3>
+                    <code class="strategy-code">{{ strategy.code }}</code>
+                </div>
+                <p class="strategy-description">
+                    {{ strategy.description || 'Sin descripción' }}
+                </p>
+                <div class="strategy-footer">
+                    <span class="strategy-usage">{{
+                        (usageCounts?.[strategy.id] ?? 0) === 1
+                            ? 'Usada en 1 curso'
+                            : `Usada en ${usageCounts?.[strategy.id] ?? 0} cursos`
+                    }}</span>
                     <div v-if="isSuperAdmin" class="strategy-actions-mini">
                         <button class="icon-btn" title="Editar" @click="emit('edit', strategy)">
                             <i class="pi pi-pencil"></i>
@@ -42,16 +52,6 @@ const emit = defineEmits<StrategyCatalogEmits>();
                             <i class="pi pi-trash"></i>
                         </button>
                     </div>
-                </div>
-                <p class="strategy-description">
-                    {{ strategy.description || 'Sin descripcion' }}
-                </p>
-                <div class="strategy-meta">
-                    <span class="meta-item"><i class="pi pi-hashtag"></i>{{ strategy.code }}</span>
-                    <span class="meta-item"
-                        ><i class="pi pi-calendar"></i>Creada
-                        {{ formatDate(strategy.created_at) }}</span
-                    >
                 </div>
             </article>
         </div>
@@ -70,32 +70,30 @@ const emit = defineEmits<StrategyCatalogEmits>();
 }
 .section-title {
     margin: 0;
-    font-size: 1.15rem;
-    font-weight: 800;
+    font: 900 19px/1.2 var(--font-ui);
+    letter-spacing: -0.03em;
     color: var(--text-heading);
 }
 .section-subtitle {
     margin: 4px 0 0;
-    color: var(--text-secondary);
-    font-size: var(--text-sm);
+    color: var(--ink-muted);
+    font: 400 13px/1.55 var(--font-body);
 }
 .strategies-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
-    gap: 14px;
+    grid-template-columns: repeat(auto-fill, minmax(min(100%, 280px), 1fr));
+    gap: 10px;
 }
 .strategy-card,
 .empty-state {
     background: var(--surface-elevated);
     border: 1px solid var(--surface-elevated-strong);
-    border-radius: var(--radius-xl);
-    box-shadow: var(--shadow-card);
+    border-radius: 12px;
     padding: 16px;
 }
 .strategy-header,
 .strategy-actions-mini,
-.strategy-meta,
-.meta-item {
+.strategy-footer {
     display: flex;
     align-items: center;
 }
@@ -105,17 +103,24 @@ const emit = defineEmits<StrategyCatalogEmits>();
 }
 .strategy-name {
     margin: 0;
-    font-size: 1rem;
-    font-weight: 800;
+    flex: 1;
+    font: 900 15.5px/1.2 var(--font-ui);
     color: var(--text-heading);
+}
+.strategy-code {
+    padding: 2px 7px;
+    border-radius: var(--radius-xs);
+    background: var(--surface-sunken);
+    color: var(--text-secondary);
+    font-size: var(--text-xs);
 }
 .strategy-actions-mini {
     gap: 6px;
 }
 .icon-btn {
-    width: 30px;
-    height: 30px;
-    border: 1px solid var(--surface-border);
+    width: 34px;
+    height: 34px;
+    border: 0;
     border-radius: var(--radius-md);
     background: var(--surface-card);
     color: var(--text-secondary);
@@ -129,14 +134,13 @@ const emit = defineEmits<StrategyCatalogEmits>();
     font-size: var(--text-sm);
     min-height: 38px;
 }
-.strategy-meta {
+.strategy-footer {
+    justify-content: space-between;
     gap: 10px;
-    flex-wrap: wrap;
+    padding-top: 8px;
+    border-top: 1px solid var(--line);
     color: var(--text-muted);
     font-size: var(--text-xs);
-}
-.meta-item {
-    gap: 4px;
 }
 .empty-state {
     text-align: center;

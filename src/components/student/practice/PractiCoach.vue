@@ -85,9 +85,12 @@ function speak(text: string, tone: 'neutral' | 'good' | 'retry', answer: boolean
 
     if (!answer) {
         spoken.value = text;
-        hideTimer = setTimeout(() => {
-            visible.value = false;
-        }, 4200);
+        hideTimer = setTimeout(
+            () => {
+                visible.value = false;
+            },
+            waitingReply.value ? 90000 : 4200,
+        );
         return;
     }
 
@@ -287,7 +290,10 @@ watch(
     max-width: min(82vw, 330px);
     max-height: 38vh;
     overflow-y: auto;
-    padding-right: 34px;
+    overscroll-behavior: contain;
+    scrollbar-width: thin;
+    scrollbar-color: var(--surface-border) transparent;
+    padding-right: 10px;
     font-weight: 600;
     text-align: left;
 
@@ -295,9 +301,10 @@ watch(
     pointer-events: auto;
 }
 .coach-close {
-    position: absolute;
-    top: 6px;
-    right: 6px;
+    position: sticky;
+    top: 0;
+    float: right;
+    margin-left: 8px;
     width: 22px;
     height: 22px;
     display: grid;

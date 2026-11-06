@@ -250,6 +250,8 @@ export const useNotebook = () => {
         student_id?: string;
         reviewed?: boolean;
         course_id?: string;
+        limit?: number;
+        offset?: number;
     }) => {
         try {
             return await store.fetchSubmissions(params);

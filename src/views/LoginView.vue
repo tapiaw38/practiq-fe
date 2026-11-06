@@ -232,18 +232,17 @@ async function completePendingProfile() {
 <template>
     <div class="auth-page">
         <section class="auth-left" aria-hidden="true">
-            <div class="glow glow--top"></div>
-            <div class="glow glow--bottom"></div>
+            <div class="panel-light"></div>
 
             <div class="left-brand">
                 <img src="@/assets/logo.png" class="brand-logo" alt="Practiq" />
             </div>
 
             <div class="left-copy">
-                <div class="eyebrow">Plataforma educativa</div>
+                <div class="eyebrow">Cada alumno, en su nivel</div>
                 <h1>
-                    Practica a tu ritmo,<br />
-                    <span>avanza con confianza.</span>
+                    Practicá a tu ritmo,<br />
+                    <span>avanzá con confianza.</span>
                 </h1>
                 <p>
                     Ejercicios paso a paso, retroalimentación al instante y Quanty, el asistente que
@@ -251,24 +250,35 @@ async function completePendingProfile() {
                 </p>
             </div>
 
-            <div class="feature-list">
-                <div class="feature-pill">
-                    <i class="pi pi-check-circle"></i>
-                    <span>Hojas de práctica por nivel</span>
-                </div>
-                <div class="feature-pill">
-                    <i class="pi pi-check-circle"></i>
-                    <span>Quanty, con pistas y ejemplos</span>
-                </div>
-                <div class="feature-pill">
-                    <i class="pi pi-check-circle"></i>
-                    <span>Progreso visible para docente y estudiante</span>
-                </div>
-            </div>
+            <ol class="track">
+                <li class="track-step">
+                    <span class="track-dot"></span>
+                    <span class="track-text">
+                        <strong>Practicás por nivel</strong>
+                        <small
+                            >Las hojas arrancan donde estás, no donde debería estar el curso.</small
+                        >
+                    </span>
+                </li>
+                <li class="track-step">
+                    <span class="track-dot"></span>
+                    <span class="track-text">
+                        <strong>Te destrabás</strong>
+                        <small>Quanty te da la pista. La respuesta la escribís vos.</small>
+                    </span>
+                </li>
+                <li class="track-step track-step--last">
+                    <span class="track-dot"></span>
+                    <span class="track-text">
+                        <strong>Avanzás</strong>
+                        <small>Tu progreso queda visible para vos y para tu docente.</small>
+                    </span>
+                </li>
+            </ol>
 
             <div class="left-preview">
                 <img
-                    src="@/assets/quanty.png"
+                    src="@/assets/quanty.webp"
                     class="preview-robot"
                     alt="Quanty, el asistente de Practiq"
                 />
@@ -296,7 +306,7 @@ async function completePendingProfile() {
                     <p class="card-subtitle">
                         {{
                             currentView === 'login'
-                                ? 'Entra para continuar con tus prácticas.'
+                                ? 'Entrá para seguir con tus prácticas.'
                                 : currentView === 'register'
                                   ? 'Crea tu cuenta y empezá a practicar.'
                                   : currentView === 'forgot'
@@ -585,19 +595,19 @@ async function completePendingProfile() {
                 </form>
 
                 <template v-if="currentView !== 'forgot' && currentView !== 'complete'">
-                    <div class="auth-divider"><span>o continúa con</span></div>
+                    <div class="auth-divider"><span>o entrá con</span></div>
                     <GoogleButton @code="handleGoogleLogin" />
                 </template>
 
                 <div v-if="currentView === 'login'" class="card-footer">
-                    <span>¿No tienes cuenta?</span>
+                    <span>¿No tenés cuenta?</span>
                     <button type="button" class="text-link" @click="goRegister">
                         Crear cuenta
                     </button>
                 </div>
 
                 <div v-else-if="currentView === 'register'" class="card-footer">
-                    <span>¿Ya tienes cuenta?</span>
+                    <span>¿Ya tenés cuenta?</span>
                     <button type="button" class="text-link" @click="goLogin">Inicia sesión</button>
                 </div>
             </div>
@@ -610,6 +620,8 @@ async function completePendingProfile() {
     --surface-bg: #f8fafc;
     --surface-card: #ffffff;
     --surface-card-rgb: 255, 255, 255;
+    --text-brand-panel-muted: rgba(255, 255, 255, 0.82);
+    --text-brand-panel-soft: rgba(255, 255, 255, 0.76);
     --surface-card-border: #e8ecf1;
     --surface-border: #e2e8f0;
     --surface-hover: #f1f5f9;
@@ -635,34 +647,35 @@ async function completePendingProfile() {
 
 .auth-left {
     position: relative;
+    z-index: 1;
     height: 100dvh;
     overflow: hidden;
+    box-shadow: 22px 0 54px -14px rgba(46, 16, 101, 0.26);
     color: var(--color-on-brand-panel);
     padding: 0px 48px 40px;
     display: flex;
     flex-direction: column;
-    background: var(--gradient-brand-panel);
+    background: linear-gradient(
+        168deg,
+        var(--practiq-violet-950) 0%,
+        var(--practiq-violet-900) 46%,
+        var(--practiq-violet-800) 100%
+    );
 }
 
-.glow {
+.panel-light {
     position: absolute;
+    top: -220px;
+    right: -180px;
+    width: 620px;
+    height: 620px;
     border-radius: 50%;
-    filter: blur(80px);
     pointer-events: none;
-}
-.glow--top {
-    top: -120px;
-    right: -60px;
-    width: 320px;
-    height: 320px;
-    background: rgba(var(--practiq-violet-light-rgb), 0.35);
-}
-.glow--bottom {
-    bottom: -100px;
-    left: -80px;
-    width: 280px;
-    height: 280px;
-    background: rgba(var(--color-info-rgb), 0.25);
+    background: radial-gradient(
+        circle,
+        rgba(var(--practiq-violet-light-rgb), 0.42) 0%,
+        transparent 68%
+    );
 }
 
 .left-brand {
@@ -715,17 +728,27 @@ async function completePendingProfile() {
 .left-copy {
     position: relative;
     z-index: 1;
-    margin-top: 0;
+    margin-top: auto;
     padding-top: 20px;
     max-width: 520px;
 }
 .eyebrow {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
     font-size: var(--text-xs);
     text-transform: uppercase;
-    letter-spacing: 0.18em;
+    letter-spacing: 0.22em;
     font-weight: 700;
-    opacity: 0.7;
-    margin-bottom: 16px;
+    opacity: 0.68;
+    margin-bottom: 18px;
+}
+.eyebrow::before {
+    content: '';
+    width: 26px;
+    height: 1px;
+    background: currentColor;
+    opacity: 0.6;
 }
 .left-copy h1 {
     font-size: clamp(1.8rem, 3.5vw, 2.6rem);
@@ -743,47 +766,101 @@ async function completePendingProfile() {
     color: var(--text-brand-panel-muted);
 }
 
-.feature-list {
+.track {
     position: relative;
     z-index: 1;
-    margin-top: 28px;
-    display: flex;
-    flex-direction: column;
-    gap: 10px;
-    max-width: 380px;
+    margin: 36px 0 auto;
+    padding: 0;
+    list-style: none;
+    max-width: 400px;
 }
-.feature-pill {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    padding: 12px 16px;
-    border-radius: var(--radius-lg);
-    background: rgba(var(--surface-card-rgb), 0.1);
-    border: 1px solid rgba(var(--surface-card-rgb), 0.12);
+.track-step {
+    position: relative;
+    display: grid;
+    grid-template-columns: 30px 1fr;
+    align-items: start;
+    padding-bottom: 26px;
+}
+.track-step::before {
+    content: '';
+    position: absolute;
+    top: 15px;
+    bottom: -2px;
+    left: 5px;
+    width: 2px;
+    border-radius: 1px;
+    background: linear-gradient(
+        to bottom,
+        rgba(var(--surface-card-rgb), 0.42),
+        rgba(var(--surface-card-rgb), 0.14)
+    );
+}
+.track-step--last {
+    padding-bottom: 0;
+}
+.track-step--last::before {
+    display: none;
+}
+.track-dot {
+    width: 11px;
+    height: 11px;
+    margin-top: 7px;
+    border-radius: 50%;
+    background: var(--practiq-violet-300);
+    box-shadow: 0 0 0 4px rgba(var(--practiq-violet-light-rgb), 0.18);
+}
+.track-text {
+    display: block;
+}
+.track-text strong {
+    display: block;
     font-size: var(--text-base);
-    font-weight: 500;
+    font-weight: 700;
+    letter-spacing: -0.01em;
 }
-.feature-pill .pi {
-    color: var(--practiq-violet-300);
-    font-size: var(--text-lg);
+.track-text small {
+    display: block;
+    margin-top: 3px;
+    font-size: var(--text-sm);
+    line-height: 1.55;
+    color: var(--text-brand-panel-muted);
 }
 
 .left-preview {
     position: absolute;
-    right: 0;
+    right: 8px;
     bottom: 0;
-    width: min(380px, 42vw);
+    width: min(300px, 26vw);
+    max-height: 56dvh;
     z-index: 0;
     display: flex;
     align-items: flex-end;
     justify-content: flex-end;
 }
 .preview-robot {
-    width: 100%;
+    max-width: 100%;
+    max-height: 56dvh;
+    width: auto;
     display: block;
     pointer-events: none;
     user-select: none;
     filter: drop-shadow(var(--shadow-illustration));
+}
+
+@media (max-height: 820px) {
+    .left-preview,
+    .preview-robot {
+        max-height: 46dvh;
+    }
+    .left-copy h1 {
+        font-size: clamp(1.6rem, 2.7vw, 2.1rem);
+    }
+    .track {
+        margin-top: 26px;
+    }
+    .track-step {
+        padding-bottom: 20px;
+    }
 }
 
 .auth-right {
@@ -850,7 +927,7 @@ async function completePendingProfile() {
     border-radius: var(--radius-pill);
     padding: 9px 12px;
     background: transparent;
-    color: var(--text-secondary);
+    color: var(--text-primary);
     font-size: var(--text-sm);
     font-weight: 800;
     cursor: pointer;
@@ -995,7 +1072,9 @@ async function completePendingProfile() {
     box-shadow: var(--shadow-violet-lg);
 }
 .submit-btn:disabled {
-    opacity: 0.5;
+    background: var(--surface-subtle);
+    color: var(--text-secondary);
+    box-shadow: none;
     cursor: not-allowed;
 }
 
@@ -1052,8 +1131,8 @@ async function completePendingProfile() {
     position: relative;
     margin: 22px 0 18px;
     text-align: center;
-    color: var(--text-muted);
-    font-size: var(--text-base);
+    color: var(--text-secondary);
+    font-size: var(--text-sm);
 }
 .auth-card--register .auth-divider {
     margin: 16px 0 14px;
